@@ -21,6 +21,11 @@
   function setCanvasViewMode(enabled) {
     enabled = Boolean(enabled);
     if (state.viewMode === enabled) return;
+    finishDrawing("pen");
+    setWidgetInteraction(null);
+    setSpacePan(false);
+    state.viewTool = "hand";
+    state.widgetActivationTap = null;
     state.viewMode = enabled;
     state.pointers.clear();
     state.canvasAgentNavigationPointerIds.clear();
@@ -38,7 +43,6 @@
     canvasViewActions.hidden = !enabled;
     const inactiveSurfaces = view.querySelectorAll([
       ".canvas-navigation-lock",
-      ".widget-layer",
       ".object-chrome-layer",
       ".animation-controls",
       ".selection-overlay-layer",
@@ -71,20 +75,18 @@
       resetCanvasCursor();
       requestAnimationFrame(() => canvasViewButton.focus({ preventScroll:true }));
     }
+    syncCanvasNavigation();
     requestInteractionLayerRender();
     requestAnimationFrame(fit);
   }
   window.addEventListener("keydown", (event) => {
-    if (!state.viewMode || document.querySelector(".penecho-cloud-overlay")) return;
+    if (!state.viewMode || document.querySelector(".penecho-cloud-overlay") || canvasNavigationTextTarget(event.target)) return;
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopImmediatePropagation();
-      setCanvasViewMode(false);
-      return;
+      if (state.interactingWidgetId) setWidgetInteraction(null);
+      else setCanvasViewMode(false);
     }
-    if (event.key === "Tab" || canvasViewActions.contains(event.target) && ["Enter", " "].includes(event.key)) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
   }, true);
   function beginCanvasPointerAction(e, point) {
     const options = arguments[2] || {};
@@ -162,6 +164,7 @@
     state.userRevision++;
     state.drawing = {
       id: e.pointerId,
+      pointerType: e.pointerType,
       last: p,
       size,
       color: state.inkColor,
@@ -184,7 +187,7 @@
     appendLiveInkSample(state.drawing, p, size);
   }
   function beginHandObjectResize(event, point) {
-    if (state.mode !== "hand" || event.pointerType === "touch" || Number(event.button) !== 0 || !point || !valid(point)) return false;
+    if (state.mode !== "select" || event.pointerType === "touch" || Number(event.button) !== 0 || !point || !valid(point)) return false;
     if (state.pending) {
       const result = pendingHit(state.pending, event, state.pending.revealProgress < 1),
         hit = typeof result === "string" ? result : result?.hit,
@@ -212,9 +215,21 @@
     }
     return false;
   }
-  screen.addEventListener("pointerdown", (e) => {
+  function handleCanvasPointerDown(e) {
+    view.classList.remove("is-wheel-navigating");
+    state.handToolbarTap = null;
+    if (!state.viewMode && state.mode === "hand" && !state.spacePan && !e.altKey && e.button === 0 && !state.touches.size) {
+      const widget = canvasWidgetAtEvent(e);
+      if (widget) state.handToolbarTap = { id:e.pointerId, widget, x:e.clientX, y:e.clientY };
+    }
+    if (e.pointerType === "touch" && state.drawing?.id && state.drawing.pointerType === "pen") return;
+    if (e.pointerType === "mouse" && ![0, 1].includes(e.button)) return;
     e.preventDefault();
     if (state.viewMode) {
+      const target = state.viewTool === "select" && !state.spacePan && e.button === 0
+        ? canvasWidgetAtEvent(e) : null;
+      setWidgetInteraction(null);
+      if (target) state.widgetActivationTap = { id:e.pointerId, widget:target, x:e.clientX, y:e.clientY };
       if (e.pointerType === "mouse" && ![0, 1].includes(e.button)) return;
       state.canvasAgentNavigationPointerIds.add(e.pointerId);
       try { screen.setPointerCapture(e.pointerId); } catch {}
@@ -223,6 +238,7 @@
       if (e.pointerType === "touch") {
         state.touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
         if (state.touches.size >= 2) {
+          state.widgetActivationTap = null;
           beginTouchGesture();
           return;
         }
@@ -232,7 +248,13 @@
       setNavigating(true);
       return;
     }
+    if (state.interactingWidgetId && !state.spacePan) setWidgetInteraction(null);
     finishStaleWidgetHostGesture(e);
+    if (e.pointerType === "pen") {
+      state.touches.clear();
+      state.touchGesture = null;
+      state.panGesture = null;
+    }
     if (Date.now() < state.textInputBlockedUntil) return;
     state.canvasAgentNavigationPointerIds.add(e.pointerId);
     try {
@@ -240,12 +262,11 @@
     } catch {}
     calibrateScreenClientRatio(e, false);
     const penEraser = canvasPenEraserActive(e),
-      handPoint = !penEraser && state.mode === "hand" ? clientPoint(e) : null;
+      handPoint = !penEraser && !state.spacePan && state.mode === "select" ? clientPoint(e) : null;
     beginCanvasWidgetGestureResetTap(e, handPoint);
     state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (handPoint && beginHandObjectResize(e, handPoint)) return;
-    const handTarget = handPoint ? handObjectToolbarTargetAtPoint(handPoint) : null;
-    if (Number(e.button) === 0 && handTarget?.kind === "text-box" && editTextBox(handTarget.object)) return;
+    if (handPoint && e.pointerType !== "touch" && beginHandObjectResize(e, handPoint)) return;
+
     if (handPoint) beginHandObjectFocus(e, handPoint);
     if (penEraser) {
       const input = captureDrawingInput(e);
@@ -256,11 +277,11 @@
       const touchPoint = clientPoint(e),
         touchWidget = valid(touchPoint) ? widgetAtRefinePoint(touchPoint) : null;
       if (touchWidget) {
-        if (state.mode !== "hand") showCanvasHint("canvasHintWidgetTouchHand");
+        if (state.mode !== "select") showCanvasHint("canvasHintWidgetTouchHand");
         if (state.mode === "pen") beginWidgetRefineTouch(`canvas-touch:${e.pointerId}`, touchWidget);
       }
       state.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (state.mode === "hand" && state.handGestureIncludesWidget) return;
+
       if (state.touches.size >= 2) {
         state.textTap = null;
         cancelAreaEraseGesture();
@@ -275,7 +296,7 @@
         return;
       }
     }
-    if (isMousePan(e)) {
+    if (isMousePan(e) || state.spacePan) {
       if (state.selectedWidgetId) acceptWidgetEdit();
       if (state.selectedAnimationId) acceptAnimationEdit();
       state.panGesture = {
@@ -286,46 +307,11 @@
       setNavigating(true);
       return;
     }
-    if (state.mode !== "hand") {
-      const input = captureDrawingInput(e);
-      beginCanvasPointerAction(e, input.point, { inputTransform:input.inputTransform });
-      return;
-    }
-    if (state.pending) {
-      const result = pendingHit(state.pending, e, state.pending.revealProgress < 1),
-        hit = typeof result === "string" ? result : result?.hit,
-        itemIndex = result && typeof result === "object" ? result.itemIndex : null;
-      if (["resize", "width", "height", "batch-resize"].includes(hit)) {
-        beginPendingGesture(e, hit, itemIndex);
-        return;
-      }
-    }
-    const point = handPoint || clientPoint(e);
-    const widgetResult = widgetRuntimeEnabled() && valid(point) ? widgetPointerHit(point, e.pointerType, false) : null;
-    if (widgetResult && ["resize", "width", "height"].includes(widgetResult.hit)) {
-      refreshHandObjectToolbar();
-      beginWidgetGesture(e, point, widgetResult);
-      return;
-    }
-    if (state.selectedWidgetId) acceptWidgetEdit();
-    const selectedImageResult = valid(point) ? imagePointerHit(point, e.pointerType, false) : null;
-    if (selectedImageResult && selectedImageResult.hit !== "move") {
-      if (state.selectedAnimationId) acceptAnimationEdit();
-      refreshHandObjectToolbar();
-      beginImageGesture(e, point, selectedImageResult);
-      return;
-    }
-    if (valid(point)) {
-      const animationResult = animationPointerHit(point, e.pointerType);
-      if (animationResult && animationResult.hit !== "move") {
-        refreshHandObjectToolbar();
-        beginAnimationGesture(e, point, animationResult);
-        return;
-      }
-    }
-    hideHandObjectToolbar({ all:true });
-    beginCanvasPointerAction(e, point);
-  });
+    if (state.mode === "select" && beginCanvasObjectSelection(e, handPoint || clientPoint(e))) return;
+    const input = captureDrawingInput(e);
+    beginCanvasPointerAction(e, input.point, { inputTransform:input.inputTransform });
+  }
+  screen.addEventListener("pointerdown", handleCanvasPointerDown);
   function updateActiveCanvasDrawing(e) {
     const d = state.drawing;
     if (!d || d.id !== e.pointerId) return false;
@@ -354,7 +340,13 @@
   }
   screen.addEventListener("pointermove", (e) => {
     e.preventDefault();
+    const handTap = state.handToolbarTap;
+    if (handTap && Math.hypot(e.clientX - handTap.x, e.clientY - handTap.y) > 6) state.handToolbarTap = null;
+    if (e.pointerType === "touch" && !state.touches.has(e.pointerId)) return;
     if (state.viewMode) {
+      if (!state.pointers.has(e.pointerId)) return;
+      const tap = state.widgetActivationTap;
+      if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) > 6) state.widgetActivationTap = null;
       const old = state.pointers.get(e.pointerId);
       calibrateScreenClientRatio(e, true);
       state.pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
@@ -387,7 +379,7 @@
       return;
     }
     updateHandObjectFocus(e);
-    if (state.mode === "hand" && e.pointerType !== "touch" && Number(e.buttons) === 0) {
+    if (state.mode === "select" && e.pointerType !== "touch" && Number(e.buttons) === 0) {
       const point = clientPoint(e);
       updateHandObjectHover(point);
       syncWidgetResizeCursor(point, e.pointerType);
@@ -432,7 +424,7 @@
       } else return;
     }
     if (e.pointerType === "touch") {
-      if (state.mode === "hand" && state.handGestureIncludesWidget) return;
+
       if (state.touches.size >= 2) {
         updateTouchGesture();
         return;
@@ -441,6 +433,19 @@
     }
   });
   function end(e) {
+    const handTap = state.handToolbarTap;
+    if (handTap?.id === e.pointerId) {
+      state.handToolbarTap = null;
+      if (e.type === "pointerup" && !state.viewMode && state.mode === "hand" && !state.spacePan && state.touches.size <= 1
+          && Math.hypot(e.clientX - handTap.x, e.clientY - handTap.y) <= 6) showHandObjectToolbar("widget", handTap.widget);
+    }
+    const activation = state.widgetActivationTap;
+    if (activation?.id === e.pointerId) {
+      state.widgetActivationTap = null;
+      if (e.type === "pointerup" && Math.hypot(e.clientX - activation.x, e.clientY - activation.y) <= 6 && state.touches.size <= 1) {
+        setWidgetInteraction(activation.widget);
+      }
+    }
     finishCanvasNavigationPreview();
     if (coordinatesUpdatePending) flushCoordinatesUpdate();
     if (state.viewMode) {
@@ -548,6 +553,12 @@
   }
   screen.addEventListener("pointerup", end);
   screen.addEventListener("pointercancel", end);
+  // Capture releases even when an overlay consumes the event or capture is lost.
+  window.addEventListener("pointermove", finishReleasedWidgetGesture, true);
+  for (const type of ["pointerup", "pointercancel", "lostpointercapture", "blur"]) {
+    window.addEventListener(type, finishInterruptedWidgetGesture, type !== "blur");
+  }
+  document.addEventListener("visibilitychange", finishInterruptedWidgetGesture);
   const finishCanvasAgentNavigationPointer = (event) => canvasAgentNavigationPointerDidEnd(event.pointerId);
   window.addEventListener("pointerup", finishCanvasAgentNavigationPointer, true);
   window.addEventListener("pointercancel", finishCanvasAgentNavigationPointer, true);
@@ -565,14 +576,10 @@
     updateWidgetRefinePointer(null);
   });
   screen.addEventListener("contextmenu", (e) => e.preventDefault());
-  view.addEventListener(
-    "wheel",
-    (e) => {
-      e.preventDefault();
-      zoomCanvasAt(e.clientX, e.clientY, e.deltaY);
-    },
-    { passive: false },
-  );
+  view.addEventListener("wheel", handleCanvasWheel, { passive:false });
+  view.addEventListener("gesturestart", beginCanvasTrackpadGesture, { passive:false });
+  view.addEventListener("gesturechange", updateCanvasTrackpadGesture, { passive:false });
+  view.addEventListener("gestureend", endCanvasTrackpadGesture, { passive:false });
   canvasNavigationLock.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -583,9 +590,9 @@
     setCanvasNavigationLocked(!state.navigationLocked);
   });
   function enterAIDraftHandMode() {
-    if (state.mode !== "hand" && state.aiDraftReturnMode === null) state.aiDraftReturnMode = state.mode;
+    if (state.mode !== "select" && state.aiDraftReturnMode === null) state.aiDraftReturnMode = state.mode;
     state.pendingHistoryRestored = false;
-    if (state.mode !== "hand") setCanvasMode("hand", {
+    if (state.mode !== "select") setCanvasMode("select", {
       preserveSelection:true,
       skipDraftFinalize:true,
       preserveWidgetRefinement:true,
@@ -596,7 +603,7 @@
     const returnMode = state.aiDraftReturnMode;
     state.aiDraftReturnMode = null;
     state.pendingHistoryRestored = false;
-    if (returnMode && state.mode === "hand") setCanvasMode(returnMode, {
+    if (returnMode && state.mode === "select") setCanvasMode(returnMode, {
       preserveSelection:true,
       skipDraftFinalize:true,
       preserveWidgetRefinement:true,
@@ -651,6 +658,7 @@
     document.body?.setAttribute("data-canvas-mode", mode);
     if (typeof canvasAgentScheduleToolbarLayout === "function") canvasAgentScheduleToolbarLayout();
     view.classList.toggle("hand-mode", mode === "hand");
+    syncCanvasNavigation();
     document.querySelectorAll("[data-mode]").forEach((item) => {
       item.classList.toggle("active", item === button);
       item.setAttribute("aria-pressed", String(item === button));
@@ -661,16 +669,18 @@
   }
   function setCanvasMode(mode, options) {
     options ||= {};
+    if (mode !== state.mode) setWidgetInteraction(null);
     const eraserMode = ["eraser", "area-eraser"].includes(mode),
       button = eraserMode ? eraserToolButton : document.querySelector(`[data-mode="${mode}"]`);
     if (!button) return;
+    if (state.widgetGesture) finishInterruptedWidgetGesture({ type:"tool-change" });
     if (eraserMode) {
       state.eraserMode = mode;
       localStorage.setItem(ERASER_MODE_STORAGE_KEY, mode);
     }
     if (state.areaEraseGesture) cancelAreaEraseGesture();
     hideEraserToolMenu();
-    const finalizingPendingWidgetForEraser = eraserMode && ["hand", "pen"].includes(state.mode)
+    const finalizingPendingWidgetForEraser = eraserMode && ["hand", "select", "pen"].includes(state.mode)
       && !options.skipDraftFinalize && Boolean(state.pendingWidget);
     if (finalizingPendingWidgetForEraser) {
       state.aiDraftReturnMode = null;
@@ -684,7 +694,7 @@
       if (state.pendingWidgetReplacement) acceptPendingWidget({ restoreMode:false });
       else cancelWidgetRefinement("widget-refine-tool-change", { restoreMode:false });
     }
-    const leavingDraftHand = state.mode === "hand" && mode !== "hand" && !options.skipDraftFinalize && (state.pending || state.pendingWidget);
+    const leavingDraftHand = state.mode === "select" && mode !== "select" && !options.skipDraftFinalize && (state.pending || state.pendingWidget);
     let deferredSelectionCommit = false;
     if (leavingDraftHand) {
       state.aiDraftReturnMode = null;
@@ -702,7 +712,7 @@
         }
       } else commitSelection();
     }
-    if (state.mode === "hand" && mode !== "hand") {
+    if (state.mode === "select" && mode !== "select") {
       hideHandObjectToolbar({ animate:false, all:true });
       state.handHoverKey = null;
       state.handPointerFocusKeys.clear();
@@ -901,7 +911,7 @@
     if (state.animationEdit) acceptAnimationEdit();
     if (state.imageEdit) acceptImageEdit();
     const returnMode = state.mode;
-    if (state.mode !== "hand") setCanvasMode("hand", {
+    if (state.mode !== "select") setCanvasMode("select", {
       preserveSelection:true,
       skipDraftFinalize:true,
       preserveWidgetRefinement:true,
@@ -1464,6 +1474,10 @@
   settingsEditorCancel?.addEventListener("click", hideConnectionEditor);
   settingsConnectionList?.addEventListener("click", handleConnectionAction);
   settingsConnectionQuickList?.addEventListener("click", handleConnectionAction);
+  document.getElementById("settingsHostedList")?.addEventListener("click", handleConnectionAction);
+  document.getElementById("settingsHostedRefresh")?.addEventListener("click", () => void loadHostedModels());
+  window.addEventListener("penecho:cloud-account-changed", () => void loadHostedModels({ accountChanged:true }));
+  void loadHostedModels();
   settingsEffortToggle?.addEventListener("click", () => settingsEffortOptions.hidden ? showSettingsEffortOptions() : hideSettingsEffortOptions());
   settingsEffort?.addEventListener("pointerdown", showSettingsEffortOptions);
   settingsEffort?.addEventListener("input", () => {

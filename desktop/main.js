@@ -8,7 +8,7 @@ const {
   app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, net, safeStorage, shell,
 } = require("electron");
 const {
-  apiConfigurationIssues, parseArgs, resolveConfiguration, saveConfiguration, testConfiguredProvider,
+  apiConfigurationIssues, parseArgs, resolveConfiguration, saveConfiguration,
 } = require("../cli.js");
 const { kimiPresetUpdates, normalizeSettings, publicSettings } = require("./settings-contract.js");
 const { readSecret, writeSecret } = require("./secret-store.js");
@@ -16,6 +16,7 @@ const { inspectCli, installCli, managedCliPath } = require("./cli-installer.js")
 const { createUpdateManager } = require("./update-manager.js");
 const { lanHosts, lanUrls } = require("./network-access.js");
 const { desktopConfigurationEnvironment } = require("./config-environment.js");
+const { testDesktopConnection } = require("./settings-test.js");
 const { issueNativePickerGrant } = require("../src/server/canvas-agent/native-picker-grants.js");
 const { CanvasAgentProjectStore } = require("../src/server/canvas-agent/project-store.js");
 const { CANVAS_PAGE_SCALE, normalizeCanvasPageScale } = require("../public/page-scale.js");
@@ -519,18 +520,7 @@ function registerIpc() {
       currentConfiguration = loaded.configuration;
       let diagnostic;
       try {
-        let timer;
-        diagnostic = await Promise.race([
-          testConfiguredProvider(loaded.configuration, { timeoutMs:SETTINGS_TEST_TIMEOUT_MS }),
-          new Promise((_, reject) => {
-            timer = setTimeout(() => {
-              const error = new Error("Connection test timed out after 30 seconds.");
-              error.code = "PENECHO_SETTINGS_TEST_TIMEOUT";
-              reject(error);
-            }, SETTINGS_TEST_TIMEOUT_MS);
-            timer.unref?.();
-          }),
-        ]).finally(() => clearTimeout(timer));
+        diagnostic = await testDesktopConnection(loaded.configuration, { timeoutMs:SETTINGS_TEST_TIMEOUT_MS });
       } catch (error) {
         settingsReadyToLaunch = true;
         return {

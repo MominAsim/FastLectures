@@ -85,7 +85,7 @@ module.exports = {
     ignore:[
       /^\/\./,
       /^\/build(?:\/|$)/,
-      /^\/docs(?:\/|$)/,
+      /^\/docs\/(?!(?:mcp-setup\.md|mcp-agent-instructions\.md)$).+/,
       /^\/fixtures(?:\/|$)/,
       /^\/logs(?:\/|$)/,
       /^\/output(?:\/|$)/,

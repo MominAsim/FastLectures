@@ -1,0 +1,96 @@
+"use strict";
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+test("API progress reaches the existing chat stream before tools and remains in completed messages", async () => {
+  const { publicSessionEvent } = await import("../src/server/canvas-agent/runtime.mjs");
+  const session = {}, events = [];
+  const project = (type, data) => {
+    const event = publicSessionEvent({ type, data }, session);
+    if (event) events.push(event);
+    return event;
+  };
+  project("turn/start", { turn:1 });
+  const updates = ["进展：先读取相关内容。\n", "进展：已确认结构，开始修改。\n", "进展：修改已应用，正在核对结果。\n"];
+  for (let step = 1; step <= updates.length; step++) {
+    const text = updates[step - 1];
+    project("assistant/chunk", { turn:1, step, chunk:{ type:"text-delta", text } });
+    assert.equal(events.at(-1).kind, "assistant_delta");
+    assert.equal(events.at(-1).text, text);
+    project("assistant/message", { turn:1, step, message:{ content:[{ type:"text", text }] } });
+    project("tool/call", { turn:1, step, callId:`call-${step}`, name:"canvas_inspect", arguments:"{}" });
+    assert.deepEqual(events.slice(-3).map(event => event.kind), ["assistant_delta", "assistant_message", "tool_call"]);
+  }
+  project("assistant/message", { turn:1, step:4, message:{ content:[{ type:"text", text:"已完成修改。" }] } });
+  project("turn/end", { turn:1, reason:{ kind:"completed" } });
+  assert.deepEqual(events.filter(event => event.kind === "assistant_message").map(event => event.text), [...updates, "已完成修改。"]);
+});
+
+test("public progress never forwards reasoning or tool-argument deltas", async () => {
+  const { publicSessionEvent } = await import("../src/server/canvas-agent/runtime.mjs");
+  for (const type of ["reasoning-delta", "thinking-delta", "tool-call-delta"]) {
+    assert.equal(publicSessionEvent({ type:"assistant/chunk", data:{ turn:1, step:1, chunk:{ type, text:"private content", argumentsDelta:"private arguments" } } }, {}), null);
+  }
+  assert.equal(publicSessionEvent({ type:"assistant/message", data:{ turn:1, step:1, message:{ content:[{ type:"reasoning", text:"private content" }] } } }, {}), null);
+});
+
+test("progress and a fragmented final Canvas title coexist in the same turn", async () => {
+  const { publicSessionEvent } = await import("../src/server/canvas-agent/runtime.mjs");
+  const session = { canvasTitleRequested:true };
+  const chunk = (step, text) => publicSessionEvent({ type:"assistant/chunk", data:{ turn:1, step, chunk:{ type:"text-delta", text } } }, session);
+  assert.equal(chunk(1, "进展：正在整理内容。\n").text, "进展：正在整理内容。\n");
+  assert.equal(chunk(2, "<penecho_canvas_"), null);
+  assert.equal(chunk(2, "title>内容整理</penecho_canvas_title>\n已完成。").text, "已完成。");
+  assert.equal(publicSessionEvent({ type:"turn/end", data:{ turn:1, reason:{ kind:"completed" } } }, session).canvasTitle, "内容整理");
+});
+
+test("Harness forwards CLI progress to the chat before the CLI decision resolves", async t => {
+  const fs = require("node:fs"), os = require("node:os"), path = require("node:path");
+  const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
+  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-progress-stream-"));
+  const connection = { id:"progress-test", provider:"claude-cli", name:"Test", cliPath:"unused-test-cli", cliModel:"test", effort:"high" };
+  const events = [], progress = "进展：正在读取现有内容。", reply = "读取完成。";
+  let release, cliResolved = false, calls = 0, sawProgress;
+  const pending = new Promise(resolve => { release = resolve; });
+  const progressSeen = new Promise(resolve => { sawProgress = resolve; });
+  const host = new CanvasHarnessHost({
+    stateDirectory, rootDirectory:path.resolve(__dirname, ".."),
+    resolveConnection:id => id === connection.id ? connection : null,
+    listConnections:() => [connection],
+    callCli:async request => {
+      calls++;
+      if (calls > 1) return JSON.stringify({ type:"final", text:reply });
+      request.onText?.(JSON.stringify({ progress }).slice(0, -1) + ",");
+      await pending;
+      cliResolved = true;
+      return JSON.stringify({ progress, type:"tool_call", name:"canvas_inspect", arguments:{ detail:"summary" } });
+    },
+  });
+  t.after(async () => { release(); await host.dispose(); fs.rmSync(stateDirectory, { recursive:true, force:true }); });
+  let session;
+  session = await host.connect({ clientId:"progress-client", connectionId:connection.id, binding:{}, send:(type, payload) => {
+    if (type === "session_event") {
+      events.push(payload);
+      if (payload.kind === "assistant_delta" && payload.text.includes(progress)) sawProgress();
+    }
+    if (type === "tool_request") queueMicrotask(() => host.resolveToolResult(session, { requestId:payload.requestId, ok:true, result:{ revision:1, objects:[] } }));
+  } });
+  host.updateState(session, { revision:1, canvas:{ width:2048, height:2048 }, selection:{ objectIds:[] } });
+  const submission = host.submit(session, "读取画布并说明结果。");
+  let timer;
+  try {
+    await Promise.race([progressSeen, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Progress was buffered until CLI completion")), 2000); })]);
+    assert.equal(cliResolved, false);
+    assert.equal(events.some(event => event.kind === "tool_call"), false);
+    release();
+    await submission;
+    // Harness submit dispatches asynchronously; wait only for the observable end.
+    const deadline = Date.now() + 2000;
+    while (!events.some(event => event.kind === "turn_end") && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 5));
+    assert.equal(events.some(event => event.kind === "turn_end" && event.reason?.kind === "completed"), true);
+    assert.equal(events.filter(event => event.kind === "assistant_message" && event.text.includes(progress)).length, 1);
+    assert.equal(events.some(event => event.kind === "assistant_message" && event.text === reply), true);
+    assert.equal(calls, 2);
+  } finally { clearTimeout(timer); release(); await submission; }
+});

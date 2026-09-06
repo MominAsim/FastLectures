@@ -17,6 +17,10 @@
   const widgetPaintReadyFrames = new WeakSet();
   const widgetPaintReadyWaiters = new Set();
   let bridgeDeviceId = "";
+  let browserEditing = false;
+  const hostedExecutionSessionId = crypto.randomUUID();
+  const hostedExecutionSessionStartedAt = Date.now();
+  let hostedGeneration = 0;
   let resolveBridgeGate = null;
   let bridgeGateSettled = !cloudRuntime;
   const bridgeGate = cloudRuntime
@@ -46,9 +50,22 @@
     /^\/api\/community\/metadata$/,
     /^\/api\/plugins(?:\/|$)/,
     /^\/canvas\/api\/widget-fetch$/,
+    /^\/api\/widget-fetch$/,
     /^\/canvas\/plugins\/private\/[a-z0-9][a-z0-9-]{0,63}(?:\/(?:plugin\.md|styles\.css)|\.md)$/,
   ];
   const nativeCloudPaths = new Set(["/api/ai/command", "/api/plugins/improve"]);
+  function jsonResponse(payload, status = 200) {
+    return new Response(JSON.stringify(payload), { status, headers:{ "content-type":"application/json" } });
+  }
+  function browserOnlyRequest(sourceUrl, method, options, headers) {
+    if (sourceUrl.pathname === "/api/settings" && method === "GET") return Promise.resolve(jsonResponse({ provider:"api", connections:[], connectionLimit:0, hasApiKey:false, cli:{}, requestTrace:false }));
+    if (sourceUrl.pathname === "/api/settings/connections" && method === "GET") return Promise.resolve(jsonResponse({ connections:[] }));
+    if (sourceUrl.pathname === "/api/canvases" && method === "GET") return Promise.resolve(jsonResponse({ canvases:[] }));
+    if (sourceUrl.pathname === "/api/canvas-projects" && method === "GET") return Promise.resolve(jsonResponse({ projects:[] }));
+    if (["/canvas/api/widget-fetch", "/api/widget-fetch"].includes(sourceUrl.pathname)) return nativeFetch(`/api/v1/widget-fetch${sourceUrl.search}`, { ...options, method, headers, credentials:"same-origin" });
+    if (sourceUrl.pathname.startsWith("/api/cloud/") || sourceUrl.pathname === "/api/plugins") return nativeFetch(sourceUrl.pathname + sourceUrl.search, { ...options, method, headers, credentials:"same-origin" });
+    return Promise.resolve(jsonResponse({ error:"linked_device_required", message:"This feature needs a linked PenEcho device. Browser editing supports Cloud saves and PenEcho models; local files, CLI tools and private API forwarding stay on your device." }, 409));
+  }
 
   function notifyWidgetPaintReadyWaiters() {
     for (const resolve of widgetPaintReadyWaiters) resolve();
@@ -144,6 +161,17 @@
     const method = String(options.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
     const inputHeaders = input instanceof Request ? input.headers : undefined;
     const headers = csrfHeaders(options.headers || inputHeaders);
+    const hostedModel = /^hosted:([0-9a-f-]{36})$/i.exec(headers.get("x-penecho-connection") || "");
+    if (sourceUrl.pathname === "/api/ai/command" && method === "POST" && hostedModel && requestedCanvasId) {
+      const command = JSON.parse(options.body || "{}");
+      headers.set("idempotency-key", crypto.randomUUID());
+      headers.set("content-type", "application/json");
+      const execution = { executionSessionId:hostedExecutionSessionId, executionSessionStartedAt:hostedExecutionSessionStartedAt, generation:++hostedGeneration };
+      return nativeFetch(`/api/v1/hosted/canvases/${requestedCanvasId}/execution-fence`, { ...options, method, headers, credentials:"same-origin", body:JSON.stringify(execution) }).then(async (fence) => {
+        if (!fence.ok) return fence;
+        return nativeFetch("/api/v1/hosted/commands", { ...options, method, headers, credentials:"same-origin", body:JSON.stringify({ modelId:hostedModel[1], canvasId:requestedCanvasId, command, ...execution }) });
+      });
+    }
     const cloudBuiltInPluginCatalog = nativeCloudCanvasReadsEnabled && method === "GET" && sourceUrl.pathname === "/api/plugins" && !sourceUrl.search;
     const cloudStoredCanvasRead = nativeCloudCanvasReadsEnabled && method === "GET" && !sourceUrl.search && cloudCanvasReadPath.test(sourceUrl.pathname);
     const shouldBridge = !cloudBuiltInPluginCatalog && !cloudStoredCanvasRead && !nativeCloudPaths.has(sourceUrl.pathname) && bridgedPaths.some((pattern) => pattern.test(sourceUrl.pathname));
@@ -159,7 +187,7 @@
       return nativeFetch(target, { ...options, method, headers, credentials:"same-origin" });
     };
     if (!shouldBridge || !cloudRuntime) return request();
-    return bridgeGate.then((state) => state?.online ? request() : unavailableBridgeResponse(state));
+    return bridgeGate.then((state) => browserEditing ? browserOnlyRequest(sourceUrl, method, options, headers) : state?.online ? request() : unavailableBridgeResponse(state));
   };
 
   const zh = /^zh\b/i.test(navigator.language || "");
@@ -246,6 +274,7 @@
   function publishCloudHeaderStatus(result) {
     const detail = Object.freeze({
       accountName:String(result.account?.name || "").slice(0, 100),
+      credits:Number.isFinite(result.account?.credits) ? result.account.credits : null,
       deviceOnline:Boolean(result.device?.online),
       deviceId:bridgeDeviceId,
     });
@@ -278,8 +307,24 @@
       }
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.message || `HTTP ${response.status}`);
+      if (typeof result.capabilities?.hostedCanvasAgent === "boolean") {
+        window.PENECHO_CONFIG.hostedCanvasAgent=result.capabilities.hostedCanvasAgent;
+      }
       bridgeDeviceId = deviceIdPattern.test(String(result.device?.id || "")) ? String(result.device.id) : "";
       publishCloudHeaderStatus(result);
+      if (!result.device?.online && nativeCloudCanvasReadsEnabled && !isCommunityCraft) {
+        browserEditing = true;
+        window.PENECHO_CONFIG.canvasAgent = false;
+        window.PENECHO_CONFIG.browserCanvasEditing = true;
+        window.dispatchEvent(new CustomEvent("penecho:capabilities-changed"));
+        gate.dataset.state = "opening";
+        title.textContent = zh ? "正在浏览器中打开云端画布…" : "Opening your Cloud Canvas in this browser…";
+        settleBridgeGate({ online:false, browserEditing:true });
+        await openRequestedCanvas();
+        window.dispatchEvent(new CustomEvent("penecho:capabilities-changed"));
+        gate.hidden = true;
+        return;
+      }
       if (!result.device) {
         settleBridgeGate({ online:false, message:copy.unavailable });
         gate.dataset.state = "unlinked";

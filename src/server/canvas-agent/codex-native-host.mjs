@@ -9,6 +9,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { admitEncodedImages } from '@deepseek-ai/dsh-attachment'
 import { canvasAgentConversationContinuity } from './conversation-continuity.mjs'
 import PenEchoAttachmentStore from './image-attachments.mjs'
+import { NativeActivityDiagnostics } from './native-activity-diagnostics.mjs'
 import { DEFAULT_CANVAS_AGENT_IDLE_TIMEOUT_MS, canvasAgentTimeoutSeconds, createCanvasAgentModelTimeout } from './model-timeout.mjs'
 import {
   CANVAS_AGENT_MAX_TURN_ATTACHMENTS,
@@ -27,6 +28,7 @@ import {
   freshVisualExplorerBudget,
   isCanvasAgentHandwritingImageName,
   loadCanvasAgentContract,
+  loadCanvasAgentPublicApi,
   loadCanvasAgentVisualExplorerContract,
   loadCanvasAgentVisualSkills,
   normalizeResolvedWidgetCapabilities,
@@ -57,6 +59,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
 const INTERRUPT_REQUEST_TIMEOUT_MS = 5_000
 const MAX_BACKLOG = 500
 const MAX_AGENT_RESPONSE_CHARS = 400_000
+const MAX_NATIVE_PROGRESS_SCAN_CHARS = 512
 const CODEX_CLI_RESOLUTION_CACHE_VERSION = 1
 const CODEX_MODEL_IMAGE_REQUEST_POLICY = Object.freeze({ maxPixels:2048 * 2048, maxBytes:5 * 1024 * 1024 })
 const CODEX_DISABLED_FEATURES = Object.freeze([
@@ -105,6 +108,74 @@ const CODEX_NATIVE_TURN_ACTIVITY_NOTIFICATIONS = new Set([
   'turn/plan/updated',
   'turn/diff/updated',
 ])
+const CODEX_NATIVE_KNOWN_NOTIFICATIONS = new Set([
+  ...CODEX_NATIVE_TURN_ACTIVITY_NOTIFICATIONS,
+  'error',
+  'thread/closed',
+  'thread/tokenUsage/updated',
+  'thread/compacted',
+  'turn/started',
+  'turn/completed',
+  'rawResponseItem/completed',
+  'rawResponse/completed',
+  'item/agentMessage/delta',
+  'item/completed',
+])
+const CODEX_NATIVE_CAPTURE_CONSUMPTION_CONTRACT = [
+  'Code Mode capture result contract: await tools.penecho__canvas_capture(args) may return a structured result or a nested result string containing metadata and a data:image/png;base64,... or data:image/webp;base64,... URL.',
+  'Extract the image URL and forward it with image(url); forward metadata separately with text(metadata).',
+  'Do not inspect r.content, guess a content shape, or call text(raw) while raw still contains the image data.',
+  'Standard form: const r=await tools.penecho__canvas_capture(args); const raw=r&&typeof r===\'object\'&&\'result\' in r?r.result:r; const imageUrl=typeof raw===\'string\'?raw.match(/data:image\\/(?:png|webp);base64,[A-Za-z0-9+/=]+/)?.[0]:raw?.imageUrl??raw?.dataUrl??(typeof raw?.image===\'string\'?raw.image:null)??raw?.attachment?.dataUrl; const metadata=typeof raw===\'string\'?raw.replace(/data:image\\/(?:png|webp);base64,[A-Za-z0-9+/=]+/g,\'\').trim():raw?.metadata??Object.fromEntries(Object.entries(raw&&typeof raw===\'object\'?raw:{}).filter(([key])=>![\'image\',\'imageUrl\',\'dataUrl\',\'attachment\'].includes(key))); if(metadata)text(typeof metadata===\'string\'?metadata:JSON.stringify(metadata)); if(imageUrl)image(imageUrl).',
+].join(' ')
+const CODEX_NATIVE_CAPTURE_DATA_URL_PATTERN = /data:image\/(?:png|webp);base64,[A-Za-z0-9+/=]+/g
+
+export function addCodexNativeCaptureContract(dynamicTools) {
+  if (!Array.isArray(dynamicTools)) return dynamicTools
+  return dynamicTools.map(namespace => {
+    if (namespace?.type !== 'namespace' || namespace.name !== 'penecho' || !Array.isArray(namespace.tools)) return namespace
+    return {
+      ...namespace,
+      tools:namespace.tools.map(tool => {
+        if (tool?.name !== 'canvas_capture') return tool
+        const description=String(tool.description || '')
+        return description.includes(CODEX_NATIVE_CAPTURE_CONSUMPTION_CONTRACT)
+          ? tool
+          : { ...tool, description:`${description}${description ? ' ' : ''}${CODEX_NATIVE_CAPTURE_CONSUMPTION_CONTRACT}` }
+      }),
+    }
+  })
+}
+
+export function sanitizeCodexNativeCaptureMetadataText(value) {
+  return typeof value === 'string'
+    ? value.replace(CODEX_NATIVE_CAPTURE_DATA_URL_PATTERN, '[image forwarded separately]')
+    : value
+}
+
+function nativeInputImageUrl(stored) {
+  const mediaType=String(stored?.ref?.mediaType || stored?.mediaType || '')
+  return `data:${mediaType};base64,${Buffer.from(stored?.data || '').toString('base64')}`
+}
+
+export async function nativeToolContentItems({ name, value, renderedBlocks = [], readImageRequest, imagePolicy, signal }) {
+  if (typeof readImageRequest !== 'function') throw new Error('Codex Native image reader is unavailable.')
+  const contentItems=[]
+  for (const block of renderedBlocks || []) {
+    if (block?.type === 'text' && typeof block.text === 'string') {
+      const text=name === 'canvas_capture' ? sanitizeCodexNativeCaptureMetadataText(block.text) : block.text
+      contentItems.push({ type:'inputText', text:boundedText(text, 400_000) })
+    } else if (block?.type === 'image' && block.attachment?.attachmentId) {
+      const stored=await readImageRequest(block.attachment, imagePolicy, signal)
+      contentItems.push({ type:'inputImage', imageUrl:nativeInputImageUrl(stored) })
+    }
+  }
+  const directAttachment=value?.attachment?.attachmentId ? value.attachment : null
+  if (directAttachment && value?.reusedActiveImage !== true && !contentItems.some(item => item.type === 'inputImage')) {
+    const stored=await readImageRequest(directAttachment, imagePolicy, signal)
+    contentItems.push({ type:'inputImage', imageUrl:nativeInputImageUrl(stored) })
+  }
+  return contentItems
+}
 
 function hash(value) {
   return createHash('sha256').update(String(value)).digest('hex')
@@ -124,7 +195,7 @@ function codexCliResolutionFile(stateDirectory) {
 function readCodexCliResolutions(stateDirectory) {
   try {
     const parsed=JSON.parse(readFileSync(codexCliResolutionFile(stateDirectory),'utf8'))
-    if(parsed?.version!==CODEX_CLI_RESOLUTION_CACHE_VERSION||!Array.isArray(parsed.entries))return new Map()
+    if(parsed?.version!==CODEX_CLI_RESOLUTION_CACHE_VERSION||parsed?.pinnedVersion!==CODEX_CLI_PINNED_VERSION||!Array.isArray(parsed.entries))return new Map()
     return new Map(parsed.entries.flatMap(entry=>{
       const key=String(entry?.key||''),executable=String(entry?.executable||'').trim()
       return /^[0-9a-f]{64}$/.test(key)&&executable&&executable.length<=4096?[[key,executable]]:[]
@@ -136,7 +207,7 @@ function writeCodexCliResolutions(stateDirectory, resolutions) {
   const directory=join(stateDirectory,'tools','codex'),file=codexCliResolutionFile(stateDirectory),temporary=`${file}.${process.pid}.tmp`
   mkdirSync(directory,{recursive:true,mode:0o700})
   const entries=[...resolutions].sort(([left],[right])=>left.localeCompare(right)).map(([key,executable])=>({key,executable}))
-  writeFileSync(temporary,`${JSON.stringify({version:CODEX_CLI_RESOLUTION_CACHE_VERSION,entries},null,2)}\n`,{encoding:'utf8',mode:0o600})
+  writeFileSync(temporary,`${JSON.stringify({version:CODEX_CLI_RESOLUTION_CACHE_VERSION,pinnedVersion:CODEX_CLI_PINNED_VERSION,entries},null,2)}\n`,{encoding:'utf8',mode:0o600})
   renameSync(temporary,file)
   try { chmodSync(file,0o600) } catch(error) { if(process.platform!=='win32')throw error }
 }
@@ -254,7 +325,7 @@ function agentMessageText(item) {
 
 function compactUsage(value) {
   if (!value || typeof value !== 'object') return null
-  const compactNumber = item => Number.isSafeInteger(Number(item)) && Number(item) >= 0 ? Number(item) : null
+  const compactNumber = item => item !== null && item !== undefined && Number.isSafeInteger(Number(item)) && Number(item) >= 0 ? Number(item) : null
   const breakdown = item => (!item || typeof item !== 'object') ? null : Object.fromEntries(Object.entries({
     inputTokens:compactNumber(item.inputTokens),
     cachedInputTokens:compactNumber(item.cachedInputTokens),
@@ -334,7 +405,7 @@ function codexAppServerArgs() {
 }
 
 export class CodexNativeAppServerProcess {
-  constructor({ connection, env = process.env, logger = () => {}, spawnProcess = spawn, prepareRuntime = prepareIsolatedRuntime, runtimeDirectory = null, onNotification = null, onRequest = null, onGone = null }) {
+  constructor({ connection, env = process.env, logger = () => {}, spawnProcess = spawn, prepareRuntime = prepareIsolatedRuntime, runtimeDirectory = null, diagnostics = null, diagnosticsEnabled = Boolean(diagnostics), onNotification = null, onRequest = null, onToolReply = null, onGone = null }) {
     this.connection = connection
     this.env = env
     this.logger = logger
@@ -351,9 +422,12 @@ export class CodexNativeAppServerProcess {
     this.closed = false
     this.closing = null
     this.termination = null
+    this.diagnostics = diagnosticsEnabled ? diagnostics : null
     this.onNotification = this.optionalCallback(onNotification, 'onNotification')
     this.onRequest = this.optionalCallback(onRequest, 'onRequest')
+    this.onToolReply = this.optionalCallback(onToolReply, 'onToolReply')
     this.onGone = this.optionalCallback(onGone, 'onGone')
+    try { this.diagnostics?.setRawBufferBytes(0) } catch {}
   }
 
   optionalCallback(value, name) {
@@ -391,10 +465,14 @@ export class CodexNativeAppServerProcess {
     this.child.stderr?.setEncoding?.('utf8')
     this.child.stdout?.on?.('data', chunk => this.handleData(chunk))
     this.child.stderr?.on?.('data', chunk => {
+      try { this.diagnostics?.recordStderrChunk(chunk) } catch {}
       this.stderr = `${this.stderr}${chunk}`.slice(-MAX_STDERR_BYTES)
     })
     this.child.once('error', error => this.processGone(error))
-    this.child.once('exit', (code, signal) => this.processGone(new Error(`Codex app-server exited (${signal ?? code}).`)))
+    this.child.once('exit', (code, signal) => {
+      try { this.diagnostics?.recordProcessExit(code, signal) } catch {}
+      this.processGone(new Error(`Codex app-server exited (${signal ?? code}).`))
+    })
     this.child.stdin?.on?.('error', error => {
       if (error?.code !== 'EPIPE') this.processGone(error)
     })
@@ -454,11 +532,11 @@ export class CodexNativeAppServerProcess {
   }
 
   respond(id, result = {}) {
-    this.write({ id, result })
+    this.write({ id, result }, { toolReply:true, requestId:id })
   }
 
   respondError(id, message) {
-    this.write({ id, error:{ code:-32000, message:safeError(message, 'Codex dynamic tool failed.') } })
+    this.write({ id, error:{ code:-32000, message:safeError(message, 'Codex dynamic tool failed.') } }, { toolReply:true, requestId:id })
   }
 
   async interrupt(threadId, turnId) {
@@ -494,29 +572,33 @@ export class CodexNativeAppServerProcess {
   }
 
   handleData(chunk) {
+    try { this.diagnostics?.recordStdoutChunk(chunk) } catch {}
     this.buffer += String(chunk)
-    if (Buffer.byteLength(this.buffer, 'utf8') > MAX_PROTOCOL_BYTES && !this.buffer.includes('\n')) {
-      this.processGone(codexProtocolLineTooLargeError())
-      return
-    }
-    let newline
-    while ((newline = this.buffer.indexOf('\n')) >= 0) {
-      const line = this.buffer.slice(0, newline).trim()
-      this.buffer = this.buffer.slice(newline + 1)
-      if (!line) continue
-      if (Buffer.byteLength(line, 'utf8') > MAX_PROTOCOL_BYTES) {
+    try {
+      if (Buffer.byteLength(this.buffer, 'utf8') > MAX_PROTOCOL_BYTES && !this.buffer.includes('\n')) {
         this.processGone(codexProtocolLineTooLargeError())
         return
       }
-      let message
-      try { message = JSON.parse(line) }
-      catch {
-        this.processGone(new Error('Codex app-server emitted invalid JSON-RPC output.'))
-        return
+      let newline
+      while ((newline = this.buffer.indexOf('\n')) >= 0) {
+        const line = this.buffer.slice(0, newline).trim()
+        this.buffer = this.buffer.slice(newline + 1)
+        if (!line) continue
+        if (Buffer.byteLength(line, 'utf8') > MAX_PROTOCOL_BYTES) {
+          this.processGone(codexProtocolLineTooLargeError())
+          return
+        }
+        let message
+        try { message = JSON.parse(line) }
+        catch {
+          this.processGone(new Error('Codex app-server emitted invalid JSON-RPC output.'))
+          return
+        }
+        try { this.diagnostics?.recordJsonLine() } catch {}
+        this.handleMessage(message)
+        if (!this.child) return
       }
-      this.handleMessage(message)
-      if (!this.child) return
-    }
+    } finally { try { this.diagnostics?.setRawBufferBytes(Buffer.byteLength(this.buffer, 'utf8')) } catch {} }
   }
 
   handleMessage(message) {
@@ -557,9 +639,19 @@ export class CodexNativeAppServerProcess {
     }
   }
 
-  write(message) {
+  write(message, { toolReply = false, requestId = null } = {}) {
     if (!this.child?.stdin?.writable) throw new Error('Codex app-server is not running.')
-    this.child.stdin.write(`${JSON.stringify(message)}\n`)
+    const serialized=`${JSON.stringify(message)}\n`
+    if (!toolReply || !this.diagnostics) {
+      this.child.stdin.write(serialized)
+      return
+    }
+    this.child.stdin.write(serialized, error => {
+      try { this.diagnostics?.recordJsonRpcReply({ callback:true, error:Boolean(error) }) } catch {}
+      try { this.onToolReply?.({ stage:'callback', error:Boolean(error), requestId }) } catch {}
+    })
+    try { this.diagnostics?.recordJsonRpcReply() } catch {}
+    try { this.onToolReply?.({ stage:'written', error:false, requestId }) } catch {}
   }
 
   processGone(error) {
@@ -590,6 +682,7 @@ export class CodexNativeHost {
     logger = () => {},
     conversationLogger = null,
     conversationTrace = null,
+    onModelUsage = null,
     env = process.env,
     createAppServer = null,
     resolveCliCandidates = null,
@@ -610,6 +703,7 @@ export class CodexNativeHost {
     this.logger = logger
     this.conversationLogger = typeof conversationLogger === 'function' ? conversationLogger : null
     this.conversationTrace = typeof conversationTrace === 'function' ? conversationTrace : null
+    this.onModelUsage = typeof onModelUsage === 'function' ? onModelUsage : null
     this.env = env
     this.platform = platform
     if (typeof publicFetch !== 'function') throw new Error('Codex Native PenEcho Agent public fetch is invalid.')
@@ -755,6 +849,8 @@ export class CodexNativeHost {
       webSearchKeyHash,
       webSearch:{ provider:deepseekSearchApiKey?deepseekSearchProvider:tavilySearchApiKey?'tavily':'built-in', deepseekProvider:deepseekSearchProvider, deepseekApiKey:deepseekSearchApiKey, tavilyApiKey:tavilySearchApiKey, apiKey:tavilySearchApiKey, enabled:Boolean(webSearchEnabled) },
       publicFetch:this.publicFetch,
+      publicWebEnabled:true,
+      loadPublicApiDiscovery:()=>loadCanvasAgentPublicApi(this),
       resolveWebSearch:() => this.resolveWebSearch?.() || null,
       widgetCapabilities:normalizedWidgetCapabilities,
       generalHtmlContract:loadCanvasAgentContract(this.rootDirectory, 'general-html-contract.md', 8_000, 'General HTML'),
@@ -779,6 +875,7 @@ export class CodexNativeHost {
       recoveryPromise:null,
       lifecycle:0,
       native:null,
+      nativeActivityDiagnostics:this.conversationTrace ? new NativeActivityDiagnostics() : null,
       active:null,
       disposed:false,
       disposePromise:null,
@@ -847,6 +944,11 @@ export class CodexNativeHost {
     this.persistPreferredCliExecutables()
   }
 
+  nativeTools(session) {
+    if (!session?.native || typeof session.native.dynamicTools !== 'function') throw new Error('Codex Native tools are unavailable.')
+    return addCodexNativeCaptureContract(session.native.dynamicTools())
+  }
+
   async startCandidate(session, connection, candidate, lifecycle, failures) {
     if (session.disposed || session.lifecycle !== lifecycle) throw new Error('Codex Native PenEcho Agent session was closed during startup.')
     const executable=String(candidate?.executable || '').trim()
@@ -858,8 +960,19 @@ export class CodexNativeHost {
       env:this.env,
       logger:this.logger,
       runtimeDirectory:join(this.stateDirectory,'codex-native','runtime'),
+      diagnosticsEnabled:Boolean(session.nativeActivityDiagnostics),
+      diagnostics:session.nativeActivityDiagnostics,
       onNotification:(method, params) => this.handleNotification(session, method, params),
       onRequest:(id, method, params) => this.handleServerRequest(session, id, method, params),
+      ...(session.nativeActivityDiagnostics ? { onToolReply:event => {
+          const active=session.active
+          if (event?.stage !== 'written') return
+          const belongsToActiveTurn=active?.activityDiagnosticRequestIds?.delete(event.requestId) === true
+          if (!belongsToActiveTurn) return
+          active?.activityDiagnostics?.tool('reply-written')
+          active?.activityDiagnostics?.phase('tool-reply-written')
+          active?.activityDiagnostics?.phase('awaiting-model-events')
+        } } : {}),
       onGone:error => {
         if (starting) startupFailure ||= error
         else if (session.process === process) this.invalidateSession(session, error).catch(() => {})
@@ -871,12 +984,13 @@ export class CodexNativeHost {
         model:connection.cliModel,
         cwd:session.project?.kind === 'folder' ? session.project.path : session.projectRuntimeDirectory,
         baseInstructions:session.native.instructions(),
-        dynamicTools:session.native.dynamicTools(),
+        dynamicTools:this.nativeTools(session),
       })
       starting=false
       if (startupFailure) throw startupFailure
       if (session.disposed || session.lifecycle !== lifecycle) throw new Error('Codex Native PenEcho Agent session was closed during startup.')
       session.threadId = threadId
+      session.reportedUsageTotal = null
       session.cliSource = source
       this.rememberPreferredCli(connection,executable)
       this.logger({type:'codex-native-cli-selected',source,fallbackCount:failures.length})
@@ -959,7 +1073,7 @@ export class CodexNativeHost {
         }
       }
       this.send(session,'agent_status',{status:'preparing',phase:hadPrivateManagedCli?'repairing':'installing'})
-      session.active?.timeout?.activity()
+      this.recordNativeActivity(session.active, 'startup/install')
       let installed=null
       try {
         installed=await this.ensureManagedCliInstalled(CODEX_CLI_PINNED_VERSION)
@@ -1010,7 +1124,7 @@ export class CodexNativeHost {
 
   emitPublicEvent(session, event) {
     if (session.disposed) return
-    session.active?.timeout?.activity()
+    this.recordNativeActivity(session.active, `public/${String(event?.kind || '')}`)
     session.backlog.push(event)
     if (session.backlog.length > MAX_BACKLOG) session.backlog.splice(0, session.backlog.length - MAX_BACKLOG)
     if (event?.kind === 'assistant_delta' || event?.kind === 'user_message') {
@@ -1020,6 +1134,51 @@ export class CodexNativeHost {
     this.logConversation(session, 'event', event)
     this.traceConversation(session, 'event', event)
     this.send(session, 'session_event', event)
+  }
+
+  recordNativeActivity(active, source) {
+    if (!active?.timeout) return
+    active.timeout.activity()
+    active.activityDiagnostics?.activity(source)
+  }
+
+  recordNativeNotification(session, method, params) {
+    const active=session.active,diagnostics=active?.activityDiagnostics
+    if (!diagnostics) return
+    let category=CODEX_NATIVE_KNOWN_NOTIFICATIONS.has(method) ? 'recognized' : 'ignored'
+    const threadId=params?.threadId
+    if (threadId !== undefined && String(threadId) !== String(session.threadId)) category='mismatched'
+    else if (active.turnId) {
+      const expectedTurnId=method==='turn/started'||method==='turn/completed'
+        ? String(params?.turn?.id || '')
+        : String(params?.turnId || '')
+      const requiresTurn=method==='turn/started'||method==='turn/completed'||method==='thread/tokenUsage/updated'
+        ||method==='thread/compacted'||method==='rawResponseItem/completed'||method==='rawResponse/completed'
+        ||method.startsWith('item/')||CODEX_NATIVE_TURN_ACTIVITY_NOTIFICATIONS.has(method)
+      if (requiresTurn && (!expectedTurnId || expectedTurnId !== active.turnId)) category='mismatched'
+    }
+    diagnostics.notification(category,method)
+  }
+
+  traceNativeActivitySummary(session, active, reason) {
+    const diagnostics=active?.activityDiagnostics
+    if (!diagnostics || active.activitySummaryTraced) return
+    try {
+      const pendingAdmissions=[...active.pendingToolAdmissions.values()].reduce((count,entries)=>count+(Array.isArray(entries)?entries.length:0),0)
+      const metadata=diagnostics.summary(reason,{
+        processAlive:Boolean(session.process?.alive),
+        pendingAppServerRequests:session.process?.pending?.size,
+        rawBufferBytes:Buffer.byteLength(String(session.process?.buffer || ''),'utf8'),
+        pendingRequests:session.pending.size,
+        pendingAdmissions,
+        executingTools:session.toolAborts.size,
+      })
+      active.activitySummaryTraced=true
+      if (session.traceDecisionProtocol) session.traceDecisionProtocol({kind:'native-activity-summary',reason:String(reason||'unknown').slice(0,64),metadata})
+      else this.logger({type:'codex-native-activity-summary',reason:String(reason||'unknown').slice(0,64),metadata})
+    } catch (error) {
+      try { this.logger({type:'codex-native-activity-summary-error',error:safeError(error)}) } catch {}
+    }
   }
 
   activeProjectIds() {
@@ -1215,15 +1374,30 @@ export class CodexNativeHost {
     let active
     const turnPromise = new Promise((resolve, reject) => {
       active = {
+        usageRequestId:randomUUID(),usageStartedAt:Date.now(),usageBaseline:session.reportedUsageTotal || {},
         turnId:null, text:'', usage:null, settled:false, callIds:new Set(), compactionEmitted:false, inputController, resolve, reject,
         rawDecisionCalls:[], rawDecisionBatches:new Map(), sealedDecisionBatches:[], rawBoundaryCount:0, pendingToolAdmissions:new Map(), responseTextStart:0,
         completedResponseMessages:[],titleRequested:canvasTitleNeeded===true,canvasTitleCandidate:'',effort:requestEffort.effective,
+        activityDiagnostics:session.nativeActivityDiagnostics?.beginTurn({turnNumber:session.turnNumber+1}) || null,
+        activityDiagnosticRequestIds:session.nativeActivityDiagnostics ? new Set() : null,
+        activitySummaryTraced:false,
         emitEnd:(reason, error = null) => {
           if (active.settled) return
+          active.activityDiagnostics?.phase('turn-ending')
+          this.traceNativeActivitySummary(session,active,reason)
           active.settled = true
+          if(this.onModelUsage) {
+            const total=active.usage?.total,usage=total ? Object.fromEntries(['inputTokens','cachedInputTokens','cacheWriteInputTokens','outputTokens'].map(key=>{
+              const value=total[key],previous=active.usageBaseline[key] ?? 0;
+              return [key,Number.isSafeInteger(value)&&value>=previous?value-previous:null];
+            })) : null;
+            try { Promise.resolve(this.onModelUsage({requestId:active.usageRequestId,connectionId:session.connectionId,connectionName:session.connection?.name || 'Codex CLI',model:session.model || 'default',createdAt:active.usageStartedAt,completedAt:Date.now(),status:reason==='completed'?'succeeded':reason==='cancelled'||reason==='interrupted'?'cancelled':'failed',usage,usageFormat:'openai'})).catch(()=>{}); } catch {}
+          }
           active.timeout?.clear()
           this.rejectNativeToolAdmission(active, error || new Error('Codex Native PenEcho Agent turn ended during tool admission.'))
+          active.activityDiagnosticRequestIds?.clear()
           if (session.active === active) session.active = null
+          active.activityDiagnostics?.close()
           const event = error
             ? { kind:'turn_end', turn:session.turnNumber, reason:{ kind:reason, error:{ code:'CODEX_NATIVE_FAILED', message:safeError(error) } } }
             : { kind:'turn_end', turn:session.turnNumber, reason:{ kind:reason },...(reason==='completed'&&active.titleRequested&&active.canvasTitleCandidate?{canvasTitle:active.canvasTitleCandidate}:{}) }
@@ -1268,6 +1442,7 @@ export class CodexNativeHost {
       initialCanvasState = await admitInitialCanvasState(session, this.attachments, initialState)
       assertActive()
       await this.ensureStarted(session)
+      active.usageBaseline = session.reportedUsageTotal || {}
       assertActive()
       if (!session.process?.alive || !session.threadId) throw codexNativeResetRequired('Codex Native PenEcho Agent thread is unavailable.')
       const timeoutController = new AbortController()
@@ -1275,7 +1450,10 @@ export class CodexNativeHost {
         timeoutController,
         Math.max(1_000, Number(this.modelTimeoutMs?.(session.connectionId)) || DEFAULT_CANVAS_AGENT_IDLE_TIMEOUT_MS),
         {
-          reasonFor:(_kind, limitMs) => Object.assign(new Error(`Codex CLI PenEcho Agent turn timed out after ${canvasAgentTimeoutSeconds(limitMs)} seconds without activity. The conversation is preserved; send another message to continue.`), { name:'TimeoutError' }),
+          reasonFor:(_kind, limitMs) => {
+            this.traceNativeActivitySummary(session,active,'timeout')
+            return Object.assign(new Error(`Codex CLI PenEcho Agent turn timed out after ${canvasAgentTimeoutSeconds(limitMs)} seconds without activity. The conversation is preserved; send another message to continue.`), { name:'TimeoutError' })
+          },
         },
       )
       timeoutController.signal.addEventListener('abort', () => {
@@ -1307,6 +1485,7 @@ export class CodexNativeHost {
         ...(initialCanvasState?.attachment ? [initialCanvasState.attachment] : []), ...imageAttachments,
       ], inputController.signal)
       assertActive()
+      active.activityDiagnostics?.phase('awaiting-model-events')
       const result = await session.process.request('turn/start', {
         threadId:session.threadId,
         input,
@@ -1471,6 +1650,18 @@ export class CodexNativeHost {
     active.completedResponseMessages.push(value)
   }
 
+  projectNativeProgress(session, active) {
+    // Publish only one complete, explicitly public leading status line for
+    // the current response. Title envelopes are parsed for inspection only;
+    // the original text remains available to the completion path.
+    if(active.publicResponsePrefix)return
+    const response=active.text.slice(active.responseTextStart,active.responseTextStart+MAX_NATIVE_PROGRESS_SCAN_CHARS),visible=parseCanvasTitleEnvelope(response,false).text,
+      match=/^(?:Progress:|进展：)[^\r\n]{1,160}\r?\n/.exec(visible)
+    if(!match)return
+    active.publicResponsePrefix=match[0]
+    this.emitPublicEvent(session,{kind:'assistant_delta',turn:session.turnNumber,text:redactPublicProjectValue(match[0],session)})
+  }
+
   sealNativeAssistantResponse(session, active) {
     const start=Math.min(active.responseTextStart,active.text.length),prefix=active.text.slice(0,start),responseText=active.text.slice(start),messages=active.completedResponseMessages.splice(0),
       project=value=>{
@@ -1480,7 +1671,14 @@ export class CodexNativeHost {
       },visibleResponse=project(responseText),visibleMessages=messages.map(project).filter(Boolean)
     active.text=`${prefix}${visibleResponse}`
     active.responseTextStart=active.text.length
-    if(visibleResponse)this.emitPublicEvent(session,{kind:'assistant_delta',turn:session.turnNumber,text:redactPublicProjectValue(visibleResponse,session)})
+    const alreadyProjected=active.publicResponsePrefix||''
+    const projectedWithoutLineBreak=alreadyProjected.replace(/\r?\n$/,''),remaining=alreadyProjected
+      ? visibleResponse.startsWith(alreadyProjected)
+        ? visibleResponse.slice(alreadyProjected.length)
+        : visibleResponse===projectedWithoutLineBreak ? '' : visibleResponse
+      : visibleResponse
+    active.publicResponsePrefix=''
+    if(remaining)this.emitPublicEvent(session,{kind:'assistant_delta',turn:session.turnNumber,text:redactPublicProjectValue(remaining,session)})
     for(const message of visibleMessages)this.emitPublicEvent(session,{kind:'assistant_message',turn:session.turnNumber,text:redactPublicProjectValue(message,session)})
   }
 
@@ -1553,6 +1751,7 @@ export class CodexNativeHost {
 
   handleNotification(session, method, params) {
     if (session.disposed) return
+    this.recordNativeNotification(session,method,params)
     if (params?.threadId !== undefined && String(params.threadId) !== String(session.threadId)) {
       this.invalidateSession(session, new Error('Codex app-server emitted a notification for another thread.')).catch(() => {})
       return
@@ -1583,6 +1782,7 @@ export class CodexNativeHost {
       }
       const usage = compactUsage(params.tokenUsage)
       active.usage = usage
+      if(usage?.total)session.reportedUsageTotal=usage.total
       this.emitPublicEvent(session, { kind:'token_usage', turn:session.turnNumber, tokenUsage:usage })
       return
     }
@@ -1605,7 +1805,8 @@ export class CodexNativeHost {
         return
       }
       active.turnId = startedTurnId
-      active.timeout?.activity()
+      active.activityDiagnostics?.phase('awaiting-model-events')
+      this.recordNativeActivity(active, 'turn/started')
       return
     }
     if (!active) return
@@ -1616,19 +1817,21 @@ export class CodexNativeHost {
       return
     }
     if (method === 'rawResponseItem/completed') {
-      active.timeout?.activity()
+      this.recordNativeActivity(active, 'rawResponseItem/completed')
       const item=params?.item,type=String(item?.type||'')
       if(type==='function_call'||type==='custom_tool_call'){
+        active.activityDiagnostics?.phase('awaiting-raw-boundary')
         if(!active.rawDecisionCalls.length)this.expireUncalledNativeToolBoundaries(session,active)
         active.rawDecisionCalls.push(nativeRawDecisionCall(item))
       }
       return
     }
     if (method === 'rawResponse/completed') {
-      active.timeout?.activity()
+      this.recordNativeActivity(active, 'rawResponse/completed')
       if(!active.rawDecisionCalls.length)this.expireUncalledNativeToolBoundaries(session,active)
       this.sealNativeAssistantResponse(session,active)
       this.sealNativeToolDecision(session,active,params)
+      active.activityDiagnostics?.phase(active.sealedDecisionBatches.at(-1)?.count ? 'awaiting-tool-request' : 'awaiting-model-events')
       return
     }
     const itemNotification = method.startsWith('item/'), turnActivity = CODEX_NATIVE_TURN_ACTIVITY_NOTIFICATIONS.has(method)
@@ -1640,22 +1843,24 @@ export class CodexNativeHost {
       return
     }
     if (turnActivity) {
-      active.timeout?.activity()
+      this.recordNativeActivity(active, method)
       return
     }
     if (method === 'item/agentMessage/delta' && typeof params.delta === 'string') {
-      active.timeout?.activity()
+      this.recordNativeActivity(active, 'item/agentMessage/delta')
       active.text += params.delta
       if (active.text.length > MAX_AGENT_RESPONSE_CHARS) {
         this.failTurn(session, new Error('Codex app-server response is too large.'), { close:true }).catch(() => {})
         return
       }
+      this.projectNativeProgress(session,active)
       return
     }
     if (method === 'item/completed') {
-      active.timeout?.activity()
+      this.recordNativeActivity(active, 'item/completed')
       const text = agentMessageText(params.item)
       this.appendNativeAssistantMessage(active,text)
+      this.projectNativeProgress(session,active)
       if(active.text.length>MAX_AGENT_RESPONSE_CHARS){
         this.failTurn(session,new Error('Codex app-server response is too large.'),{close:true}).catch(()=>{})
       }
@@ -1763,12 +1968,16 @@ export class CodexNativeHost {
   async executeNativeToolRequest(session, request) {
     const {active,turnId,callId,name,args}=request,tool=session.native.tool(name)
     if (!tool) throw new Error(`Codex dynamic tool ${name || '(missing)'} is unavailable.`)
-    active.timeout?.activity()
+    this.recordNativeActivity(active, 'tool/request')
+    active.activityDiagnostics?.tool('queued')
+    active.activityDiagnostics?.phase('tool-queued')
     const lifecycle = session.lifecycle
     const toolStillActive = () => !session.disposed && session.lifecycle === lifecycle && session.active === active && active.turnId === turnId
     let concludesTurn=false
     const execution = session.toolQueue.then(async () => {
       if (!toolStillActive()) throw new Error('Codex Native PenEcho Agent session or turn changed during tool execution.')
+      active.activityDiagnostics?.tool('executing')
+      active.activityDiagnostics?.phase('tool-executing')
       const controller = new AbortController()
       const timeoutMs = Math.max(1_000, Number(tool.timeoutMs) || 45_000)
       const timer = setTimeout(() => controller.abort(new Error(`PenEcho tool ${name} timed out.`)), timeoutMs)
@@ -1782,30 +1991,29 @@ export class CodexNativeHost {
         )
         if (!toolStillActive()) throw new Error('Codex Native PenEcho Agent session or turn changed during tool execution.')
         session.native.recordToolResult({ isError:false, value })
-        const contentItems = []
-        for (const block of tool.output.render(args, value) || []) {
-          if (block?.type === 'text' && typeof block.text === 'string') contentItems.push({ type:'inputText', text:boundedText(block.text, 400_000) })
-          else if (block?.type === 'image' && block.attachment?.attachmentId) {
-            const stored = await this.attachments.readImageRequest(block.attachment, CODEX_MODEL_IMAGE_REQUEST_POLICY, controller.signal)
-            contentItems.push({ type:'inputImage', imageUrl:`data:${stored.ref?.mediaType || stored.mediaType};base64,${Buffer.from(stored.data).toString('base64')}` })
-          }
-        }
-        const directAttachment = value?.attachment?.attachmentId ? value.attachment : null
-        if (directAttachment && !contentItems.some(item => item.type === 'inputImage')) {
-          const stored = await this.attachments.readImageRequest(directAttachment, CODEX_MODEL_IMAGE_REQUEST_POLICY, controller.signal)
-          contentItems.push({ type:'inputImage', imageUrl:`data:${stored.ref?.mediaType || stored.mediaType};base64,${Buffer.from(stored.data).toString('base64')}` })
-        }
+        const contentItems=await nativeToolContentItems({
+          name,
+          value,
+          renderedBlocks:tool.output.render(args, value) || [],
+          readImageRequest:(attachment, policy, signal) => this.attachments.readImageRequest(attachment, policy, signal),
+          imagePolicy:CODEX_MODEL_IMAGE_REQUEST_POLICY,
+          signal:controller.signal,
+        })
         if (!toolStillActive()) throw new Error('Codex Native PenEcho Agent session or turn changed during tool execution.')
         if (!contentItems.length) contentItems.push({ type:'inputText', text:'PenEcho tool completed.' })
         const resultText=value?.terminal===true?boundedText(String(value.message||'PenEcho Agent stopped the current turn.'),2_000):'PenEcho tool completed.'
         this.emitPublicEvent(session, { kind:'tool_result', turn:session.turnNumber, callId, text:resultText, error:null })
         const response={ success:true, contentItems }
+        active.activityDiagnostics?.tool('result-ready')
+        active.activityDiagnostics?.phase('tool-result-ready')
         if(concludesTurn)this.concludeNativeTurnAfterTool(session,active,value)
         return response
       } catch (error) {
         if (toolStillActive()) session.native.recordToolResult({ isError:true, error })
         const text = boundedText(redactPublicProjectValue(safeError(error, `PenEcho tool ${name} failed.`), session), 2_000)
         if (toolStillActive()) this.emitPublicEvent(session, { kind:'tool_result', turn:session.turnNumber, callId, text, error:{ code:'CODEX_TOOL_FAILED', message:text } })
+        active.activityDiagnostics?.tool('result-ready')
+        active.activityDiagnostics?.phase('tool-result-ready')
         return { success:false, contentItems:[{ type:'inputText', text }] }
       } finally {
         clearTimeout(timer)
@@ -1818,6 +2026,12 @@ export class CodexNativeHost {
 
   async handleServerRequest(session, id, method, params) {
     if (session.disposed) throw new Error('Codex Native PenEcho Agent session is closed.')
+    if (method === 'item/tool/call') {
+      const active=session.active
+      if (active?.activityDiagnosticRequestIds && active.activityDiagnosticRequestIds.size < 64) active.activityDiagnosticRequestIds.add(id)
+      active?.activityDiagnostics?.tool('received')
+      active?.activityDiagnostics?.phase('awaiting-tool-admission')
+    }
     session.traceDecisionProtocol?.({kind:'native-server-request',requestId:id,method,params})
     if (method !== 'item/tool/call') {
       const message=`PenEcho refused Codex app-server request ${method}.`
@@ -1872,6 +2086,7 @@ export class CodexNativeHost {
       const entries=active.pendingToolAdmissions.get(callId)||[]
       entries.push({request,resolve,reject})
       active.pendingToolAdmissions.set(callId,entries)
+      active.activityDiagnostics?.phase('awaiting-tool-admission')
     })
   }
 

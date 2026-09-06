@@ -2596,7 +2596,7 @@
     } catch {
       return o;
     }
-    const view = plotView(evaluate),
+    const view = c._mcpView || plotView(evaluate),
       { xMin, xMax, yMin, yMax } = view,
       xPixel = (x) => area.left + ((x - xMin) / (xMax - xMin)) * plotWidth,
       yPixel = (y) => area.bottom - ((y - yMin) / (yMax - yMin)) * plotHeight,
@@ -2878,6 +2878,8 @@
     if (!state.drawing) return;
     const d = state.drawing;
     commitLiveInkDrawing(d);
+    const feedbackPadding=Math.max(2,d.size||1);
+    mcpRecordFeedback("stroke",{x:d.bbox.x-feedbackPadding,y:d.bbox.y-feedbackPadding,w:d.bbox.w+feedbackPadding*2,h:d.bbox.h+feedbackPadding*2});
     state.drawing = null;
     noteCanvasChromeInteraction();
     requestAnimationFrame(() => {

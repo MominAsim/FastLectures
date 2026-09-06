@@ -6,6 +6,7 @@ const path = require("path");
 const { spawn } = require("child_process");
 
 const MAX_CAPTURE_BYTES = 1024 * 1024;
+const MAX_ERROR_REASON_CHARS = 4000;
 function findOnPath(name, env = process.env) {
   const directories = String(env.PATH || env.Path || "").split(path.delimiter).filter(Boolean);
   const candidates = process.platform === "win32" && !path.extname(name) ? [".exe", ".com", ".cmd", ".bat"].map(extension => `${name}${extension}`) : [name];
@@ -109,7 +110,22 @@ function claudeResult(stdout) {
   return claudeEventResult(raw);
 }
 
+function claudeErrorReason(raw) {
+  const errors = Array.isArray(raw?.errors) ? raw.errors : [], reasons = errors.map(value => {
+    if (typeof value === "string") return value;
+    if (!value || typeof value !== "object") return "";
+    for (const key of ["message", "error", "detail", "reason"]) if (typeof value[key] === "string") return value[key];
+    return "";
+  }).map(value => value.trim()).filter(Boolean);
+  if (!reasons.length && typeof raw?.result === "string" && raw.result.trim()) reasons.push(raw.result.trim());
+  return reasons.join("; ").slice(0, MAX_ERROR_REASON_CHARS);
+}
+
 function claudeEventResult(raw) {
+  if (raw?.is_error === true) {
+    const reason = claudeErrorReason(raw) || "Unknown Claude CLI error.";
+    throw Object.assign(new Error(`Claude CLI reported an error: ${reason}`), { code:"UPSTREAM_ERROR" });
+  }
   if (raw?.type !== "result" || raw?.subtype !== "success") throw new Error(`Claude CLI did not complete successfully${raw?.subtype ? ` (${raw.subtype})` : ""}.`);
   if (raw.structured_output && typeof raw.structured_output === "object") return JSON.stringify(raw.structured_output);
   if (typeof raw.result !== "string" || !raw.result.trim()) throw new Error("Claude CLI returned an empty result.");
@@ -171,6 +187,23 @@ function claudeResponseEvent(event) {
   return ["message_start", "content_block_start", "content_block_delta", "message_delta", "message_stop"].includes(event?.event?.type);
 }
 
+function claudeAssistantText(event) {
+  if (event?.type === "assistant" && String(event?.message?.role || "assistant").toLowerCase() === "assistant") {
+    const content = Array.isArray(event.message?.content) ? event.message.content : [];
+    const text = content.filter(part => part?.type === "text").map(part => String(part.text || "")).join("");
+    return text ? { text, mode:"complete" } : null;
+  }
+  if (event?.type !== "stream_event") return null;
+  const nested = event.event;
+  if (nested?.type === "content_block_start" && nested.content_block?.type === "text" && nested.content_block.text) {
+    return { text:String(nested.content_block.text), mode:"delta" };
+  }
+  if (nested?.type === "content_block_delta" && nested.delta?.type === "text_delta" && nested.delta.text) {
+    return { text:String(nested.delta.text), mode:"delta" };
+  }
+  return null;
+}
+
 function claudeEventUsage(event) {
   const direct = event?.usage || event?.message?.usage || event?.event?.usage || event?.event?.message?.usage;
   if (direct && typeof direct === "object" && !Array.isArray(direct)) return direct;
@@ -196,7 +229,7 @@ function claudeEventUsage(event) {
   return observed ? total : null;
 }
 
-function runProcess(launch, args, input, cwd, env, signal, onProgress = null, onActivity = null, onUsage = null) {
+function runProcess(launch, args, input, cwd, env, signal, onProgress = null, onText = null, onActivity = null, onUsage = null) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(abortError());
     let child;
@@ -257,11 +290,14 @@ function runProcess(launch, args, input, cwd, env, signal, onProgress = null, on
       }
       const toolName = toolUseName(event);
       if (toolName) return failEarly(new Error(`Claude CLI attempted disabled tool use: ${toolName}.`));
+      const assistantText = claudeAssistantText(event);
+      if (assistantText) try { onText?.(assistantText.text, { mode:assistantText.mode }); } catch {}
       if (event?.type !== "result") return;
       let content;
       try { content = claudeEventResult(event); }
       catch (error) { return failEarly(error); }
       if (Buffer.byteLength(content, "utf8") > MAX_CAPTURE_BYTES) return failEarly(new Error("Claude CLI final response is too large."));
+      try { onText?.(content, { mode:"complete" }); } catch {}
       if (signal?.aborted) return failEarly(abortError());
       finishEarly(content);
     };
@@ -303,12 +339,12 @@ function runProcess(launch, args, input, cwd, env, signal, onProgress = null, on
   });
 }
 
-async function callClaudeCli({ executable, model, effort, systemPrompt, prompt, atlasImage, signal, env = process.env, onProgress = null, onActivity = null, onUsage = null }) {
+async function callClaudeCli({ executable, model, effort, systemPrompt, prompt, atlasImage, signal, env = process.env, onProgress = null, onText = null, onActivity = null, onUsage = null }) {
   const workDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-claude-"));
   let caughtError = null, cleanupReady = Promise.resolve(), deferCleanup = false;
   try {
     await fs.promises.chmod(workDir, 0o700).catch(() => {});
-    const launch = resolveClaudeLaunch(executable, env), args = buildClaudeArgs({ systemPrompt, model, effort }), input = claudeInput(prompt, atlasImage), childEnv = sanitizeClaudeEnv(env, effort), result = await runProcess(launch, args, input, workDir, childEnv, signal, onProgress, onActivity, onUsage);
+    const launch = resolveClaudeLaunch(executable, env), args = buildClaudeArgs({ systemPrompt, model, effort }), input = claudeInput(prompt, atlasImage), childEnv = sanitizeClaudeEnv(env, effort), result = await runProcess(launch, args, input, workDir, childEnv, signal, onProgress, onText, onActivity, onUsage);
     cleanupReady = result.cleanupReady || cleanupReady;
     deferCleanup = Boolean(result.deferCleanup);
     if (signal?.aborted) throw abortError();

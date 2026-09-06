@@ -222,6 +222,7 @@ test("Viewer Widget initialization recovers when the host's first ready message 
       state,
       location:{ origin },
       pluginManifests:new Map([["general", { styles:"main{display:block}" }]]),
+      canvasWidgetInteractive:()=>false, canvasWidgetSelectionEnabled:()=>false, syncMcpWidgetProgress() {},
     });
 
   // The outer iframe load callback uses this probe after its message listener

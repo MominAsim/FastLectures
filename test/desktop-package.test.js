@@ -175,7 +175,7 @@ test("desktop startup repairs stale built-in Kimi presets before starting the AP
   }), {});
 });
 
-test("desktop LAN addresses include every non-loopback IPv4 interface and prioritize common LAN ranges", () => {
+test("desktop LAN addresses exclude tunnels and prioritize common LAN ranges", () => {
   const hosts = lanHosts({
     en0:[{ address:"192.168.1.20", family:"IPv4", internal:false }],
     en1:[{ address:"10.0.0.5", family:4, internal:false }],
@@ -189,7 +189,7 @@ test("desktop LAN addresses include every non-loopback IPv4 interface and priori
     lo0:[{ address:"127.0.0.1", family:"IPv4", internal:true }],
     ipv6:[{ address:"2001:db8::1", family:"IPv6", internal:false }],
   });
-  assert.deepEqual(hosts, ["192.168.1.20", "192.168.56.1", "10.0.0.5", "172.16.0.2", "172.20.32.1", "100.100.1.2", "169.254.10.20", "203.0.113.8"]);
+  assert.deepEqual(hosts, ["192.168.1.20", "192.168.56.1", "10.0.0.5", "172.20.32.1", "100.100.1.2", "169.254.10.20", "203.0.113.8"]);
   assert.equal(isPrivateIpv4("172.31.255.1"), true);
   assert.equal(isPrivateIpv4("172.32.0.1"), false);
   assert.deepEqual(lanUrls(3888, hosts), hosts.map(host => `http://${host}:3888/`));
@@ -316,7 +316,8 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(main, /window\.loadFile\(SETTINGS_FILE\)\.then\(reveal\)/);
   assert.match(main, /settingsReadyToLaunch = true;[\s\S]*?ok:false,[\s\S]*?saved:true/);
   assert.match(main, /SETTINGS_TEST_TIMEOUT_MS = 30_000/);
-  assert.match(main, /Promise\.race\(\[[\s\S]*?testConfiguredProvider\(loaded\.configuration, \{ timeoutMs:SETTINGS_TEST_TIMEOUT_MS \}\)[\s\S]*?PENECHO_SETTINGS_TEST_TIMEOUT/);
+  assert.match(main, /testDesktopConnection.*require\("\.\/settings-test\.js"\)/);
+  assert.match(main, /testDesktopConnection\(loaded\.configuration, \{ timeoutMs:SETTINGS_TEST_TIMEOUT_MS \}\)/);
   assert.match(main, /timedOut:\["PENECHO_SETTINGS_TEST_TIMEOUT", "PENECHO_CONNECTION_TEST_TIMEOUT"\]\.includes\(error\.code\)/);
   assert.match(settings, /Launch anyway/);
   assert.match(settings, /setStatus\("success"[\s\S]*?const launched = await desktop\.launch\(\)/);
@@ -338,8 +339,27 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(forge, /buildVersion:DESKTOP_VERSION/);
   assert.match(forge, /version:DESKTOP_VERSION/);
   assert.match(forge, /\^\\\/\\\./);
-  for (const directory of ["build", "docs", "fixtures", "logs", "output", "scripts", "spec", "test", "testcase"]) {
+  for (const directory of ["build", "fixtures", "logs", "output", "scripts", "spec", "test", "testcase"]) {
     assert.match(forge,new RegExp(`\\^\\\\\\/${directory}`),directory);
+  }
+  const packageIgnore = require("../forge.config.js").packagerConfig.ignore;
+  const ignoredByDesktopPackage = candidate => packageIgnore.some(pattern => {
+    if (!(pattern instanceof RegExp)) return typeof pattern === "function" && pattern(candidate);
+    pattern.lastIndex = 0;
+    return pattern.test(candidate);
+  });
+  assert.equal(ignoredByDesktopPackage("/docs"),false,"the docs directory must be traversed");
+  assert.equal(ignoredByDesktopPackage("/docs/"),false,"the docs directory with a trailing slash must be traversed");
+  assert.equal(ignoredByDesktopPackage("/docs/mcp-setup.md"),false,"the MCP setup guide must be packaged");
+  assert.equal(ignoredByDesktopPackage("/docs/mcp-agent-instructions.md"),false,"the MCP agent instructions must be packaged");
+  assert.equal(ignoredByDesktopPackage("/docs/architecture.md"),true,"unrelated docs remain excluded");
+  assert.equal(ignoredByDesktopPackage("/docs/mcp-setup.md.bak"),true,"only the exact reviewed MCP docs are packaged");
+  for (const directory of ["/skills", "/skills/penecho-mcp", "/src", "/src/server", "/src/server/mcp"]) {
+    assert.equal(ignoredByDesktopPackage(directory),false,`${directory} must be traversed`);
+  }
+  assert.equal(ignoredByDesktopPackage("/skills/penecho-mcp/SKILL.md"),false,"the PenEcho MCP skill must be packaged");
+  for (const file of fs.readdirSync(path.join(ROOT,"src","server","mcp"))) {
+    assert.equal(ignoredByDesktopPackage(`/src/server/mcp/${file}`),false,`the PenEcho MCP backend must include ${file}`);
   }
   assert.match(forge, /\^\\\/tools/);
   assert.match(forge, /maker-dmg/);
@@ -843,7 +863,12 @@ test("automatic Codex setup keeps the existing managed CLI when the downloaded v
         fs.writeFileSync(path.join(path.dirname(staged),"codex-code-mode-host"),"unapproved-host");
         return { output:"installed" };
       },
-    }),/requires Codex CLI 0\.149\.1, but found 0\.150\.1/);
+    }), error => {
+      assert.equal(error.code,"CODEX_CLI_VERSION_INCOMPATIBLE");
+      assert.equal(error.expectedVersion,CODEX_CLI_PINNED_VERSION);
+      assert.equal(error.actualVersion,"0.150.1");
+      return true;
+    });
     assert.equal(fs.readFileSync(expected,"utf8"),"known-good");
     assert.equal(fs.readFileSync(path.join(path.dirname(expected),"codex-code-mode-host"),"utf8"),"known-good-host");
   } finally { fs.rmSync(directory, { recursive:true, force:true }); }
@@ -867,7 +892,7 @@ test("automatic Windows Codex setup publishes the host and sidecars with codex.e
       platform:"win32",home,stateDir,
       fetchImpl:async()=>new Response("# CODEX_INSTALL_DIR\n",{status:200}),
       runner:async(_command,args,options)=>{
-        if(args[0]==="--version")return{output:"codex-cli 0.149.1"};
+        if(args[0]==="--version")return{output:`codex-cli ${CODEX_CLI_PINNED_VERSION}`};
         fs.mkdirSync(options.env.CODEX_INSTALL_DIR,{recursive:true});
         fs.writeFileSync(path.join(options.env.CODEX_INSTALL_DIR,"codex.exe"),"codex");
         fs.writeFileSync(path.join(options.env.CODEX_INSTALL_DIR,"codex-code-mode-host.exe"),"host");

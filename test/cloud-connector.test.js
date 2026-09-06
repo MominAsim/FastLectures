@@ -1288,7 +1288,7 @@ test("Cloud model context is applied only at the local AI loopback boundary", ()
   const source = fs.readFileSync(path.join(__dirname, "..", "src", "server", "main.js"), "utf8");
   assert.match(source, /async function executeCloudCommand\(payload, timeoutMs, context = null\)/);
   assert.match(source, /headers:\{[^\n]+\.\.\.cloudAiConnectionHeaders\(context\)[^\n]+body:JSON\.stringify\(payload\)/);
-  assert.match(source, /findConnection\(store, requestedId\) \|\| store\.defaultConnection/);
+  assert.match(source, /findConnection\(store, requestedId\) \|\| \(requestedId\.startsWith\("hosted:"\) \? null : store\.defaultConnection\)/);
 });
 
 test("Remote Canvas relay operations use the isolated HTTP callback", async () => {

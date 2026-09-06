@@ -281,9 +281,9 @@ test("feature tour copy is complete in English and Chinese", () => {
   assert.match(zh, /闭合套索/);
   assert.doesNotMatch(app, /tourPlugins(?:Title|Body):|plugins-v3/);
   assert.doesNotMatch(zh, /tourPlugins(?:Title|Body):/);
-  assert.match(app, /tourHandBody:[^\n]*tap an image[^\n]*AI widget[^\n]*HTML widgets remain interactive/);
-  assert.match(zh, /点击图片、动画、文本框或 AI 控件.*显示操作按钮/);
-  assert.match(zh, /HTML 控件仍可直接交互/);
+  assert.match(app, /tourHandBody:[^\n]*Hand moves the canvas[^\n]*Use Select[^\n]*widget interaction/);
+  assert.match(zh, /小手可在大控件上直接移动画布.*使用选择工具整理对象/);
+  assert.match(zh, /使用选择工具整理对象，或进入控件交互/);
   assert.doesNotMatch(app, /tourAnimationPlugin/);
   assert.doesNotMatch(zh, /控制动态图讲解/);
   assert.match(zh, /不会参考画布其他部分/);

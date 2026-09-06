@@ -27,6 +27,58 @@ async function* modelBlocks(blocks,{finishKind='tool-calls',replayState=null}={}
   yield{type:'finish',reason:{kind:finishKind},...(replayState?{replayState}:{})}
 }
 
+test('public progress streams before provider completion while tool admission stays atomic',async()=>{
+  const {admitCanvasAgentDecisionStream,CANVAS_DECISION_FEEDBACK_TOOL}=await import('../src/server/canvas-agent/decision-admission.mjs')
+  let release,providerCompleted=false
+  const gate=new Promise(resolve=>{release=resolve}),session=decisionSession(),progress={type:'text',text:'Progress: checking the current structure.\n'}
+  async function* upstream(){
+    yield{type:'block-start',index:0,blockType:'text'}
+    yield{type:'text-delta',index:0,text:progress.text}
+    yield{type:'block-end',index:0,block:progress}
+    await gate
+    for(let index=1;index<=2;index++){
+      const block={type:'tool-call',id:`call-${index}`,name:'canvas_inspect',arguments:'{}'}
+      yield{type:'block-start',index,blockType:'tool-call'}
+      yield{type:'tool-call-delta',index,id:block.id,name:block.name,argumentsDelta:block.arguments}
+      yield{type:'block-end',index,block}
+    }
+    providerCompleted=true
+    yield{type:'finish',reason:{kind:'tool-calls'}}
+  }
+  const stream=admitCanvasAgentDecisionStream(upstream(),{session,availableTools:['canvas_inspect']}),chunks=[]
+  // The timeout releases the producer too, so a buffering regression fails
+  // promptly rather than leaving the test runner waiting on an unresolved gate.
+  const deadline=setTimeout(release,1000)
+  try{
+    for(let count=0;count<3;count++)chunks.push((await stream.next()).value)
+    assert.equal(providerCompleted,false,'progress must arrive while generation is still pending')
+    assert.deepEqual(chunks.map(chunk=>chunk.type),['block-start','text-delta','block-end'])
+    release()
+    for await(const chunk of stream)chunks.push(chunk)
+    assert.equal(chunks.filter(chunk=>chunk.type==='text-delta').length,1,'do not replay streamed commentary')
+    const calls=chunks.filter(chunk=>chunk.type==='block-end'&&chunk.block?.type==='tool-call')
+    assert.equal(calls.length,1)
+    assert.equal(calls[0].block.name,CANVAS_DECISION_FEEDBACK_TOOL,'reject both proposed tools before either can execute')
+  }finally{clearTimeout(deadline);release();await stream.return()}
+})
+
+test('closing a progress stream closes its upstream before any tool executes',async()=>{
+  const {admitCanvasAgentDecisionStream}=await import('../src/server/canvas-agent/decision-admission.mjs')
+  let closed=false,toolReached=false
+  async function* upstream(){
+    try{
+      yield{type:'block-start',index:0,blockType:'text'}
+      yield{type:'text-delta',index:0,text:'Progress: checking.'}
+      toolReached=true
+      yield{type:'block-start',index:1,blockType:'tool-call'}
+    }finally{closed=true}
+  }
+  const stream=admitCanvasAgentDecisionStream(upstream(),{session:decisionSession()})
+  await stream.next();await stream.next();await stream.return()
+  assert.equal(closed,true)
+  assert.equal(toolReached,false)
+})
+
 test('PenEcho Agent rejects a multi-tool step before execution and returns bounded corrective feedback',async()=>{
   const admission=await import('../src/server/canvas-agent/decision-admission.mjs'),session=decisionSession(),chunks=await collect(admission.admitCanvasAgentDecisionStream(modelBlocks([
     {type:'tool-call',id:'a',name:'canvas_inspect',arguments:'{"scope":"canvas"}'},

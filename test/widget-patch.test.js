@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { commandFromWidgetPatch, resolveWidgetEditPatchCommands, widgetPatchFileContent, widgetPatchContract, widgetPatchFiles } = require("../src/server/widget-patch.js");
+const { commandFromWidgetPatch, resolveWidgetEditPatchCommands, widgetSourceHash, widgetPatchFileContent, widgetPatchContract, widgetPatchFiles } = require("../src/server/widget-patch.js");
 
 const HTML = "<!doctype html>\n<html>\n<body>\n<h1>Old</h1>\n<p>Keep</p>\n<footer>v1</footer>\n</body>\n</html>\n";
 const SOURCE = "graph LR\nA --> B\nB --> C\n";
@@ -63,6 +63,57 @@ test("widget patch applies multiple exact hunks and preserves host identity and 
   assert.match(result.html, /<h1>New<\/h1>/);
   assert.match(result.html, /<footer>v2<\/footer>/);
   assert.equal(result.copyText, SOURCE);
+});
+
+test("widget source fingerprint excludes live geometry and non-source diagnostics",()=>{
+  const baseline=htmlEdit(), sourceHash=widgetSourceHash(baseline);
+  assert.equal(widgetSourceHash(htmlEdit({
+    box:{x:900,y:800,w:300,h:200},
+    instructionMode:"explicit",
+    diagnostics:{status:"changed"},
+    contentVersion:42,
+  })),sourceHash);
+  assert.notEqual(widgetSourceHash(htmlEdit({title:"Changed source title"})),sourceHash);
+  assert.notEqual(widgetSourceHash(htmlEdit({html:HTML.replace("Old","New")})),sourceHash);
+});
+
+test("widget patch opt-in diagnostics report exact landing ranges and bounded after windows",()=>{
+  const diagnostics={includeAppliedRanges:true}, patch=[
+    "--- a/widget.html",
+    "+++ b/widget.html",
+    "@@ -99,1 +99,1 @@",
+    "-<h1>Old</h1>",
+    "+<h1>New</h1>",
+    "",
+  ].join("\n"), result=commandFromWidgetPatch(patchCommand(patch),htmlEdit(),diagnostics);
+  assert.match(result.html,/<h1>New<\/h1>/);
+  assert.deepEqual(diagnostics.changedResources,["widget.html"]);
+  assert.deepEqual(diagnostics.appliedRanges,[{path:"widget.html",oldStart:4,oldLines:1,newStart:4,newLines:1}]);
+  assert.equal(diagnostics.afterWindows.length,1);
+  assert.deepEqual(diagnostics.afterWindows[0].lineRange,{start:2,end:6,total:9,truncated:false});
+  assert.match(diagnostics.afterWindows[0].content,/^     2\t<html>/m);
+  assert.match(diagnostics.afterWindows[0].content,/^     4\t<h1>New<\/h1>/m);
+  assert.ok(diagnostics.afterWindows[0].content.length<=24000);
+});
+
+test("widget patch after windows stop before an oversized source line and report the last complete line",()=>{
+  const oldLine=`target-${"o".repeat(32)}`, newLine=`target-${"n".repeat(24000)}`,
+    diagnostics={includeAppliedRanges:true}, patch=[
+      "--- a/widget.html",
+      "+++ b/widget.html",
+      "@@ -1,3 +1,3 @@",
+      " before",
+      `-${oldLine}`,
+      `+${newLine}`,
+      " after",
+      "",
+    ].join("\n"), result=commandFromWidgetPatch(patchCommand(patch),htmlEdit({html:`before\n${oldLine}\nafter\n`,source:"",sourceFormat:""}),diagnostics),
+    window=diagnostics.afterWindows[0];
+  assert.equal(result.html,`before\n${newLine}\nafter\n`);
+  assert.deepEqual(window.lineRange,{start:1,end:1,total:4,truncated:true});
+  assert.equal(window.content,"     1\tbefore");
+  assert.equal(window.content.includes(newLine),false,"an oversized source line must never be sliced into a partial after window");
+  assert.ok(window.content.length<=24000);
 });
 
 test("widget patch removes only exact repeated context between adjacent hunks", () => {

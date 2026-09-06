@@ -7,6 +7,7 @@ const path = require("path");
 const crypto = require("crypto");
 const os = require("os");
 const net = require("net");
+const { lanHosts } = require("./network-access.js");
 const { URL } = require("url");
 const {
   DEFAULT_MAX_TOKENS,
@@ -173,6 +174,7 @@ const MODEL_REASONING_BUDGET_FRACTION = "one half";
 const LOG_DIR = STATE_DIRECTORY ? path.join(STATE_DIRECTORY, "logs") : path.join(ROOT, "logs");
 const LOG_FILE = path.join(LOG_DIR, "penecho.log");
 const REQUEST_TRACE_DIR = path.join(LOG_DIR, "requests");
+const MCP_REQUEST_TRACE_DIR = path.join(LOG_DIR, "mcp-requests");
 const SHARED_CANVAS_DIRECTORY = STATE_DIRECTORY
   ? path.join(STATE_DIRECTORY, "canvases", "shared")
   : path.join(os.homedir(), ".penecho", "canvases", "shared");
@@ -818,6 +820,7 @@ function canvasSettings() {
 }
 
 function findConnection(store, id) {
+  if (String(id).startsWith("hosted:")) return cloudConnector?.hostedConnection(id) || null;
   return id === "default" ? store.defaultConnection : store.connections.find(connection => connection.id === id) || null;
 }
 
@@ -931,6 +934,8 @@ function providerConfigurationError(provider = activeProviderSnapshot()) {
 
 function activeProviderSnapshot() {
   return {
+    connectionId:"default",
+    connectionName:AI_PROVIDER === "api" ? MODEL : AI_PROVIDER,
     provider:AI_PROVIDER,
     aiEffort:AI_EFFORT,
     apiEffort:API_EFFORT,
@@ -960,6 +965,8 @@ function connectionProviderSnapshot(connection) {
       : provider === "codex-cli" ? { ...cli, label:"Codex CLI", doctor:"codex" }
         : provider === "claude-cli" ? { ...cli, label:"Claude CLI", doctor:"claude" } : null;
   return {
+    connectionId:connection.id || "default",
+    connectionName:connection.name || connection.apiModel || connection.cliModel || connection.provider,
     provider,
     aiEffort:effort,
     apiEffort:provider === "api" ? normalizedApiEffort(api?.format, effort) : null,
@@ -988,7 +995,7 @@ function connectionTestConfiguration(connection) {
     ...(provider === "codex-cli" ? { CODEX_CLI_MODEL:connection.cliModel || "", CODEX_CLI_PATH:connection.cliPath || "codex" } : {}),
     ...(provider === "claude-cli" ? { CLAUDE_CLI_MODEL:connection.cliModel || "", CLAUDE_CLI_PATH:connection.cliPath || "claude" } : {}),
   };
-  return { provider, env, cwd:process.cwd() };
+  return { provider, env, cwd:process.cwd(), home:process.env.HOME || process.env.USERPROFILE || os.homedir(), stateDir:STATE_DIRECTORY || CLOUD_STATE_DIRECTORY };
 }
 
 function cliInstallationGuidance(provider) {
@@ -1017,7 +1024,8 @@ function cliConnectionIssue(error) {
 
 function requestProviderSnapshot(req) {
   const requestedId = String(req.headers["x-penecho-connection"] || "default").trim(), store = connectionStore(),
-    connection = findConnection(store, requestedId) || store.defaultConnection;
+    connection = findConnection(store, requestedId) || (requestedId.startsWith("hosted:") ? null : store.defaultConnection);
+  if (!connection) throw Object.assign(new Error("The selected PenEcho model is unavailable. Refresh AI connections."), { status:409 });
   return connectionProviderSnapshot(connection);
 }
 
@@ -1897,7 +1905,6 @@ function isLoopback(address) { return address === "::1" || address === "127.0.0.
 function isLoopbackHostname(hostname) { return ["localhost", "127.0.0.1", "::1", "[::1]", "::ffff:127.0.0.1", "[::ffff:127.0.0.1]"].includes(String(hostname || "").toLowerCase().replace(/\.$/, "")); }
 const LOCAL_HOSTNAMES = new Set([os.hostname(), `${os.hostname()}.local`].map(value => value.toLowerCase().replace(/\.$/, "")));
 const LOCAL_INTERFACE_ADDRESSES = new Set();
-const LAN_IPV4_ADDRESSES = new Set();
 const LOCAL_NETWORKS = new net.BlockList();
 for (const entries of Object.values(os.networkInterfaces())) {
   for (const entry of entries || []) {
@@ -1905,7 +1912,6 @@ for (const entries of Object.values(os.networkInterfaces())) {
       address = String(entry.address || "").split("%", 1)[0];
     if (!family || !address) continue;
     LOCAL_INTERFACE_ADDRESSES.add(address.toLowerCase());
-    if (family === "ipv4" && !entry.internal && net.isIP(address) === 4) LAN_IPV4_ADDRESSES.add(address);
     const prefix = Number(String(entry.cidr || "").split("/")[1]);
     if (Number.isInteger(prefix)) {
       try { LOCAL_NETWORKS.addSubnet(address, prefix, family); } catch {}
@@ -2529,13 +2535,19 @@ function traceAttemptError(trace, attempt, error) {
   });
 }
 async function callModelWithTrace(trace, attempt, modelInput, atlasImage, retryInstruction, effort, signal, transportReason=null, provider=activeProviderSnapshot(), onProgress=null) {
+  const usageStartedAt=Date.now(),usageRequestId=crypto.randomUUID();
+  const reportUsage=(status,usage)=>{
+    try { cloudConnector?.reportLocalModelUsage({requestId:usageRequestId,connectionId:provider.connectionId,connectionName:provider.connectionName,model:provider.model||provider.local?.model||provider.provider,action:"main-canvas",createdAt:usageStartedAt,completedAt:Date.now(),status,usage,usageFormat:provider.api?.format||"openai"}); } catch {}
+  };
   traceAttemptStarted(trace,attempt,modelInput,atlasImage,retryInstruction,effort,transportReason,provider);
   try {
     const model=await callModel(modelInput,atlasImage,retryInstruction,effort,signal,provider,onProgress);
     traceAttemptResponse(trace,attempt,model);
+    reportUsage("succeeded",model.upstream?.usage);
     return model;
   } catch(error) {
     traceAttemptError(trace,attempt,error);
+    reportUsage(signal?.aborted?"cancelled":"failed",error.upstream?.usage);
     throw error;
   }
 }
@@ -2563,21 +2575,22 @@ async function callModel(modelInput, atlasImage, retryInstruction="", effort, ex
       pluginsEnabled = Array.isArray(modelInput?.enabledPlugins) && modelInput.enabledPlugins.length > 0;
     if (provider.local) {
       try {
-        let receivingStarted=false;
+        let receivingStarted=false,reportedUsage=null;
+        const onUsage=usage=>{reportedUsage=usage;};
         const localProgress=(phase)=>{
           if(phase==="receiving")receivingStarted=true;
           onProgress?.(phase);
         };
         onProgress?.("waiting");
         const content = provider.provider === "kimi-cli"
-          ? await callKimiCli({ ...provider.kimi, effort, prompt:kimiModelPrompt(text,literalTypeset,animationEnabled,pluginsEnabled), atlasImage, signal:controller.signal, onActivity:streamActivity })
+          ? await callKimiCli({ ...provider.kimi, effort, prompt:kimiModelPrompt(text,literalTypeset,animationEnabled,pluginsEnabled), atlasImage, signal:controller.signal, onActivity:streamActivity, onUsage })
           : provider.provider === "codex-cli"
-            ? await callCodexCliWithRecovery(configuredProvider, { effort, prompt:codexModelPrompt(text,literalTypeset,animationEnabled,pluginsEnabled), atlasImage, signal:controller.signal, onProgress:localProgress, onActivity:streamActivity })
-            : await callClaudeCli({ ...provider.claude, effort, systemPrompt:localCliSystemPrompt(literalTypeset,animationEnabled,pluginsEnabled), prompt:localCliRequestPrompt(text), atlasImage, signal:controller.signal, onProgress:localProgress, onActivity:streamActivity });
+            ? await callCodexCliWithRecovery(configuredProvider, { effort, prompt:codexModelPrompt(text,literalTypeset,animationEnabled,pluginsEnabled), atlasImage, signal:controller.signal, onProgress:localProgress, onActivity:streamActivity, onUsage })
+            : await callClaudeCli({ ...provider.claude, effort, systemPrompt:localCliSystemPrompt(literalTypeset,animationEnabled,pluginsEnabled), prompt:localCliRequestPrompt(text), atlasImage, signal:controller.signal, onProgress:localProgress, onActivity:streamActivity, onUsage });
         if(!receivingStarted)localProgress("receiving");
         onProgress?.("validating");
-        try { return {content,result:parsedModelResponse(content),status:200,provider:provider.provider,model:provider.local.model||"configured-default",effort,upstream:null}; }
-        catch(error){error.upstream={status:200,rawContent:content};throw error}
+        try { return {content,result:parsedModelResponse(content),status:200,provider:provider.provider,model:provider.local.model||"configured-default",effort,upstream:reportedUsage?{usage:reportedUsage}:null}; }
+        catch(error){error.upstream={status:200,rawContent:content,...(reportedUsage?{usage:reportedUsage}:{})};throw error}
       } catch (error) {
         if (DEBUG_ARTIFACTS && error.diagnostic) log({type:`${provider.provider}-error`,error:"process-failed",diagnosticBytes:Buffer.byteLength(error.diagnostic)});
         if (error.cleanupDiagnostic) log({type:`${provider.provider}-cleanup-error`,error:"cleanup-failed"});
@@ -3149,6 +3162,13 @@ function resolveCanvasAgentWidgetCapabilities(value = {}) {
 const server = http.createServer(async (req, res) => {
   let url;
   try { url = new URL(req.url, "http://localhost"); } catch { return send(res, 400, "Bad Request", "text/plain; charset=utf-8"); }
+  if (req.method === "POST" && ["/api/mcp/skill","/api/mcp/guide"].includes(url.pathname)) {
+    const error=browserRequestError(req);if(error)return send(res,403,{error});
+    const file=url.pathname.endsWith("/skill")?"skills/penecho-mcp/SKILL.md":"docs/mcp-setup.md";
+    try { return send(res,200,{text:await fs.promises.readFile(path.join(ROOT,file),"utf8")}); }
+    catch { return send(res,404,{error:"MCP documentation is missing from this installation. Update PenEcho and try again."}); }
+  }
+  if (await mcpService.handleHttp(req, res, url)) return;
   if (LOCAL_CLI && !canonicalRequestOrigin(req)) return send(res, 421, { error:"Request Host does not match the configured PenEcho origin." });
   if (req.method === "GET" && url.pathname === "/api/cloud/sign-in/callback") {
     const host=requestHost(req),localOrigin=canonicalRequestOrigin(req),keys=[...url.searchParams.keys()],validQuery=keys.length===2&&keys.includes("state")&&keys.includes("code")&&url.searchParams.getAll("state").length===1&&url.searchParams.getAll("code").length===1;
@@ -3264,6 +3284,7 @@ const server = http.createServer(async (req, res) => {
     try {
       if(req.method==="GET"&&url.pathname==="/api/cloud/status")return send(res,200,cloudConnector.status());
       if(req.method==="GET"&&url.pathname==="/api/cloud/account")return send(res,200,await cloudConnector.refreshAccount({force:true}));
+      if(req.method==="GET"&&url.pathname==="/api/cloud/models")return send(res,200,await cloudConnector.hostedModels());
       if(req.method==="POST"&&url.pathname==="/api/cloud/sign-in/start"){
         const body=await readJson(req,64*1024),origin=String(body?.origin||DEFAULT_CLOUD_ORIGIN).trim(),localOrigin=canonicalRequestOrigin(req);
         if(!localOrigin)return send(res,403,{error:"Refresh this PenEcho page and try again."});
@@ -4153,7 +4174,7 @@ const canvasAgent = attachCanvasAgent({
   server,
   authorize:browserRequestError,
   resolveConnection:id=>findConnection(connectionStore(),String(id||"default")),
-  listConnections:()=>{const store=connectionStore();return[store.defaultConnection,...store.connections]},
+  listConnections:()=>{const store=connectionStore();return[store.defaultConnection,...store.connections,...(cloudConnector?.hostedConnections() || [])]},
   resolveWebSearch:()=>({ provider:DEEPSEEK_SEARCH_API_KEY?DEEPSEEK_SEARCH_PROVIDER:TAVILY_API_KEY?"tavily":"built-in", deepseekProvider:DEEPSEEK_SEARCH_PROVIDER, deepseekApiKey:DEEPSEEK_SEARCH_API_KEY||"", tavilyApiKey:TAVILY_API_KEY||"", apiKey:TAVILY_API_KEY||"" }),
   resolveWidgetCapabilities:resolveCanvasAgentWidgetCapabilities,
   resolveProject:id=>CANVAS_AGENT_PROJECT_STORE.resolve(id, { touch:true }),
@@ -4164,10 +4185,24 @@ const canvasAgent = attachCanvasAgent({
   logger:log,
   conversationLogger:DEBUG_ARTIFACTS?log:null,
   conversationTrace:canvasAgentRequestTracer,
+  onModelUsage:event=>{try{cloudConnector?.reportLocalModelUsage({...event,action:"canvas-agent"});}catch{}},
 });
 server.applyCliResolution = applyCliResolution;
+const { createMcpService } = require("./mcp/service.js");
+const mcpService = createMcpService({
+  server,
+  authorizeBrowser:browserRequestError,
+  isLocalBrowserAddress:address=>isLoopback(normalizedIp(address))||LOCAL_INTERFACE_ADDRESSES.has(normalizedIp(address)),
+  rootDirectory:ROOT,
+  stateDirectory:STATE_DIRECTORY||CLOUD_STATE_DIRECTORY,
+  logger:log,
+  requestTraceEnabled:REQUEST_TRACE_ENABLED,
+  requestTraceDirectory:MCP_REQUEST_TRACE_DIR,
+  requestTraceLimit:REQUEST_TRACE_LIMIT,
+});
 server.setCliResolutionTask = setCliResolutionTask;
 server.on("close",()=>{
+  void mcpService.close().catch(error=>log({type:"mcp-close-error",errorCode:String(error?.code||"close_failed")}));
   cloudConnector?.close();
   void canvasAgent.close().catch(error=>log({type:"canvas-agent-close-error",error:String(error?.message||error)}));
 });
@@ -4184,14 +4219,15 @@ if (startupConfigurationError) {
   void CANVAS_AGENT_PROJECT_STORE.cleanupUploads().catch(error=>log({type:"canvas-agent-upload-cleanup-error",errorCode:typeof error?.code==="string"?error.code.slice(0,64):"cleanup_failed"}));
   server.listen(PORT, HOST, () => {
     const address = server.address(), listeningPort = typeof address === "object" && address ? address.port : PORT;
+    try { mcpService.register(address); } catch(error) { log({type:"mcp-register-error",errorCode:String(error?.code||"register_failed")}); }
     cloudConnector = new CloudConnector({ stateDir:CLOUD_STATE_DIRECTORY, executeRequest:executeCloudCommand, executeHttpRequest:remoteCanvasHttpExecutor(), executeCanvasAgentRequest:canvasAgent.executeRemote, logger:log, defaultOrigin:DEFAULT_CLOUD_ORIGIN, capabilities:{ modelConfigured:!providerConfigurationError() } });
     cloudConnector.start();
     console.log(`PenEcho: http://${HOST}:${listeningPort} (${AI_PROVIDER || "invalid provider"})`);
     if (HOST.trim() === "0.0.0.0") {
-      const lanUrls = [...LAN_IPV4_ADDRESSES].sort((a,b) => a.localeCompare(b, undefined, { numeric:true })).map(ip => `http://${ip}:${listeningPort}`);
-      console.log("LAN access (open one of these addresses on another device):");
+      const lanUrls = lanHosts().map(ip => `http://${ip}:${listeningPort}`);
+      console.log("LAN access (try these addresses from a device on the same network):");
       if (lanUrls.length) for (const url of lanUrls) console.log(`  ${url}`);
-      else console.log("  No non-loopback IPv4 address was detected.");
+      else console.log("  No suitable LAN IPv4 address was detected.");
       console.log(`If LAN access fails, check that inbound TCP port ${listeningPort} is allowed by the host firewall or applicable routing policy.`);
     }
     log({ type:"server-start", host:HOST, port:listeningPort, provider:AI_PROVIDER,requestTrace:REQUEST_TRACE_ENABLED?REQUEST_TRACE_LIMIT:0,aiImageFormat:AI_IMAGE_FORMAT,imageEncoder:AI_IMAGE_FORMAT!=="png"&&Boolean(sharp) });

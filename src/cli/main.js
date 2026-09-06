@@ -13,6 +13,7 @@ const { callCodexCli, resolveCodexLaunch } = require("../providers/codex-cli.js"
 const { callClaudeCli, resolveClaudeLaunch } = require("../providers/claude-cli.js");
 const { callKimiCli, resolveKimiLaunch } = require("../providers/kimi-cli.js");
 const { cliCandidates, cliDefinition } = require("../providers/cli-discovery.js");
+const { CODEX_CLI_PINNED_VERSION, codexCliVersion, installCli, managedCliPath } = require("../providers/cli-installer.js");
 const { isPromptExit, runConfigureMenu } = require("./configure-ui.js");
 const { MINIMUM_NODE_VERSION, isSupportedNodeVersion, unsupportedNodeMessage } = require("./node-version.js");
 const { maybeUpdateOnStart } = require("./update.js");
@@ -338,17 +339,19 @@ async function runCodexPreflight(configuration, options = {}) {
   let launch;
   try { launch = resolveCodexLaunch(configuration.env.CODEX_CLI_PATH || "codex", configuration.env); }
   catch (error) { return { ok:false, issue:/not found|not a file/i.test(error.message) ? "missing" : "execution", error:error.message }; }
+  let versionText = "";
   try {
     const version = await runner(launch, ["--version"], { cwd: configuration.cwd, env: configuration.env, timeoutMs: CLI_PREFLIGHT_TIMEOUT_MS });
     if (version.code !== 0) return { ok:false, issue:"execution", error:"Codex CLI could not report its version." };
+    versionText = (version.stdout || version.stderr).trim().split(/\r?\n/, 1)[0] || "Codex CLI";
     const login = await runner(launch, ["login", "status"], { cwd: configuration.cwd, env: configuration.env, timeoutMs: CLI_PREFLIGHT_TIMEOUT_MS });
     if (login.code !== 0) {
       const diagnostic = `${login.stdout || ""}\n${login.stderr || ""}`;
-      if (/not logged in|not authenticated|authentication required|login required/i.test(diagnostic)) return { ok:false, issue:"authentication", error:"Codex CLI is not logged in." };
-      return { ok:false, issue:"execution", error:"Codex CLI could not complete its login check." };
+      if (/not logged in|not authenticated|authentication required|login required/i.test(diagnostic)) return { ok:false, issue:"authentication", error:"Codex CLI is not logged in.", version:versionText };
+      return { ok:false, issue:"execution", error:"Codex CLI could not complete its login check.", version:versionText };
     }
-    return { ok: true, version: (version.stdout || version.stderr).trim().split(/\r?\n/, 1)[0] || "Codex CLI" };
-  } catch (error) { return { ok:false, issue:"execution", error:`Codex CLI check failed: ${error.message}` }; }
+    return { ok:true, version:versionText };
+  } catch (error) { return { ok:false, issue:"execution", error:`Codex CLI check failed: ${error.message}`, ...(versionText ? { version:versionText } : {}) }; }
 }
 
 async function codexBundledModels(configuration, options = {}) {
@@ -374,6 +377,14 @@ async function runClaudePreflight(configuration, options = {}) {
     const version = await runner(launch, ["--version"], { cwd: configuration.cwd, env: configuration.env, timeoutMs: CLI_PREFLIGHT_TIMEOUT_MS });
     if (version.code !== 0) return { ok:false, issue:"execution", error:"Claude CLI could not report its version." };
     const login = await runner(launch, ["auth", "status"], { cwd: configuration.cwd, env: configuration.env, timeoutMs: CLI_PREFLIGHT_TIMEOUT_MS });
+    const authOutputs = [login.stdout, login.stderr].map(value => String(value || "").trim()).filter(Boolean);
+    const loggedOut = authOutputs.some(output => {
+      try {
+        const parsed = JSON.parse(output);
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.loggedIn === false;
+      } catch { return false; }
+    });
+    if (loggedOut) return { ok:false, issue:"authentication", error:"Claude CLI is not logged in." };
     if (login.code !== 0) {
       const diagnostic = `${login.stdout || ""}\n${login.stderr || ""}`;
       if (/not logged in|not authenticated|authentication required|login required/i.test(diagnostic)) return { ok:false, issue:"authentication", error:"Claude CLI is not logged in." };
@@ -507,6 +518,79 @@ function apiConnectionTestLabel(env, format) {
   return format === "openai" ? "OpenAI-compatible" : format;
 }
 
+function compareSemanticVersions(left, right) {
+  const leftParts = String(left).split(".").map(Number), rightParts = String(right).split(".").map(Number);
+  for (let index = 0; index < 3; index++) {
+    if (leftParts[index] !== rightParts[index]) return leftParts[index] < rightParts[index] ? -1 : 1;
+  }
+  return 0;
+}
+
+function codexVersionOrThrow(preflight) {
+  const version = codexCliVersion(preflight?.version);
+  if (version) return version;
+  const error = new Error(`Codex CLI did not report a semantic version; expected ${CODEX_CLI_PINNED_VERSION} or newer.`);
+  error.code = "CODEX_CLI_VERSION_INCOMPATIBLE";
+  throw error;
+}
+
+async function prepareCodexConnectionTest(configuration, options, resetTimeout, assertNotTimedOut) {
+  let selectedConfiguration = { ...configuration, env:{ ...configuration.env } },
+    preflight = await runCodexPreflight(selectedConfiguration, { runner:options.runner });
+  assertNotTimedOut();
+  if (!preflight.ok) throw new Error(preflight.error);
+  const selectedVersion = codexVersionOrThrow(preflight);
+  if (compareSemanticVersions(selectedVersion, CODEX_CLI_PINNED_VERSION) >= 0) return { configuration:selectedConfiguration, preflight };
+
+  const cwd = path.resolve(configuration.cwd || process.cwd()),
+    home = path.resolve(configuration.home || configuration.env.HOME || configuration.env.USERPROFILE || os.homedir()),
+    stateDir = configuration.stateDir
+      ? path.resolve(configuration.stateDir)
+      : configuration.env.PENECHO_STATE_DIR
+        ? path.resolve(cwd, configuration.env.PENECHO_STATE_DIR)
+        : path.join(home, ".penecho"),
+    managedExecutable = managedCliPath("codex-cli", { home, stateDir, platform:options.platform }),
+    managedConfiguration = { ...configuration, home, stateDir, env:{ ...configuration.env, PENECHO_STATE_DIR:stateDir, CODEX_CLI_PATH:managedExecutable } },
+    managedPreflight = await runCodexPreflight(managedConfiguration, { runner:options.runner });
+  assertNotTimedOut();
+  if (managedPreflight.ok) {
+    const managedVersion = codexVersionOrThrow(managedPreflight);
+    if (compareSemanticVersions(managedVersion, CODEX_CLI_PINNED_VERSION) >= 0) {
+      return { configuration:managedConfiguration, preflight:managedPreflight };
+    }
+  } else {
+    if (managedPreflight.version) {
+      const managedVersion = codexVersionOrThrow(managedPreflight);
+      if (compareSemanticVersions(managedVersion, CODEX_CLI_PINNED_VERSION) >= 0) throw new Error(managedPreflight.error);
+    }
+    if (managedPreflight.issue === "authentication") throw new Error(managedPreflight.error);
+  }
+
+  const installer = options.codexInstaller || installCli;
+  resetTimeout(null);
+  let installed;
+  try {
+    await options.onCliUpgrade?.({ phase:"start" });
+    installed = await installer("codex-cli", { home, stateDir, env:{ ...configuration.env, PENECHO_STATE_DIR:stateDir }, platform:options.platform });
+  } finally {
+    await options.onCliUpgrade?.({ phase:"complete" });
+  }
+  resetTimeout();
+  selectedConfiguration = {
+    ...configuration,
+    home,
+    stateDir,
+    env:{ ...configuration.env, PENECHO_STATE_DIR:stateDir, CODEX_CLI_PATH:installed.executable || managedExecutable },
+  };
+  preflight = await runCodexPreflight(selectedConfiguration, { runner:options.runner });
+  if (!preflight.ok) throw new Error(preflight.error);
+  const installedVersion = codexVersionOrThrow(preflight);
+  if (compareSemanticVersions(installedVersion, CODEX_CLI_PINNED_VERSION) < 0) {
+    throw new Error(`Codex CLI ${installedVersion} is older than the required ${CODEX_CLI_PINNED_VERSION}.`);
+  }
+  return { configuration:selectedConfiguration, preflight };
+}
+
 async function testConfiguredProvider(configuration, options = {}) {
   const provider = configuration.provider;
   if (!["api", "kimi-cli", "codex-cli", "claude-cli"].includes(provider)) throw new Error(`AI_PROVIDER must be ${PROVIDER_OPTIONS}.`);
@@ -516,33 +600,45 @@ async function testConfiguredProvider(configuration, options = {}) {
     const result = await (options.apiTester || testApiConnection)(configuration.env, { fetchImpl:options.fetchImpl, timeoutMs });
     return `${apiConnectionTestLabel(configuration.env, result.format)} API responded with HTTP ${result.status}.`;
   }
-  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeoutMs), atlasImage = configuredTestImage(configuration.env);
+  let controller, timer;
+  const resetTimeout = (start = true) => {
+    if (timer) clearTimeout(timer);
+    if (!start) return;
+    controller = new AbortController();
+    timer = setTimeout(() => controller.abort(), timeoutMs);
+  };
+  resetTimeout();
+  const atlasImage = configuredTestImage(configuration.env);
   try {
-    const preflight = provider === "kimi-cli"
+    const assertNotTimedOut = () => {
+      if (controller.signal.aborted) throw connectionTestTimeoutError(`Connection test timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
+    };
+    let activeConfiguration = configuration, preflight;
+    if (provider === "codex-cli") {
+      ({ configuration:activeConfiguration, preflight } = await prepareCodexConnectionTest(configuration, options, resetTimeout, assertNotTimedOut));
+    } else preflight = provider === "kimi-cli"
       ? await runKimiPreflight(configuration, { runner:options.runner })
-      : provider === "codex-cli"
-        ? await runCodexPreflight(configuration, { runner:options.runner })
-        : await runClaudePreflight(configuration, { runner:options.runner });
+      : await runClaudePreflight(configuration, { runner:options.runner });
     if (controller.signal.aborted) throw connectionTestTimeoutError(`Connection test timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
     if (!preflight.ok) throw new Error(preflight.error);
     if (provider === "codex-cli") {
-      const model = normalizedEffort(configuration.env.CODEX_CLI_MODEL);
-      const models = model ? await codexBundledModels(configuration, { runner:options.runner }) : [];
+      const model = normalizedEffort(activeConfiguration.env.CODEX_CLI_MODEL);
+      const models = model ? await codexBundledModels(activeConfiguration, { runner:options.runner }) : [];
       if (controller.signal.aborted) throw connectionTestTimeoutError(`Connection test timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
       if (model && !models.some(candidate => candidate.toLowerCase() === model.toLowerCase())) {
         throw new Error(`Codex model "${model}" is not present in ${preflight.version}'s bundled model catalog. The configuration was saved; upgrade Codex or choose another model.`);
       }
     }
     const common = {
-      effort:reasoningEffortMapping({ provider, model:configuration.env[provider === "kimi-cli" ? "KIMI_CLI_MODEL" : provider === "codex-cli" ? "CODEX_CLI_MODEL" : "CLAUDE_CLI_MODEL"], effort:normalizedEffort(configuration.env.AI_EFFORT) || "medium" }).requested,
+      effort:reasoningEffortMapping({ provider, model:activeConfiguration.env[provider === "kimi-cli" ? "KIMI_CLI_MODEL" : provider === "codex-cli" ? "CODEX_CLI_MODEL" : "CLAUDE_CLI_MODEL"], effort:normalizedEffort(activeConfiguration.env.AI_EFFORT) || "medium" }).requested,
       prompt:"Inspect the attached PenEcho connection-test image and reply with OK only. Do not use tools.",
       atlasImage,
       signal:controller.signal,
-      env:configuration.env,
+      env:activeConfiguration.env,
     };
-    if (provider === "kimi-cli") await (options.kimiCaller || callKimiCli)({ ...common, executable:configuration.env.KIMI_CLI_PATH || "kimi", model:normalizedEffort(configuration.env.KIMI_CLI_MODEL) || null });
-    else if (provider === "codex-cli") await (options.codexCaller || callCodexCli)({ ...common, executable:configuration.env.CODEX_CLI_PATH || "codex", model:normalizedEffort(configuration.env.CODEX_CLI_MODEL) || null });
-    else await (options.claudeCaller || callClaudeCli)({ ...common, executable:configuration.env.CLAUDE_CLI_PATH || "claude", model:normalizedEffort(configuration.env.CLAUDE_CLI_MODEL) || null, systemPrompt:"You are running a PenEcho connection test. Do not use tools. Reply with OK only." });
+    if (provider === "kimi-cli") await (options.kimiCaller || callKimiCli)({ ...common, executable:activeConfiguration.env.KIMI_CLI_PATH || "kimi", model:normalizedEffort(activeConfiguration.env.KIMI_CLI_MODEL) || null });
+    else if (provider === "codex-cli") await (options.codexCaller || callCodexCli)({ ...common, executable:activeConfiguration.env.CODEX_CLI_PATH || "codex", model:normalizedEffort(activeConfiguration.env.CODEX_CLI_MODEL) || null });
+    else await (options.claudeCaller || callClaudeCli)({ ...common, executable:activeConfiguration.env.CLAUDE_CLI_PATH || "claude", model:normalizedEffort(activeConfiguration.env.CLAUDE_CLI_MODEL) || null, systemPrompt:"You are running a PenEcho connection test. Do not use tools. Reply with OK only." });
     return `${preflight.version}; the selected ${provider === "kimi-cli" ? "Kimi" : provider === "codex-cli" ? "Codex" : "Claude"} model, image input, and reasoning effort responded successfully.`;
   } catch (error) {
     if (controller.signal.aborted) throw connectionTestTimeoutError(`Connection test timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
@@ -660,10 +756,11 @@ function schedulePostStartCliPreflight(server, configuration, options, output, e
 
 
 function helpText() {
-  return `PenEcho ${PACKAGE_JSON.version}\n\nUsage:\n  penecho [--config FILE] [--port 3888]\n  penecho configure [--config FILE]\n  penecho doctor [--api|--kimi|--codex|--claude] [--config FILE]\n  penecho --kimi [--model MODEL] [--effort LEVEL]\n  penecho --codex [--model MODEL] [--effort LEVEL]\n  penecho --claude [--model MODEL] [--effort LEVEL]\n\nOptions:\n  --config <file>   Use this configuration file instead of ~/.penecho/config.env\n  --api             Use an OpenAI-compatible or Anthropic-compatible API\n  --kimi            Use the authenticated Kimi Code CLI\n  --codex           Use the authenticated Codex CLI\n  --claude          Use the authenticated Claude CLI\n  --model <model>   Override the model for a CLI mode\n  --effort <level>  Override reasoning effort with a known or CLI-supported value\n  --port <port>     Override the configured listening port\n  -h, --help        Show help\n  -v, --version     Show version\n\nRun \`penecho configure\` for the interactive configuration center. Known effort values include none, low, medium, high, xhigh, and max; other strings are passed through.\n\nKimi Code CLI installation (run these yourself):\n  macOS/Linux: curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash\n  Windows PowerShell: irm https://code.kimi.com/kimi-code/install.ps1 | iex\n  Then: kimi --version && kimi login\n  Official guide: https://github.com/MoonshotAI/kimi-code\n\nExamples:\n  penecho configure\n  penecho\n  penecho --config ./team.env\n  penecho --kimi\n  penecho --codex --model gpt-5.6-sol --effort xhigh\n`;
+  return `PenEcho ${PACKAGE_JSON.version}\n\nUsage:\n  penecho [--config FILE] [--port 3888]\n  penecho mcp [--state-directory DIR]\n  penecho configure [--config FILE]\n  penecho doctor [--api|--kimi|--codex|--claude] [--config FILE]\n  penecho --kimi [--model MODEL] [--effort LEVEL]\n  penecho --codex [--model MODEL] [--effort LEVEL]\n  penecho --claude [--model MODEL] [--effort LEVEL]\n\nOptions:\n  --config <file>   Use this configuration file instead of ~/.penecho/config.env\n  --api             Use an OpenAI-compatible or Anthropic-compatible API\n  --kimi            Use the authenticated Kimi Code CLI\n  --codex           Use the authenticated Codex CLI\n  --claude          Use the authenticated Claude CLI\n  --model <model>   Override the model for a CLI mode\n  --effort <level>  Override reasoning effort with a known or CLI-supported value\n  --port <port>     Override the configured listening port\n  -h, --help        Show help\n  -v, --version     Show version\n\nRun \`penecho configure\` for the interactive configuration center. Known effort values include none, low, medium, high, xhigh, and max; other strings are passed through.\n\nKimi Code CLI installation (run these yourself):\n  macOS/Linux: curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash\n  Windows PowerShell: irm https://code.kimi.com/kimi-code/install.ps1 | iex\n  Then: kimi --version && kimi login\n  Official guide: https://github.com/MoonshotAI/kimi-code\n\nExamples:\n  penecho configure\n  penecho\n  penecho --config ./team.env\n  penecho --kimi\n  penecho --codex --model gpt-5.6-sol --effort xhigh\n`;
 }
 
 async function main(argv = process.argv.slice(2), options = {}) {
+  if (argv[0] === "mcp") { require("../server/mcp/stdio.js").main(argv.slice(1)); return 0; }
   const output = options.output || process.stdout, errorOutput = options.errorOutput || process.stderr;
   let args;
   try { args = parseArgs(argv); }

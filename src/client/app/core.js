@@ -318,7 +318,18 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       hintPrefix: "Hint",
       guideStudio: "Studio assistant",
       boardTools: "Board tools",
-      hand: "Hand tool: move canvas and objects",
+      canvasViewHand: "Move canvas",
+      canvasViewSelect: "Select a widget to interact",
+      widgetInteract: "Interact with widget",
+      widgetExitInteraction: "Exit interaction",
+      canvasNavigationActions: "Canvas navigation",
+      canvasZoomOut: "Zoom out",
+      canvasZoomIn: "Zoom in",
+      canvasZoomReset: "Reset zoom to 100%",
+      canvasFitContents: "Fit all content",
+      canvasWheelZoom: "Use scrolling to zoom",
+      canvasWheelZoomHelp: "Off: scroll to pan; pinch or Ctrl/Cmd + scroll to zoom. Turning this on also changes trackpad scrolling.",
+      hand: "Hand: move the canvas (H)",
       handAutoAIManual: "Hand mode pauses Auto AI · Use the AI button to run it manually.",
       handAutoAIResume: "Auto AI resumes when you leave Hand mode.",
       handWidgetConfirmedHint: "Widget confirmed · Tap it again to reveal its controls.",
@@ -334,7 +345,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       eraser: "Eraser",
       eraserOptions: "Eraser options",
       areaEraser: "Area erase",
-      select: "Lasso select",
+      select: "Select objects or lasso ink (V)",
       text: "Text input",
       textMixedMode: "Preview Markdown + LaTeX formatting",
       textMixedModeShort: "Preview",
@@ -434,7 +445,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       continue: "Continue",
       explain: "Explain",
       plot: "Plot",
-      tip: "Pan: middle-mouse drag, Hand tool, or one finger · Zoom: wheel or pinch",
+      tip: "Pan: two-finger scroll, Hand, or Space + drag · Zoom: pinch or Ctrl/Cmd + scroll",
       tourReplay: "Feature tour",
       tourDialog: "PenEcho feature tour",
       tourBadge: "Quick tour",
@@ -451,8 +462,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       tourCanvasAgentPanelBody: "PenEcho Agent opens as a right sidebar on larger screens and a bottom panel on narrow screens. Type or handwrite a request, add files or a read-only folder project, reference a Widget, and enable web search when available. Resize the desktop sidebar from its left edge.",
       tourEffortTitle: "Choose how deeply AI reasons",
       tourEffortBody: "AI Effort controls the reasoning depth used for each request. Higher levels suit difficult derivations and multi-step problems, but can take longer. Configured uses the default selected in your local setup.",
-      tourHandTitle: "Move objects with the Hand tool",
-      tourHandBody: "Choose Hand, then tap an image, animation, text box, or AI widget to reveal its controls. HTML widgets remain interactive; drag empty space to pan.",
+      tourHandTitle: "Move the canvas anywhere",
+      tourHandBody: "Hand moves the canvas even over a large widget. Click a widget for its toolbar. Use Select to arrange objects or enter widget interaction.",
       tourLassoTitle: "Work with exactly the content you select",
       tourLassoBody: "With a mouse or stylus, draw a closed loop around handwriting. Drag the selected region to move it; use the right edge, bottom edge, or lower-right corner to resize it. The selection toolbar can typeset handwriting, delete it, or cancel. Selection-scoped AI requests do not reference the rest of the canvas.",
       tourTextTitle: "Add editable text and formulas",
@@ -568,6 +579,21 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsKimiCodingRecommendationReason: "Kimi CLI may not reliably reuse the Harness context cache, which can increase latency and usage.",
       settingsConfiguration: "Configuration",
       settingsConnections: "AI connections",
+      settingsHostedModels: "PenEcho models",
+      settingsHostedRefresh: "Refresh",
+      settingsHostedPricing: "How credits are calculated",
+      settingsHostedPricingHelp: "Input, cache reads, cache writes and output have separate rates. The displayed multiplier applies to each base rate. Your own connections do not spend PenEcho credits.",
+      settingsHostedBilling: "Credits & billing ↗",
+      settingsHostedBrowserNotice: "Use PenEcho models to edit this Canvas and save to Cloud. Your own connections, local files and device settings need a linked device.",
+      canvasAgentCloudContext: "Cloud Canvas",
+      canvasAgentCloudContextHelp: "This connection works with the current Canvas. Use a device connection for local folders and files.",
+      canvasAgentCloudFilesHelp: "Cloud Agent accepts images and the current Canvas. For documents or local files, select a device connection. Your draft is kept.",
+      settingsHostedLinkDevice: "Link a device ↗",
+      settingsHostedLoading: "Loading available models…",
+      settingsHostedEmpty: "No PenEcho models are available right now.",
+      settingsHostedError: "Could not refresh PenEcho models. Try again.",
+      settingsHostedBalance: "{count} credits available",
+      settingsHostedRate: "{name}: input {input} · cache read {read} · cache write {write} · output {output} credits / 1M tokens",
       settingsManage: "Manage",
       settingsApiEntry: "API & CLI settings",
       settingsApiEntryHelp: "Changes apply immediately",
@@ -726,7 +752,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       summonTip16: "Tip: raise the Reasoning effort in the toolbar for harder problems.",
       summonTip17: "Tip: plugins add focused capabilities and can be switched off when you do not need them.",
       summonTip18: "Tip: History can update the current snapshot or save a separate new copy.",
-      summonTip19: "Tip: zoom with the wheel, pan with the middle mouse button—the canvas spans twenty thousand squares.",
+      summonTip19: "Tip: scroll to pan; pinch or Ctrl/Cmd + scroll to zoom.",
       summonTip20: "Tip: AI ink color lives in the toolbar; AI font lives in this Settings panel.",
       summonTip21: "Tip: write changes anywhere in this view, then choose a widget and use AI Refine.",
       summonTip22: "Tip: tap a widget, or hover it with a mouse, to reveal AI Refine.",
@@ -830,6 +856,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasWelcomeKicker: "start here",
       canvasWelcomeTitle: "Start sketching, or ask PenEcho Agent",
       canvasWelcomeBody: "Draw with your pen, or start a conversation in the Agent sidebar on the right.",
+      canvasBrowserWelcomeTitle: "Start sketching on your Cloud Canvas",
+      canvasBrowserWelcomeBody: "Choose a PenEcho cloud model in Settings to work with this Canvas online. Connect a device to use local files and connections.",
       exportPng: "Export PNG",
       newCanvasTitle: "New canvas",
       newCanvasDescription: "Save this canvas if needed. Unaccepted AI drafts aren't included.",
@@ -898,14 +926,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasHintWidgetAddedAlt: "In Pen, notes anywhere in this view can reveal AI Refine on the target widget.",
       canvasHintRefineInPlace: "In Pen, add an instruction, then tap AI Refine on the target widget.",
       canvasHintAIAddsOnly: "Auto AI and manual AI add new widgets; they do not replace existing widgets in place.",
-      canvasHintHand: "Hand lets you interact directly with widget content.",
-      canvasHintHandAlt: "For pinch or two-finger widget gestures, lock the canvas first.",
-      canvasHintWidgetTouchHand: "Use Hand mode to interact directly with this widget's content.",
-      canvasHintLasso: "Lasso handwriting to move, resize, or send only that selection to AI.",
-      canvasHintLassoAlt: "Drag an edge to resize one axis, or a corner to scale uniformly.",
+      canvasHintHand: "Drag anywhere to move the canvas. Click a widget to show its toolbar.",
+      canvasHintHandAlt: "Hold Space to move the canvas temporarily; release to return to your tool.",
+      canvasHintWidgetTouchHand: "Choose Select, then Interact to use widget content.",
+      canvasHintLasso: "Select an object to move or resize it; drag empty space to lasso ink.",
+      canvasHintLassoAlt: "Choose Interact to use a widget, or double-click it.",
       canvasHintText: "Text supports Markdown and LaTeX; press Ctrl/Cmd + Enter to confirm.",
       canvasHintTextAlt: "After confirming text near a widget, switch to Pen and tap AI Refine.",
-      canvasHintEraser: "Eraser removes ink only; use Hand controls to delete canvas objects.",
+      canvasHintEraser: "Eraser removes ink only; use Select to delete objects.",
       canvasHintEraserAlt: "Erase an instruction before AI runs without changing widgets beneath it.",
       canvasHintAreaEraser: "Drag a rectangle to delete all ink inside it when you release.",
       canvasHintAreaEraserAlt: "Area erase affects canvas ink only; widgets and other objects stay unchanged.",
@@ -1085,6 +1113,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentHistoryAttachments: "{count} attachments",
       canvasAgentReadyConnect: "Ready to connect",
       canvasAgentReady: "Ready",
+      canvasAgentNoConnections: "No available connections",
       canvasAgentConnecting: "Connecting…",
       canvasAgentResumed: "Conversation resumed",
       canvasAgentWorking: "Agent is working…",
@@ -1094,6 +1123,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentInitialStatePreparing: "Preparing the initial Canvas state…",
       canvasAgentDisconnected: "Disconnected — send to reconnect",
       canvasAgentErrorBusy: "The AI service is busy, so processing stopped early. Continue shortly.",
+      canvasAgentErrorCredits: "Available credits do not cover this request’s reservation. Check Credits & billing.",
       canvasAgentErrorTimeout: "The Agent took too long to respond, so processing stopped early. Continue when ready.",
       canvasAgentErrorRateLimit: "The AI request limit was reached. Continue later.",
       canvasAgentErrorRequestTooLarge: "This request is too large. Reduce its content and try again.",
@@ -1506,7 +1536,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   };
   const PLUGIN_STORAGE_KEY = "penecho-plugins",
     DEFAULT_THEME = "studio",
-    DEFAULT_STUDIO_PALETTE = "indigo",
+    DEFAULT_STUDIO_PALETTE = "teal",
     REMOVED_THEMES = new Set(["arcane", "scifi", "research"]),
     SUPPORTED_THEMES = new Set([DEFAULT_THEME]),
     SUPPORTED_STUDIO_PALETTES = new Set(["indigo", "graphite", "cobalt", "azure", "teal", "forest", "amber", "burgundy"]),
@@ -1610,7 +1640,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     AI_CLIENT_ID = canvasClientId();
   function selectedAiConnectionId() {
     const id = String(localStorage.getItem(AI_CONNECTION_STORAGE_KEY) || "default").trim();
-    return id === "default" || /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id) ? id : "default";
+    return id === "default" || /^(?:hosted:)?[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id) ? id : "default";
   }
   function authenticatedApiHeaders(headers = {}) {
     const csrf = window.PENECHO_CONFIG?.runtime === "cloud"
@@ -1659,6 +1689,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       handGestureIncludesWidget: false,
       navigationLocked: false,
       viewMode: false,
+      viewTool: "hand",
+      interactingWidgetId: null,
+      widgetActivationTap: null,
+      handToolbarTap: null,
+      spacePan: false,
+      wheelZoom: localStorage.getItem("penecho-wheel-zoom") === "true",
       viewModeNavigationLocked: false,
       textEditors: new Map(),
       textBoxes: [],
@@ -2408,8 +2444,71 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   if (configurationBody && canvasSettingsForm) configurationBody.append(canvasSettingsForm);
   const settings = { open:false, activePage:"appearance", restoreFocus:null, requestTrace:false, cli:{}, cliStatuses:{}, cliInspectionGeneration:0, currentProvider:"api", configurationMode:"", configurationRestoreFocus:null, connections:[], activeConnectionId:"default", connectionLimit:10, editingConnectionId:null, deepSeekSearchProvider:"deepseek-official", hasDeepSeekSearchApiKey:false, hasTavilyApiKey:false, searchTestResults:null, searchTestGeneration:0, searchTestBusy:false, fetchedApiModels:[], fetchingApiModels:false, connectionActionBusy:false };
+  const hostedSettings = { models:[], credits:null, loading:false, generation:0, signedIn:false, error:false };
+  function hostedMultiplierLabel(value) {
+    return `${Number(value).toLocaleString(undefined, { maximumFractionDigits:1 })}×`;
+  }
+  function allAiConnections() {
+    return [...hostedSettings.models.map(model => ({ id:`hosted:${model.id}`, provider:"api", apiModel:model.displayName, hosted:true, modelId:model.id, multiplier:model.multiplier })), ...settings.connections];
+  }
+  function renderHostedModels() {
+    const section = document.getElementById("settingsHostedSection"), list = document.getElementById("settingsHostedList"), status = document.getElementById("settingsHostedStatus"), rates = document.getElementById("settingsHostedRates");
+    if (!section || !list) return;
+    const browserEditing = window.PENECHO_CONFIG?.browserCanvasEditing === true;
+    for (const id of ["settingsHostedBrowserNotice", "settingsHostedLinkDevice"]) document.getElementById(id).hidden = !browserEditing;
+    for (const control of [settingsOpenApi, settingsOpenSearch, settingsOpenSystem]) {
+      control.disabled = browserEditing;
+      if (browserEditing) control.setAttribute("aria-describedby", "settingsHostedBrowserNotice");
+      else control.removeAttribute("aria-describedby");
+    }
+    section.hidden = !hostedSettings.signedIn && !hostedSettings.loading;
+    const selected = selectedAiConnectionId();
+    status.textContent = hostedSettings.loading ? t("settingsHostedLoading") : hostedSettings.error ? t("settingsHostedError") : hostedSettings.models.length ? t("settingsHostedBalance").replace("{count}", Number(hostedSettings.credits || 0).toLocaleString()) : t("settingsHostedEmpty");
+    document.getElementById("settingsHostedRefresh").disabled = hostedSettings.loading;
+    list.replaceChildren();
+    rates.replaceChildren();
+    for (const model of hostedSettings.models) {
+      const button = document.createElement("button"), mark = document.createElement("span"), copy = document.createElement("span"), name = document.createElement("strong"), detail = document.createElement("small");
+      button.type = "button";
+      peChoice(button);
+      button.className = `settings-connection-quick${selected === `hosted:${model.id}` ? " active" : ""}`;
+      button.dataset.connectionActivate = `hosted:${model.id}`;
+      button.setAttribute("aria-pressed", String(selected === button.dataset.connectionActivate));
+      mark.textContent = selected === button.dataset.connectionActivate ? "✓" : "";
+      name.textContent = `☁️ ${model.displayName}`;
+      detail.textContent = hostedMultiplierLabel(model.multiplier);
+      copy.append(name, detail); button.append(mark, copy); list.append(button);
+      const rate = document.createElement("p"), number = value => Number.isFinite(Number(value)) && value !== null ? Number(value).toLocaleString(undefined, { maximumFractionDigits:4 }) : "—";
+      rate.textContent = t("settingsHostedRate").replace("{name}", model.displayName).replace("{input}", number(model.inputCreditsPerMillion)).replace("{read}", number(model.cacheReadInputCreditsPerMillion)).replace("{write}", number(model.cacheWriteInputCreditsPerMillion)).replace("{output}", number(model.outputCreditsPerMillion));
+      rates.append(rate);
+    }
+    document.getElementById("settingsHostedBilling").href = `${String(window.PENECHO_CONFIG?.cloudOrigin || (window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : "https://penecho.ai")).replace(/\/$/, "")}/dashboard.html#billing`;
+    if (typeof canvasAgentUpdateConnectionButton === "function") canvasAgentUpdateConnectionButton();
+  }
+  async function loadHostedModels({ accountChanged = false } = {}) {
+    if (window.PENECHO_CONFIG?.runtime === "viewer" || (hostedSettings.loading && !accountChanged)) return;
+    if (accountChanged) { hostedSettings.models = []; hostedSettings.credits = null; hostedSettings.signedIn = false; }
+    const generation = ++hostedSettings.generation, cloud = window.PENECHO_CONFIG?.runtime === "cloud";
+    hostedSettings.loading = true; hostedSettings.error = false; renderHostedModels();
+    try {
+      const response = await fetch(cloud ? "/api/v1/models" : "/api/cloud/models", { headers:authenticatedApiHeaders(), signal:AbortSignal.timeout(12_000) });
+      if (generation !== hostedSettings.generation) return;
+      if ([401, 403].includes(response.status)) { hostedSettings.signedIn = false; hostedSettings.models = []; return; }
+      if (!response.ok) throw new Error("catalog_unavailable");
+      const body = await response.json();
+      if (generation !== hostedSettings.generation) return;
+      hostedSettings.signedIn = true;
+      hostedSettings.models = (Array.isArray(body.models) ? body.models : []).filter(model => model.available === true && model.enabled !== false && !model.retiredAt && Number(model.multiplier) > 0).slice(0, 100);
+      if (body.credits) hostedSettings.credits = body.credits.availableCredits ?? body.credits.available ?? body.credits.balance ?? 0;
+      else {
+        const balance = await fetch("/api/v1/credits", { headers:authenticatedApiHeaders(), signal:AbortSignal.timeout(8_000) });
+        if (balance.ok && generation === hostedSettings.generation) { const payload = await balance.json(); if (generation === hostedSettings.generation) hostedSettings.credits = payload.credits?.availableCredits ?? payload.credits?.available ?? payload.credits?.balance ?? 0; }
+      }
+    } catch { if (generation === hostedSettings.generation) { hostedSettings.error = true; hostedSettings.models = []; } }
+    finally { if (generation === hostedSettings.generation) { hostedSettings.loading = false; renderHostedModels(); } }
+  }
   function syncLocalConnectionSelection() {
-    const selected = selectedAiConnectionId(), activeId = settings.connections.some(connection => connection.id === selected) ? selected : "default";
+    const selected = selectedAiConnectionId(), activeId = selected.startsWith("hosted:") || settings.connections.some(connection => connection.id === selected) ? selected : "default";
     if (activeId !== selected) localStorage.setItem(AI_CONNECTION_STORAGE_KEY, activeId);
     settings.activeConnectionId = activeId;
     settings.connections = settings.connections.map(connection => ({ ...connection, active:connection.id === activeId }));
@@ -2420,6 +2519,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     for (const control of section.querySelectorAll("input, select, button")) control.disabled = !visible;
   }
   function openConfiguration(mode, restoreTarget = null) {
+    if (window.PENECHO_CONFIG?.browserCanvasEditing) return false;
     if (!configurationLayer || !canvasSettingsForm) return false;
     closeSettings(false);
     settings.configurationMode = mode;
@@ -2651,7 +2751,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return { "kimi-cli":"Kimi CLI", "codex-cli":"Codex CLI", "claude-cli":"Claude CLI" }[connection.provider] || connection.provider;
   }
   function connectionTitle(connection) {
-    return connection.provider === "api" ? connection.apiModel || "API" : connection.cliModel || t("settingsCliDefaultModel");
+    const title = connection.provider === "api" ? connection.apiModel || "API" : connection.cliModel || t("settingsCliDefaultModel");
+    return connection.hosted ? `☁️ ${title}` : title;
   }
   function connectionSummary(connection) {
     return connection.provider === "api" ? connection.apiUrl || "" : connectionProviderLabel(connection);
@@ -2723,6 +2824,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     connectionLimitText.textContent = t("settingsConnectionCount").replace("{count}", String(settings.connections.length)).replace("{limit}", String(settings.connectionLimit));
     settingsAddConnection.disabled = settings.connections.length >= settings.connectionLimit;
     if (typeof canvasAgentUpdateConnectionButton === "function") canvasAgentUpdateConnectionButton();
+    renderHostedModels();
   }
   function fillConnectionEditor(connection = null) {
     settings.editingConnectionId = connection?.id || null;
@@ -3050,6 +3152,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   async function loadCanvasSettings() {
     if (!canvasSettingsForm) return;
+    void loadHostedModels();
     setSettingsStatus(t("settingsLoading"));
     try {
       const response = await fetch("/api/settings", { headers:authenticatedApiHeaders() }), body = await response.json();
@@ -3151,12 +3254,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (!button) return;
     if (button.dataset.connectionActivate) {
       const id = button.dataset.connectionActivate,
-        closeAfterActivation = settingsConnectionQuickList?.contains(button) === true;
-      if (!settings.connections.some(connection => connection.id === id)) return;
+        closeAfterActivation = settingsConnectionQuickList?.contains(button) === true || document.getElementById("settingsHostedList")?.contains(button) === true;
+      if (!allAiConnections().some(connection => connection.id === id)) return;
       localStorage.setItem(AI_CONNECTION_STORAGE_KEY, id);
       syncLocalConnectionSelection();
       renderConnectionLists();
-      canvasAgentConnectionDidChange(false,settings.connections.find(connection=>connection.id===id)?.provider || "");
+      canvasAgentConnectionDidChange(false,allAiConnections().find(connection=>connection.id===id)?.provider || "");
       setConnectionStatus(t("settingsConnectionActivated"), "success");
       if (closeAfterActivation) closeSettings();
       return;
@@ -3174,6 +3277,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       nextPage = available.has(page) ? page : "appearance",
       pageChanged = settings.activePage !== nextPage;
     settings.activePage = nextPage;
+    if (nextPage === "mcp") void mcpRefreshSettings();
     tabs.forEach((tab) => {
       const selected = tab.dataset.settingsPageTarget === settings.activePage;
       tab.classList.toggle("active", selected);
@@ -4254,6 +4358,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     };
   }
   function applyLanguage() {
+    mcpRenderSettings();
     document.documentElement.lang = state.language === "zh" ? "zh-CN" : "en";
     document.title = t("title");
     document.querySelectorAll("[data-i18n]").forEach((node) => (node.textContent = t(node.dataset.i18n)));
@@ -4461,11 +4566,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       }
       state.navigationTimer = 0;
       state.navigationDeadline = 0;
-      view.classList.remove("is-navigating");
+      view.classList.remove("is-navigating", "is-wheel-navigating");
     };
     state.navigationTimer = setTimeout(hide, NAVIGATION_HINT_VISIBLE_MS);
   }
   function wheelNavigating() {
+    view.classList.add("is-wheel-navigating");
     setNavigating(true);
   }
   function setCanvasNavigationLocked(locked) {

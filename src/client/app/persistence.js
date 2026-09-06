@@ -2873,13 +2873,13 @@
     const returnMode = clearPendingHistoryState(),
       hasPendingTransition = !Array.isArray(entry) && Object.prototype.hasOwnProperty.call(entry || {}, "pendingBefore");
     if (!hasPendingTransition) {
-      if (returnMode && state.mode === "hand") setCanvasMode(returnMode, { preserveSelection:true, skipDraftFinalize:true });
+      if (returnMode && state.mode === "select") setCanvasMode(returnMode, { preserveSelection:true, skipDraftFinalize:true });
       return;
     }
     const snapshot = side === "before" ? entry.pendingBefore : entry.pendingAfter;
     if (!snapshot) {
       const mode = entry.aiDraftReturnMode;
-      if (mode && state.mode === "hand") setCanvasMode(mode, { preserveSelection:true, skipDraftFinalize:true });
+      if (mode && state.mode === "select") setCanvasMode(mode, { preserveSelection:true, skipDraftFinalize:true });
       return;
     }
     state.aiDraftReturnMode = snapshot.returnMode;
@@ -2901,7 +2901,7 @@
     }
     state.pendingHistoryRestored = Boolean(state.pending || state.pendingWidget);
     if (state.pendingHistoryRestored) {
-      setCanvasMode("hand", { preserveSelection:true, skipDraftFinalize:true });
+      setCanvasMode("select", { preserveSelection:true, skipDraftFinalize:true });
       updateBatchActions();
       setStatusKey(state.pending?.items ? "batchDraftReady" : "draftReady");
     }

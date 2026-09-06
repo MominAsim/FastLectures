@@ -151,20 +151,20 @@ test("access setup follows the current Studio palette with accessible workbench 
   for (const palette of ["graphite", "cobalt", "azure", "teal", "forest", "amber", "burgundy"]) {
     assert.match(accessCss, new RegExp(`\\[data-studio-palette="${palette}"\\]`));
   }
-  assert.match(accessHtml, /data-theme="studio" data-studio-palette="indigo"/);
+  assert.match(accessHtml, /data-theme="studio" data-studio-palette="teal"/);
   assert.match(accessCss, /button:focus-visible, a:focus-visible[^}]*outline:\s*2px solid var\(--accent\)/);
   assert.match(accessCss, /@media \(pointer: coarse\)[\s\S]*min-height:\s*44px/);
   assert.match(accessCss, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
-test("access setup migrates removed themes to the default purple Studio palette", async () => {
+test("access setup migrates removed themes to the default teal Studio palette", async () => {
   for (const option of [{ theme:"arcane" }, { theme:"scifi" }, { theme:"research" }, { legacyTheme:"research" }]) {
     const run = await boot("undecided", { palette:"forest", ...option });
     assert.equal(run.document.documentElement.dataset.theme, "studio");
-    assert.equal(run.document.documentElement.dataset.studioPalette, "indigo");
-    assert.equal(run.body.dataset.studioPalette, "indigo");
-    assert.equal(run.themeColor.attributes.get("content"), "#f8f8f9");
+    assert.equal(run.document.documentElement.dataset.studioPalette, "teal");
+    assert.equal(run.body.dataset.studioPalette, "teal");
+    assert.equal(run.themeColor.attributes.get("content"), "#f6faf9");
     assert.equal(run.storedAppearance.get("penecho-theme"), "studio");
-    assert.equal(run.storedAppearance.get("penecho-studio-palette"), "indigo");
+    assert.equal(run.storedAppearance.get("penecho-studio-palette"), "teal");
   }
 });

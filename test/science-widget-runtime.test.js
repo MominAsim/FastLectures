@@ -276,12 +276,13 @@ test("science snapshot hooks are bounded and failures do not displace the ordina
     runtimeVersion:12,
     requestId:"failed",
     error:"Widget snapshot before hook failed: prepare failed",
+    code:"WIDGET_PREPARE_FAILED",details:{stage:"before-hook",runtimeVersion:12},
   }]);
   assert.equal(warnings.some(message => message.includes("snapshot restore failed")), true);
 
   const snapshotCalls = [],
-    snapshot = vm.runInNewContext(`(${functionSource(host, "snapshot")})`, {
-      scienceMode:false,
+    snapshot = vm.runInNewContext(`(async ${functionSource(host, "snapshot")})`, {
+      scienceMode:false,activeSnapshot:null,activeSnapshotRender:null,
       globalThis:{ __penechoScienceSnapshotHooks:{ beforeSnapshot() { throw Error("collision"); } } },
       snapshotDebugLog() {},
       snapshotDocument: async (message, requirePresentedFrame) => {

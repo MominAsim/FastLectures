@@ -104,9 +104,9 @@ test("Visual Explainer assets use the single current plan, local AntV, fallback 
   assert.match(agent,/repeated-issue-signature/);
   assert.match(agent,/VISUAL_EXPLAINER_SOURCE_PATCH_REQUIRED/);
   assert.match(agent,/artifactId.*embedded General HTML artifact/);
-  assert.match(agent,/target=canvas shows the complete composition/);
-  assert.match(agent,/target=viewport shows current user framing/);
-  assert.match(agent,/an object-only capture validates neither/);
+  assert.match(agent,/Spatial work: canvas shows the complete composition/);
+  assert.match(agent,/viewport the user framing/);
+  assert.match(agent,/object neither/);
   assert.match(agent,/CANVAS_LAYOUT_OVERVIEW_REQUIRED/);
   assert.match(browser,/canvasAgentVisualExplainerCreate/);
   assert.match(browser,/canvasAgentVisualExplainerUpdate/);

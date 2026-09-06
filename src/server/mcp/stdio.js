@@ -1,0 +1,238 @@
+#!/usr/bin/env node
+"use strict";
+
+const crypto = require("node:crypto");
+const http = require("node:http");
+const { processIsAlive, readRecords, recordsDirectory } = require("./records.js");
+const { TOOLS } = require("./schema.js");
+
+const PROTOCOL_VERSION = "2025-11-25";
+const MAX_INPUT_LINE_BYTES = 3 * 1024 * 1024;
+const MAX_RESPONSE_BYTES = 12 * 1024 * 1024;
+const REQUEST_TIMEOUT_MS = 50_000;
+const INSTRUCTIONS = "PenEcho shows concise public plans, milestone progress, and evidence on canvases that explicitly opt in. With an already selected live connection, proactively present useful UI previews, choices, or clarifying diagrams; skip decorative output and routine edits. Use penecho_draw for native Canvas text and rasterized shapes, and penecho_plot for a safely compiled native raster plot. These artifacts are saved with the Canvas, can be moved or resized, and can be replaced by their stable MCP artifactId; they are not iframe Widgets and do not expose editable vector handles. Before the next design revision, read compressed feedback, preserve the unread cursor until it is handled, and update stable artifacts in place. Use capture:false for ordinary presentation of Widgets. Screenshot creation is local and invokes no model, though images viewed by a model may consume image-input tokens. Never send private chain-of-thought. Batch updates at meaningful milestones instead of sending per-token updates, and never auto-wake or poll in a tight loop. A queued update is not yet applied; inspect_session reports browser application and surface visibility, not pixel-level paint proof.";
+
+function argumentValue(argv, name) {
+  const index = argv.indexOf(name);
+  return index >= 0 && index + 1 < argv.length ? argv[index + 1] : "";
+}
+
+function selectRecord(options = {}) {
+  const directory = recordsDirectory(options.stateDirectory), records = readRecords(directory).filter(record => processIsAlive(record.pid));
+  if (options.instanceId) {
+    const record = records.find(item => item.instanceId === options.instanceId);
+    if (!record) throw new Error("The configured PenEcho MCP instance is no longer available. Reopen PenEcho or configure the MCP client again.");
+    return record;
+  }
+  if (!records.length) throw new Error("No local PenEcho MCP instance is available. Open PenEcho first.");
+  return records[0];
+}
+
+function responseKey(id) {
+  return `${typeof id}:${String(id)}`;
+}
+
+function bridgeRequest(record, payload, signal) {
+  const body = Buffer.from(JSON.stringify(payload));
+  return new Promise((resolve, reject) => {
+    if (body.length > MAX_INPUT_LINE_BYTES) return reject(new Error("PenEcho MCP request is too large."));
+    const request = http.request({
+      host:"127.0.0.1",
+      port:record.port,
+      path:"/api/mcp/rpc",
+      method:"POST",
+      headers:{
+        authorization:`Bearer ${record.secret}`,
+        "content-type":"application/json",
+        "content-length":body.length,
+        "x-penecho-mcp-instance":record.instanceId,
+      },
+      signal,
+      timeout:REQUEST_TIMEOUT_MS,
+    }, response => {
+      const chunks = [];
+      let size = 0, failed = false;
+      response.on("data", chunk => {
+        size += chunk.length;
+        if (size > MAX_RESPONSE_BYTES) {
+          failed = true;
+          response.destroy(new Error("PenEcho MCP response is too large."));
+        } else chunks.push(chunk);
+      });
+      response.on("end", () => {
+        if (failed) return;
+        let value;
+        try { value = JSON.parse(Buffer.concat(chunks).toString("utf8")); }
+        catch { return reject(new Error("PenEcho returned an invalid MCP response.")); }
+        if (response.statusCode !== 200 || value?.error) {
+          const error = new Error(String(value?.error?.message || `PenEcho MCP request failed (${response.statusCode}).`));
+          error.code = value?.error?.code;
+          return reject(error);
+        }
+        resolve(value.result);
+      });
+      response.on("error", reject);
+    });
+    request.on("timeout", () => request.destroy(new Error("PenEcho MCP request timed out.")));
+    request.on("error", reject);
+    request.end(body);
+  });
+}
+
+function normalToolResult(value) {
+  return { content:[{ type:"text", text:JSON.stringify(value) }], structuredContent:value };
+}
+
+function captureToolResult(value) {
+  if (!value?.image?.data || !value.image.mimeType) throw new Error("PenEcho returned an invalid widget capture.");
+  const structuredContent = { ...value, image:{ mimeType:value.image.mimeType, bytes:value.image.bytes } };
+  return {
+    content:[
+      { type:"image", data:value.image.data, mimeType:value.image.mimeType },
+      { type:"text", text:JSON.stringify(structuredContent) },
+    ],
+    structuredContent,
+  };
+}
+
+class PenEchoStdioServer {
+  constructor({ input = process.stdin, output = process.stdout, record, stateDirectory, instanceId } = {}) {
+    this.input = input;
+    this.output = output;
+    this.fixedRecord = record || null;
+    this.stateDirectory = stateDirectory;
+    this.instanceId = instanceId || "";
+    this.ownerId = crypto.randomUUID();
+    this.sessions = new Map();
+    this.pending = new Map();
+    this.buffer = Buffer.alloc(0);
+    this.initialized = false;
+    this.closed = false;
+    this.onData = chunk => this.receive(chunk);
+    this.onEnd = () => this.close();
+  }
+
+  records() {
+    if (this.fixedRecord) return [this.fixedRecord];
+    const records = readRecords(recordsDirectory(this.stateDirectory)).filter(record => processIsAlive(record.pid));
+    return this.instanceId ? records.filter(record => record.instanceId === this.instanceId) : records;
+  }
+
+  async listCanvases(signal) {
+    const results = await Promise.allSettled(this.records().map(record => bridgeRequest(record, { operation:"list_canvases", ownerId:this.ownerId }, signal)
+      .then(value => value?.instanceId === record.instanceId && Array.isArray(value.canvases) ? value.canvases : [])));
+    return { canvases:results.flatMap(result => result.status === "fulfilled" ? result.value : []) };
+  }
+
+  recordForCall(name, args) {
+    if (name === "penecho_start_session") {
+      const record = this.records().find(item => item.instanceId === args.instanceId);
+      if (!record) throw new Error("The selected PenEcho instance is no longer available. List canvases again.");
+      return record;
+    }
+    const record = this.sessions.get(args.sessionId);
+    if (!record) throw new Error("This MCP connection does not own that PenEcho session. Start a new session after listing canvases.");
+    return record;
+  }
+
+  start() {
+    this.input.on("data", this.onData);
+    this.input.on("end", this.onEnd);
+    this.input.on("error", this.onEnd);
+    this.input.resume?.();
+    return this;
+  }
+
+  send(value) {
+    if (!this.closed) this.output.write(`${JSON.stringify(value)}\n`);
+  }
+
+  receive(chunk) {
+    if (this.closed) return;
+    this.buffer = Buffer.concat([this.buffer, Buffer.from(chunk)]);
+    if (this.buffer.length > MAX_INPUT_LINE_BYTES && !this.buffer.includes(10)) return this.close();
+    while (true) {
+      const newline = this.buffer.indexOf(10);
+      if (newline < 0) break;
+      const line = this.buffer.subarray(0, newline);
+      this.buffer = this.buffer.subarray(newline + 1);
+      if (!line.length || line.length === 1 && line[0] === 13) continue;
+      if (line.length > MAX_INPUT_LINE_BYTES) { this.close(); return; }
+      let message;
+      try { message = JSON.parse(line.toString("utf8")); }
+      catch { this.send({ jsonrpc:"2.0", id:null, error:{ code:-32700, message:"Parse error" } }); continue; }
+      void this.handle(message);
+    }
+  }
+
+  async handle(message) {
+    if (!message || message.jsonrpc !== "2.0" || typeof message.method !== "string") {
+      if (message?.id !== undefined) this.send({ jsonrpc:"2.0", id:message.id ?? null, error:{ code:-32600, message:"Invalid Request" } });
+      return;
+    }
+    if (message.method === "notifications/cancelled") {
+      const key = responseKey(message.params?.requestId), pending = this.pending.get(key);
+      if (pending) {
+        this.pending.delete(key);
+        pending.abort();
+        this.send({ jsonrpc:"2.0", id:message.params.requestId, error:{ code:-32800, message:"Request cancelled" } });
+      }
+      return;
+    }
+    if (message.id === undefined) return;
+    const id = message.id;
+    if (!(typeof id === "string" || typeof id === "number" && Number.isFinite(id))) return this.send({ jsonrpc:"2.0", id:null, error:{ code:-32600, message:"Invalid Request" } });
+    try {
+      if (message.method === "initialize") {
+        this.initialized = true;
+        return this.send({ jsonrpc:"2.0", id, result:{ protocolVersion:PROTOCOL_VERSION, capabilities:{ tools:{ listChanged:false } }, serverInfo:{ name:"PenEcho", version:"1.0.0" }, instructions:INSTRUCTIONS } });
+      }
+      if (message.method === "ping") return this.send({ jsonrpc:"2.0", id, result:{} });
+      if (!this.initialized) return this.send({ jsonrpc:"2.0", id, error:{ code:-32002, message:"Initialize the PenEcho MCP server first." } });
+      if (message.method === "tools/list") return this.send({ jsonrpc:"2.0", id, result:{ tools:TOOLS } });
+      if (message.method !== "tools/call") return this.send({ jsonrpc:"2.0", id, error:{ code:-32601, message:"Method not found" } });
+      const name = message.params?.name, args = message.params?.arguments === undefined ? {} : message.params.arguments;
+      if (typeof name !== "string" || !args || typeof args !== "object" || Array.isArray(args)) return this.send({ jsonrpc:"2.0", id, error:{ code:-32602, message:"Invalid params" } });
+      const controller = new AbortController(), key = responseKey(id);
+      this.pending.set(key, controller);
+      try {
+        const record = name === "penecho_list_canvases" ? null : this.recordForCall(name, args);
+        const value = name === "penecho_list_canvases"
+          ? await this.listCanvases(controller.signal)
+          : await bridgeRequest(record, { operation:"call", ownerId:this.ownerId, name, arguments:args }, controller.signal);
+        if (!this.pending.has(key)) return;
+        if (name === "penecho_start_session" && typeof value?.sessionId === "string") this.sessions.set(value.sessionId, record);
+        if (name === "penecho_close_session" && value?.closed === true) this.sessions.delete(args.sessionId);
+        this.send({ jsonrpc:"2.0", id, result:value?.image ? captureToolResult(value) : normalToolResult(value) });
+      } catch (error) {
+        if (!this.pending.has(key)) return;
+        this.send({ jsonrpc:"2.0", id, result:{ content:[{ type:"text", text:String(error?.message || "PenEcho MCP request failed.").slice(0, 1_000) }], isError:true } });
+      } finally { this.pending.delete(key); }
+    } catch (error) {
+      this.send({ jsonrpc:"2.0", id, error:{ code:-32603, message:String(error?.message || "Internal error").slice(0, 500) } });
+    }
+  }
+
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    this.input.off("data", this.onData);
+    this.input.off("end", this.onEnd);
+    this.input.off("error", this.onEnd);
+    for (const controller of this.pending.values()) controller.abort();
+    this.pending.clear();
+  }
+}
+
+function main(argv = process.argv.slice(2)) {
+  const instanceId = argumentValue(argv, "--instance"), stateDirectory = argumentValue(argv, "--state-directory") || undefined;
+  try { new PenEchoStdioServer({ instanceId, stateDirectory }).start(); }
+  catch (error) {
+    process.stderr.write(`PenEcho MCP: ${String(error?.message || error)}\n`);
+    process.exitCode = 1;
+  }
+}
+
+if (require.main === module) main();
+
+module.exports = { INSTRUCTIONS, MAX_INPUT_LINE_BYTES, PROTOCOL_VERSION, PenEchoStdioServer, bridgeRequest, captureToolResult, main, selectRecord };

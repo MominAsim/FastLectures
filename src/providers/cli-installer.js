@@ -9,7 +9,8 @@ const { CLI_INSTALL_COMMANDS:INSTALL_COMMANDS, CLI_LOGIN_COMMANDS:LOGIN_COMMANDS
 const MAX_INSTALLER_BYTES = 256 * 1024;
 const MAX_OUTPUT_BYTES = 256 * 1024;
 const INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
-const CODEX_CLI_PINNED_VERSION = "0.149.1";
+const CODEX_CLI_PINNED_VERSION = "0.153.4";
+const inFlightCodexInstalls = new Map();
 
 const DEFINITIONS = Object.freeze({
   "kimi-cli":Object.freeze({
@@ -200,6 +201,8 @@ function installInvocation(provider, script, options = {}) {
     env.CODEX_NON_INTERACTIVE = "1";
     env.CODEX_RELEASE = String(options.codexVersion || CODEX_CLI_PINNED_VERSION);
     env.CODEX_HOME = path.resolve(options.managedHome || managedCliHome(provider, { stateDir }));
+    env.HOME = env.CODEX_HOME;
+    env.USERPROFILE = env.CODEX_HOME;
     env.CODEX_INSTALL_DIR = path.resolve(options.installDirectory || path.dirname(managedCliPath(provider, { platform, home, stateDir })));
   }
   if (provider === "kimi-cli") {
@@ -242,7 +245,7 @@ function replaceManagedDirectory(stagedDirectory, destinationDirectory) {
   if (hadExisting) try { fs.rmSync(backup, { recursive:true, force:true }); } catch {}
 }
 
-async function installCli(provider, options = {}) {
+async function installCliOnce(provider, options = {}) {
   const platform = options.platform || process.platform, homeValue=String(options.home||"").trim(), stateValue=String(options.stateDir||"").trim();
   if (!homeValue || !stateValue) throw new Error("Application paths are unavailable.");
   const home = path.resolve(homeValue),
@@ -270,6 +273,23 @@ async function installCli(provider, options = {}) {
     try { fs.rmSync(script, { force:true }); } catch {}
     if (stagingRoot) try { fs.rmSync(stagingRoot, { recursive:true, force:true }); } catch {}
   }
+}
+
+function installCli(provider, options = {}) {
+  if (provider !== "codex-cli") return installCliOnce(provider, options);
+  const stateValue = String(options.stateDir || "").trim(),
+    platform = options.platform || process.platform,
+    version = String(options.codexVersion || CODEX_CLI_PINNED_VERSION).trim();
+  if (!stateValue) return installCliOnce(provider, options);
+  const key = `${path.resolve(stateValue)}\0${platform}\0${version}`;
+  const existing = inFlightCodexInstalls.get(key);
+  if (existing) return existing;
+  const installing = installCliOnce(provider, options);
+  inFlightCodexInstalls.set(key, installing);
+  installing.finally(() => {
+    if (inFlightCodexInstalls.get(key) === installing) inFlightCodexInstalls.delete(key);
+  }).catch(() => {});
+  return installing;
 }
 
 module.exports = {

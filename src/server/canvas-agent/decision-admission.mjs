@@ -82,13 +82,18 @@ function canonicalToolChunks(block, index) {
 
 export async function * admitCanvasAgentDecisionStream(upstream, { session, availableTools = [] } = {}) {
   const assembler=new BlockAssembler(),heldChunks=[],heldUsageChunks=[],seenIndexes=new Set()
-  let finish=null
+  let finish=null,holdingDecision=false
   for await(const chunk of upstream){
     assembler.push(chunk)
     if(Number.isInteger(chunk.index))seenIndexes.add(chunk.index)
     if(chunk.type==='finish'){finish=chunk;break}
     if(chunk.type==='usage'){heldUsageChunks.push(chunk);continue}
-    heldChunks.push(chunk)
+    // Text before a tool is public commentary, not permission to execute it.
+    // Deliver it immediately; retain the complete tool decision and everything
+    // after its first chunk until atomic admission preserves the stream order.
+    if(chunkBlockType(chunk)==='tool-call')holdingDecision=true
+    if(holdingDecision)heldChunks.push(chunk)
+    else yield chunk
   }
   const terminal=finish||{type:'finish',reason:{kind:'stop'}},terminalKind=terminal.reason?.kind,assembledBlocks=assembler.blocks(),heldToolCalls=heldChunks.filter(chunk=>chunk.type==='block-end'&&chunk.block?.type==='tool-call').map(chunk=>chunk.block),
     assembledToolCalls=assembledBlocks.filter(block=>block?.type==='tool-call'),toolCalls=assembledToolCalls.length?assembledToolCalls:heldToolCalls,

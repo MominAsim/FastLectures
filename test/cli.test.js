@@ -6,6 +6,12 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { Writable } = require("node:stream");
+const {
+  CODEX_CLI_PINNED_VERSION,
+  codexHostName,
+  installCli,
+  managedCliPath,
+} = require("../src/providers/cli-installer.js");
 
 const {
   apiConfigurationIssues,
@@ -40,6 +46,12 @@ function capture() {
     stream:new Writable({ write(chunk, _encoding, callback) { value += chunk.toString("utf8"); callback(); } }),
     text:() => value,
   };
+}
+
+function fixtureExecutable(file) {
+  fs.mkdirSync(path.dirname(file), { recursive:true });
+  fs.writeFileSync(file, "fixture");
+  return file;
 }
 
 function isolatedConfiguration(args = parseArgs([]), overrides = {}) {
@@ -361,7 +373,7 @@ test("configured Codex check reads the bundled catalog and sends one small image
   const result = await testConfiguredProvider(configuration, {
     runner:async (_launch, args) => {
       calls.push(args);
-      return { code:0, stdout:args[0] === "--version" ? "codex test\n" : args[0] === "debug" ? JSON.stringify({ models:[{ slug:"gpt-5.6-sol" }] }) : "logged in\n", stderr:"" };
+      return { code:0, stdout:args[0] === "--version" ? `codex ${CODEX_CLI_PINNED_VERSION}\n` : args[0] === "debug" ? JSON.stringify({ models:[{ slug:"gpt-5.6-sol" }] }) : "logged in\n", stderr:"" };
     },
     codexCaller:async input => { modelRequest=input; return "OK"; },
   });
@@ -376,7 +388,7 @@ test("configured Codex check reports an unknown saved model immediately", async 
     AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"missing-model", CODEX_CLI_PATH:process.execPath, PATH:process.env.PATH,
   });
   await assert.rejects(testConfiguredProvider(configuration, {
-    runner:async (_launch, args) => ({ code:0, stdout:args[0] === "--version" ? "codex test\n" : args[0] === "debug" ? JSON.stringify({ models:[{ slug:"gpt-5.6-sol" }] }) : "logged in\n", stderr:"" }),
+    runner:async (_launch, args) => ({ code:0, stdout:args[0] === "--version" ? `codex ${CODEX_CLI_PINNED_VERSION}\n` : args[0] === "debug" ? JSON.stringify({ models:[{ slug:"gpt-5.6-sol" }] }) : "logged in\n", stderr:"" }),
   }), /not present.*bundled model catalog/);
 });
 
@@ -386,11 +398,263 @@ test("configured CLI connection tests abort the model request at an explicit cal
   });
   await assert.rejects(testConfiguredProvider(configuration, {
     timeoutMs:25,
-    runner:async (_launch, args) => ({ code:0, stdout:args[0] === "--version" ? "codex test\n" : args[0] === "debug" ? JSON.stringify({ models:[{ slug:"gpt-5.6-sol" }] }) : "logged in\n", stderr:"" }),
+    runner:async (_launch, args) => ({ code:0, stdout:args[0] === "--version" ? `codex ${CODEX_CLI_PINNED_VERSION}\n` : args[0] === "debug" ? JSON.stringify({ models:[{ slug:"gpt-5.6-sol" }] }) : "logged in\n", stderr:"" }),
     codexCaller:input => new Promise((resolve, reject) => {
       input.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once:true });
     }),
   }), error => error.code === "PENECHO_CONNECTION_TEST_TIMEOUT" && /timed out/.test(error.message));
+});
+
+test("configured Codex Test upgrades an old CLI and performs every remaining check with the managed CLI", async () => {
+  const configuration = isolatedConfiguration(parseArgs(["--codex"]), {
+    AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"gpt-5.6-sol", AI_EFFORT:"xhigh", CODEX_CLI_PATH:"placeholder", PATH:"",
+  }), oldExecutable = fixtureExecutable(path.join(configuration.stateDir, "fixtures", "codex-old")),
+    managedExecutable = managedCliPath("codex-cli", configuration), events = [];
+  configuration.env.CODEX_CLI_PATH = oldExecutable;
+  const originalEnv = { ...configuration.env };
+  const result = await testConfiguredProvider(configuration, {
+    runner:async (launch, args) => {
+      events.push(`run:${launch.command}:${args.join(" ")}`);
+      if (args[0] === "--version") return { code:0, stdout:`codex ${launch.command === oldExecutable ? "0.149.1" : CODEX_CLI_PINNED_VERSION}\n`, stderr:"" };
+      if (args[0] === "debug") return { code:0, stdout:JSON.stringify({ models:[{ slug:"gpt-5.6-sol" }] }), stderr:"" };
+      return { code:0, stdout:"logged in\n", stderr:"" };
+    },
+    onCliUpgrade:async event => events.push(`upgrade:${event.phase}`),
+    codexInstaller:async (provider, options) => {
+      events.push(`install:${provider}:${options.stateDir}`);
+      fixtureExecutable(managedExecutable);
+      return { provider, executable:managedExecutable, version:`codex ${CODEX_CLI_PINNED_VERSION}` };
+    },
+    codexCaller:async input => {
+      events.push(`model:${input.executable}:${input.model}:${input.effort}`);
+      assert.equal(input.env.CODEX_CLI_PATH, managedExecutable);
+      assert.match(input.atlasImage, /^data:image\/webp;base64,/);
+      return "OK";
+    },
+  });
+  assert.match(result, new RegExp(CODEX_CLI_PINNED_VERSION.replaceAll(".", "\\.")));
+  assert.deepEqual(configuration.env, originalEnv);
+  assert.deepEqual(events, [
+    `run:${oldExecutable}:--version`, `run:${oldExecutable}:login status`,
+    "upgrade:start", `install:codex-cli:${configuration.stateDir}`, "upgrade:complete",
+    `run:${managedExecutable}:--version`, `run:${managedExecutable}:login status`,
+    `run:${managedExecutable}:debug models --bundled`,
+    `model:${managedExecutable}:gpt-5.6-sol:xhigh`,
+  ]);
+});
+
+test("configured Codex Test reuses a compatible managed CLI instead of repeatedly upgrading an old configured CLI", async () => {
+  const configuration = isolatedConfiguration(parseArgs(["--codex"]), {
+    AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"gpt-5.6-sol", CODEX_CLI_PATH:"placeholder", PATH:"",
+  }), oldExecutable = fixtureExecutable(path.join(configuration.stateDir, "fixtures", "codex-old")),
+    managedExecutable = fixtureExecutable(managedCliPath("codex-cli", configuration)), calls = [];
+  configuration.env.CODEX_CLI_PATH = oldExecutable;
+  await testConfiguredProvider(configuration, {
+    runner:async (launch, args) => {
+      calls.push([launch.command, ...args]);
+      if (args[0] === "--version") return { code:0, stdout:`codex ${launch.command === oldExecutable ? "0.149.1" : "0.154.0"}`, stderr:"" };
+      if (args[0] === "debug") return { code:0, stdout:JSON.stringify({ models:[{ slug:"gpt-5.6-sol" }] }), stderr:"" };
+      return { code:0, stdout:"logged in", stderr:"" };
+    },
+    codexInstaller:async () => { throw new Error("compatible managed CLI must be reused"); },
+    onCliUpgrade:async () => { throw new Error("no installation callback expected"); },
+    codexCaller:async input => { assert.equal(input.executable, managedExecutable); return "OK"; },
+  });
+  assert.deepEqual(calls.map(call => call[0]), [oldExecutable, oldExecutable, managedExecutable, managedExecutable, managedExecutable]);
+});
+
+test("configured Codex Test does not reinstall a current managed CLI when its login check fails", async () => {
+  const configuration = isolatedConfiguration(parseArgs(["--codex"]), {
+    AI_PROVIDER:"codex-cli", CODEX_CLI_PATH:"placeholder", PATH:"",
+  }), oldExecutable = fixtureExecutable(path.join(configuration.stateDir, "fixtures", "codex-old")),
+    managedExecutable = fixtureExecutable(managedCliPath("codex-cli", configuration));
+  configuration.env.CODEX_CLI_PATH = oldExecutable;
+  let installs = 0;
+  await assert.rejects(testConfiguredProvider(configuration, {
+    runner:async (launch, args) => {
+      if (args[0] === "--version") return { code:0, stdout:`codex ${launch.command === oldExecutable ? "0.149.1" : CODEX_CLI_PINNED_VERSION}`, stderr:"" };
+      return launch.command === managedExecutable
+        ? { code:1, stdout:"", stderr:"login check unavailable" }
+        : { code:0, stdout:"logged in", stderr:"" };
+    },
+    codexInstaller:async () => { installs += 1; },
+  }), /could not complete its login check/);
+  assert.equal(installs, 0);
+});
+
+test("configured Codex Test neither installs nor downgrades current and newer CLIs", async () => {
+  for (const version of [CODEX_CLI_PINNED_VERSION, "1.0.0"]) {
+    const configuration = isolatedConfiguration(parseArgs(["--codex"]), {
+      AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"gpt-5.6-sol", CODEX_CLI_PATH:process.execPath, PATH:process.env.PATH,
+    });
+    let modelExecutable;
+    await testConfiguredProvider(configuration, {
+      runner:async (_launch, args) => ({ code:0, stdout:args[0] === "--version" ? `codex ${version}` : args[0] === "debug" ? JSON.stringify({ models:[{ slug:"gpt-5.6-sol" }] }) : "logged in", stderr:"" }),
+      codexInstaller:async () => { throw new Error("installation was not expected"); },
+      onCliUpgrade:async () => { throw new Error("upgrade callback was not expected"); },
+      codexCaller:async input => { modelExecutable=input.executable; return "OK"; },
+    });
+    assert.equal(modelExecutable, process.execPath);
+  }
+});
+
+test("a failed Codex Test upgrade does not call a model and can retry on the next explicit Test", async () => {
+  const configuration = isolatedConfiguration(parseArgs(["--codex"]), {
+    AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"gpt-5.6-sol", CODEX_CLI_PATH:"placeholder", PATH:"",
+  }), oldExecutable = fixtureExecutable(path.join(configuration.stateDir, "fixtures", "codex-old")),
+    managedExecutable = managedCliPath("codex-cli", configuration), phases = [];
+  configuration.env.CODEX_CLI_PATH = oldExecutable;
+  let attempts = 0, modelCalls = 0;
+  const options = {
+    runner:async (launch, args) => {
+      if (args[0] === "--version") return { code:0, stdout:`codex ${launch.command === oldExecutable ? "0.149.1" : CODEX_CLI_PINNED_VERSION}`, stderr:"" };
+      if (args[0] === "debug") return { code:0, stdout:JSON.stringify({ models:[{ slug:"gpt-5.6-sol" }] }), stderr:"" };
+      return { code:0, stdout:"logged in", stderr:"" };
+    },
+    onCliUpgrade:async event => phases.push(event.phase),
+    codexInstaller:async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("simulated official installer failure");
+      fixtureExecutable(managedExecutable);
+      return { executable:managedExecutable };
+    },
+    codexCaller:async () => { modelCalls += 1; return "OK"; },
+  };
+  await assert.rejects(testConfiguredProvider(configuration, options), /simulated official installer failure/);
+  assert.equal(modelCalls, 0);
+  await testConfiguredProvider(configuration, options);
+  assert.equal(attempts, 2);
+  assert.equal(modelCalls, 1);
+  assert.deepEqual(phases, ["start", "complete", "start", "complete"]);
+});
+
+test("Codex Test rejects an unparseable CLI version without installing", async () => {
+  const configuration = isolatedConfiguration(parseArgs(["--codex"]), {
+    AI_PROVIDER:"codex-cli", CODEX_CLI_PATH:process.execPath, PATH:process.env.PATH,
+  });
+  let installs = 0;
+  await assert.rejects(testConfiguredProvider(configuration, {
+    runner:async (_launch, args) => ({ code:0, stdout:args[0] === "--version" ? "codex development" : "logged in", stderr:"" }),
+    codexInstaller:async () => { installs += 1; },
+  }), /did not report a semantic version/);
+  assert.equal(installs, 0);
+});
+
+test("Codex upgrade waiting is outside the model timeout and the restarted timeout still aborts the upgraded model", async () => {
+  const makeConfiguration = () => {
+    const configuration = isolatedConfiguration(parseArgs(["--codex"]), {
+      AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"gpt-5.6-sol", CODEX_CLI_PATH:"placeholder", PATH:"",
+    });
+    configuration.env.CODEX_CLI_PATH = fixtureExecutable(path.join(configuration.stateDir, "fixtures", "codex-old"));
+    return configuration;
+  };
+  const run = async (configuration, codexCaller) => {
+    const managedExecutable = managedCliPath("codex-cli", configuration);
+    return testConfiguredProvider(configuration, {
+      timeoutMs:20,
+      runner:async (launch, args) => {
+        if (args[0] === "--version") return { code:0, stdout:`codex ${launch.command === configuration.env.CODEX_CLI_PATH ? "0.149.1" : CODEX_CLI_PINNED_VERSION}`, stderr:"" };
+        if (args[0] === "debug") return { code:0, stdout:JSON.stringify({ models:[{ slug:"gpt-5.6-sol" }] }), stderr:"" };
+        return { code:0, stdout:"logged in", stderr:"" };
+      },
+      codexInstaller:async () => {
+        await new Promise(resolve => setTimeout(resolve, 45));
+        fixtureExecutable(managedExecutable);
+        return { executable:managedExecutable };
+      },
+      codexCaller,
+    });
+  };
+  await run(makeConfiguration(), async () => "OK");
+  await assert.rejects(run(makeConfiguration(), input => new Promise((resolve, reject) => {
+    input.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once:true });
+  })), error => error.code === "PENECHO_CONNECTION_TEST_TIMEOUT");
+});
+
+test("Codex Test does not begin an upgrade after its pre-install test budget expires", async () => {
+  const configuration = isolatedConfiguration(parseArgs(["--codex"]), {
+    AI_PROVIDER:"codex-cli", CODEX_CLI_PATH:process.execPath, PATH:process.env.PATH,
+  });
+  let installs = 0, callbacks = 0;
+  await assert.rejects(testConfiguredProvider(configuration, {
+    timeoutMs:20,
+    runner:async (_launch, args) => {
+      if (args[0] === "--version") await new Promise(resolve => setTimeout(resolve, 30));
+      return { code:0, stdout:args[0] === "--version" ? "codex 0.149.1" : "logged in", stderr:"" };
+    },
+    codexInstaller:async () => { installs += 1; },
+    onCliUpgrade:async () => { callbacks += 1; },
+  }), error => error.code === "PENECHO_CONNECTION_TEST_TIMEOUT");
+  assert.equal(installs, 0);
+  assert.equal(callbacks, 0);
+});
+
+test("non-Codex configured tests never invoke the Codex installer or upgrade callback", async () => {
+  const configuration = isolatedConfiguration(parseArgs(["--kimi"]), {
+    AI_PROVIDER:"kimi-cli", KIMI_CLI_PATH:process.execPath, PATH:process.env.PATH,
+  });
+  await testConfiguredProvider(configuration, {
+    runner:async () => ({ code:0, stdout:"kimi-code 1.0.0", stderr:"" }),
+    kimiCaller:async () => "OK",
+    codexInstaller:async () => { throw new Error("Codex installer must not run"); },
+    onCliUpgrade:async () => { throw new Error("Codex upgrade callback must not run"); },
+  });
+});
+
+test("Codex installs share one in-flight operation per state directory and version", async () => {
+  const directory = temporaryDirectory(), home = path.join(directory, "home"), stateA = path.join(directory, "state-a"), stateB = path.join(directory, "state-b");
+  fs.mkdirSync(home, { recursive:true });
+  let downloads = 0;
+  const fetchImpl = async () => {
+    downloads += 1;
+    await new Promise(resolve => setTimeout(resolve, 15));
+    return { ok:true, arrayBuffer:async () => new TextEncoder().encode("#!/bin/sh\nCODEX_INSTALL_DIR\n").buffer };
+  };
+  const runner = async (_command, args, options) => {
+    if (args[0] === "--version") return { output:`codex ${CODEX_CLI_PINNED_VERSION}` };
+    assert.equal(options.env.HOME, path.join(options.cwd, "tools", "codex", "home"));
+    assert.equal(options.env.USERPROFILE, options.env.HOME);
+    assert.notEqual(options.env.HOME, home);
+    fs.mkdirSync(options.env.CODEX_INSTALL_DIR, { recursive:true });
+    fixtureExecutable(path.join(options.env.CODEX_INSTALL_DIR, "codex"));
+    fixtureExecutable(path.join(options.env.CODEX_INSTALL_DIR, codexHostName("darwin")));
+    return { output:"installed" };
+  };
+  const installOptions = stateDir => ({ platform:"darwin", home, stateDir, fetchImpl, runner });
+  const [first, second] = await Promise.all([installCli("codex-cli", installOptions(stateA)), installCli("codex-cli", installOptions(stateA))]);
+  assert.equal(downloads, 1);
+  assert.equal(first.executable, second.executable);
+  await Promise.all([installCli("codex-cli", installOptions(stateA)), installCli("codex-cli", installOptions(stateB))]);
+  assert.equal(downloads, 3);
+});
+
+test("a failed shared Codex install is removed so the same state can retry", async () => {
+  const directory = temporaryDirectory(), home = path.join(directory, "home"), stateDir = path.join(directory, "state");
+  fs.mkdirSync(home, { recursive:true });
+  let downloads = 0, attempts = 0;
+  const options = {
+    platform:"darwin",
+    home,
+    stateDir,
+    fetchImpl:async () => {
+      downloads += 1;
+      return { ok:true, arrayBuffer:async () => new TextEncoder().encode("#!/bin/sh\nCODEX_INSTALL_DIR\n").buffer };
+    },
+    runner:async (_command, args, runOptions) => {
+      if (args[0] === "--version") return { output:`codex ${CODEX_CLI_PINNED_VERSION}` };
+      attempts += 1;
+      if (attempts === 1) throw new Error("simulated install failure");
+      fs.mkdirSync(runOptions.env.CODEX_INSTALL_DIR, { recursive:true });
+      fixtureExecutable(path.join(runOptions.env.CODEX_INSTALL_DIR, "codex"));
+      fixtureExecutable(path.join(runOptions.env.CODEX_INSTALL_DIR, codexHostName("darwin")));
+      return { output:"installed" };
+    },
+  };
+  await assert.rejects(installCli("codex-cli", options), /simulated install failure/);
+  const installed = await installCli("codex-cli", options);
+  assert.equal(downloads, 2);
+  assert.equal(attempts, 2);
+  assert.equal(installed.executable, managedCliPath("codex-cli", options));
 });
 
 test("Codex bundled-model query uses the offline catalog command", async () => {
@@ -408,6 +672,25 @@ test("Kimi, Codex, and Claude preflight use only their documented offline checks
   assert.equal((await runCodexPreflight(codex, { runner })).ok, true);
   assert.equal((await runClaudePreflight(claude, { runner })).ok, true);
   assert.deepEqual(calls, ["--version", "--version", "login status", "--version", "auth status"]);
+});
+
+test("Claude preflight classifies JSON loggedIn false as authentication and preserves other command failures", async () => {
+  const configuration = isolatedConfiguration(parseArgs(["--claude"]), { AI_PROVIDER:"claude-cli", CLAUDE_CLI_PATH:process.execPath, PATH:process.env.PATH });
+  const run = status => runClaudePreflight(configuration, { runner:async (_launch, args) => args[0] === "--version" ? { code:0, stdout:"claude test\n", stderr:"" } : status });
+  assert.equal((await run({ code:0, stdout:'{"loggedIn":true,"authMethod":"oauth_token"}', stderr:"" })).ok, true);
+  for (const code of [0, 1]) {
+    const result = await run({ code, stdout:'{"loggedIn":false,"authMethod":"oauth_token"}', stderr:"" });
+    assert.equal(result.ok, false);
+    assert.equal(result.issue, "authentication");
+  }
+  for (const status of [
+    { code:1, stdout:'{"loggedIn":true,"authMethod":"oauth_token"}', stderr:"" },
+    { code:1, stdout:"", stderr:"status service unavailable" },
+  ]) {
+    const execution = await run(status);
+    assert.equal(execution.ok, false);
+    assert.equal(execution.issue, "execution");
+  }
 });
 
 test("Kimi startup identifies the resolved provider after the server is available", async () => {
@@ -467,6 +750,24 @@ test("explicit authentication failures print login commands instead of upgrade c
     });
     assert.equal(code, 0);
     assert.match(errorOutput.text(), new RegExp(provider.command.replaceAll(" ", "\\s")));
+    assert.doesNotMatch(errorOutput.text(), /install\.(?:sh|ps1)/);
+  }
+});
+
+test("Claude startup uses the login recovery command for JSON logged-out status", async () => {
+  for (const loginCode of [0, 1]) {
+    const directory = temporaryDirectory(), errorOutput = capture();
+    const code = await main(["--claude"], {
+      env:{ AI_PROVIDER:"claude-cli", CLAUDE_CLI_PATH:process.execPath, PATH:"" }, home:directory, cwd:directory, packageRoot:ROOT,
+      candidates:[{ executable:process.execPath, source:"configured" }], awaitCliPreflight:true,
+      output:capture().stream, errorOutput:errorOutput.stream,
+      runner:async (_launch, args) => args[0] === "--version"
+        ? { code:0, stdout:"claude test\n", stderr:"" }
+        : { code:loginCode, stdout:'{"loggedIn":false,"authMethod":"oauth_token"}', stderr:"" },
+      startServer:async () => ({ listening:true }), updateScheduler:() => {},
+    });
+    assert.equal(code, 0);
+    assert.match(errorOutput.text(), /claude auth login/);
     assert.doesNotMatch(errorOutput.text(), /install\.(?:sh|ps1)/);
   }
 });

@@ -20,7 +20,7 @@
     integrity="sha384-KKWa9jJ1MZvssLeOoXG6FiOAZfAgmzsIIfw8BXwI9+kYm0lPCbC6yTQPBC00F1/L"
     crossorigin="anonymous"></script>
 </head>
-<body data-theme="studio" data-studio-palette="indigo" data-canvas-mode="pen">
+<body data-theme="studio" data-studio-palette="teal" data-canvas-mode="pen">
   <main>
     <section class="topbar">
       <header class="top-row">
@@ -142,8 +142,8 @@
                 </button>
               </div>
             </div>
-            <button id="lassoToolBtn" data-mode="select" class="icon-button" type="button" aria-pressed="false" data-i18n-aria="select" aria-label="Lasso select" data-i18n-title="select" title="Lasso select" data-pe-button="toolbar" data-pe-density="compact">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.5 5.5c3.2 3.1-.8 7.5-5.1 8.8-4.9 1.5-11.2-.1-10.2-4.5.8-3.8 6.6-5.7 11.2-4.6 4.1 1 6.4 5 4.4 8.5-1.4 2.5-4.8 3.8-7.8 4.1"/><path d="m8 16 3 1.8-2.3 2.6"/></svg>
+            <button id="lassoToolBtn" data-mode="select" class="icon-button" type="button" aria-pressed="false" data-i18n-aria="select" aria-label="Select objects or lasso ink" data-i18n-title="select" title="Select objects or lasso ink" data-pe-button="toolbar" data-pe-density="compact">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 14 9-7 1-3 7z"/></svg>
             </button>
             <button id="textToolBtn" data-mode="text" class="icon-button" type="button" aria-pressed="false" data-i18n-aria="text" aria-label="Text input" data-i18n-title="text" title="Text input" data-pe-button="toolbar" data-pe-density="compact">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14M12 5v14M8.5 19h7"/></svg>
@@ -453,6 +453,8 @@
       </dialog>
       <section id="viewport" data-i18n-aria="canvas" aria-label="Zoomable handwritten AI canvas">
         <div id="canvasViewActions" class="canvas-view-actions" role="toolbar" data-i18n-aria="canvasViewModeActions" aria-label="View mode actions" hidden>
+          <button id="canvasViewHand" type="button" data-i18n-aria="canvasViewHand" aria-label="Move canvas" data-i18n-title="canvasViewHand" title="Move canvas" aria-pressed="true" data-pe-button="toolbar" data-pe-density="compact"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12V5a2 2 0 0 1 4 0v6-8a2 2 0 0 1 4 0v8-5a2 2 0 0 1 4 0v8c0 5-3 7-7 7-3 0-5-2-6-4l-3-5a2 2 0 0 1 3-2l1 2"/></svg></button>
+          <button id="canvasViewSelect" type="button" data-i18n-aria="canvasViewSelect" aria-label="Select a widget to interact" data-i18n-title="canvasViewSelect" title="Select a widget to interact" aria-pressed="false" data-pe-button="toolbar" data-pe-density="compact"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 14 9-7 1-3 7z"/></svg></button>
           <button id="canvasViewShareBtn" type="button" data-i18n-aria="shareCanvasCloud" aria-label="Share Canvas to PenEcho Cloud" data-i18n-title="shareCanvasCloud" title="Share Canvas to PenEcho Cloud" data-pe-button="toolbar" data-pe-density="compact">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.3 10.8 7.4-4.5M8.3 13.2l7.4 4.5"/></svg>
           </button>
@@ -463,6 +465,12 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
           </button>
         </div>
+        <div id="canvasNavigationActions" class="canvas-navigation-actions" role="toolbar" data-i18n-aria="canvasNavigationActions" aria-label="Canvas navigation" data-pe-surface="tool-panel" data-pe-size="xs" data-pe-layout="single" data-pe-presentation="context-toolbar" data-pe-material="control-glass">
+          <button id="canvasWidgetExit" type="button" hidden data-i18n="widgetExitInteraction" data-pe-button="secondary" data-pe-density="compact">Exit interaction</button>
+<button id="canvasZoomOut" type="button" data-i18n-aria="canvasZoomOut" aria-label="Zoom out" data-i18n-title="canvasZoomOut" title="Zoom out" data-pe-button="toolbar" data-pe-density="compact"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+          <button id="canvasZoomReset" type="button" data-i18n-title="canvasZoomReset" title="Reset zoom to 100%" data-pe-button="toolbar" data-pe-density="compact">100%</button>
+<button id="canvasZoomIn" type="button" data-i18n-aria="canvasZoomIn" aria-label="Zoom in" data-i18n-title="canvasZoomIn" title="Zoom in" data-pe-button="toolbar" data-pe-density="compact"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button><button id="canvasFitContents" type="button" data-i18n-aria="canvasFitContents" aria-label="Fit all content" data-i18n-title="canvasFitContents" title="Fit all content" data-pe-button="toolbar" data-pe-density="compact"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M8 8h8v8H8z"/></svg></button>
+        </div>
         <button id="canvasNavigationLock" class="canvas-navigation-lock" type="button" aria-pressed="false" data-i18n-aria="canvasLockNavigation" aria-label="Lock canvas navigation" data-i18n-title="canvasLockNavigation" title="Lock canvas navigation" data-pe-button="toolbar" data-pe-density="compact">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path class="navigation-lock-shackle open" d="M8 10V7.5a4 4 0 0 1 7.7-1.5"/>
@@ -471,6 +479,11 @@
             <path d="M12 14v2.5"/>
           </svg>
         </button>
+        <div id="mcpCanvasRing" class="mcp-canvas-ring" data-state="open" aria-hidden="true" hidden></div>
+        <div id="mcpCanvasNotice" class="mcp-canvas-notice" role="status" aria-live="polite" hidden>
+          <button id="mcpShowNewContent" type="button" data-pe-button="secondary" data-pe-density="compact" hidden>Show new content</button>
+          <button id="mcpCanvasNoticeButton" type="button" data-pe-button="secondary" data-pe-density="compact" aria-controls="settingsPanel">MCP open · Waiting for AI</button>
+        </div>
         <div id="canvasWelcome" class="canvas-welcome" role="status" aria-live="polite" hidden>
           <span class="canvas-welcome-kicker">
             <span data-i18n="canvasWelcomeKicker">start here</span>
@@ -915,6 +928,9 @@
           <button id="settingsNavConnections" type="button" role="tab" data-settings-page-target="connections" aria-controls="settingsPageConnections" aria-selected="false" tabindex="-1" data-pe-button="menu-item">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12a4 4 0 1 1 4 4H8a4 4 0 1 1 0-8h1M15 8h1a4 4 0 1 1 0 8h-4"/><path d="M8 12h8"/></svg><span data-i18n="settingsNavConnections">AI &amp; connections</span>
           </button>
+          <button id="settingsNavMcp" type="button" role="tab" data-settings-page-target="mcp" aria-controls="settingsPageMcp" aria-selected="false" tabindex="-1" data-pe-button="menu-item">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="6" height="8" rx="1"/><rect x="15" y="8" width="6" height="8" rx="1"/><path d="M9 12h6M6 5v3M18 16v3"/></svg><span data-mcp-label="nav">MCP service</span>
+          </button>
           <button id="settingsNavCanvas" type="button" role="tab" data-settings-page-target="canvas" aria-controls="settingsPageCanvas" aria-selected="false" tabindex="-1" data-pe-button="menu-item">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v12H4zM8 21h8M12 17v4"/><path d="m8 12 2-2 2 2 3-3 2 2"/></svg><span data-i18n="settingsNavCanvas">Canvas</span>
           </button>
@@ -941,7 +957,7 @@
           <div class="settings-appearance-block">
             <div class="settings-field-heading"><strong data-i18n="settingsColorScheme">Color scheme</strong><small data-i18n="settingsColorSchemeHelp">Eight restrained, professional Studio palettes.</small></div>
             <div id="studioPaletteOptions" class="studio-palette-grid" role="radiogroup" data-i18n-aria="settingsColorScheme" aria-label="Color scheme">
-              <button class="studio-palette-option" type="button" role="radio" data-studio-palette="indigo" aria-checked="true" data-pe-hit="choice">
+              <button class="studio-palette-option" type="button" role="radio" data-studio-palette="indigo" aria-checked="false" data-pe-hit="choice">
                 <span class="studio-palette-preview" aria-hidden="true"><i></i><b></b><em></em><u></u></span>
                 <span><strong data-i18n="studioPaletteIndigo">Indigo</strong><small data-i18n="studioPaletteIndigoHelp">Creative and balanced</small></span>
               </button>
@@ -957,7 +973,7 @@
                 <span class="studio-palette-preview" aria-hidden="true"><i></i><b></b><em></em><u></u></span>
                 <span><strong data-i18n="studioPaletteAzure">Azure</strong><small data-i18n="studioPaletteAzureHelp">Clear and open</small></span>
               </button>
-              <button class="studio-palette-option" type="button" role="radio" data-studio-palette="teal" aria-checked="false" data-pe-hit="choice">
+              <button class="studio-palette-option" type="button" role="radio" data-studio-palette="teal" aria-checked="true" data-pe-hit="choice">
                 <span class="studio-palette-preview" aria-hidden="true"><i></i><b></b><em></em><u></u></span>
                 <span><strong data-i18n="studioPaletteTeal">Teal</strong><small data-i18n="studioPaletteTealHelp">Calm and technical</small></span>
               </button>
@@ -987,6 +1003,15 @@
             </section>
           </section>
           <section id="settingsPageConnections" class="settings-page" role="tabpanel" aria-labelledby="settingsNavConnections" data-settings-page="connections" hidden>
+            <section id="settingsHostedSection" class="settings-group settings-entry-group" aria-labelledby="settingsHostedHeading" hidden>
+              <div class="settings-quick-heading"><h3 id="settingsHostedHeading" data-i18n="settingsHostedModels">PenEcho models</h3><button id="settingsHostedRefresh" type="button" data-i18n="settingsHostedRefresh" data-pe-button="secondary" data-pe-density="compact">Refresh</button></div>
+              <p id="settingsHostedStatus" class="settings-save-status" role="status" aria-live="polite"></p>
+              <div id="settingsHostedList" class="settings-connection-quick-list"></div>
+              <details><summary data-i18n="settingsHostedPricing">How credits are calculated</summary><p data-i18n="settingsHostedPricingHelp">Input, cache reads, cache writes and output have separate rates. The displayed multiplier applies to each base rate. Your own connections do not spend PenEcho credits.</p><div id="settingsHostedRates"></div></details>
+              <a id="settingsHostedBilling" target="_blank" rel="noopener noreferrer" data-i18n="settingsHostedBilling" data-pe-button="ghost" data-pe-density="compact">Credits & billing ↗</a>
+              <p id="settingsHostedBrowserNotice" class="settings-help" data-i18n="settingsHostedBrowserNotice" hidden>Browser editing supports PenEcho models and Cloud saves. Link a device to configure your own connections, search or system settings, and use local files or PenEcho Agent.</p>
+              <a id="settingsHostedLinkDevice" href="/dashboard.html#devices" target="_blank" rel="noopener noreferrer" data-i18n="settingsHostedLinkDevice" data-pe-button="ghost" data-pe-density="compact" hidden>Link a device ↗</a>
+            </section>
             <section class="settings-group settings-entry-group" aria-labelledby="settingsConfigurationHeading">
           <div class="settings-quick-heading"><h3 id="settingsConfigurationHeading" data-i18n="settingsConnections">AI connections</h3><button id="settingsOpenApi" type="button" data-i18n="settingsManage" data-pe-button="secondary" data-pe-density="compact">Manage</button></div>
           <div id="settingsConnectionQuickList" class="settings-connection-quick-list"></div>
@@ -997,6 +1022,31 @@
             <button id="settingsOpenSearch" type="button" data-pe-hit="choice"><strong data-i18n="settingsSearchEntry">Internet search</strong><small id="settingsSearchEntryStatus" data-i18n="settingsSearchNotConfigured">DuckDuckGo + built-in search ready · DeepSeek Flash or Tavily optional</small></button>
             <button id="settingsOpenSystem" type="button" data-pe-hit="choice"><strong data-i18n="settingsSystemEntry">System settings</strong><small data-i18n="settingsSystemEntryHelp">Restart required after saving</small></button>
           </div>
+            </section>
+          </section>
+          <section id="settingsPageMcp" class="settings-page" role="tabpanel" aria-labelledby="settingsNavMcp" data-settings-page="mcp" hidden>
+            <section class="settings-group settings-entry-group" aria-labelledby="mcpHeading">
+              <div class="settings-section-heading"><div><h3 id="mcpHeading" data-mcp-label="heading">Work alongside your AI</h3><p data-mcp-label="description">Bring external AI sessions, progress and interactive previews onto this canvas.</p></div></div>
+              <div class="settings-quick-heading"><label id="mcpEnableLabel" for="mcpEnabled" data-mcp-label="enable">Allow external AI on this canvas</label><button id="mcpEnabled" class="settings-switch" type="button" role="switch" aria-checked="false" aria-labelledby="mcpEnableLabel" data-pe-control="switch"><span class="settings-switch-thumb" aria-hidden="true"></span></button></div>
+              <p class="settings-help" data-mcp-label="accessHelp">While connected, external AI can update its session objects and read new text, strokes and images you commit to this canvas after its session starts. Previews and visual feedback are captured on request.</p>
+              <p id="mcpConnectionStatus" class="settings-save-status" role="status" aria-live="polite"></p>
+            </section>
+            <section class="settings-group settings-entry-group" aria-labelledby="mcpSetupHeading">
+              <div class="settings-quick-heading"><h3 id="mcpSetupHeading" data-mcp-label="setup">Connect an AI client</h3><button id="mcpRefresh" type="button" data-pe-button="secondary" data-pe-density="compact" data-mcp-label="refresh">Check connection</button></div>
+              <label class="settings-field" for="mcpClient"><span data-mcp-label="client">AI client</span><select id="mcpClient"><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="other">Kimi / ZCode / Other</option></select></label>
+              <div class="mcp-actions"><button id="mcpConfigure" type="button" data-pe-button="primary" data-mcp-label="configure">Configure automatically</button><button id="mcpCopyConfig" type="button" data-pe-button="secondary" data-mcp-label="copyConfig">Copy configuration</button><button id="mcpCopyInstructions" type="button" data-pe-button="secondary" data-mcp-label="copyInstructions">Copy AI setup instructions</button></div>
+              <p id="mcpConfigureStatus" class="settings-save-status" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+              <p id="mcpConfigStatus" class="settings-save-status" role="status" aria-live="polite" hidden></p>
+              <p class="settings-help" data-mcp-label="setupHelp">Configure once. PenEcho finds its current port automatically. Reload the AI client after configuration.</p>
+              <details><summary data-mcp-label="manual">Manual configuration</summary><pre id="mcpConfig" class="mcp-config" tabindex="0"></pre></details>
+              <div class="mcp-actions"><button id="mcpCopySkill" type="button" data-pe-button="secondary" data-mcp-label="copySkill">Copy workflow skill</button><button id="mcpCopyGuide" type="button" data-pe-button="secondary" data-mcp-label="copyGuide">Copy setup guide</button></div>
+              <p id="mcpSetupStatus" class="settings-save-status" role="status" aria-live="polite"></p>
+            </section>
+            <section class="settings-group settings-entry-group" aria-labelledby="mcpSessionsHeading">
+              <div class="settings-quick-heading"><h3 id="mcpSessionsHeading" data-mcp-label="sessions">Sessions on this canvas</h3></div>
+              <p id="mcpEmpty" class="settings-help" data-mcp-label="empty">Connect your AI, then ask it to show its work in PenEcho. Each session gets its own work area.</p>
+              <div id="mcpSessionList" class="settings-connection-quick-list"></div>
+              <details><summary data-mcp-label="how">How to use it</summary><p class="settings-help" data-mcp-label="howHelp">Ask your AI to publish a short plan and meaningful milestones, and place diagrams or UI code in Widgets. Ask for a screenshot when checking a design. Progress updates do not call another model or take screenshots.</p><p class="settings-help" data-mcp-label="thoughtHelp">Shows the AI’s shared plans, decisions and results. Session updates are supplied by the external AI client.</p></details>
             </section>
           </section>
         <form id="canvasSettingsForm" class="canvas-settings-form" hidden>
@@ -1099,6 +1149,10 @@
           <div class="settings-row">
             <span id="settingsCanvasAgentAutoOpenLabel" data-i18n="settingsCanvasAgentAutoOpen">Open PenEcho Agent with each canvas</span>
             <button id="settingsCanvasAgentAutoOpenToggle" class="settings-switch on" type="button" role="switch" aria-checked="true" aria-labelledby="settingsCanvasAgentAutoOpenLabel" data-pe-control="switch"><span class="settings-switch-thumb" aria-hidden="true"></span></button>
+          </div>
+          <div class="settings-row">
+            <span id="settingsWheelZoomLabel" data-i18n="canvasWheelZoom">Use scrolling to zoom</span>
+            <button id="settingsWheelZoom" class="settings-switch" type="button" role="switch" aria-checked="false" aria-labelledby="settingsWheelZoomLabel" data-i18n-title="canvasWheelZoomHelp" title="Off: scroll to pan; pinch or Ctrl/Cmd + scroll to zoom. Turning this on also changes trackpad scrolling." data-pe-control="switch"><span class="settings-switch-thumb" aria-hidden="true"></span></button>
           </div>
           <div class="settings-row">
             <span id="settingsWidgetShadowLabel" data-i18n="settingsWidgetShadow">Widget &amp; image shadows</span>

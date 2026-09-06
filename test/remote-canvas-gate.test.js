@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const { webcrypto } = require("node:crypto");
 const { test } = require("node:test");
 
 const ROOT = path.resolve(__dirname, "..");
@@ -60,6 +61,7 @@ function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.pene
       return null;
     },
     querySelectorAll:(selector) => selector === ".canvas-widget:not(.widget-offscreen) .canvas-widget-frame" ? widgetFrames : [],
+    getElementById:() => null,
   };
   const redirects = [];
   const location = {
@@ -81,6 +83,10 @@ function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.pene
     windowListeners.get(type).add(handler);
   };
   windowObject.requestAnimationFrame = (callback) => setImmediate(() => callback(Date.now()));
+  windowObject.dispatchEvent = (event) => {
+    for (const handler of windowListeners.get(event.type) || []) handler(event);
+    return true;
+  };
   windowObject.dispatchMessage = (data, source, origin = location.origin) => {
     for (const handler of windowListeners.get("message") || []) handler({ data, source, origin });
   };
@@ -96,7 +102,7 @@ function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.pene
   };
   const context = {
     window:windowObject, document, location, navigator:{ language },
-    URL, Headers, Request, Date, console, setTimeout, clearTimeout,
+    URL, Headers, Request, Response, CustomEvent, crypto:webcrypto, Date, console, setTimeout, clearTimeout,
   };
   vm.runInNewContext(gateScript, context, { filename:"public/remote-canvas.js" });
   const gate = document.body.children[0];
@@ -297,7 +303,7 @@ test("Remote Canvas gate 401 response redirects to auth with returnTo", async ()
   windowObject.fetch = async () => ({ ok:false, status:401, json:async () => ({}) });
   vm.runInNewContext(gateScript, {
     window:windowObject, document, location, navigator:{ language:"en-US" },
-    URL, Headers, Request, Date, console, setTimeout, clearTimeout,
+    URL, Headers, Request, crypto:webcrypto, Date, console, setTimeout, clearTimeout,
   }, { filename:"public/remote-canvas.js" });
   await flush();
   assert.deepEqual(redirects, [`/auth.html?returnTo=${encodeURIComponent(`/canvas/${CANVAS_ID}`)}`]);
@@ -372,6 +378,22 @@ test("desktop runtime keeps its existing direct Cloud sync path", async () => {
   assert.deepEqual(calls, [`/api/cloud/canvases/${CANVAS_ID}`]);
 });
 
+test("opt-in browser editing opens stored Canvas without a device and keeps host capabilities unavailable", async () => {
+  const run = boot({nativeReads:true,respond:()=>({device:null})});
+  await flush();
+  assert.equal(run.gate.hidden,true);
+  assert.deepEqual(run.opened,[CANVAS_ID]);
+  assert.equal(run.window.PENECHO_CONFIG.browserCanvasEditing,true);
+  assert.equal(run.window.PENECHO_CONFIG.canvasAgent,false);
+  const settings = await run.window.fetch("/api/settings");
+  assert.deepEqual((await settings.json()).connections,[]);
+  const forbidden = await run.window.fetch("/api/canvas-agent/files");
+  assert.equal(forbidden.status,409);
+  assert.equal((await forbidden.json()).error,"linked_device_required");
+  await run.window.fetch("/api/widget-fetch?url=https%3A%2F%2Fexample.test%2Fdata");
+  assert.equal(run.fetchCalls.at(-1).url,"/api/v1/widget-fetch?url=https%3A%2F%2Fexample.test%2Fdata");
+});
+
 test("Remote Canvas fetch wrapper preserves the Canvas base URL on nested community routes", async () => {
   const run = boot({
     pathname:`/canvas/community/${COMMUNITY_ID}`,
@@ -407,4 +429,14 @@ test("Remote Canvas gate stays compact, accessible and mobile-friendly", () => {
   assert.doesNotMatch(gateCss, /font-size:\s*clamp|letter-spacing:\s*-/);
   assert.match(gateCss, /@media \(max-width: 720px\)/);
   assert.match(gateCss, /@media \(prefers-reduced-motion: reduce\)\s*\{[^}]*\.remote-canvas-gate\s*\{[^}]*backdrop-filter:\s*none/);
+});
+
+test("fresh account status restores a hosted Agent capability missing from cached boot config",async()=>{
+  const run=boot({nativeReads:true,respond:()=>({device:null,account:{name:'UAT user',credits:995.3},capabilities:{hostedCanvasAgent:true}})});
+  await flush();
+  assert.equal(run.window.PENECHO_CONFIG.hostedCanvasAgent,true);
+  assert.equal(run.window.PENECHO_CONFIG.canvasAgent,false);
+  assert.equal(run.window.PENECHO_REMOTE_CLOUD_STATUS.credits,995.3);
+  assert.equal(run.gate.hidden,true);
+  assert.deepEqual(run.opened,[CANVAS_ID]);
 });

@@ -18,9 +18,9 @@
     },
   };
 
-  const DEFAULT_STUDIO_PALETTE = "indigo",
+  const DEFAULT_STUDIO_PALETTE = "teal",
     REMOVED_THEMES = new Set(["arcane", "scifi", "research"]),
-    STUDIO_PALETTES = new Set([DEFAULT_STUDIO_PALETTE, "graphite", "cobalt", "azure", "teal", "forest", "amber", "burgundy"]),
+    STUDIO_PALETTES = new Set(["indigo", "graphite", "cobalt", "azure", "teal", "forest", "amber", "burgundy"]),
     THEME_COLORS = { indigo:"#f8f8f9", graphite:"#f8f8f8", cobalt:"#f7f9fc", azure:"#f6fafc", teal:"#f6faf9", forest:"#f7faf7", amber:"#faf8f5", burgundy:"#faf7f8" };
 
   const $ = (selector) => document.querySelector(selector),

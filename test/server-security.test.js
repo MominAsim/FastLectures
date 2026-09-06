@@ -437,7 +437,7 @@ test("server uses applied global configuration and one timeout for every executo
   assert.doesNotMatch(server, /loadEnv\(path\.join\(ROOT, ["']\.env["']\)\)/);
   assert.match(server, /process\.env\.AI_TIMEOUT_SECONDS/);
   assert.match(server, /MODEL_TIMEOUT_MS/);
-  assert.match(server, /LAN access \(open one of these addresses on another device\)/);
+  assert.match(server, /LAN access \(try these addresses from a device on the same network\)/);
   assert.match(server, /inbound TCP port/);
   assert.doesNotMatch(server, /offerWindowsLanAccess|listenErrorMessage/);
   assert.doesNotMatch(packageJson.files.join("\n"), /^\.env(?:\.|$)/m);

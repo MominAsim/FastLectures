@@ -699,12 +699,13 @@
     const connected = remote ? Boolean(remote.deviceOnline) : Boolean(state.status?.device?.connected);
     const signedIn = remote ? Boolean(remote.accountName) : accountSignedIn();
     const accountName = String(remote?.accountName || account?.name || "");
+    const credits = account?.credits ?? remote?.credits;
     cloudButton.dataset.state = connected ? "connected" : signedIn ? "signed-in" : "signed-out";
     cloudButton.querySelector(".cloud-account-label").textContent = accountName ? accountName.split(/\s+/)[0] : "Cloud";
     cloudButton.title = connected
       ? `PenEcho Cloud · ${cloudT("deviceLinked")}`
       : signedIn
-        ? `PenEcho Cloud · ${cloudT("credits", { count:account?.credits || 0 })}`
+        ? `PenEcho Cloud · ${cloudT("credits", { count:credits == null ? "—" : Number(credits).toLocaleString(undefined,{maximumFractionDigits:1}) })}`
         : cloudT("openPenEchoCloud", { fallback:"Connect PenEcho Cloud" });
   }
 
@@ -730,6 +731,7 @@
       // slower response overwrite fresher status.
       if (seq !== statusRequestSeq) return state.status;
       state.status = status;
+      if (typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") window.dispatchEvent(new CustomEvent("penecho:cloud-account-changed"));
       if (previouslySignedIn !== accountSignedIn()) {
         state.library = null;
         state.favoriteCanvases = null;

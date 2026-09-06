@@ -106,9 +106,24 @@ test("Claude CLI JSON result parsing accepts text and structured output", () => 
   assert.equal(claudeResult(JSON.stringify({ type:"result", subtype:"success", result:"{\"commands\":[]}" })), '{"commands":[]}');
   assert.equal(claudeResult(`${JSON.stringify({ type:"system", subtype:"init" })}\n${JSON.stringify({ type:"result", subtype:"success", result:"{\"commands\":[]}" })}`), '{"commands":[]}');
   assert.equal(claudeResult(JSON.stringify({ type:"result", subtype:"success", structured_output:{ commands:[] } })), '{"commands":[]}');
+  assert.equal(claudeResult(JSON.stringify({ type:"result", subtype:"success", result:"The earlier error was handled successfully." })), "The earlier error was handled successfully.");
   assert.throws(() => claudeResult("not-json"), /invalid JSON/);
   assert.throws(() => claudeResult(JSON.stringify({ type:"result", subtype:"error" })), /did not complete/);
   assert.throws(() => claudeResult(JSON.stringify({ type:"result", subtype:"success", result:"Failed to authenticate. API Error: 403 insufficient balance" })), error => error?.code === "UPSTREAM_ERROR" && /403 insufficient balance/.test(error.message));
+});
+
+test("Claude CLI rejects error terminal events before structured output or normal error text", () => {
+  assert.throws(() => claudeResult(JSON.stringify({ type:"result", subtype:"success", is_error:true, errors:["Not logged in. Please run /login"], structured_output:{ commands:[] } })), error => {
+    assert.equal(error?.code, "UPSTREAM_ERROR");
+    assert.match(error.message, /Not logged in\. Please run \/login/);
+    return true;
+  });
+  assert.throws(() => claudeResult(JSON.stringify({ type:"result", subtype:"success", is_error:true, result:"Gateway timeout while waiting for response", structured_output:{ commands:[] } })), error => {
+    assert.equal(error?.code, "UPSTREAM_ERROR");
+    assert.match(error.message, /Gateway timeout while waiting for response/);
+    return true;
+  });
+  assert.throws(() => claudeResult(JSON.stringify({ type:"result", subtype:"success", is_error:true, result:"x".repeat(5000) })), error => error?.message.length <= 4040);
 });
 
 test("Claude CLI exposes direct and per-model token usage", () => {
@@ -143,6 +158,12 @@ test("Claude CLI adapter executes a text-only request without an image part", as
   assert.deepEqual(JSON.parse(fs.readFileSync(record, "utf8")), [{ type:"text", text:"improve this plugin" }]);
 });
 
+test("Claude CLI reports a bounded no-result error for empty output", async () => {
+  const directory = temporaryDirectory(), fakeCli = path.join(directory, "fake-claude-empty.js");
+  fs.writeFileSync(fakeCli, '"use strict";process.stdout.end();\n');
+  await assert.rejects(callClaudeCli({ executable:fakeCli, systemPrompt:"system", prompt:"request" }), /Claude CLI returned no result event/);
+});
+
 test("Claude CLI none keeps the current thinking-disabled runtime", async () => {
   const directory = temporaryDirectory(), fakeCli = path.join(directory, "fake-claude.js"), record = path.join(directory, "record.json");
   fs.writeFileSync(fakeCli, `"use strict";const fs=require("node:fs"),args=process.argv.slice(2);fs.readFileSync(0,"utf8");fs.writeFileSync(${JSON.stringify(record)},JSON.stringify({args,maxThinkingTokens:process.env.MAX_THINKING_TOKENS}));const result={intent:"answer",observedText:"image",message:"ok",commands:[]};process.stdout.write(JSON.stringify({type:"result",subtype:"success",result:JSON.stringify(result)}));\n`);
@@ -165,6 +186,19 @@ test("Claude CLI returns on the final result event without waiting for process e
   const workDir = fs.readFileSync(marker, "utf8");
   await waitForMissing(workDir);
   assert.equal(fs.existsSync(workDir), false);
+});
+
+test("Claude CLI rejects an error terminal event without reporting completed text", async () => {
+  const directory = temporaryDirectory(), fakeCli = path.join(directory, "fake-claude-error.js"), textEvents = [], payload = {
+    type:"result", subtype:"success", is_error:true, result:"Not logged in. Please run /login", structured_output:{ commands:[] },
+  };
+  fs.writeFileSync(fakeCli, `"use strict";process.stdout.write(${JSON.stringify(JSON.stringify(payload))});\n`);
+  await assert.rejects(callClaudeCli({ executable:fakeCli, systemPrompt:"system", prompt:"request", onText:(text, meta) => textEvents.push({ text, meta }) }), error => {
+    assert.equal(error?.code, "UPSTREAM_ERROR");
+    assert.match(error.message, /Not logged in\. Please run \/login/);
+    return true;
+  });
+  assert.equal(textEvents.some(event => event.meta?.mode === "complete"), false);
 });
 
 test("Claude CLI reports receiving when partial model output starts", { timeout:10000 }, async () => {

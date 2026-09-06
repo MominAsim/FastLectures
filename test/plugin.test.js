@@ -776,7 +776,7 @@ test("widget host keeps generated HTML in an opaque inner frame and snapshots it
   assert.doesNotMatch(host, /-webkit-touch-callout:none/);
   assert.match(html, /widget-host\.js/);
   assert.match(html, /html, body, iframe \{[^}]*color-scheme: light/);
-  assert.match(html, /iframe \{[^}]*touch-action: none/);
+  assert.match(html, /iframe \{[^}]*touch-action: auto/);
 });
 
 test("widget host loads generated HTML directly into the opaque sandbox", () => {

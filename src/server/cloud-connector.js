@@ -7,6 +7,7 @@ const net = require("net");
 const { createHash, randomBytes, timingSafeEqual } = require("crypto");
 const { WebSocket } = require("ws");
 const { forwardModelEvaluation } = require("./model-evaluation.js");
+const { localUsageRecord } = require("./local-request-usage.js");
 
 const MAX_RELAY_MESSAGE_BYTES = 140 * 1024 * 1024;
 const MAX_CLOUD_BUNDLE_BYTES = 32 * 1024 * 1024;
@@ -20,7 +21,7 @@ const MODEL_EVALUATION_QUEUE_TTL_MS = 10_000;
 const MODEL_EVALUATION_QUEUE_LIMIT = 32;
 const BROWSER_CALLBACK_PATH = "/api/cloud/sign-in/callback";
 const CLOUD_AI_CONTEXT_KEY = "__penechoCloudAi";
-const LOCAL_CONNECTION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const LOCAL_CONNECTION_ID_PATTERN = /^(?:hosted:)?[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function normalizedCloudAiConnectionId(value) {
   const connectionId = typeof value === "string" ? value.trim() : "";
@@ -329,7 +330,7 @@ class CloudConnector {
 
   async cloudRequest(pathname, { method = "GET", body } = {}) {
     const configuration = this.requireCloudAccount();
-    if (!["/api/v1/device-sync/", "/api/v1/community/", "/api/v1/favorites"].some((prefix) => String(pathname).startsWith(prefix))) throw new Error("Unsupported cloud account request.");
+    if (!["/api/v1/device-sync/", "/api/v1/community/", "/api/v1/favorites"].some((prefix) => String(pathname).startsWith(prefix)) && !(method === "GET" && ["/api/v1/models", "/api/v1/credits"].includes(pathname))) throw new Error("Unsupported cloud account request.");
     let response;
     try {
       response = await fetch(`${configuration.origin}${pathname}`, {
@@ -368,11 +369,53 @@ class CloudConnector {
     return payload;
   }
 
+  async hostedModels() {
+    const configuration = this.requireCloudAccount();
+    const [catalog, wallet] = await Promise.all([this.cloudRequest("/api/v1/models"), this.cloudRequest("/api/v1/credits")]);
+    // Pin the catalog to this login; a late response must never cross accounts.
+    if (accountToken(this.configuration) !== configuration.accountToken || this.configuration?.origin !== configuration.origin) throw cloudSignInRequiredError("Cloud account changed. Refresh the model list.");
+    this.hostedCatalog = { token:configuration.accountToken, origin:configuration.origin, models:(catalog.models || []).filter(model => model.available && model.enabled !== false && !model.retiredAt), fetchedAt:Date.now() };
+    return { models:this.hostedCatalog.models, credits:wallet.credits };
+  }
+
+  hostedConnection(connectionId) {
+    if (!/^hosted:[0-9a-f-]{36}$/i.test(String(connectionId))) return null;
+    const configuration = this.requireCloudAccount();
+    // Cloud is authoritative for availability and charging. A remote browser
+    // may have loaded its catalog without priming this host's in-memory cache.
+    if (this.resolvedHostedToken !== configuration.accountToken) { this.resolvedHostedToken = configuration.accountToken; this.resolvedHostedIds = new Set(); }
+    this.resolvedHostedIds.add(connectionId);
+    return { id:connectionId, provider:"api", apiFormat:"openai", apiUrl:`${configuration.origin}/api/v1/hosted`, apiKey:configuration.accountToken, apiModel:connectionId.slice(7), effort:"medium", hosted:true };
+  }
+
+  hostedConnections() {
+    this.expireAccountSessionIfNeeded();
+    const token = accountToken(this.configuration);
+    if (!token) return [];
+    const ids = new Set(this.resolvedHostedToken === token ? this.resolvedHostedIds : []);
+    if (this.hostedCatalog?.token === token && this.hostedCatalog.origin === this.configuration?.origin) for (const model of this.hostedCatalog.models) ids.add(`hosted:${model.id}`);
+    return [...ids].map(id => this.hostedConnection(id));
+  }
+
   async reportModelEvaluation(event, timeoutMs = 10_000) {
     this.expireAccountSessionIfNeeded();
     const configuration = this.configuration, token = accountToken(configuration) || deviceToken(configuration);
     if (!configuration?.origin || !token) throw cloudSignInRequiredError("Sign in to or pair this PenEcho server with PenEcho Cloud before reporting model evaluation feedback.");
     return forwardModelEvaluation(fetch, configuration.origin, token, event, timeoutMs);
+  }
+
+  reportLocalModelUsage(event) {
+    const record = localUsageRecord(event), configuration = this.configuration;
+    const token = accountToken(configuration) || deviceToken(configuration);
+    if (!record || this.closed || !configuration?.origin || !token || (this.usageReportsPending || 0) >= 32) return false;
+    this.usageReportsPending = (this.usageReportsPending || 0) + 1;
+    // Capture the account at admission. A later sign-in must not reassign usage.
+    void fetch(`${configuration.origin}/api/v1/activity/model-requests`, {
+      method:"POST", redirect:"error", signal:AbortSignal.timeout(10_000),
+      headers:{ authorization:`Bearer ${token}`, "content-type":"application/json" },
+      body:JSON.stringify(record),
+    }).then(response => response.body?.cancel()).catch(() => {}).finally(() => { this.usageReportsPending--; });
+    return true;
   }
 
   enqueueModelEvaluation(event, ttlMs = MODEL_EVALUATION_QUEUE_TTL_MS) {
