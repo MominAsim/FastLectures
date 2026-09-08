@@ -7376,7 +7376,7 @@ body[data-theme="studio"].studio-mcp-docked .studio-navigator {
   flex: 0 0 var(--studio-navigator-width);
   background: var(--studio-panel);
   border-right: 1px solid var(--studio-line);
-  box-shadow: none;
+  box-shadow: 4px 0 8px var(--studio-chrome-shadow-color);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   transform: none;
