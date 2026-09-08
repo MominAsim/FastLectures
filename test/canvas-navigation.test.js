@@ -5,7 +5,7 @@ function harness(overrides={}) {
  const changes=[],widgets=[{id:'rear'},{id:'front'}];
  const state={mode:'pen',viewMode:false,viewTool:'hand',spacePan:false,interactingWidgetId:null,navigationLocked:false,scale:1,panX:0,panY:0,widgets,...overrides};
  const classList={toggle(name,value){changes.push([name,value]);}},view={classList},screen={};
- const ctx={state,view,screen,Math,Number,Boolean,document:{querySelector:()=>null,activeElement:null},syncWidgetHostStates(){},resetCanvasCursor(){},requestInteractionLayerRender(){},visibleWidgets:()=>widgets,clientPoint:e=>({x:e.clientX,y:e.clientY}),handObjectToolbarTargetAtPoint:()=>({kind:'widget',object:widgets[1]}),canvasViewportMetrics:()=>({width:1000,height:800}),moveCanvas:(dx,dy)=>{state.panX+=dx;state.panY+=dy;},zoomCanvasAt:(x,y,delta)=>{changes.push(['zoom',x,y,delta]);},requestCoordinatesUpdate(){},wheelNavigating(){}};
+ const ctx={state,view,screen,Math,Number,Boolean,document:{querySelector:()=>null,activeElement:null},window:{PenEchoStudioNavigator:{flushMcpFollow(){changes.push(['flush']);}}},syncWidgetHostStates(){},resetCanvasCursor(){},requestInteractionLayerRender(){},visibleWidgets:()=>widgets,clientPoint:e=>({x:e.clientX,y:e.clientY}),handObjectToolbarTargetAtPoint:()=>({kind:'widget',object:widgets[1]}),canvasViewportMetrics:()=>({width:1000,height:800}),moveCanvas:(dx,dy)=>{state.panX+=dx;state.panY+=dy;},zoomCanvasAt:(x,y,delta)=>{changes.push(['zoom',x,y,delta]);},requestCoordinatesUpdate(){},wheelNavigating(){}};
  const api=vm.runInNewContext(`${source.slice(0,source.indexOf("\n  document.querySelector('#canvasViewHand')"))};({canvasWidgetSelectionEnabled,canvasWidgetInteractive,canvasWidgetAtEvent,setWidgetInteraction,setCanvasViewTool,setSpacePan,handleCanvasWheel,beginCanvasTrackpadGesture,updateCanvasTrackpadGesture,endCanvasTrackpadGesture})`,ctx);
  const wheel=(values={})=>{let prevented=false;const event={target:view,deltaX:0,deltaY:0,deltaMode:0,clientX:200,clientY:300,preventDefault(){prevented=true;},...values};api.handleCanvasWheel(event);return prevented;};
  return {api,state,changes,widgets,wheel,view};
@@ -48,7 +48,7 @@ test('Safari gesture scale is cumulative, and wheel cannot double-apply the same
  const h=harness(),e=scale=>({target:h.view,scale,clientX:5,clientY:7,preventDefault(){}});
  h.api.beginCanvasTrackpadGesture(e(1));h.api.updateCanvasTrackpadGesture(e(1.5));h.wheel({ctrlKey:true,deltaY:-30});h.api.updateCanvasTrackpadGesture(e(2));
  assert.equal(h.changes.length,2);assert.ok(Math.abs(h.changes[0][3]+h.changes[1][3]+Math.log(2)/.002)<1e-8);
- h.api.endCanvasTrackpadGesture(e(2));assert.equal(h.state.trackpadGesture,null);
+ h.api.endCanvasTrackpadGesture(e(2));assert.equal(h.state.trackpadGesture,null);assert.deepEqual(h.changes.at(-1),['flush']);
 });
 test('continuous zoom preserves its anchor, cancels on equal inverse deltas and ignores zero',()=>{
  const runtime=fs.readFileSync(path.join(__dirname,'../src/client/app/canvas-runtime.js'),'utf8');
@@ -59,4 +59,13 @@ test('continuous zoom preserves its anchor, cancels on equal inverse deltas and 
  zoom(200,300,-17);assert.ok(Math.abs((200-state.panX)/state.scale-anchor[0])<1e-9);assert.ok(Math.abs((300-state.panY)/state.scale-anchor[1])<1e-9);
  zoom(200,300,17);assert.ok(Math.abs(state.scale-.5)<1e-10);assert.ok(Math.abs(state.panX+400)<1e-9);
  const before={...state};assert.equal(zoom(200,300,0),false);assert.deepEqual(state,before);
+});
+
+test('interactive Widget shell retains wheel and pinch while blank Canvas still navigates',()=>{
+ const h=harness({mode:'select'});h.api.setWidgetInteraction(h.widgets[0]);
+ const target={closest:()=>({dataset:{widgetId:'rear'}})};
+ assert.equal(h.wheel({target,deltaY:30,ctrlKey:true}),false);
+ let prevented=false;h.api.beginCanvasTrackpadGesture({target,scale:1,preventDefault(){prevented=true;}});
+ assert.equal(prevented,false);assert.equal(h.state.trackpadGesture,undefined);assert.equal(h.changes.some(c=>c[0]==='zoom'),false);
+ h.wheel({deltaY:20});assert.equal(h.state.panY,-20);
 });

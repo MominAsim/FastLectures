@@ -561,6 +561,7 @@
       }
     }, { capture:true, passive:false });
     addEventListener("pointermove", (event) => {
+      if (widgetState.interactive) return;
       const press = presses.get(event.pointerId);
       if (!press) {
         if (event.pointerType !== "touch") setControlCursor(controlHit(Number(event.clientX), Number(event.clientY), event.pointerType));
@@ -599,7 +600,7 @@
       for (const press of [...presses.values()]) finishPress({ pointerId:press.pointerId }, true);
     });
     addEventListener("click", (event) => {
-      if (suppressClickUntil && clock() <= suppressClickUntil) {
+      if (!widgetState.interactive && suppressClickUntil && clock() <= suppressClickUntil) {
         suppressClickUntil = 0;
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -612,6 +613,7 @@
       event.stopImmediatePropagation();
     }, true);
     addEventListener("contextmenu", (event) => {
+      if (widgetState.interactive) return;
       if (!presses.size && (!suppressClickUntil || clock() > suppressClickUntil)) return;
       event.preventDefault();
       event.stopImmediatePropagation();

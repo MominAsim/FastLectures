@@ -6849,24 +6849,6 @@ body[data-theme="studio"] :is(#pe-button-contract, .object-chrome-button.object-
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--pe-danger) 16%, transparent);
 }
 
-:is(#pe-button-contract, .studio-navigator-foot) > #studioNavigatorManage[data-pe-button="ghost"] {
-  width: 100%;
-  height: auto;
-  min-height: 34px;
-  justify-content: flex-start;
-  margin: 0;
-  padding-block: 6px;
-  color: var(--pe-ink-2);
-  border-color: transparent;
-}
-
-:is(#pe-button-contract, .studio-navigator-foot) > #studioNavigatorManage[data-pe-button="ghost"] > span {
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
 /* The Agent launcher is a labeled toolbar action, not an icon-only button.
    Let its shell follow the localized label while retaining the compact contract. */
 :is(#pe-button-contract, .canvas-agent-control) > #canvasAgentToggle[data-pe-button="toolbar"] {
@@ -7325,12 +7307,23 @@ body[data-theme="studio"] .primary-tools .view-tools { gap: 8px; }
 }
 
 /* Compact workspace actions share the navigator footer's control contract. */
-:is(#pe-button-contract, .canvas-workspace) > button[data-pe-button] {width:auto;min-height:28px;height:28px;padding:0 8px;font-size:13px;font-weight:500;line-height:28px;}
+:is(#pe-button-contract, .canvas-workspace) > button[data-pe-button] {width:auto;min-height:28px;height:28px;padding:0 8px;font-size:12.5px;font-weight:500;line-height:28px;}
 :is(#pe-button-contract, .canvas-workspace) > button[data-pe-button][hidden] {display:none;}
 @media (pointer:coarse) { :is(#pe-button-contract, .canvas-workspace) > button[data-pe-button] {min-height:44px;height:44px;line-height:44px;} }
 
-/* MCP is a separate pill button beside the Agent launcher, sharing its style. */
-#mcpToolbarToggle[aria-pressed="true"] {color:var(--studio-accent,var(--gold-bright));}
+/* MCP is a quiet, borderless action beside the Agent launcher. */
+:is(#pe-button-contract, body) #mcpToolbarToggle {
+  color:var(--studio-text,var(--ink));
+  border-color:transparent;
+  background:transparent;
+  box-shadow:none;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+}
+:is(#pe-button-contract, body) #mcpToolbarToggle:is(:hover,:active) {
+  background:var(--pe-surface-muted,color-mix(in srgb,var(--ink) 7%,transparent));
+}
+#mcpToolbarToggle .mcp-toolbar-dot {order:1;}
 #mcpToolbarToggle .mcp-toolbar-dot {display:none;width:6px;height:6px;border-radius:50%;flex:0 0 auto;}
 #mcpToolbarToggle[data-state="connected"] .mcp-toolbar-dot {display:block;background:#16a34a;box-shadow:0 0 0 2px color-mix(in srgb,#16a34a 22%,transparent);}
 @media (prefers-reduced-motion:reduce) { #mcpToolbarToggle .mcp-toolbar-dot { transition:none; } }
@@ -7341,8 +7334,7 @@ body[data-theme="studio"] .primary-tools .view-tools { gap: 8px; }
 #settingsPageMcp details > summary {cursor:pointer;color:var(--ink);font-size:13px;font-weight:500;line-height:1.5;}
 #settingsPageMcp details .mcp-actions {margin-top:12px;}
 
-/* Recent work: tabs size to their labels; the workspace actions and Library
-   action are separate rows in the sidebar footer, not generic dialog actions. */
+/* Recent work uses one compact footer action rail. */
 body[data-theme="studio"] .studio-navigator-tabs > [role="tab"] {
   flex: 1 0 auto;
   overflow: visible;
@@ -7350,11 +7342,20 @@ body[data-theme="studio"] .studio-navigator-tabs > [role="tab"] {
   line-height: 36px;
 }
 body[data-theme="studio"] .studio-navigator-tabs > [role="tab"][hidden] { display: none; }
-body[data-theme="studio"] .studio-navigator-foot {
-  flex-direction: column;
-  align-items: stretch;
+.studio-navigator-foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
 }
-body[data-theme="studio"] .studio-navigator-foot .canvas-workspace { max-width: 100%; }
+.studio-navigator-foot .canvas-workspace { flex: 1 1 auto; width: auto; gap: 0; }
+.studio-navigator-foot .canvas-workspace > :is(#canvasWorkspaceNew, #canvasWorkspaceClose, #canvasWorkspaceCloseAll) { padding-inline: 4px; }
+.studio-navigator-foot #canvasWorkspaceStatus:empty { display: none; }
+.studio-navigator-foot #canvasWorkspaceStatus:not(:empty) { flex-basis: 100%; overflow-wrap: anywhere; }
+:is(#pe-button-contract, .studio-navigator-foot) > #studioNavigatorManage[data-pe-button="ghost"] {
+  flex: 0 0 auto;
+  width: auto;
+  margin-left: auto;
+}
 @media (pointer: coarse) {
   body[data-theme="studio"] .studio-navigator-tabs > [role="tab"] { line-height: 44px; }
 }
@@ -7379,9 +7380,18 @@ body[data-theme="studio"].studio-mcp-docked .studio-navigator {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   transform: none;
+  /* Layout reserves the dock immediately; sliding it separately exposes a gap. */
+  transition: opacity .16s ease, visibility 0s linear 0s;
 }
 body[data-theme="studio"].studio-mcp-docked .canvas-frame::after { left: var(--studio-navigator-width); }
+@media (prefers-reduced-motion: reduce) {
+  body[data-theme="studio"].studio-mcp-docked .studio-navigator { transition: none; }
+}
 body[data-theme="studio"].studio-mcp-docked .studio-navigator-scrim { display: none; }
+.studio-mcp-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; padding:0 6px 8px; }
+.studio-mcp-actions [data-pe-button] { flex:0 0 auto; }
+:is(#pe-button-contract, .studio-mcp-actions) #studioMcpFollowLatest { width:max-content; min-width:max-content; max-width:none; padding-inline:8px; gap:6px; }
+.studio-mcp-actions #studioMcpFollowLatest > svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
 body[data-theme="studio"].studio-mcp-docked .studio-navigator :is(.studio-navigator-head,.studio-navigator-body,.studio-navigator-foot) { width: 100%; }
 body[data-theme="studio"].studio-mcp-docked :is(#pe-button-contract, .mcp-canvas-notice) > button[data-pe-button] {
   min-width: 0;
@@ -7391,3 +7401,6 @@ body[data-theme="studio"].studio-mcp-docked :is(#pe-button-contract, .mcp-canvas
   overflow-wrap: anywhere;
   line-height: 1.8;
 }
+
+/* Open Canvas status follows the catalog connection-state success indicator. */
+.studio-navigator-open-dot { color: var(--pe-success, #277a4c); }

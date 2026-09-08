@@ -38,6 +38,7 @@
     if (previous?.frame && document.activeElement === previous.frame) document.activeElement.blur();
     state.interactingWidgetId = next;
     syncCanvasNavigation();
+    if (widget?.frame) widget.frame.focus({ preventScroll:true });
     requestInteractionLayerRender();
     return true;
   }
@@ -51,6 +52,7 @@
   function setSpacePan(enabled) {
     enabled = Boolean(enabled);
     if (state.spacePan === enabled) return;
+    if (enabled && state.drawing?.pointerType === "pen") finishDrawing("pen");
     state.spacePan = enabled;
     syncCanvasNavigation();
   }
@@ -90,7 +92,8 @@
   }
   function canvasNavigationSurface(target) {
     if (!target || target === view || target === screen) return true;
-    return Boolean(target.closest?.('.canvas-widget'));
+    const shell = target.closest?.('.canvas-widget');
+    return Boolean(shell && shell.dataset.widgetId !== state.interactingWidgetId);
   }
   function handleCanvasWheel(event) {
     if (!canvasNavigationSurface(event.target)) return;
@@ -126,6 +129,7 @@
     if (!state.trackpadGesture) return;
     event.preventDefault();
     state.trackpadGesture = null;
+    void window.PenEchoStudioNavigator?.flushMcpFollow?.();
   }
   function canvasFitViewportSize() {
     const metrics = canvasViewportMetrics();
@@ -177,6 +181,7 @@
     });
   }
   window.addEventListener('keydown', (event) => {
+    if (state.interactingWidgetId && event.key !== 'Escape') return;
     if (event.defaultPrevented || event.isComposing || canvasNavigationTextTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
     if (document.querySelector('dialog[open],.settings-panel.open,.configuration-layer:not([hidden])')) return;
     if (event.code === 'Space' && !event.target?.closest?.('button') && !state.drawing) {

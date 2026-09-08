@@ -1147,7 +1147,7 @@ test("Canvas chrome uses one drawing and navigation cooldown before restoring st
   assert.equal(state.canvasChromeMaterialActive, false);
   assert.ok(!classes.has("canvas-chrome-lightweight"), "opening a sidebar restores true frost immediately");
 
-  let navigationNow = 100, navigationTimerId = 0;
+  let navigationNow = 100, navigationTimerId = 0, followFlushes = 0;
   const navigationTimers = [], navigationClasses = new Set(),
     navigationState = { navigationTimer:0, navigationDeadline:0 },
     runNavigation = vm.runInNewContext(`(${navigating})`, {
@@ -1155,6 +1155,7 @@ test("Canvas chrome uses one drawing and navigation cooldown before restoring st
       performance:{ now:() => navigationNow }, navigationState,
       state:navigationState,
       noteCanvasChromeInteraction() {},
+      window:{PenEchoStudioNavigator:{flushMcpFollow(){followFlushes++;}}},
       view:{ classList:{
         add(value) { navigationClasses.add(value); },
         remove(value) { navigationClasses.delete(value); },
@@ -1175,11 +1176,13 @@ test("Canvas chrome uses one drawing and navigation cooldown before restoring st
   assert.equal(navigationTimers.length, 2);
   assert.equal(navigationTimers[1].delay, 800);
   assert.ok(navigationClasses.has("is-navigating"));
+  assert.equal(followFlushes, 0, "follow latest waits for the full navigation deadline");
   navigationNow = 10901;
   navigationTimers[1].callback();
   assert.equal(navigationState.navigationTimer, 0);
   assert.equal(navigationState.navigationDeadline, 0);
   assert.ok(!navigationClasses.has("is-navigating"));
+  assert.equal(followFlushes, 1, "follow latest resumes once navigation ends");
 });
 
 test("canvas navigation lock freezes only the outer view and leaves locked widgets interactive", () => {
@@ -3612,7 +3615,7 @@ test("Studio title bar exposes document identity, explicit save state, and a bla
   assert.match(navigator, /canvasDocumentNameEditor\.addEventListener\("focusout",[\s\S]*?contains\(event\.relatedTarget\)[\s\S]*?commitCanvasDocumentRename/);
   assert.match(navigator, /canvasDocumentNameConfirm\.addEventListener\("click",[\s\S]*?commitCanvasDocumentRename/);
   assert.match(navigator, /event\.key === "Enter" && !event\.isComposing[\s\S]*?commitCanvasDocumentRename/);
-  assert.match(functionSource(persistence, "renameCurrentCanvasFromTitle"), /saveSnapshot\(\{ overwriteId, name, location \}\)[\s\S]*?canvasRenamed/);
+  assert.match(functionSource(persistence, "renameCurrentCanvasFromTitle"), /saveSnapshot\(\{ overwriteId, name, location, allowEmpty:true \}\)[\s\S]*?canvasRenamed/);
   assert.match(functionSource(persistence, "save"), /PenEchoStudioNavigator\?\.updateDocument/);
   assert.match(persistence, /async function saveSnapshot\([\s\S]*?setStatusKey\(overwriteId \? "snapshotOverwritten" : "snapshotSaved"\);[\s\S]*?PenEchoStudioNavigator\?\.updateDocument/);
   assert.match(persistence, /async function loadSnapshot\([\s\S]*?state\.currentSnapshotName = snapshotName\(item\);[\s\S]*?PenEchoStudioNavigator\?\.updateDocument/);

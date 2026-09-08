@@ -356,7 +356,7 @@
     setHistorySaveBusy(true);
     showHistoryNoticeKey("snapshotSaving", "busy", 0);
     try {
-      const id = await saveSnapshot({ overwriteId, name, location });
+      const id = await saveSnapshot({ overwriteId, name, location, allowEmpty:true });
       if (!id) {
         showHistoryNoticeKey(selectionAIBusy() ? selectionAIStatusKey() : "emptyCanvas", "info");
         return false;
@@ -1125,7 +1125,7 @@
     if (!body?.canvas?.id || !body?.revision?.id) throw Error("PenEcho Cloud returned an invalid save confirmation");
     return { id:body.canvas.id, revisionId:body.revision.id };
   }
-  async function saveSnapshot({ overwriteId = null, name = null, location = state.snapshotLocation } = {}) {
+  async function saveSnapshot({ overwriteId = null, name = null, location = state.snapshotLocation, allowEmpty = false } = {}) {
     if (selectionAIBusy()) {
       setStatusKey(selectionAIStatusKey());
       return null;
@@ -1133,7 +1133,7 @@
     if (!SNAPSHOT_LOCATIONS.has(location)) throw Error("Invalid snapshot location");
     if (overwriteId && state.currentSnapshotLocation !== location) throw Error(t("noCurrentSnapshot"));
     await finalizeCanvasForSnapshot();
-    if (!tiles.size && !state.images.length && !state.textBoxes.length && !state.preservedSnapshotAnimations.length && (!pluginEnabled("animation") || !state.animations.length) && !visibleWidgets().length) {
+    if (!allowEmpty && !tiles.size && !state.images.length && !state.textBoxes.length && !state.preservedSnapshotAnimations.length && (!pluginEnabled("animation") || !state.animations.length) && !visibleWidgets().length) {
       setStatusKey("emptyCanvas");
       return null;
     }
@@ -1673,7 +1673,11 @@
     return Boolean(state.currentSnapshotId || hasContent);
   }
   async function performCanvasTransition(transition) {
-    if (transition?.type === "close") return canvasDocumentsClose(transition.documentId,transition.sourceDocumentId);
+    if (transition?.type === "close") {
+      const closed=await canvasDocumentsClose(transition.documentId,transition.sourceDocumentId);
+      if(closed)await transition.onComplete?.();
+      return closed;
+    }
     if (transition?.type === "load") return loadSnapshot(transition.id, transition.location);
     if(typeof canvasDocuments!=="undefined"&&canvasDocuments.activeId)await canvasDocumentsPark();
     startBlankCanvas();

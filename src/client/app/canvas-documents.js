@@ -17,7 +17,11 @@
   }
   function canvasDocumentsWidgetRecord(value) {
     const input={...value};if(!input.copyText)delete input.copyText;if(!input.copyLabel)delete input.copyLabel;
-    return widgetRecord(input);
+    const record=widgetRecord(input);
+    // Stored records pass through widgetRecord again when shown. Its runtime
+    // defaults use empty copy fields, but serialized optional fields must omit them.
+    if(record&&!record.copyText)delete record.copyText;if(record&&!record.copyLabel)delete record.copyLabel;
+    return record;
   }
   function canvasDocumentsMetadata(doc) {
     return {version:1,documentId:doc.id,title:doc.title,context:doc.context||"",bindings:doc.bindings||[],locators:doc.locators||[],processor:doc.processor||{kind:"penecho"}};
@@ -46,8 +50,17 @@
     state.currentSnapshotBundleExtensions={...state.currentSnapshotBundleExtensions,[CANVAS_DOCUMENT_EXTENSION]:canvasDocumentsMetadata(doc),[CANVAS_WORKSPACE_EXTENSION]:canvasDocumentsWorkspaceData(doc)};
   }
   function canvasDocumentsWorkspaceData(doc) {
-    const sessions=typeof mcpRuntime!=="undefined"?[...mcpRuntime.sessions.values()].filter(s=>s.documentId===doc.id&&!s.closed).slice(-64).map(s=>({sessionKey:s.sessionKey||"",client:s.client||"",title:s.title,status:s.status,summary:s.summary,steps:s.steps,events:s.events,boardObjectId:s.boardObjectId,layout:s.layout,artifacts:[...s.artifacts],feedbackStart:s.feedbackStart})):doc.sessions;
-    return {version:1,sessions:sessions?.length?sessions:doc.sessions||[],feedback:doc.feedback.slice(-200),feedbackSequence:doc.feedbackSequence,messages:doc.messages.slice(-100),messageSequence:doc.messageSequence,changes:doc.changes.slice(-200),changeSequence:doc.changeSequence};
+    const runtime=typeof mcpRuntime!=="undefined"?[...mcpRuntime.sessions.values()].filter(s=>s.documentId===doc.id):[];
+    const binding=s=>JSON.stringify([s.sessionKey,s.client||""]);
+    // Unresumed bindings remain durable. Runtime entries, including explicit
+    // closure, replace the saved version of their own conversation only.
+    const overridden=new Set(runtime.filter(s=>s.sessionKey).map(binding));
+    const retained=(doc.sessions||[]).filter(s=>s.sessionKey&&!overridden.has(binding(s)));
+    const current=[...new Map(runtime.map(s=>[s.sessionKey?binding(s):s.sessionId,s])).values()];
+    const live=current.filter(s=>!s.closed).map(s=>({sessionKey:s.sessionKey||"",client:s.client||"",title:s.title,status:s.status,summary:s.summary,steps:s.steps,events:s.events,boardObjectId:s.boardObjectId,layout:s.layout,artifacts:[...s.artifacts],feedbackStart:s.feedbackStart}));
+    // Keyless sessions remain transient and never acquire a reconnect binding.
+    const sessions=[...retained,...live].slice(-64);
+    return {version:1,sessions,feedback:doc.feedback.slice(-200),feedbackSequence:doc.feedbackSequence,messages:doc.messages.slice(-100),messageSequence:doc.messageSequence,changes:doc.changes.slice(-200),changeSequence:doc.changeSequence};
   }
   function canvasDocumentsRestoreWorkspace(doc,value) {
     const normalized=canvasDocumentIdentity.normalizeWorkspace(value,canvasDocumentsMetadata(doc));if(!normalized)return;
@@ -138,7 +151,7 @@
       mcpPauseView();canvasDocuments.activeId=id;canvasDocuments.epoch++;
       state.userRevision=doc.revision;state.history=doc.undo||[];state.future=doc.redo||[];state.historyBefore.clear();
       state.animationHistoryBefore=state.widgetHistoryBefore=state.imageHistoryBefore=state.textBoxHistoryBefore=null;
-      restoreAnimations(item.animations||[]);restoreWidgets(item.widgets||[]);restoreImages(images||[]);await restoreTextBoxes(item.textBoxes||[],1);
+      restoreAnimations(item.animations||[]);restoreWidgets((item.widgets||[]).map(canvasDocumentsWidgetRecord).filter(Boolean));restoreImages(images||[]);await restoreTextBoxes(item.textBoxes||[],1);
       if(item.theme)applyTheme(item.theme);
       state.currentSnapshotId=doc.locator?.id||null;state.currentSnapshotLocation=doc.locator?.location||null;state.currentSnapshotName=doc.title;state.currentSnapshotHasExplicitName=Boolean(doc.locator||doc.title&&!/^(untitled canvas|未命名画布)$/i.test(doc.title.trim()));state.currentCanvasSuggestedName="";
       state.currentSnapshotProjectId=item.projectId||null;state.currentSnapshotRevisionId=item.currentRevisionId||null;state.snapshotSavedRevision=doc.savedRevision;
@@ -577,7 +590,7 @@
       if(args.takeover&&session.sessionKey)canvasDocumentsSetProcessor(doc,{kind:"external",bindingKey:session.sessionKey,client:session.client});
       canvasDocumentsSyncExtension(doc);canvasDocumentsRender();
       if(!canvasDocumentsIsActive(doc))await canvasDocumentsPersist(doc);
-      return {sessionId:session.sessionId,documentId:doc.id,boardObjectId:session.boardObjectId,revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision,feedbackCursor:session.feedbackStart,active:canvasDocumentsIsActive(doc),reused:Boolean(session.artifacts.size)};
+      return {sessionId:session.sessionId,documentId:doc.id,boardObjectId:session.boardObjectId,revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision,feedbackCursor:session.feedbackStart,active:canvasDocumentsIsActive(doc),reused:Boolean(session.artifacts.size),progress:{title:session.title,status:session.status,summary:session.summary,steps:session.steps,events:session.events}};
     }
     if(!session||session.closed||session.documentId&&!canvasDocuments.records.has(session.documentId))throw canvasDocumentsError("SESSION_EXPIRED","The session is no longer connected. Reopen its documentId and reconnect, then retry.");
     doc=canvasDocuments.records.get(session.documentId)||canvasDocumentsCurrent();
@@ -680,8 +693,8 @@
     if(!root||!doc)return;
     root.hidden=false;
     const create=document.getElementById("canvasWorkspaceNew"),close=document.getElementById("canvasWorkspaceClose");
-    create.textContent=canvasDocumentsCopy("New Canvas","新建画布");create.disabled=canvasDocuments.switching;
-    close.textContent=canvasDocumentsCopy("Close Canvas","关闭画布");close.disabled=canvasDocuments.switching;
+    create.textContent=canvasDocumentsCopy("New","新建");create.title=canvasDocumentsCopy("New Canvas","新建画布");create.setAttribute("aria-label",create.title);create.disabled=canvasDocuments.switching;
+    close.textContent=canvasDocumentsCopy("Close","关闭");close.title=canvasDocumentsCopy("Close Canvas","关闭画布");close.setAttribute("aria-label",close.title);close.disabled=canvasDocuments.switching;
     const status=document.getElementById("canvasWorkspaceStatus"),retry=document.getElementById("canvasWorkspaceRetry");
     status.textContent=canvasDocuments.error||(canvasDocuments.switching?canvasDocumentsCopy("Opening…","正在打开…"):"");
     retry.hidden=!canvasDocuments.retry;retry.textContent=canvasDocumentsCopy("Retry","重试");

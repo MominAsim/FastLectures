@@ -140,8 +140,37 @@
     const occupied=canvasAgentAllObjects().map(item=>canvasAgentInternalRect(item.box)),ink=visibleInkBounds({x:0,y:0,w:SIZE,h:SIZE});if(ink)occupied.push(ink);
     return mcpArrange(width,height,session,presentation,typeof viewportRect==="function"?viewportRect():null,a=>mcpTaskBounds(session,a.objectIds||[a.objectId]),box=>occupied.filter(b=>intersection(box,b)));
   }
-  function mcpViewBusy() {
-    return document.hidden||state.navigationLocked||state.drawing||state.panGesture||state.touchGesture||state.widgetGesture||state.imageGesture||state.selectionGesture||state.animationGesture||state.textEditors?.size||state.pointers?.size||document.activeElement?.tagName==="IFRAME"||mcpEl("settingsLayer")?.hidden===false;
+  function mcpContentUpdateRegion(result,args) {
+    const doc=canvasDocuments.records.get(result.documentId);
+    if(!doc)return null;
+    const ids=result.objectIds?[...result.objectIds]:[result.objectId||args.objectId];
+    if(args.path?.startsWith("objects/")) {
+      try {ids.push(decodeURIComponent(args.path.split("/")[1]));} catch {}
+    }
+    let region=null;
+    for(const id of new Set(ids.filter(Boolean))) {
+      const object=canvasDocumentsObject(doc,id);
+      if(object)region=unionDirtyBounds(region,canvasDocumentsBounds(object));
+    }
+    if(!region&&args.region)region={x:args.region.x,y:args.region.y,w:args.region.w,h:args.region.h};
+    return region&&[region.x,region.y,region.w,region.h].every(Number.isFinite)&&region.w>0&&region.h>0?region:null;
+  }
+  function mcpViewBlockedBy() {
+    if(document.hidden)return "page-hidden";
+    if(state.navigationLocked)return "navigation-locked";
+    // pointers also caches hover positions; only the navigation set tracks
+    // pressed Canvas pointers and is released globally on pointerup/cancel.
+    if(state.trackpadGesture||state.navigationDeadline>performance.now())return "active-navigation";
+    if(state.drawing||state.panGesture||state.touchGesture||state.widgetGesture||state.imageGesture||state.selectionGesture||state.animationGesture||state.canvasAgentNavigationPointerIds?.size)return "active-gesture";
+    if(state.textEditors?.size)return "text-editing";
+    if(document.activeElement?.tagName==="IFRAME")return "widget-interaction";
+    if(mcpEl("settingsLayer")?.hidden===false)return "settings-open";
+    return null;
+  }
+  function mcpViewBusy() {return Boolean(mcpViewBlockedBy());}
+  // Bounded metadata, computed only on inspection; no capture, DOM scan or timer.
+  function mcpAttentionState(session) {
+    return {pendingObjects:mcpRuntime.pendingView.get(session.sessionId)?.size||0,paused:mcpRuntime.viewPaused,blockedBy:mcpRuntime.queued>1?"canvas-queue":mcpViewBlockedBy(),canvasScale:state.scale||1};
   }
   function mcpPauseView() {
     if(!mcpRuntime.socket)return;
@@ -182,7 +211,9 @@
       screenX=(state.panX||0)+region.x*scale,screenY=(state.panY||0)+region.y*scale,
       unobscured=!stage||screenX>=stage.x+24&&screenY>=stage.y+24&&screenX+region.w*scale<=stage.x+stage.w-24&&screenY+region.h*scale<=stage.y+stage.h-24,
       alreadyVisible=scale>=.65&&unobscured&&view&&region.x>=view.x+24&&region.y>=view.y+24&&region.x+region.w<=view.x+view.w-24&&region.y+region.h<=view.y+view.h-24;
-    if(!alreadyVisible) {
+    // An explicit reveal is a request to focus, even if an overview already
+    // contains the artifact at a scale too small for reading its content.
+    if(explicit||!alreadyVisible) {
       if(!explicit&&canvasAgentFramePlan(region,96).scale<.5){mcpRuntime.viewPaused=true;mcpRenderCanvasStatus();return;}
       canvasAgentFrameRegion(region,96);
     }
@@ -318,12 +349,17 @@
         try{
           canvasAgentAssertToolExecution(execution);
           if(mutation)mcpBeginMutation(message.arguments?.client||mcpRuntime.sessions.get(message.arguments?.sessionId)?.client,message.arguments?.documentId||mcpRuntime.sessions.get(message.arguments?.sessionId)?.documentId||null);
+          const previousRegion=message.name==="mcp_edit_canvas"&&message.arguments?.action==="delete"?mcpContentUpdateRegion({documentId:message.arguments.documentId||mcpRuntime.sessions.get(message.arguments.sessionId)?.documentId},message.arguments):null;
           const result=typeof canvasDocumentsExecute==="function"?await canvasDocumentsExecute(message.name,message.arguments||{},execution):await mcpExecute(message.name,message.arguments||{},execution);
           canvasAgentAssertToolExecution(execution);
+          if(["mcp_present_widget","mcp_draw","mcp_plot","mcp_apply_patch","mcp_edit_canvas"].includes(message.name)&&message.arguments?.presentation?.intent!=="inspect"&&message.arguments?.action!=="show"&&!result.reused){
+            const region=mcpContentUpdateRegion(result,message.arguments||{})||previousRegion;
+            window.PenEchoStudioNavigator?.noteMcpContentUpdate?.(result.documentId,region);
+          }
           if(mutation){const session=mcpRuntime.sessions.get(message.arguments?.sessionId);if(session)session.updatedAt=Date.now();}
           socket.send(JSON.stringify({type:"result",requestId:message.requestId,ok:true,result:{...result,browserElapsedMs:Math.round(performance.now()-started)}}));
         }catch(error){if(socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:"result",requestId:message.requestId,ok:false,error:{code:error.code||"CANVAS_TOOL_FAILED",message:String(error.message||error),...(error.details?{details:error.details}:{})}}));}
-        finally{mcpRuntime.queued--;mcpRuntime.controllers.delete(message.requestId);if(mutation&&socket===mcpRuntime.socket){mcpEndMutation();mcpRenderSettings();}}
+        finally{mcpRuntime.queued--;mcpRuntime.controllers.delete(message.requestId);if(mutation&&socket===mcpRuntime.socket){mcpEndMutation();mcpRenderSettings();}if(socket===mcpRuntime.socket)await window.PenEchoStudioNavigator?.flushMcpFollow?.();}
       });
     });
     socket.addEventListener("close",()=>{if(socket===mcpRuntime.socket)mcpDisconnect(true);});
@@ -489,7 +525,7 @@
       if(object.kind!=="widget")throw Error("This tool captures Widgets only. Read user annotations with penecho_read_feedback.");
       return mcpCaptureWidget(object.item,args,execution);
     }
-    if(name==="mcp_inspect_session")return {sessionId:session.sessionId,boardObjectId:board?.id||null,...mcpProgressData(session),artifacts:[...session.artifacts].map(([artifactId,value])=>{const object=canvasAgentObject(value.objectId);return {artifactId,title:value.title,presentation:value.presentation,kind:value.kind||"widget",objectId:value.objectId,...(value.objectIds?{objectIds:value.objectIds,elements:(value.elements||[]).map(([id,entry])=>{const child=canvasAgentObject(entry.objectId);return {id,objectId:entry.objectId,kind:entry.kind,...(child?{bounds:canvasAgentBox(child)}:{removed:true})};})}:{}),...(object?{bounds:value.objectIds?mcpTaskBounds(session,value.objectIds):canvasAgentBox(object)}:{removed:true})};}),revision:state.userRevision};
+    if(name==="mcp_inspect_session")return {sessionId:session.sessionId,boardObjectId:board?.id||null,...mcpProgressData(session),attention:mcpAttentionState(session),artifacts:[...session.artifacts].map(([artifactId,value])=>{const object=canvasAgentObject(value.objectId);return {artifactId,title:value.title,presentation:value.presentation,kind:value.kind||"widget",objectId:value.objectId,...(value.objectIds?{objectIds:value.objectIds,elements:(value.elements||[]).map(([id,entry])=>{const child=canvasAgentObject(entry.objectId);return {id,objectId:entry.objectId,kind:entry.kind,...(child?{bounds:canvasAgentBox(child)}:{removed:true})};})}:{}),...(object?{bounds:value.objectIds?mcpTaskBounds(session,value.objectIds):canvasAgentBox(object)}:{removed:true})};}),revision:state.userRevision};
     if(name==="mcp_close_session"){session.status="done";await mcpExecute("mcp_update_session",{sessionId:args.sessionId,status:"done"},execution);session.closed=true;mcpRuntime.pendingView.delete(session.sessionId);mcpRenderSettings();return {closed:true,retainedOnCanvas:true};}
     throw Error(`Unsupported MCP Canvas operation: ${name}`);
   }

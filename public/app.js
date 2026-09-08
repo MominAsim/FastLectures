@@ -634,8 +634,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsShortcutResetDone: "Shortcut reset for {command}.",
       settingsShortcutResetAllDone: "All shortcuts were reset.",
       settingsShortcutCancelled: "Shortcut change cancelled.",
-      shortcutFocusAgent: "Focus PenEcho Agent",
-      shortcutFocusAgentHelp: "Open Agent when needed and move focus to the conversation box.",
+      shortcutFocusAgent: "Toggle PenEcho Agent",
+      shortcutFocusAgentHelp: "Open or close Agent while Canvas has focus.",
       shortcutSaveCanvasHelp: "Save or overwrite the current Canvas using its existing location.",
       shortcutUndoHelp: "Undo the latest Canvas change.",
       shortcutRedoHelp: "Redo the latest undone Canvas change.",
@@ -930,6 +930,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       studioNavigatorMessageCount: "{count} messages",
       studioNavigatorManageAgents: "View all recent work",
       studioNavigatorManageCanvases: "Manage Canvas Library",
+      studioNavigatorLibraryShort: "Library",
       studioNavigatorRestored: "Restored {canvas} · continuing {conversation}",
       studioNavigatorDeleteSession: "Delete session “{name}”",
       studioNavigatorDeleteSessionTitle: "Delete session?",
@@ -4696,6 +4697,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       state.navigationTimer = 0;
       state.navigationDeadline = 0;
       view.classList.remove("is-navigating", "is-wheel-navigating");
+      void window.PenEchoStudioNavigator?.flushMcpFollow?.();
     };
     state.navigationTimer = setTimeout(hide, NAVIGATION_HINT_VISIBLE_MS);
   }
@@ -11162,7 +11164,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     setHistorySaveBusy(true);
     showHistoryNoticeKey("snapshotSaving", "busy", 0);
     try {
-      const id = await saveSnapshot({ overwriteId, name, location });
+      const id = await saveSnapshot({ overwriteId, name, location, allowEmpty:true });
       if (!id) {
         showHistoryNoticeKey(selectionAIBusy() ? selectionAIStatusKey() : "emptyCanvas", "info");
         return false;
@@ -11931,7 +11933,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (!body?.canvas?.id || !body?.revision?.id) throw Error("PenEcho Cloud returned an invalid save confirmation");
     return { id:body.canvas.id, revisionId:body.revision.id };
   }
-  async function saveSnapshot({ overwriteId = null, name = null, location = state.snapshotLocation } = {}) {
+  async function saveSnapshot({ overwriteId = null, name = null, location = state.snapshotLocation, allowEmpty = false } = {}) {
     if (selectionAIBusy()) {
       setStatusKey(selectionAIStatusKey());
       return null;
@@ -11939,7 +11941,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (!SNAPSHOT_LOCATIONS.has(location)) throw Error("Invalid snapshot location");
     if (overwriteId && state.currentSnapshotLocation !== location) throw Error(t("noCurrentSnapshot"));
     await finalizeCanvasForSnapshot();
-    if (!tiles.size && !state.images.length && !state.textBoxes.length && !state.preservedSnapshotAnimations.length && (!pluginEnabled("animation") || !state.animations.length) && !visibleWidgets().length) {
+    if (!allowEmpty && !tiles.size && !state.images.length && !state.textBoxes.length && !state.preservedSnapshotAnimations.length && (!pluginEnabled("animation") || !state.animations.length) && !visibleWidgets().length) {
       setStatusKey("emptyCanvas");
       return null;
     }
@@ -12479,7 +12481,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return Boolean(state.currentSnapshotId || hasContent);
   }
   async function performCanvasTransition(transition) {
-    if (transition?.type === "close") return canvasDocumentsClose(transition.documentId,transition.sourceDocumentId);
+    if (transition?.type === "close") {
+      const closed=await canvasDocumentsClose(transition.documentId,transition.sourceDocumentId);
+      if(closed)await transition.onComplete?.();
+      return closed;
+    }
     if (transition?.type === "load") return loadSnapshot(transition.id, transition.location);
     if(typeof canvasDocuments!=="undefined"&&canvasDocuments.activeId)await canvasDocumentsPark();
     startBlankCanvas();
@@ -19505,6 +19511,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     canvasAgentInput.classList.toggle("canvas-agent-input-overflowing",overflowing);
   }
   function canvasAgentSetInputMode(mode,focus=true) {
+    canvasAgentFinishInkStroke();
     canvasAgent.inputMode=mode==="ink"?"ink":"text";
     const ink=canvasAgent.inputMode==="ink";
     canvasAgentInput.hidden=ink;
@@ -19520,6 +19527,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     canvasAgentSyncPromptSuggestions();
   }
   function canvasAgentClearInkDraft() {
+    canvasAgentFinishInkStroke();
     canvasAgentInkContext?.clearRect(0,0,canvasAgentInkCanvas.width,canvasAgentInkCanvas.height);
     canvasAgent.inkPresent=false;
     canvasAgent.inkStroke=null;
@@ -19532,8 +19540,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function canvasAgentInkPointerDown(event) {
     if (event.button!==0||canvasAgentInput.disabled) return;
+    if (event.pointerType === "touch" && canvasPencilWritingActive()) return;
+    if (canvasAgent.inkStroke && event.pointerType !== "pen") return;
+    canvasAgentFinishInkStroke();
     const point=canvasAgentInkPoint(event);
-    canvasAgent.inkStroke={pointerId:event.pointerId,point};
+    canvasAgent.inkStroke={pointerId:event.pointerId,pointerType:event.pointerType,point};
     canvasAgentInkCanvas.setPointerCapture?.(event.pointerId);
     canvasAgentInkContext.save();
     canvasAgentInkContext.fillStyle=state.inkColor||"#1f2937";
@@ -19561,10 +19572,15 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     stroke.point=point;
     event.preventDefault();
   }
+  function canvasAgentFinishInkStroke() {
+    const stroke = canvasAgent.inkStroke;
+    if (!stroke) return;
+    canvasAgent.inkStroke=null;
+    if (canvasAgentInkCanvas.hasPointerCapture?.(stroke.pointerId)) canvasAgentInkCanvas.releasePointerCapture(stroke.pointerId);
+  }
   function canvasAgentInkPointerEnd(event) {
     if (canvasAgent.inkStroke?.pointerId!==event.pointerId) return;
-    canvasAgent.inkStroke=null;
-    if (canvasAgentInkCanvas.hasPointerCapture?.(event.pointerId)) canvasAgentInkCanvas.releasePointerCapture(event.pointerId);
+    canvasAgentFinishInkStroke();
     event.preventDefault();
   }
   async function canvasAgentPrepareInkAttachment() {
@@ -21773,6 +21789,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     }else canvasAgentSyncSelection();
   }
   function closeCanvasAgent(options) {
+    canvasAgentFinishInkStroke();
     const focus=options?.focus!==false,animate=options?.animate!==false;
     restoreCanvasAgentAfterNavigation();
     canvasAgentCancelInitialAutoHide();
@@ -22412,8 +22429,37 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const occupied=canvasAgentAllObjects().map(item=>canvasAgentInternalRect(item.box)),ink=visibleInkBounds({x:0,y:0,w:SIZE,h:SIZE});if(ink)occupied.push(ink);
     return mcpArrange(width,height,session,presentation,typeof viewportRect==="function"?viewportRect():null,a=>mcpTaskBounds(session,a.objectIds||[a.objectId]),box=>occupied.filter(b=>intersection(box,b)));
   }
-  function mcpViewBusy() {
-    return document.hidden||state.navigationLocked||state.drawing||state.panGesture||state.touchGesture||state.widgetGesture||state.imageGesture||state.selectionGesture||state.animationGesture||state.textEditors?.size||state.pointers?.size||document.activeElement?.tagName==="IFRAME"||mcpEl("settingsLayer")?.hidden===false;
+  function mcpContentUpdateRegion(result,args) {
+    const doc=canvasDocuments.records.get(result.documentId);
+    if(!doc)return null;
+    const ids=result.objectIds?[...result.objectIds]:[result.objectId||args.objectId];
+    if(args.path?.startsWith("objects/")) {
+      try {ids.push(decodeURIComponent(args.path.split("/")[1]));} catch {}
+    }
+    let region=null;
+    for(const id of new Set(ids.filter(Boolean))) {
+      const object=canvasDocumentsObject(doc,id);
+      if(object)region=unionDirtyBounds(region,canvasDocumentsBounds(object));
+    }
+    if(!region&&args.region)region={x:args.region.x,y:args.region.y,w:args.region.w,h:args.region.h};
+    return region&&[region.x,region.y,region.w,region.h].every(Number.isFinite)&&region.w>0&&region.h>0?region:null;
+  }
+  function mcpViewBlockedBy() {
+    if(document.hidden)return "page-hidden";
+    if(state.navigationLocked)return "navigation-locked";
+    // pointers also caches hover positions; only the navigation set tracks
+    // pressed Canvas pointers and is released globally on pointerup/cancel.
+    if(state.trackpadGesture||state.navigationDeadline>performance.now())return "active-navigation";
+    if(state.drawing||state.panGesture||state.touchGesture||state.widgetGesture||state.imageGesture||state.selectionGesture||state.animationGesture||state.canvasAgentNavigationPointerIds?.size)return "active-gesture";
+    if(state.textEditors?.size)return "text-editing";
+    if(document.activeElement?.tagName==="IFRAME")return "widget-interaction";
+    if(mcpEl("settingsLayer")?.hidden===false)return "settings-open";
+    return null;
+  }
+  function mcpViewBusy() {return Boolean(mcpViewBlockedBy());}
+  // Bounded metadata, computed only on inspection; no capture, DOM scan or timer.
+  function mcpAttentionState(session) {
+    return {pendingObjects:mcpRuntime.pendingView.get(session.sessionId)?.size||0,paused:mcpRuntime.viewPaused,blockedBy:mcpRuntime.queued>1?"canvas-queue":mcpViewBlockedBy(),canvasScale:state.scale||1};
   }
   function mcpPauseView() {
     if(!mcpRuntime.socket)return;
@@ -22454,7 +22500,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       screenX=(state.panX||0)+region.x*scale,screenY=(state.panY||0)+region.y*scale,
       unobscured=!stage||screenX>=stage.x+24&&screenY>=stage.y+24&&screenX+region.w*scale<=stage.x+stage.w-24&&screenY+region.h*scale<=stage.y+stage.h-24,
       alreadyVisible=scale>=.65&&unobscured&&view&&region.x>=view.x+24&&region.y>=view.y+24&&region.x+region.w<=view.x+view.w-24&&region.y+region.h<=view.y+view.h-24;
-    if(!alreadyVisible) {
+    // An explicit reveal is a request to focus, even if an overview already
+    // contains the artifact at a scale too small for reading its content.
+    if(explicit||!alreadyVisible) {
       if(!explicit&&canvasAgentFramePlan(region,96).scale<.5){mcpRuntime.viewPaused=true;mcpRenderCanvasStatus();return;}
       canvasAgentFrameRegion(region,96);
     }
@@ -22590,12 +22638,17 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         try{
           canvasAgentAssertToolExecution(execution);
           if(mutation)mcpBeginMutation(message.arguments?.client||mcpRuntime.sessions.get(message.arguments?.sessionId)?.client,message.arguments?.documentId||mcpRuntime.sessions.get(message.arguments?.sessionId)?.documentId||null);
+          const previousRegion=message.name==="mcp_edit_canvas"&&message.arguments?.action==="delete"?mcpContentUpdateRegion({documentId:message.arguments.documentId||mcpRuntime.sessions.get(message.arguments.sessionId)?.documentId},message.arguments):null;
           const result=typeof canvasDocumentsExecute==="function"?await canvasDocumentsExecute(message.name,message.arguments||{},execution):await mcpExecute(message.name,message.arguments||{},execution);
           canvasAgentAssertToolExecution(execution);
+          if(["mcp_present_widget","mcp_draw","mcp_plot","mcp_apply_patch","mcp_edit_canvas"].includes(message.name)&&message.arguments?.presentation?.intent!=="inspect"&&message.arguments?.action!=="show"&&!result.reused){
+            const region=mcpContentUpdateRegion(result,message.arguments||{})||previousRegion;
+            window.PenEchoStudioNavigator?.noteMcpContentUpdate?.(result.documentId,region);
+          }
           if(mutation){const session=mcpRuntime.sessions.get(message.arguments?.sessionId);if(session)session.updatedAt=Date.now();}
           socket.send(JSON.stringify({type:"result",requestId:message.requestId,ok:true,result:{...result,browserElapsedMs:Math.round(performance.now()-started)}}));
         }catch(error){if(socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:"result",requestId:message.requestId,ok:false,error:{code:error.code||"CANVAS_TOOL_FAILED",message:String(error.message||error),...(error.details?{details:error.details}:{})}}));}
-        finally{mcpRuntime.queued--;mcpRuntime.controllers.delete(message.requestId);if(mutation&&socket===mcpRuntime.socket){mcpEndMutation();mcpRenderSettings();}}
+        finally{mcpRuntime.queued--;mcpRuntime.controllers.delete(message.requestId);if(mutation&&socket===mcpRuntime.socket){mcpEndMutation();mcpRenderSettings();}if(socket===mcpRuntime.socket)await window.PenEchoStudioNavigator?.flushMcpFollow?.();}
       });
     });
     socket.addEventListener("close",()=>{if(socket===mcpRuntime.socket)mcpDisconnect(true);});
@@ -22761,7 +22814,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       if(object.kind!=="widget")throw Error("This tool captures Widgets only. Read user annotations with penecho_read_feedback.");
       return mcpCaptureWidget(object.item,args,execution);
     }
-    if(name==="mcp_inspect_session")return {sessionId:session.sessionId,boardObjectId:board?.id||null,...mcpProgressData(session),artifacts:[...session.artifacts].map(([artifactId,value])=>{const object=canvasAgentObject(value.objectId);return {artifactId,title:value.title,presentation:value.presentation,kind:value.kind||"widget",objectId:value.objectId,...(value.objectIds?{objectIds:value.objectIds,elements:(value.elements||[]).map(([id,entry])=>{const child=canvasAgentObject(entry.objectId);return {id,objectId:entry.objectId,kind:entry.kind,...(child?{bounds:canvasAgentBox(child)}:{removed:true})};})}:{}),...(object?{bounds:value.objectIds?mcpTaskBounds(session,value.objectIds):canvasAgentBox(object)}:{removed:true})};}),revision:state.userRevision};
+    if(name==="mcp_inspect_session")return {sessionId:session.sessionId,boardObjectId:board?.id||null,...mcpProgressData(session),attention:mcpAttentionState(session),artifacts:[...session.artifacts].map(([artifactId,value])=>{const object=canvasAgentObject(value.objectId);return {artifactId,title:value.title,presentation:value.presentation,kind:value.kind||"widget",objectId:value.objectId,...(value.objectIds?{objectIds:value.objectIds,elements:(value.elements||[]).map(([id,entry])=>{const child=canvasAgentObject(entry.objectId);return {id,objectId:entry.objectId,kind:entry.kind,...(child?{bounds:canvasAgentBox(child)}:{removed:true})};})}:{}),...(object?{bounds:value.objectIds?mcpTaskBounds(session,value.objectIds):canvasAgentBox(object)}:{removed:true})};}),revision:state.userRevision};
     if(name==="mcp_close_session"){session.status="done";await mcpExecute("mcp_update_session",{sessionId:args.sessionId,status:"done"},execution);session.closed=true;mcpRuntime.pendingView.delete(session.sessionId);mcpRenderSettings();return {closed:true,retainedOnCanvas:true};}
     throw Error(`Unsupported MCP Canvas operation: ${name}`);
   }
@@ -23694,7 +23747,11 @@ var canvasDocumentIdentity = (() => {
   }
   function canvasDocumentsWidgetRecord(value) {
     const input={...value};if(!input.copyText)delete input.copyText;if(!input.copyLabel)delete input.copyLabel;
-    return widgetRecord(input);
+    const record=widgetRecord(input);
+    // Stored records pass through widgetRecord again when shown. Its runtime
+    // defaults use empty copy fields, but serialized optional fields must omit them.
+    if(record&&!record.copyText)delete record.copyText;if(record&&!record.copyLabel)delete record.copyLabel;
+    return record;
   }
   function canvasDocumentsMetadata(doc) {
     return {version:1,documentId:doc.id,title:doc.title,context:doc.context||"",bindings:doc.bindings||[],locators:doc.locators||[],processor:doc.processor||{kind:"penecho"}};
@@ -23723,8 +23780,17 @@ var canvasDocumentIdentity = (() => {
     state.currentSnapshotBundleExtensions={...state.currentSnapshotBundleExtensions,[CANVAS_DOCUMENT_EXTENSION]:canvasDocumentsMetadata(doc),[CANVAS_WORKSPACE_EXTENSION]:canvasDocumentsWorkspaceData(doc)};
   }
   function canvasDocumentsWorkspaceData(doc) {
-    const sessions=typeof mcpRuntime!=="undefined"?[...mcpRuntime.sessions.values()].filter(s=>s.documentId===doc.id&&!s.closed).slice(-64).map(s=>({sessionKey:s.sessionKey||"",client:s.client||"",title:s.title,status:s.status,summary:s.summary,steps:s.steps,events:s.events,boardObjectId:s.boardObjectId,layout:s.layout,artifacts:[...s.artifacts],feedbackStart:s.feedbackStart})):doc.sessions;
-    return {version:1,sessions:sessions?.length?sessions:doc.sessions||[],feedback:doc.feedback.slice(-200),feedbackSequence:doc.feedbackSequence,messages:doc.messages.slice(-100),messageSequence:doc.messageSequence,changes:doc.changes.slice(-200),changeSequence:doc.changeSequence};
+    const runtime=typeof mcpRuntime!=="undefined"?[...mcpRuntime.sessions.values()].filter(s=>s.documentId===doc.id):[];
+    const binding=s=>JSON.stringify([s.sessionKey,s.client||""]);
+    // Unresumed bindings remain durable. Runtime entries, including explicit
+    // closure, replace the saved version of their own conversation only.
+    const overridden=new Set(runtime.filter(s=>s.sessionKey).map(binding));
+    const retained=(doc.sessions||[]).filter(s=>s.sessionKey&&!overridden.has(binding(s)));
+    const current=[...new Map(runtime.map(s=>[s.sessionKey?binding(s):s.sessionId,s])).values()];
+    const live=current.filter(s=>!s.closed).map(s=>({sessionKey:s.sessionKey||"",client:s.client||"",title:s.title,status:s.status,summary:s.summary,steps:s.steps,events:s.events,boardObjectId:s.boardObjectId,layout:s.layout,artifacts:[...s.artifacts],feedbackStart:s.feedbackStart}));
+    // Keyless sessions remain transient and never acquire a reconnect binding.
+    const sessions=[...retained,...live].slice(-64);
+    return {version:1,sessions,feedback:doc.feedback.slice(-200),feedbackSequence:doc.feedbackSequence,messages:doc.messages.slice(-100),messageSequence:doc.messageSequence,changes:doc.changes.slice(-200),changeSequence:doc.changeSequence};
   }
   function canvasDocumentsRestoreWorkspace(doc,value) {
     const normalized=canvasDocumentIdentity.normalizeWorkspace(value,canvasDocumentsMetadata(doc));if(!normalized)return;
@@ -23815,7 +23881,7 @@ var canvasDocumentIdentity = (() => {
       mcpPauseView();canvasDocuments.activeId=id;canvasDocuments.epoch++;
       state.userRevision=doc.revision;state.history=doc.undo||[];state.future=doc.redo||[];state.historyBefore.clear();
       state.animationHistoryBefore=state.widgetHistoryBefore=state.imageHistoryBefore=state.textBoxHistoryBefore=null;
-      restoreAnimations(item.animations||[]);restoreWidgets(item.widgets||[]);restoreImages(images||[]);await restoreTextBoxes(item.textBoxes||[],1);
+      restoreAnimations(item.animations||[]);restoreWidgets((item.widgets||[]).map(canvasDocumentsWidgetRecord).filter(Boolean));restoreImages(images||[]);await restoreTextBoxes(item.textBoxes||[],1);
       if(item.theme)applyTheme(item.theme);
       state.currentSnapshotId=doc.locator?.id||null;state.currentSnapshotLocation=doc.locator?.location||null;state.currentSnapshotName=doc.title;state.currentSnapshotHasExplicitName=Boolean(doc.locator||doc.title&&!/^(untitled canvas|未命名画布)$/i.test(doc.title.trim()));state.currentCanvasSuggestedName="";
       state.currentSnapshotProjectId=item.projectId||null;state.currentSnapshotRevisionId=item.currentRevisionId||null;state.snapshotSavedRevision=doc.savedRevision;
@@ -24254,7 +24320,7 @@ var canvasDocumentIdentity = (() => {
       if(args.takeover&&session.sessionKey)canvasDocumentsSetProcessor(doc,{kind:"external",bindingKey:session.sessionKey,client:session.client});
       canvasDocumentsSyncExtension(doc);canvasDocumentsRender();
       if(!canvasDocumentsIsActive(doc))await canvasDocumentsPersist(doc);
-      return {sessionId:session.sessionId,documentId:doc.id,boardObjectId:session.boardObjectId,revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision,feedbackCursor:session.feedbackStart,active:canvasDocumentsIsActive(doc),reused:Boolean(session.artifacts.size)};
+      return {sessionId:session.sessionId,documentId:doc.id,boardObjectId:session.boardObjectId,revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision,feedbackCursor:session.feedbackStart,active:canvasDocumentsIsActive(doc),reused:Boolean(session.artifacts.size),progress:{title:session.title,status:session.status,summary:session.summary,steps:session.steps,events:session.events}};
     }
     if(!session||session.closed||session.documentId&&!canvasDocuments.records.has(session.documentId))throw canvasDocumentsError("SESSION_EXPIRED","The session is no longer connected. Reopen its documentId and reconnect, then retry.");
     doc=canvasDocuments.records.get(session.documentId)||canvasDocumentsCurrent();
@@ -24357,8 +24423,8 @@ var canvasDocumentIdentity = (() => {
     if(!root||!doc)return;
     root.hidden=false;
     const create=document.getElementById("canvasWorkspaceNew"),close=document.getElementById("canvasWorkspaceClose");
-    create.textContent=canvasDocumentsCopy("New Canvas","新建画布");create.disabled=canvasDocuments.switching;
-    close.textContent=canvasDocumentsCopy("Close Canvas","关闭画布");close.disabled=canvasDocuments.switching;
+    create.textContent=canvasDocumentsCopy("New","新建");create.title=canvasDocumentsCopy("New Canvas","新建画布");create.setAttribute("aria-label",create.title);create.disabled=canvasDocuments.switching;
+    close.textContent=canvasDocumentsCopy("Close","关闭");close.title=canvasDocumentsCopy("Close Canvas","关闭画布");close.setAttribute("aria-label",close.title);close.disabled=canvasDocuments.switching;
     const status=document.getElementById("canvasWorkspaceStatus"),retry=document.getElementById("canvasWorkspaceRetry");
     status.textContent=canvasDocuments.error||(canvasDocuments.switching?canvasDocumentsCopy("Opening…","正在打开…"):"");
     retry.hidden=!canvasDocuments.retry;retry.textContent=canvasDocumentsCopy("Retry","重试");
@@ -24624,7 +24690,8 @@ var canvasDocumentIdentity = (() => {
         return;
       }
       studioNavigatorTransitionHandler = event => {
-        if (event.target === studioNavigator && event.propertyName === "transform") settle();
+        const property = studioNavigatorIsMcpDocked() ? "opacity" : "transform";
+        if (event.target === studioNavigator && event.propertyName === property) settle();
       };
       studioNavigator.addEventListener("transitionend", studioNavigatorTransitionHandler);
       studioNavigatorOpenTimer = setTimeout(settle, STUDIO_NAVIGATOR_SETTLE_FALLBACK_MS);
@@ -24667,6 +24734,17 @@ var canvasDocumentIdentity = (() => {
     function studioNavigatorCanvasMeta(current, open, location, updatedAt) {
       return [current ? t("studioNavigatorCurrent") : open ? t("studioNavigatorOpened") : t("studioNavigatorNotOpened"),
         location ? snapshotLocationLabel(location) : "", studioNavigatorMetaTime(updatedAt)].filter(Boolean).join(" · ");
+    }
+    function studioNavigatorRenderCanvasMeta(meta, current, open, location, updatedAt) {
+      const label = studioNavigatorCanvasMeta(current, open, location, updatedAt);
+      meta.title = label;
+      meta.setAttribute("aria-label", label);
+      if (!open || current) { meta.textContent = label; return; }
+      const dot = document.createElement("span");
+      dot.className = "studio-navigator-open-dot";
+      dot.textContent = "●";
+      dot.setAttribute("aria-hidden", "true");
+      meta.replaceChildren(dot, document.createTextNode(" " + [location ? snapshotLocationLabel(location) : "", studioNavigatorMetaTime(updatedAt)].filter(Boolean).join(" · ")));
     }
     function syncStudioNavigatorCurrentSource() {
       const location=String(snapshotItemsLocation||"");
@@ -24896,8 +24974,7 @@ var canvasDocumentIdentity = (() => {
       headingBody.className="studio-navigator-item-body";
       name.textContent=group.name;
       name.title=group.name;
-      meta.textContent=studioNavigatorCanvasMeta(group.current,Boolean(group.documentId),group.location,group.updatedAt);
-      meta.title=meta.textContent;
+      studioNavigatorRenderCanvasMeta(meta,group.current,Boolean(group.documentId),group.location,group.updatedAt);
       headingBody.append(name,meta);heading.append(canvasPreview,headingBody);
       if(group.documentId){
         heading.dataset.workspaceDocumentId=group.documentId;
@@ -25100,8 +25177,7 @@ var canvasDocumentIdentity = (() => {
         body.className = "studio-navigator-item-body";
         title.textContent = snapshotName(item);
         const workspaceDoc=typeof canvasDocuments!=="undefined"?[...canvasDocuments.records.values()].find(doc=>doc.locator?.id===item.id&&doc.locator?.location===item.location):null;
-        meta.textContent = studioNavigatorCanvasMeta(current, Boolean(workspaceDoc), item.location, item.updatedAt || item.createdAt);
-        meta.title = meta.textContent;
+        studioNavigatorRenderCanvasMeta(meta,current,Boolean(workspaceDoc),item.location,item.updatedAt || item.createdAt);
         body.append(title, meta);
         row.append(studioNavigatorCanvasPreview(item), body);
         if(workspaceDoc){
@@ -25118,6 +25194,105 @@ var canvasDocumentIdentity = (() => {
       renderStudioNavigatorSourceStates(studioCanvasRecentList,query);
       if(!studioCanvasRecentList.childElementCount)studioNavigatorEmpty(studioCanvasRecentList,items.length?"studioNavigatorCanvasNoMatch":"studioNavigatorCanvasEmpty");
     }
+    let studioMcpFollowLatest=false,studioMcpLatestDocumentId=null,studioMcpPendingDocumentId=null,studioMcpFollowing=false,studioMcpCloseQueue=null;
+    let studioMcpLatestRegion=null,studioMcpPendingRegion=null;
+    function studioMcpOpenDocumentIds() {
+      const live=new Set([...mcpRuntime.sessions.values()].filter(session=>!session.closed).map(session=>session.documentId));
+      return [...canvasDocuments.records.values()].filter(doc=>doc.bindings?.length||doc.sessions?.length||live.has(doc.id)).map(doc=>doc.id);
+    }
+    function syncStudioMcpActions() {
+      const follow=document.getElementById("studioMcpFollowLatest"),close=document.getElementById("studioMcpCloseAll"),group=document.getElementById("studioMcpActions");
+      const closeOthers=document.getElementById("canvasWorkspaceCloseAll");
+      if(closeOthers){
+        closeOthers.textContent=canvasDocumentsCopy("Close all","关闭其他");
+        closeOthers.title=canvasDocumentsCopy("Close all other canvases and keep the current canvas open. Saved canvases stay in the library.","关闭其他所有画布，保留当前画布。已保存画布仍保留在画布库中。");
+        closeOthers.setAttribute("aria-label",closeOthers.title);
+        closeOthers.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching||canvasDocuments.records.size<=1;
+        closeOthers.setAttribute("aria-busy",String(Boolean(studioMcpCloseQueue)));
+      }
+      if(!follow||!close)return;
+      const busy=Boolean(studioMcpCloseQueue)||canvasDocuments.switching;
+      group?.setAttribute("aria-label",canvasDocumentsCopy("MCP canvas actions","MCP 画布操作"));
+      follow.querySelector("span").textContent=canvasDocumentsCopy("Follow latest","跟随最新");
+      follow.setAttribute("aria-pressed",String(studioMcpFollowLatest));follow.disabled=busy;
+      follow.title=canvasDocumentsCopy("Follow the latest updated content, switching canvases when needed. Pauses while you edit or navigate.","跟随最新更新的内容，必要时切换画布；编辑或移动视野时暂停。");
+      close.textContent=canvasDocumentsCopy("Close all","全部关闭");close.disabled=busy||!studioMcpOpenDocumentIds().length;
+      close.setAttribute("aria-busy",String(Boolean(studioMcpCloseQueue)));
+      close.title=canvasDocumentsCopy("Close all open MCP canvases. Saved canvases stay in the library.","关闭所有已打开的 MCP 画布，已保存画布仍保留在画布库中。");
+    }
+    function cancelStudioMcpCloseAll() {studioMcpCloseQueue=null;syncStudioMcpActions();}
+    async function continueStudioMcpCloseAll(batch) {
+      if(studioMcpCloseQueue!==batch)return;
+      while(batch.length&&!canvasDocuments.records.has(batch[0]))batch.shift();
+      if(!batch.length){
+        try {
+          if(batch.retainedDocumentId&&canvasDocuments.records.has(batch.retainedDocumentId)&&canvasDocuments.activeId!==batch.retainedDocumentId)await canvasDocumentsShow(batch.retainedDocumentId);
+        } finally {cancelStudioMcpCloseAll();}
+        return;
+      }
+      const id=batch[0];
+      try {
+        await canvasDocumentsShow(id);
+        if(studioMcpCloseQueue!==batch)return;
+        await requestCanvasTransition({type:"close",documentId:id,onCancel:cancelStudioMcpCloseAll,onComplete:async()=>{
+          if(studioMcpCloseQueue!==batch)return;
+          batch.shift();await continueStudioMcpCloseAll(batch);
+        }});
+      } catch(error){cancelStudioMcpCloseAll();throw error;}
+    }
+    async function closeOtherStudioCanvases() {
+      if(studioMcpCloseQueue||canvasDocuments.switching)return;
+      const retainedDocumentId=canvasDocumentsCurrent().id;
+      const batch=[...canvasDocuments.records.keys()].filter(id=>id!==retainedDocumentId);
+      if(!batch.length)return;
+      batch.retainedDocumentId=retainedDocumentId;
+      studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      await continueStudioMcpCloseAll(batch);
+    }
+    async function closeAllStudioMcpCanvases() {
+      if(studioMcpCloseQueue)return;
+      const batch=studioMcpOpenDocumentIds();
+      if(!batch.length)return;
+      studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      await continueStudioMcpCloseAll(batch);
+    }
+    function noteStudioMcpContentUpdate(documentId,region=null) {
+      if(!documentId||!canvasDocuments.records.has(documentId))return;
+      studioMcpLatestDocumentId=documentId;
+      studioMcpLatestRegion=region;
+      if(studioMcpFollowLatest){studioMcpPendingDocumentId=documentId;studioMcpPendingRegion=region;}
+    }
+    async function flushStudioMcpFollowLatest() {
+      if(!studioMcpFollowLatest||!studioMcpPendingDocumentId||studioMcpFollowing||studioMcpCloseQueue||canvasDocuments.switching||mcpRuntime.queued||!mcpRuntime.ready)return;
+      const active=document.activeElement;
+      if(mcpViewBlockedBy()||document.querySelector("dialog[open]")||active?.matches?.("input,textarea,select,[contenteditable='true']"))return;
+      const id=studioMcpPendingDocumentId;
+      if(!canvasDocuments.records.has(id)){studioMcpPendingDocumentId=null;return;}
+      studioMcpFollowing=true;
+      try {
+        if(id!==canvasDocuments.activeId)await canvasDocumentsShow(id);
+        // Loading yields: recheck user activity and use the newest region even
+        // when another update arrived for this same document during the switch.
+        if(!studioMcpFollowLatest||studioMcpPendingDocumentId!==id||canvasDocuments.activeId!==id||mcpRuntime.queued||mcpViewBlockedBy()||document.querySelector("dialog[open]")||document.activeElement?.matches?.("input,textarea,select,[contenteditable='true']"))return;
+        const region=studioMcpPendingRegion;
+        if(region) {
+          canvasAgentFrameRegion(region,96);
+          // This explicit follow supersedes older automatic reveals on this Canvas.
+          for(const [sessionId] of mcpRuntime.pendingView||[])if(mcpRuntime.sessions.get(sessionId)?.documentId===id)mcpRuntime.pendingView.delete(sessionId);
+          if(!mcpRuntime.pendingView?.size){clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;mcpRuntime.layoutSince=0;}
+          mcpRenderCanvasStatus();
+        }
+        studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;
+      } catch(error) {
+        // Busy work keeps just the newest target until the next real checkpoint.
+        if(!["CANVAS_BUSY","CANVAS_CHANGED"].includes(error.code)){
+          studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;canvasDocumentsReport(error);
+        }
+      } finally {
+        studioMcpFollowing=false;syncStudioMcpActions();
+        if(studioMcpFollowLatest&&studioMcpPendingDocumentId&&studioMcpPendingDocumentId!==id)queueMicrotask(()=>void flushStudioMcpFollowLatest());
+      }
+    }
     function studioNavigatorMcpGroups() {
       return studioNavigatorWorkGroups().filter(group=>{
         const doc=canvasDocuments.records.get(group.documentId);
@@ -25125,6 +25300,7 @@ var canvasDocumentIdentity = (() => {
       });
     }
     function renderStudioMcpHistory() {
+      syncStudioMcpActions();
       if(!studioNavigatorIsOpen()){studioNavigatorHistoryDirty=true;return;}
       releaseStudioNavigatorPreviewUrls(studioNavigatorCanvasPreviewUrls);
       studioMcpRecentList.replaceChildren();
@@ -25138,6 +25314,7 @@ var canvasDocumentIdentity = (() => {
       enabled=Boolean(enabled);
       if(enabled===studioNavigatorMcpEnabled)return;
       studioNavigatorMcpEnabled=enabled;
+      if(!enabled){studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;}
       studioNavigatorMcpTab.hidden=!enabled;
       if(enabled){
         studioNavigatorSuspendedAgent=false;
@@ -25151,6 +25328,7 @@ var canvasDocumentIdentity = (() => {
     let studioWorkspaceSignature="";
     function studioWorkspaceChanged() {
       if(typeof canvasDocuments==="undefined")return;
+      syncStudioMcpActions();
       const documents=[...canvasDocuments.records.values()],hasUpdates=documents.some(doc=>doc.unseen>0),attention=hasUpdates||Boolean(canvasDocuments.error);
       studioNavigatorToggle.dataset.workspaceUpdates=String(attention);
       const hint=document.getElementById("studioWorkspaceUpdateHint");
@@ -25305,6 +25483,19 @@ var canvasDocumentIdentity = (() => {
     studioNavigatorScrim.addEventListener("click", () => setStudioNavigatorOpen(false));
     studioNavigatorSearch.addEventListener("input", renderActiveStudioNavigatorHistory);
     studioNavigatorMcpTab.addEventListener("click",()=>setStudioNavigatorTab("mcp"));
+    document.getElementById("canvasWorkspaceCloseAll")?.addEventListener("click",()=>canvasDocumentsUiAction(closeOtherStudioCanvases));
+    document.getElementById("studioMcpCloseAll")?.addEventListener("click",()=>canvasDocumentsUiAction(closeAllStudioMcpCanvases));
+    document.getElementById("studioMcpFollowLatest")?.addEventListener("click",()=>{
+      studioMcpFollowLatest=!studioMcpFollowLatest;
+      studioMcpPendingDocumentId=studioMcpFollowLatest?studioMcpLatestDocumentId:null;
+      studioMcpPendingRegion=studioMcpFollowLatest?studioMcpLatestRegion:null;
+      syncStudioMcpActions();void flushStudioMcpFollowLatest();
+    });
+    const resumeMcpFollow=()=>{if(studioMcpFollowLatest&&studioMcpPendingDocumentId)queueMicrotask(()=>void flushStudioMcpFollowLatest());};
+    window.addEventListener("pointerup",resumeMcpFollow);
+    window.addEventListener("pointercancel",resumeMcpFollow);
+    document.addEventListener("focusout",resumeMcpFollow);
+    document.addEventListener("visibilitychange",resumeMcpFollow);
     studioNavigatorMcpTab.addEventListener("keydown",handleStudioNavigatorTabKeydown);
     studioNavigatorAllTab.addEventListener("click", () => setStudioNavigatorTab("all"));
     studioNavigatorAgentTab.addEventListener("click", () => setStudioNavigatorTab("agent"));
@@ -25355,6 +25546,8 @@ var canvasDocumentIdentity = (() => {
       renderCanvases:renderActiveStudioNavigatorHistory,
       updateDocument:updateStudioDocumentState,
       workspaceChanged:studioWorkspaceChanged,
+      noteMcpContentUpdate:noteStudioMcpContentUpdate,
+      flushMcpFollow:flushStudioMcpFollowLatest,
       syncMcp:syncStudioNavigatorMcp,
       isMcpDocked:studioNavigatorIsMcpDocked,
       canvasDidLoad:studioNavigatorCanvasDidLoad,
@@ -25585,12 +25778,14 @@ var canvasDocumentIdentity = (() => {
     return Boolean(settings.open || settings.configurationMode || document.querySelector("dialog[open]") || document.querySelector(".plugin-modal-layer:not([hidden]), .changelog-layer:not([hidden]), .tour-layer:not([hidden]), .history-panel.open"));
   }
   function keyboardShortcutCanRun(command, event, chord) {
-    if (!command || event.isComposing || event.repeat) return false;
+    if (!command || event.defaultPrevented || event.isComposing || event.repeat) return false;
+    if (state.interactingWidgetId) return false;
     if (command.id === "open-settings" && settings.open) return true;
     if (keyboardShortcutBlockingSurfaceOpen()) return false;
     if (command.id === "focus-agent") {
       if (!canvasAgentAvailable()) return false;
-      return event.target?.id !== "canvasAgentInput";
+      return !keyboardShortcutInteractiveTarget(event.target)
+        && !canvasAgentPanel.contains(event.target);
     }
     if (keyboardShortcutTextEditingTarget(event.target)) return command.id === "save-canvas";
     if (!keyboardShortcutChordHasModifier(chord) && keyboardShortcutInteractiveTarget(event.target)) return false;
@@ -25599,7 +25794,8 @@ var canvasDocumentIdentity = (() => {
   function keyboardShortcutPerform(commandId) {
     if (commandId === "focus-agent") {
       const opening = canvasAgentPanel.hidden || !document.body.classList.contains("canvas-agent-open");
-      openCanvasAgent({ focus:true, animate:opening });
+      if (opening) openCanvasAgent({ focus:false, animate:true });
+      else closeCanvasAgent({ focus:false });
       return true;
     }
     if (commandId === "save-canvas") { void saveCurrentCanvas(); return true; }
@@ -25702,6 +25898,7 @@ var canvasDocumentIdentity = (() => {
     if (previous?.frame && document.activeElement === previous.frame) document.activeElement.blur();
     state.interactingWidgetId = next;
     syncCanvasNavigation();
+    if (widget?.frame) widget.frame.focus({ preventScroll:true });
     requestInteractionLayerRender();
     return true;
   }
@@ -25715,6 +25912,7 @@ var canvasDocumentIdentity = (() => {
   function setSpacePan(enabled) {
     enabled = Boolean(enabled);
     if (state.spacePan === enabled) return;
+    if (enabled && state.drawing?.pointerType === "pen") finishDrawing("pen");
     state.spacePan = enabled;
     syncCanvasNavigation();
   }
@@ -25754,7 +25952,8 @@ var canvasDocumentIdentity = (() => {
   }
   function canvasNavigationSurface(target) {
     if (!target || target === view || target === screen) return true;
-    return Boolean(target.closest?.('.canvas-widget'));
+    const shell = target.closest?.('.canvas-widget');
+    return Boolean(shell && shell.dataset.widgetId !== state.interactingWidgetId);
   }
   function handleCanvasWheel(event) {
     if (!canvasNavigationSurface(event.target)) return;
@@ -25790,6 +25989,7 @@ var canvasDocumentIdentity = (() => {
     if (!state.trackpadGesture) return;
     event.preventDefault();
     state.trackpadGesture = null;
+    void window.PenEchoStudioNavigator?.flushMcpFollow?.();
   }
   function canvasFitViewportSize() {
     const metrics = canvasViewportMetrics();
@@ -25841,6 +26041,7 @@ var canvasDocumentIdentity = (() => {
     });
   }
   window.addEventListener('keydown', (event) => {
+    if (state.interactingWidgetId && event.key !== 'Escape') return;
     if (event.defaultPrevented || event.isComposing || canvasNavigationTextTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
     if (document.querySelector('dialog[open],.settings-panel.open,.configuration-layer:not([hidden])')) return;
     if (event.code === 'Space' && !event.target?.closest?.('button') && !state.drawing) {
@@ -25862,6 +26063,41 @@ var canvasDocumentIdentity = (() => {
 // Pointer and control bindings, portable snapshots, and application startup.
   const ERASER_TOOL_MENU_MS = 5000;
   let eraserToolMenuTimer = 0;
+  // Derive rejection from live strokes, never a remembered Pencil mode.
+  function canvasPencilWritingActive() {
+    return state.drawing?.pointerType === "pen" || canvasAgent.inkStroke?.pointerType === "pen";
+  }
+  function rejectTouchDuringPencilWriting(event) {
+    if (event.pointerType !== "touch" || !canvasPencilWritingActive()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+  function finishInterruptedPencilWriting(event) {
+    if (event.type === "visibilitychange" && !document.hidden) return;
+    if (event.type === "pointerdown" && event.pointerType === "touch") return;
+    const all = ["blur", "pagehide", "visibilitychange", "pointerdown"].includes(event.type),
+      released = event.type !== "pointermove" || event.pointerType === "pen" && Number(event.buttons) === 0;
+    if (!released) return;
+    const drawing = state.drawing;
+    if (drawing?.pointerType === "pen" && (all || drawing.id === event.pointerId)) {
+      state.pointers.delete(drawing.id);
+      canvasAgentNavigationPointerDidEnd(drawing.id);
+      finishDrawing("pen");
+      if (drawing.erase) {
+        state.pointerPreview = null;
+        requestInteractionLayerRender();
+      }
+    }
+    const ink = canvasAgent.inkStroke;
+    if (ink?.pointerType === "pen" && (all || ink.pointerId === event.pointerId)) canvasAgentFinishInkStroke();
+  }
+  for (const type of ["pointerdown", "pointermove"]) {
+    window.addEventListener(type, rejectTouchDuringPencilWriting, { capture:true, passive:false });
+  }
+  for (const type of ["pointerdown", "pointerup", "pointercancel", "lostpointercapture", "pointermove", "blur", "pagehide"]) {
+    window.addEventListener(type, finishInterruptedPencilWriting, true);
+  }
+  document.addEventListener("visibilitychange", finishInterruptedPencilWriting);
   function canvasPenEraserActive(event) {
     return event?.pointerType === "pen"
       && (Number(event.button) === 5 || (Number(event.buttons) & 32) === 32);
@@ -26077,13 +26313,14 @@ var canvasDocumentIdentity = (() => {
     return false;
   }
   function handleCanvasPointerDown(e) {
+    if (e.target?.closest?.(".canvas-widget")?.dataset.widgetId === state.interactingWidgetId) return;
     view.classList.remove("is-wheel-navigating");
     state.handToolbarTap = null;
     if (!state.viewMode && state.mode === "hand" && !state.spacePan && !e.altKey && e.button === 0 && !state.touches.size) {
       const widget = canvasWidgetAtEvent(e);
       if (widget) state.handToolbarTap = { id:e.pointerId, widget, x:e.clientX, y:e.clientY };
     }
-    if (e.pointerType === "touch" && state.drawing?.id && state.drawing.pointerType === "pen") return;
+    if (e.pointerType === "touch" && canvasPencilWritingActive()) return;
     if (e.pointerType === "mouse" && ![0, 1].includes(e.button)) return;
     e.preventDefault();
     if (state.viewMode) {
@@ -26449,6 +26686,7 @@ var canvasDocumentIdentity = (() => {
     event.preventDefault();
     event.stopPropagation();
     setCanvasNavigationLocked(!state.navigationLocked);
+    void window.PenEchoStudioNavigator?.flushMcpFollow?.();
   });
   function enterAIDraftHandMode() {
     if (state.mode !== "select" && state.aiDraftReturnMode === null) state.aiDraftReturnMode = state.mode;
@@ -26534,6 +26772,7 @@ var canvasDocumentIdentity = (() => {
     const eraserMode = ["eraser", "area-eraser"].includes(mode),
       button = eraserMode ? eraserToolButton : document.querySelector(`[data-mode="${mode}"]`);
     if (!button) return;
+    if (mode !== state.mode && state.drawing) finishDrawing(state.drawing.pointerType);
     if (state.widgetGesture) finishInterruptedWidgetGesture({ type:"tool-change" });
     if (eraserMode) {
       state.eraserMode = mode;
@@ -27195,6 +27434,7 @@ var canvasDocumentIdentity = (() => {
     });
   });
   document.querySelector("#newCanvasClose").onclick = () => {
+    pendingCanvasTransition?.onCancel?.();
     pendingCanvasTransition = null;
     window.PenEchoStudioNavigator?.cancelPendingConversation?.();
     document.querySelector("#newCanvasDialog").close("cancel");
@@ -27207,6 +27447,7 @@ var canvasDocumentIdentity = (() => {
   document.querySelector("#newCanvasDialog").addEventListener("cancel", (event) => {
     if (event.currentTarget.dataset.busy === "true") event.preventDefault();
     else {
+      pendingCanvasTransition?.onCancel?.();
       pendingCanvasTransition = null;
       window.PenEchoStudioNavigator?.cancelPendingConversation?.();
     }

@@ -211,12 +211,14 @@
     return Boolean(settings.open || settings.configurationMode || document.querySelector("dialog[open]") || document.querySelector(".plugin-modal-layer:not([hidden]), .changelog-layer:not([hidden]), .tour-layer:not([hidden]), .history-panel.open"));
   }
   function keyboardShortcutCanRun(command, event, chord) {
-    if (!command || event.isComposing || event.repeat) return false;
+    if (!command || event.defaultPrevented || event.isComposing || event.repeat) return false;
+    if (state.interactingWidgetId) return false;
     if (command.id === "open-settings" && settings.open) return true;
     if (keyboardShortcutBlockingSurfaceOpen()) return false;
     if (command.id === "focus-agent") {
       if (!canvasAgentAvailable()) return false;
-      return event.target?.id !== "canvasAgentInput";
+      return !keyboardShortcutInteractiveTarget(event.target)
+        && !canvasAgentPanel.contains(event.target);
     }
     if (keyboardShortcutTextEditingTarget(event.target)) return command.id === "save-canvas";
     if (!keyboardShortcutChordHasModifier(chord) && keyboardShortcutInteractiveTarget(event.target)) return false;
@@ -225,7 +227,8 @@
   function keyboardShortcutPerform(commandId) {
     if (commandId === "focus-agent") {
       const opening = canvasAgentPanel.hidden || !document.body.classList.contains("canvas-agent-open");
-      openCanvasAgent({ focus:true, animate:opening });
+      if (opening) openCanvasAgent({ focus:false, animate:true });
+      else closeCanvasAgent({ focus:false });
       return true;
     }
     if (commandId === "save-canvas") { void saveCurrentCanvas(); return true; }

@@ -208,7 +208,7 @@
         <span id="canvasAgentToolbarHome" class="canvas-agent-toolbar-home">
           <div id="canvasAgentControl" class="canvas-agent-control">
             <button id="mcpToolbarToggle" class="canvas-agent-trigger" type="button" aria-pressed="false" aria-label="Set up MCP Server" title="Set up MCP Server" data-state="off">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="7" rx="2"/><path d="M8 6.5h.1M12 10v5M5 19v-4h14v4M12 15v4"/></svg><i class="mcp-toolbar-dot" aria-hidden="true"></i><span>MCP</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4M5 16v-4h14v4"/></svg><i class="mcp-toolbar-dot" aria-hidden="true"></i><span>MCP</span>
             </button>
             <button id="canvasAgentToggle" class="canvas-agent-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="canvasAgentPanel" data-i18n-aria="openCanvasAgent" aria-label="Open PenEcho Agent" data-i18n-title="canvasAgent" title="PenEcho Agent">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5.5h10a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3h-5l-4.5 3v-3H7a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3Z"/><path d="M8 10h8M8 13h5"/></svg>
@@ -428,6 +428,10 @@
             <div id="studioWorkRecentList" class="studio-navigator-list"></div>
           </section>
           <section id="studioNavigatorMcpPanel" class="studio-navigator-panel" role="tabpanel" aria-labelledby="studioNavigatorMcpTab" hidden>
+            <div class="studio-mcp-actions" role="group" aria-label="MCP canvas actions" id="studioMcpActions">
+              <button id="studioMcpFollowLatest" type="button" data-pe-button="toolbar" data-pe-density="compact" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5H5v3m11-3h3v3M5 16v3h3m11-3v3h-3"/><circle cx="12" cy="12" r="3"/></svg><span>Follow latest</span></button>
+              <button id="studioMcpCloseAll" type="button" data-pe-button="ghost" data-pe-density="compact">Close all</button>
+            </div>
             <div id="studioMcpRecentList" class="studio-navigator-list"></div>
           </section>
           <section id="studioNavigatorAgentPanel" class="studio-navigator-panel" role="tabpanel" aria-labelledby="studioNavigatorAgentTab" hidden>
@@ -439,14 +443,15 @@
         </div>
         <footer class="studio-navigator-foot">
           <div id="canvasWorkspace" class="canvas-workspace" hidden>
-            <button id="canvasWorkspaceNew" type="button" data-pe-button="ghost" data-pe-density="compact">New Canvas</button>
-            <button id="canvasWorkspaceClose" type="button" data-pe-button="ghost" data-pe-density="compact">Close Canvas</button>
+            <button id="canvasWorkspaceNew" type="button" data-pe-button="ghost" data-pe-density="compact">New</button>
+            <button id="canvasWorkspaceClose" type="button" data-pe-button="ghost" data-pe-density="compact">Close</button>
+            <button id="canvasWorkspaceCloseAll" type="button" data-pe-button="ghost" data-pe-density="compact">Close all</button>
             <span id="canvasWorkspaceStatus" role="status" aria-live="polite"></span>
             <button id="canvasWorkspaceRetry" type="button" data-pe-button="secondary" data-pe-density="compact" hidden>Retry</button>
           </div>
-          <button id="studioNavigatorManage" type="button" data-pe-button="ghost" data-pe-density="compact">
+          <button id="studioNavigatorManage" type="button" data-i18n-aria="studioNavigatorManageCanvases" aria-label="Manage Canvas Library" data-i18n-title="studioNavigatorManageCanvases" title="Manage Canvas Library" data-pe-button="ghost" data-pe-density="compact">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4Z"/><path d="M8 5V3h8v2M8 10h8M8 14h6"/></svg>
-            <span data-i18n="studioNavigatorManageCanvases">Manage Canvas Library</span>
+            <span data-i18n="studioNavigatorLibraryShort">Library</span>
           </button>
         </footer>
       </aside>

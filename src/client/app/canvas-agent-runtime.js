@@ -2379,6 +2379,7 @@
     canvasAgentInput.classList.toggle("canvas-agent-input-overflowing",overflowing);
   }
   function canvasAgentSetInputMode(mode,focus=true) {
+    canvasAgentFinishInkStroke();
     canvasAgent.inputMode=mode==="ink"?"ink":"text";
     const ink=canvasAgent.inputMode==="ink";
     canvasAgentInput.hidden=ink;
@@ -2394,6 +2395,7 @@
     canvasAgentSyncPromptSuggestions();
   }
   function canvasAgentClearInkDraft() {
+    canvasAgentFinishInkStroke();
     canvasAgentInkContext?.clearRect(0,0,canvasAgentInkCanvas.width,canvasAgentInkCanvas.height);
     canvasAgent.inkPresent=false;
     canvasAgent.inkStroke=null;
@@ -2406,8 +2408,11 @@
   }
   function canvasAgentInkPointerDown(event) {
     if (event.button!==0||canvasAgentInput.disabled) return;
+    if (event.pointerType === "touch" && canvasPencilWritingActive()) return;
+    if (canvasAgent.inkStroke && event.pointerType !== "pen") return;
+    canvasAgentFinishInkStroke();
     const point=canvasAgentInkPoint(event);
-    canvasAgent.inkStroke={pointerId:event.pointerId,point};
+    canvasAgent.inkStroke={pointerId:event.pointerId,pointerType:event.pointerType,point};
     canvasAgentInkCanvas.setPointerCapture?.(event.pointerId);
     canvasAgentInkContext.save();
     canvasAgentInkContext.fillStyle=state.inkColor||"#1f2937";
@@ -2435,10 +2440,15 @@
     stroke.point=point;
     event.preventDefault();
   }
+  function canvasAgentFinishInkStroke() {
+    const stroke = canvasAgent.inkStroke;
+    if (!stroke) return;
+    canvasAgent.inkStroke=null;
+    if (canvasAgentInkCanvas.hasPointerCapture?.(stroke.pointerId)) canvasAgentInkCanvas.releasePointerCapture(stroke.pointerId);
+  }
   function canvasAgentInkPointerEnd(event) {
     if (canvasAgent.inkStroke?.pointerId!==event.pointerId) return;
-    canvasAgent.inkStroke=null;
-    if (canvasAgentInkCanvas.hasPointerCapture?.(event.pointerId)) canvasAgentInkCanvas.releasePointerCapture(event.pointerId);
+    canvasAgentFinishInkStroke();
     event.preventDefault();
   }
   async function canvasAgentPrepareInkAttachment() {
@@ -4647,6 +4657,7 @@
     }else canvasAgentSyncSelection();
   }
   function closeCanvasAgent(options) {
+    canvasAgentFinishInkStroke();
     const focus=options?.focus!==false,animate=options?.animate!==false;
     restoreCanvasAgentAfterNavigation();
     canvasAgentCancelInitialAutoHide();

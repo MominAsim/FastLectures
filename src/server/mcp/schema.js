@@ -1,6 +1,6 @@
 "use strict";
 
-const { VISUAL_INSTRUCTIONS } = require("./guidance.js");
+const { VISUAL_TOOL_INSTRUCTIONS } = require("./guidance.js");
 
 const MAX_TITLE_CHARS = 120;
 const MAX_SUMMARY_CHARS = 2_000;
@@ -540,7 +540,7 @@ function presentationSchema({allowSize = true,allowInspect = false} = {}) {
   const properties = {
     intent:{type:"string",enum:[...PRESENTATION_INTENTS].filter(value => allowInspect || value !== "inspect"),default:"deliver"},
     role:{type:"string",enum:[...PRESENTATION_ROLES],default:"primary"},
-    ...(allowSize ? {size:{type:"string",enum:[...PRESENTATION_SIZES],default:"base"}} : {}),
+    ...(allowSize ? {size:{type:"string",enum:[...PRESENTATION_SIZES],default:"base",description:"Creation viewport: base 480×360 (one compact idea), wide 992×360, tall 480×752, large 992×752, page 1200×800 (desktop UI). Omit width/height when using a preset. Later source updates preserve user geometry."}} : {}),
     relativeTo:{type:"string",minLength:1,maxLength:128},
     relation:{type:"string",enum:[...PRESENTATION_RELATIONS]},
     attention:{type:"string",enum:[...PRESENTATION_ATTENTION]},
@@ -562,14 +562,14 @@ function presentationSchema({allowSize = true,allowInspect = false} = {}) {
 const TOOLS = [
   {
     name:"penecho_list_canvases",
-    description:"List PenEcho canvases whose browser tabs explicitly opted in to this local MCP instance.",
+    description:"List live opted-in Canvas connections across local PenEcho instances. Empty or partial discovery reports unavailable instances separately from instances with no opted-in Canvas.",
     inputSchema:{ type:"object", additionalProperties:false, properties:{} },
   },
   { name:"penecho_open_canvas", description:"Create or open a persistent PenEcho document through one exact opted-in browser connection. Supply documentId, locator, or both to verify an exact saved copy; create is exclusive. The current view changes only when show:true.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId","requestId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256},locator:{type:"object",additionalProperties:false,required:["location","id"],properties:{location:{type:"string",enum:[...STORAGE_LOCATIONS]},id:{type:"string",minLength:1,maxLength:512}}},create:{type:"boolean",default:false},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},requestId:{type:"string",minLength:1,maxLength:128},show:{type:"boolean",default:false}}} },
   { name:"penecho_find_canvases", description:"Find authorized document candidates and per-provider statuses through one exact opted-in browser connection. This does not guess across PenEcho hosts.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256}}} },
   {
     name:"penecho_start_session",
-    description:"Start session metadata on one exact opted-in PenEcho canvas. This creates no automatic progress board; boardObjectId may be null. Supply a concise task title; it also names an untitled Canvas without another model call. Follow the returned instructions for lightweight progress and useful spatial artifacts without delaying the first output; never send private chain-of-thought.",
+    description:"Start an owned session on an exact connection. Use a unique sessionKey per conversation and a stable client name; retain returned sessionId/documentId. Without documentId, a new key gets a separate background document when existing work is present. This does not create a browser tab or progress board; boardObjectId may be null. A concise title also names an untitled Canvas.",
     inputSchema:{ type:"object", additionalProperties:false, required:["canvasId", "instanceId", "title"], properties:{ canvasId:{type:"string",minLength:1,maxLength:128}, instanceId:{type:"string",minLength:1,maxLength:128}, documentId:{type:"string",minLength:1,maxLength:256}, takeover:{type:"boolean",default:false}, title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS}, client:{type:"string",minLength:1,maxLength:120}, sessionKey:{type:"string",minLength:1,maxLength:128} } },
   },
   { name:"penecho_list_files", description:"List bounded virtual public files for the session document. Paths are Canvas virtual paths, never host filesystem paths.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",default:"/",maxLength:1024},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},offset:{type:"integer",minimum:0,default:0},limit:{type:"integer",minimum:1,maximum:MAX_FILES_PER_PAGE,default:50}}} },
@@ -586,7 +586,7 @@ const TOOLS = [
   },
   {
     name:"penecho_present_widget",
-    description:"Present or inspect HTML in the exact PenEcho session. presentation expresses intent, hierarchy, preset viewport, stable relative placement, and attention. intent:inspect requires capture:true and returns one ephemeral pixel-verified render without creating a Canvas object. Other calls update the stable artifact; ordinary presentation stays screenshot-free. " + VISUAL_INSTRUCTIONS,
+    description:"Present HTML in the exact session using stable artifactId. presentation controls purpose, placement and attention. intent:inspect requires capture:true and returns an ephemeral render without a Canvas object. " + VISUAL_TOOL_INSTRUCTIONS,
     inputSchema:{ type:"object", additionalProperties:false, required:["sessionId","artifactId","title","html"], properties:{sessionId:{type:"string",minLength:1,maxLength:128},artifactId:{type:"string",minLength:1,maxLength:128},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},html:{type:"string",minLength:1,maxLength:MAX_HTML_CHARS},width:{type:"number",minimum:300,maximum:4096},height:{type:"number",minimum:200,maximum:4096},capture:{type:"boolean",default:false},quality:{type:"string",enum:["basic","detail"]},presentation:presentationSchema({allowInspect:true})}, allOf:[{if:{required:["quality"]},then:{required:["capture"],properties:{capture:{const:true}}}},{if:{properties:{presentation:{properties:{intent:{const:"inspect"}},required:["intent"]}},required:["presentation"]},then:{required:["capture"],properties:{capture:{const:true}}}},{if:{properties:{presentation:{required:["size"]}},required:["presentation"]},then:{not:{anyOf:[{required:["width"]},{required:["height"]}]}}}] },
   },
   {
@@ -609,7 +609,7 @@ const TOOLS = [
     description:"Read bounded user feedback added to the exact PenEcho session since its start baseline or a supplied cursor. This does not consume feedback. A bounded screenshot is returned with changes by default; set capture:false for metadata only.",
     inputSchema:{ type:"object", additionalProperties:false, required:["sessionId"], properties:{sessionId:{type:"string",minLength:1,maxLength:128},after:{type:"integer",minimum:0},limit:{type:"integer",minimum:1,maximum:MAX_FEEDBACK_ENTRIES,default:20},capture:{type:"boolean",default:true}} },
   },
-  { name:"penecho_inspect_session", description:"Inspect one owned PenEcho session and its browser state.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128}}} },
+  { name:"penecho_inspect_session", description:"Inspect an owned session, applied browser state and bounded attention metadata (pending content, view blocker, scale). No screenshot; use to diagnose a specific issue, not idle polling.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128}}} },
   { name:"penecho_close_session", description:"Close one owned PenEcho session on its exact canvas.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128}}} },
 ];
 

@@ -171,3 +171,54 @@ test('visible but unreadably zoomed-out content still receives readable framing'
  await h.mcpExecute('mcp_present_widget',{sessionId:'one',artifactId:'main',title:'Result',html:'<p>Readable result</p>'},{});h.mcpFlushView();
  assert.equal(h.context.frames.length,1);h.mcpDisconnect();
 });
+
+test('inspect reports bounded attention state and the active view guard',async()=>{
+ const h=harness();await h.mcpExecute('mcp_start_session',{sessionId:'one',title:'Attention'},{});
+ h.mcpRuntime.pendingView.set('one',new Set(['preview-a','preview-b']));h.mcpRuntime.viewPaused=true;h.state.scale=.625;
+ const reset=()=>{
+  h.context.document.hidden=false;h.context.document.activeElement=null;h.context.document.getElementById=()=>null;
+  Object.assign(h.state,{navigationLocked:false,drawing:false,panGesture:null,touchGesture:null,widgetGesture:null,imageGesture:null,selectionGesture:null,animationGesture:null,pointers:new Map(),canvasAgentNavigationPointerIds:new Set(),textEditors:new Map()});
+  h.mcpRuntime.queued=0;
+ };
+ reset();h.state.pointers.set(99,{hover:true});
+ const idle=await h.mcpExecute('mcp_inspect_session',{sessionId:'one'},{});
+ assert.equal(idle.attention.pendingObjects,2);assert.equal(idle.attention.paused,true);assert.equal(idle.attention.blockedBy,null);assert.equal(idle.attention.canvasScale,.625);
+ const cases=[
+  ['page hidden',()=>{h.context.document.hidden=true;},'page-hidden'],
+  ['navigation lock',()=>{h.state.navigationLocked=true;},'navigation-locked'],
+  ['active pointer',()=>{h.state.canvasAgentNavigationPointerIds.add(7);},'active-gesture'],
+  ['active gesture',()=>{h.state.panGesture={active:true};},'active-gesture'],
+  ['text editing',()=>{h.state.textEditors.set('editor',{});},'text-editing'],
+  ['widget interaction',()=>{h.context.document.activeElement={tagName:'IFRAME'};},'widget-interaction'],
+  ['settings open',()=>{h.context.document.getElementById=id=>id==='settingsLayer'?{hidden:false}:null;},'settings-open'],
+  ['canvas queue',()=>{h.mcpRuntime.queued=2;},'canvas-queue'],
+ ];
+ for(const [label,setup,expected] of cases){reset();setup();const result=await h.mcpExecute('mcp_inspect_session',{sessionId:'one'},{});assert.equal(result.attention.blockedBy,expected,label);assert.equal(result.attention.pendingObjects,2,label);assert.equal(result.attention.paused,true,label);assert.equal(result.attention.canvasScale,.625,label);}
+ h.mcpDisconnect();
+});
+
+test('manual show focuses visible content but never bypasses view guards',async()=>{
+ const h=harness();await h.mcpExecute('mcp_start_session',{sessionId:'one',title:'Show'},{});h.mcpRuntime.ready=true;h.mcpRuntime.socket={readyState:1,close(){}};
+ h.context.viewportRect=()=>({x:0,y:0,w:1000,h:900});
+ const session=h.mcpRuntime.sessions.get('one'),widget={id:'preview',x:100,y:100,w:480,h:360};h.widgets.set(widget.id,widget);session.artifacts.set('preview',{objectId:widget.id,title:'Preview'});
+ const reset=()=>{
+  h.context.document.hidden=false;h.context.document.activeElement=null;h.context.document.getElementById=()=>null;
+  Object.assign(h.state,{navigationLocked:false,drawing:false,panGesture:null,touchGesture:null,widgetGesture:null,imageGesture:null,selectionGesture:null,animationGesture:null,pointers:new Map(),canvasAgentNavigationPointerIds:new Set(),textEditors:new Map(),scale:1,panX:0,panY:0});
+  h.mcpRuntime.queued=0;h.mcpRuntime.viewPaused=false;h.mcpRuntime.pendingView.set('one',new Set([widget.id]));h.context.frames.length=0;
+ };
+ reset();h.mcpFlushView(false);assert.equal(h.context.frames.length,0,'automatic flush leaves already-visible content in place');assert.equal(h.mcpRuntime.pendingView.size,0);
+ reset();h.mcpFlushView(true);assert.equal(h.context.frames.length,1,'manual Show explicitly focuses visible content');assert.equal(h.mcpRuntime.pendingView.size,0);
+ reset();h.state.pointers.set(99,{hover:true});h.mcpFlushView(true);assert.equal(h.context.frames.length,1,'hover bookkeeping must not block manual Show');assert.equal(h.mcpRuntime.pendingView.size,0);
+ const guards=[
+  ['page hidden',()=>{h.context.document.hidden=true;}],
+  ['navigation lock',()=>{h.state.navigationLocked=true;}],
+  ['active pointer',()=>{h.state.canvasAgentNavigationPointerIds.add(3);}],
+  ['active gesture',()=>{h.state.panGesture={active:true};}],
+  ['text editing',()=>{h.state.textEditors.set('editor',{});}],
+  ['widget interaction',()=>{h.context.document.activeElement={tagName:'IFRAME'};}],
+  ['settings open',()=>{h.context.document.getElementById=id=>id==='settingsLayer'?{hidden:false}:null;}],
+  ['canvas queue',()=>{h.mcpRuntime.queued=2;}],
+ ];
+ for(const [label,setup] of guards){reset();setup();h.mcpFlushView(true);assert.equal(h.context.frames.length,0,`${label}: Show must not frame while blocked`);assert.equal(h.mcpRuntime.pendingView.get('one')?.size,1,`${label}: pending object must remain`);clearTimeout(h.mcpRuntime.layoutTimer);h.mcpRuntime.layoutTimer=0;}
+ h.mcpDisconnect();
+});

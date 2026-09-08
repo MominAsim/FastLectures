@@ -1,6 +1,41 @@
 // Pointer and control bindings, portable snapshots, and application startup.
   const ERASER_TOOL_MENU_MS = 5000;
   let eraserToolMenuTimer = 0;
+  // Derive rejection from live strokes, never a remembered Pencil mode.
+  function canvasPencilWritingActive() {
+    return state.drawing?.pointerType === "pen" || canvasAgent.inkStroke?.pointerType === "pen";
+  }
+  function rejectTouchDuringPencilWriting(event) {
+    if (event.pointerType !== "touch" || !canvasPencilWritingActive()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+  function finishInterruptedPencilWriting(event) {
+    if (event.type === "visibilitychange" && !document.hidden) return;
+    if (event.type === "pointerdown" && event.pointerType === "touch") return;
+    const all = ["blur", "pagehide", "visibilitychange", "pointerdown"].includes(event.type),
+      released = event.type !== "pointermove" || event.pointerType === "pen" && Number(event.buttons) === 0;
+    if (!released) return;
+    const drawing = state.drawing;
+    if (drawing?.pointerType === "pen" && (all || drawing.id === event.pointerId)) {
+      state.pointers.delete(drawing.id);
+      canvasAgentNavigationPointerDidEnd(drawing.id);
+      finishDrawing("pen");
+      if (drawing.erase) {
+        state.pointerPreview = null;
+        requestInteractionLayerRender();
+      }
+    }
+    const ink = canvasAgent.inkStroke;
+    if (ink?.pointerType === "pen" && (all || ink.pointerId === event.pointerId)) canvasAgentFinishInkStroke();
+  }
+  for (const type of ["pointerdown", "pointermove"]) {
+    window.addEventListener(type, rejectTouchDuringPencilWriting, { capture:true, passive:false });
+  }
+  for (const type of ["pointerdown", "pointerup", "pointercancel", "lostpointercapture", "pointermove", "blur", "pagehide"]) {
+    window.addEventListener(type, finishInterruptedPencilWriting, true);
+  }
+  document.addEventListener("visibilitychange", finishInterruptedPencilWriting);
   function canvasPenEraserActive(event) {
     return event?.pointerType === "pen"
       && (Number(event.button) === 5 || (Number(event.buttons) & 32) === 32);
@@ -216,13 +251,14 @@
     return false;
   }
   function handleCanvasPointerDown(e) {
+    if (e.target?.closest?.(".canvas-widget")?.dataset.widgetId === state.interactingWidgetId) return;
     view.classList.remove("is-wheel-navigating");
     state.handToolbarTap = null;
     if (!state.viewMode && state.mode === "hand" && !state.spacePan && !e.altKey && e.button === 0 && !state.touches.size) {
       const widget = canvasWidgetAtEvent(e);
       if (widget) state.handToolbarTap = { id:e.pointerId, widget, x:e.clientX, y:e.clientY };
     }
-    if (e.pointerType === "touch" && state.drawing?.id && state.drawing.pointerType === "pen") return;
+    if (e.pointerType === "touch" && canvasPencilWritingActive()) return;
     if (e.pointerType === "mouse" && ![0, 1].includes(e.button)) return;
     e.preventDefault();
     if (state.viewMode) {
@@ -588,6 +624,7 @@
     event.preventDefault();
     event.stopPropagation();
     setCanvasNavigationLocked(!state.navigationLocked);
+    void window.PenEchoStudioNavigator?.flushMcpFollow?.();
   });
   function enterAIDraftHandMode() {
     if (state.mode !== "select" && state.aiDraftReturnMode === null) state.aiDraftReturnMode = state.mode;
@@ -673,6 +710,7 @@
     const eraserMode = ["eraser", "area-eraser"].includes(mode),
       button = eraserMode ? eraserToolButton : document.querySelector(`[data-mode="${mode}"]`);
     if (!button) return;
+    if (mode !== state.mode && state.drawing) finishDrawing(state.drawing.pointerType);
     if (state.widgetGesture) finishInterruptedWidgetGesture({ type:"tool-change" });
     if (eraserMode) {
       state.eraserMode = mode;
@@ -1334,6 +1372,7 @@
     });
   });
   document.querySelector("#newCanvasClose").onclick = () => {
+    pendingCanvasTransition?.onCancel?.();
     pendingCanvasTransition = null;
     window.PenEchoStudioNavigator?.cancelPendingConversation?.();
     document.querySelector("#newCanvasDialog").close("cancel");
@@ -1346,6 +1385,7 @@
   document.querySelector("#newCanvasDialog").addEventListener("cancel", (event) => {
     if (event.currentTarget.dataset.busy === "true") event.preventDefault();
     else {
+      pendingCanvasTransition?.onCancel?.();
       pendingCanvasTransition = null;
       window.PenEchoStudioNavigator?.cancelPendingConversation?.();
     }

@@ -1912,13 +1912,16 @@ export function publicSessionEvent(event, session) {
       session.decisionFeedbackCallIds.delete(feedbackCallId)
       return null
     }
+    const resultBlocks=Array.isArray(data.message?.content)?data.message.content.filter(block=>block?.type==='tool-result'&&block.toolCallId===data.message?.source?.callId):[]
+    const resultText=messageText(data.message)||resultBlocks.map(block=>messageText(block)).join('\n')
+    const failed=resultBlocks.some(block=>block.isError===true)
     return {
       kind:'tool_result',
       turn:data.turn,
       step:data.step,
       callId:data.message?.source?.callId,
-      text:redactRuntimePath(messageText(data.message), session),
-      error:redactPublicProjectValue(data.error || null, session),
+      text:redactRuntimePath(resultText, session),
+      error:redactPublicProjectValue(data.error || (failed?{message:resultText||'Canvas tool failed.'}:null), session),
     }
   }
   if (event?.type === 'turn/start') return { kind:'turn_start', turn:data.turn }
@@ -3084,8 +3087,12 @@ function canonicalizeCanvasAgentDrawing(value) {
   return changed?{...drawing,items}:drawing
 }
 
-function createItemSchema(session) {
-  const htmlPluginIds=['general',...session.widgetCapabilities.privatePlugins.map(plugin=>plugin.id)]
+export function createItemSchema(session) {
+  const privatePluginIds=session.widgetCapabilities.privatePlugins.map(plugin=>plugin.id).filter(id=>id!=='general')
+  const htmlProperties={
+    type:{ type:'string', const:'widget', required:true }, pluginId:{ type:'string', const:'general', required:true }, widgetType:{ type:'string', const:'html_widget', required:true }, title:{ type:'string', required:true },
+    html:{ type:'string', required:true }, copyText:{ type:'string' }, copyLabel:{ type:'string' }, refreshSeconds:{ type:'integer' }, width:{ type:'number' }, height:{ type:'number' }, placement:PLACEMENT_SCHEMA,
+  }
   const oneOf=[
     {
       type:'object', additionalProperties:false,
@@ -3105,14 +3112,25 @@ function createItemSchema(session) {
     },
     {
       type:'object', additionalProperties:false,
+      properties:htmlProperties,
+    },
+    {
+      type:'object', additionalProperties:false,
       properties:{
-        type:{ type:'string', const:'widget', required:true }, pluginId:{ type:'string', enum:htmlPluginIds, required:true }, widgetType:{ type:'string', const:'html_widget', required:true }, title:{ type:'string', required:true },
-        html:{ type:'string', required:true }, sourceFormat:{ type:'string' }, frameworkVersion:{ type:'string' },
-        copyText:{ type:'string' }, copyLabel:{ type:'string' }, refreshSeconds:{ type:'integer' }, width:{ type:'number' }, height:{ type:'number' }, placement:PLACEMENT_SCHEMA,
+        type:htmlProperties.type, pluginId:htmlProperties.pluginId, widgetType:htmlProperties.widgetType, title:htmlProperties.title, html:htmlProperties.html,
+        sourceFormat:{ type:'string', const:VISUAL_EXPLORER_SOURCE_FORMAT, required:true }, frameworkVersion:{ type:'string', const:VISUAL_EXPLORER_FRAMEWORK_VERSION, required:true },
+        refreshSeconds:{ type:'integer', const:0, required:true },
+        width:{ type:'number', required:true, description:'Finite positive width, greater than zero; reuse the inspected proposal on a nonempty Canvas.' },
+        height:{ type:'number', required:true, description:'Finite positive height, greater than zero; reuse the inspected proposal on a nonempty Canvas.' },
+        placement:{ ...PLACEMENT_SCHEMA, required:true, properties:{ ...PLACEMENT_SCHEMA.properties, mode:{ type:'string', enum:['auto','absolute'], required:true, description:'auto on the authoritative empty Canvas; otherwise reuse the inspected absolute placement.' } } },
         deliveryMode:{ type:'string', enum:['progressive'], description:'One Visual Explorer only. Use items[0].deliveryMode, never canvas_create.deliveryMode.' },
       },
     },
   ]
+  if(privatePluginIds.length)oneOf.push({
+    type:'object', additionalProperties:false,
+    properties:{ ...htmlProperties, pluginId:{ type:'string', enum:privatePluginIds, required:true }, sourceFormat:{ type:'string' }, frameworkVersion:{ type:'string' } },
+  })
   oneOf.push({
       type:'object', additionalProperties:false,
       properties:{ type:{ type:'string', const:'image', required:true }, attachmentId:{ type:'string', required:true }, width:{ type:'number' }, height:{ type:'number' }, placement:PLACEMENT_SCHEMA },

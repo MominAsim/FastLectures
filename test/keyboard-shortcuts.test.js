@@ -47,7 +47,8 @@ test("shortcut defaults cover Agent focus, save, history, editing, and workspace
   }
   assert.doesNotMatch(source, /settingsShortcutGroupTools|group:"tools"|defaultChord:"g"|defaultChord:"Mod\+n"/);
   const perform = functionSource(source, "keyboardShortcutPerform");
-  assert.match(perform, /openCanvasAgent\(\{ focus:true, animate:opening \}\)/);
+  assert.match(perform, /if \(opening\) openCanvasAgent\(\{ focus:false, animate:true \}\)/);
+  assert.match(perform, /else closeCanvasAgent\(\{ focus:false \}\)/);
   assert.match(perform, /void saveCurrentCanvas\(\)/);
   assert.match(perform, /querySelector\(`\[data-action="\$\{commandId\}"\]`\)\?\.click\(\)/);
   assert.doesNotMatch(perform, /selectCanvasToolMode|gridToggle|newCanvasBtn/);
@@ -74,7 +75,7 @@ test("shortcut recording rejects conflicts, supports clearing, and protects text
   assert.match(handler, /event\.key === "Escape"[\s\S]*?settingsShortcutCancelled/);
   assert.match(handler, /event\.key === "Backspace" \|\| event\.key === "Delete"[\s\S]*?keyboardShortcutAssign\(keyboardShortcutRecordingId, ""\)/);
   assert.match(context, /keyboardShortcutBlockingSurfaceOpen\(\)/);
-  assert.match(context, /command\.id === "focus-agent"[\s\S]*?!canvasAgentAvailable\(\)[\s\S]*?event\.target\?\.id !== "canvasAgentInput"/);
+  assert.match(context, /command\.id === "focus-agent"[\s\S]*?!canvasAgentAvailable\(\)[\s\S]*?!keyboardShortcutInteractiveTarget\(event\.target\)/);
   assert.match(context, /keyboardShortcutTextEditingTarget\(event\.target\)\) return command\.id === "save-canvas"/);
   assert.match(source, /window\.addEventListener\("keydown", handleKeyboardShortcutKeydown, true\)/);
 });
@@ -88,4 +89,22 @@ test("shortcut settings are localized in English and Chinese", () => {
     assert.match(core, new RegExp(`\\b${key}:\\s*"`));
     assert.match(zh, new RegExp(`\\b${key}:\\s*"`));
   }
+});
+
+test("Agent shortcut toggles twice without stealing focus and yields to content", () => {
+  const source=read("src/client/app/keyboard-shortcuts.js"), vm=require("node:vm"), calls=[];
+  const state={interactingWidgetId:null}, panel={hidden:true,contains:target=>Boolean(target?.inPanel)};
+  const context={state,settings:{},canvasAgentPanel:panel,document:{body:{classList:{contains:()=>!panel.hidden}}},
+    keyboardShortcutBlockingSurfaceOpen:()=>false,canvasAgentAvailable:()=>true,
+    keyboardShortcutInteractiveTarget:target=>Boolean(target?.editable||target?.button),
+    openCanvasAgent:options=>{calls.push(['open',options.focus]);panel.hidden=false;},
+    closeCanvasAgent:options=>{calls.push(['close',options.focus]);panel.hidden=true;}};
+  const api=vm.runInNewContext(`${functionSource(source,'keyboardShortcutCanRun')}\n${functionSource(source,'keyboardShortcutPerform')}\n({keyboardShortcutCanRun,keyboardShortcutPerform})`,context);
+  const command={id:'focus-agent'};
+  assert.equal(api.keyboardShortcutCanRun(command,{target:{}},'Tab'),true);
+  api.keyboardShortcutPerform(command.id);api.keyboardShortcutPerform(command.id);
+  assert.deepEqual(calls,[['open',false],['close',false]]);
+  for(const target of [{editable:true},{button:true},{inPanel:true}])assert.equal(api.keyboardShortcutCanRun(command,{target},'Tab'),false);
+  state.interactingWidgetId='widget';assert.equal(api.keyboardShortcutCanRun(command,{target:{}},'Tab'),false);
+  state.interactingWidgetId=null;assert.equal(api.keyboardShortcutCanRun(command,{target:{},defaultPrevented:true},'Tab'),false);
 });

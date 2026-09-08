@@ -516,8 +516,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsShortcutResetDone: "Shortcut reset for {command}.",
       settingsShortcutResetAllDone: "All shortcuts were reset.",
       settingsShortcutCancelled: "Shortcut change cancelled.",
-      shortcutFocusAgent: "Focus PenEcho Agent",
-      shortcutFocusAgentHelp: "Open Agent when needed and move focus to the conversation box.",
+      shortcutFocusAgent: "Toggle PenEcho Agent",
+      shortcutFocusAgentHelp: "Open or close Agent while Canvas has focus.",
       shortcutSaveCanvasHelp: "Save or overwrite the current Canvas using its existing location.",
       shortcutUndoHelp: "Undo the latest Canvas change.",
       shortcutRedoHelp: "Redo the latest undone Canvas change.",
@@ -812,6 +812,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       studioNavigatorMessageCount: "{count} messages",
       studioNavigatorManageAgents: "View all recent work",
       studioNavigatorManageCanvases: "Manage Canvas Library",
+      studioNavigatorLibraryShort: "Library",
       studioNavigatorRestored: "Restored {canvas} · continuing {conversation}",
       studioNavigatorDeleteSession: "Delete session “{name}”",
       studioNavigatorDeleteSessionTitle: "Delete session?",
@@ -4578,6 +4579,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       state.navigationTimer = 0;
       state.navigationDeadline = 0;
       view.classList.remove("is-navigating", "is-wheel-navigating");
+      void window.PenEchoStudioNavigator?.flushMcpFollow?.();
     };
     state.navigationTimer = setTimeout(hide, NAVIGATION_HINT_VISIBLE_MS);
   }

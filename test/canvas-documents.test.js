@@ -374,6 +374,50 @@ test("persisted conversation bindings reopen the same document and artifact iden
   assert.equal(second.canvasDocuments.activeId, "another-visible-document");
 });
 
+test("partial reconnect preserves other bindings and closed sessions do not revive", async () => {
+  const records = new Map(), first = harness({records});
+  const opened = await createHidden(first, "restore-pair", "Pair");
+  for (const key of ["a", "b"]) {
+    await startHidden(first, opened.documentId, `old-${key}`, key);
+    await first.canvasDocumentsExecute("mcp_present_widget", {sessionId:`old-${key}`,artifactId:`artifact-${key}`,title:key,html:`<p>${key}</p>`}, {});
+    await first.canvasDocumentsExecute("mcp_update_session", {sessionId:`old-${key}`,summary:`Saved ${key}`,steps:[{id:key,label:key,status:"done"}],events:[{id:key,text:`Evidence ${key}`,kind:"evidence"}]}, {});
+  }
+  const savedB = JSON.parse(JSON.stringify(records.get(opened.documentId).workspace.sessions.find(s => s.sessionKey === "b")));
+  const second = harness({records,activeId:"second-visible"});
+  const resumedA = await startHidden(second, opened.documentId, "new-a", "a");
+  assert.equal(resumedA.progress.summary, "Saved a");
+  await second.canvasDocumentsExecute("mcp_update_session", {sessionId:"new-a",summary:"Updated a"}, {});
+  assert.equal(records.get(opened.documentId).workspace.sessions.length, 2);
+  const third = harness({records,activeId:"third-visible"});
+  const resumedB = await startHidden(third, opened.documentId, "new-b", "b");
+  const inspectedB = await third.canvasDocumentsExecute("mcp_inspect_session", {sessionId:"new-b"}, {});
+  assert.equal(resumedB.documentId, opened.documentId);
+  for (const field of ["summary", "steps", "events"]) {
+    assert.equal(JSON.stringify(resumedB.progress[field]), JSON.stringify(savedB[field]));
+    assert.equal(JSON.stringify(inspectedB[field]), JSON.stringify(savedB[field]));
+  }
+  assert.equal(inspectedB.artifacts[0].objectId, savedB.artifacts[0][1].objectId);
+  await third.canvasDocumentsExecute("mcp_close_session", {sessionId:"new-b"}, {});
+  const fourth = harness({records,activeId:"fourth-visible"});
+  const closedB = await startHidden(fourth, opened.documentId, "after-close-b", "b");
+  assert.equal(closedB.progress.summary, "");
+  const resumedAgainA = await startHidden(fourth, opened.documentId, "again-a", "a");
+  assert.equal(resumedAgainA.progress.summary, "Updated a");
+});
+
+test("keyless sessions stay independent and do not restore a saved binding", async () => {
+  const records = new Map(), first = harness({records});
+  const opened = await createHidden(first, "keyless-document", "Transient");
+  await startHidden(first, opened.documentId, "keyless-one", "");
+  await first.canvasDocumentsExecute("mcp_update_session", {sessionId:"keyless-one",summary:"Transient progress"}, {});
+  const samePage = await startHidden(first, opened.documentId, "keyless-two", "");
+  assert.equal(samePage.progress.summary, "");
+  const second = harness({records,activeId:"keyless-visible"});
+  const reopened = await startHidden(second, opened.documentId, "keyless-three", "");
+  assert.equal(reopened.progress.summary, "");
+  assert.equal(second.canvasDocuments.records.get(opened.documentId).bindings.length, 0);
+});
+
 test("unseen background updates survive reload and clear persistently when shown", async () => {
   const records = new Map(), first = harness({ records });
   const opened = await createHidden(first, "unseen-persist", "Unread");
@@ -580,4 +624,41 @@ test("closing after Save as removes both workspace handles but preserves unrelat
   assert.equal(h.canvasDocuments.records.has(copyDoc.id),false);
   assert.equal(h.canvasDocuments.records.has(original.id),false);
   assert.equal(h.canvasDocuments.records.size,1);
+});
+
+test("background Widgets survive real record validation, persistence and restore, including older empty copy fields", async () => {
+  const records = new Map();
+  function realWidgetHarness(options) {
+    const h = harness(options);
+    Object.assign(h.context, {
+      diagramRuntime: () => null, n: (value, min = 0, max = 32768) => Number.isFinite(value) && value >= min && value <= max,
+      MAX_WIDGET_HTML_LENGTH: 800000, MAX_WIDGET_CONTENT_DIMENSION: 32768, MAX_WIDGET_COPY_TEXT_LENGTH: 800000,
+      MAX_VISIBLE_WIDGETS: 100, PRIVATE_WIDGET_FAVORITE_ID: /^[0-9a-f-]{36}$/i,
+      newPrivateWidgetFavoriteId: () => crypto.randomUUID(), clearHandToolbarTargets: () => {},
+      activeWidgetRefinement: () => false, clearWidgetRefineCandidate: () => {}, pluginEnabled: () => true,
+      mountWidget: () => { h.control.mounts++; },
+    });
+    vm.runInContext(["widgetRecord", "restoreWidgets"].map(name => clientFunction("canvas-runtime.js", name)).join("\n"), h.context);
+    return h;
+  }
+  const first = realWidgetHarness({ records });
+  const opened = await createHidden(first, "real-widget-create", "Background");
+  await startHidden(first, opened.documentId, "real-widget-session");
+  const created = await first.canvasDocumentsExecute("mcp_present_widget", {sessionId:"real-widget-session",artifactId:"artifact",title:"Content",html:"<p>First</p>"}, {});
+  await first.canvasDocumentsExecute("mcp_present_widget", {sessionId:"real-widget-session",artifactId:"artifact",title:"Content",html:"<p>Retained</p>"}, {});
+  assert.equal(first.control.mounts, 0);
+  const stored = records.get(opened.documentId).stored.item.widgets;
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].html, "<p>Retained</p>");
+  assert.equal(Object.hasOwn(stored[0], "copyText"), false);
+  assert.equal(Object.hasOwn(stored[0], "copyLabel"), false);
+  // Older workspace entries contain runtime defaults rather than optional omissions.
+  stored[0].copyText = ""; stored[0].copyLabel = "";
+  const reloaded = realWidgetHarness({records, activeId:"other-visible"});
+  await reloaded.canvasDocumentsReady();
+  await reloaded.canvasDocumentsExecute("mcp_open_canvas", {documentId:opened.documentId,requestId:"real-widget-show",show:true}, {});
+  assert.equal(reloaded.state.widgets.length, 1);
+  assert.equal(reloaded.state.widgets[0].id, created.objectId);
+  assert.equal(reloaded.state.widgets[0].html, "<p>Retained</p>");
+  assert.equal(reloaded.control.mounts, 1);
 });

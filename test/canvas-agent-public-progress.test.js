@@ -3,6 +3,30 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
+test("tool results preserve ordinary errors, structured Harness errors, and matching call identity", async () => {
+  const { publicSessionEvent } = await import("../src/server/canvas-agent/runtime.mjs");
+  const { createToolResultMessage } = await import("@deepseek-ai/dsh-llm");
+  const session = { projectRuntimeDirectory:"/private/runtime-test" };
+  const project = (isError, text, error) => publicSessionEvent({ type:"tool/result", data:{
+    turn:2, step:3,
+    message:createToolResultMessage({ callId:"create-2", isError, content:[{ type:"text", text }] }),
+    ...(error ? { error } : {}),
+  } }, session);
+  const ordinary = project(true, "Error: missing placement /private/runtime-test/item");
+  assert.equal(ordinary.callId, "create-2");
+  assert.equal(ordinary.text, "Error: missing placement <project-runtime>/item");
+  assert.deepEqual(ordinary.error, { message:ordinary.text });
+  const structured = project(true, "Error: invalid arguments", { name:"ToolInputError", code:"INVALID_ARGUMENTS" });
+  assert.deepEqual(structured.error, { name:"ToolInputError", code:"INVALID_ARGUMENTS" });
+  const success = project(false, "Created");
+  assert.equal(success.error, null);
+  assert.equal(success.text, "Created");
+  const mismatched = publicSessionEvent({ type:"tool/result", data:{ message:{ source:{ callId:"correct" }, content:[{ type:"tool-result", toolCallId:"other", isError:true, content:[{type:"text",text:"wrong call"}] }] } } }, session);
+  assert.equal(mismatched.callId, "correct");
+  assert.equal(mismatched.error, null);
+  assert.equal(mismatched.text, "");
+});
+
 test("API progress reaches the existing chat stream before tools and remains in completed messages", async () => {
   const { publicSessionEvent } = await import("../src/server/canvas-agent/runtime.mjs");
   const session = {}, events = [];

@@ -88,6 +88,15 @@ test("presentation semantics normalize defaults, viewport presets, and legacy di
     presentation:{intent:"compare",role:"alternative",size:"large",relativeTo:"source",relation:"beside",attention:"quiet"},
   });
   assert.deepEqual(validateToolArguments("penecho_present_widget", {...widget,width:700}), {...widget,width:700,height:360});
+  assert.deepEqual(validateToolArguments("penecho_present_widget", {...widget,presentation:{size:"page"}}), {
+    ...widget,
+    width:1200,
+    height:800,
+    presentation:{intent:"deliver",role:"primary",size:"page",attention:"normal"},
+  });
+  const mobile = {...widget,width:390,height:844};
+  assert.deepEqual(validateToolArguments("penecho_present_widget", mobile), mobile);
+  assert.throws(() => validateToolArguments("penecho_present_widget", {...mobile,presentation:{size:"page"}}), /cannot be combined/);
   assert.deepEqual(validateToolArguments("penecho_plot", {sessionId:"s",artifactId:"p",title:"P",expression:"x",presentation:{intent:"review",size:"page"}}), {
     sessionId:"s",artifactId:"p",title:"P",expression:"x",width:1200,height:800,
     presentation:{intent:"review",role:"primary",size:"page",attention:"request"},
@@ -97,6 +106,9 @@ test("presentation semantics normalize defaults, viewport presets, and legacy di
   });
   const presentationSchema = TOOLS.find(entry => entry.name === "penecho_present_widget").inputSchema.properties.presentation;
   assert.deepEqual(presentationSchema.properties.intent.enum, ["explain","deliver","compare","review","inspect"]);
+  assert.match(presentationSchema.properties.size.description, /base 480×360/);
+  assert.match(presentationSchema.properties.size.description, /page 1200×800 \(desktop UI\)/);
+  assert.equal(TOOLS.find(entry => entry.name === "penecho_plot").inputSchema.properties.presentation.properties.size.description, presentationSchema.properties.size.description);
   assert.equal(presentationSchema.additionalProperties, false);
 });
 

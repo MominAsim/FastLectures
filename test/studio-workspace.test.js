@@ -28,7 +28,7 @@ test("unread dots update in place and opening the sidebar does not acknowledge u
   const context=vm.createContext({canvasDocuments:{records:new Map([[doc.id,doc]]),activeId:"other",switching:false,error:null},
     studioNavigatorToggle:toggle,document:{getElementById:()=>hint},studioNavigator:{querySelectorAll:()=>[row]},
     canvasDocumentsCopy:en=>en,studioNavigatorIsOpen:()=>open,renderActiveStudioNavigatorHistory:()=>{if(open)renders++;},
-    studioNavigatorHistoryDirty:false,
+    studioNavigatorHistoryDirty:false,syncStudioMcpActions:()=>{},
   });
   vm.runInContext(`let studioWorkspaceSignature="";${extract("studioWorkspaceChanged")}`,context);
   context.studioWorkspaceChanged();assert.equal(toggle.dataset.workspaceUpdates,"true");assert.equal(renders,0);

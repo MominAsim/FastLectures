@@ -222,7 +222,8 @@
         return;
       }
       studioNavigatorTransitionHandler = event => {
-        if (event.target === studioNavigator && event.propertyName === "transform") settle();
+        const property = studioNavigatorIsMcpDocked() ? "opacity" : "transform";
+        if (event.target === studioNavigator && event.propertyName === property) settle();
       };
       studioNavigator.addEventListener("transitionend", studioNavigatorTransitionHandler);
       studioNavigatorOpenTimer = setTimeout(settle, STUDIO_NAVIGATOR_SETTLE_FALLBACK_MS);
@@ -265,6 +266,17 @@
     function studioNavigatorCanvasMeta(current, open, location, updatedAt) {
       return [current ? t("studioNavigatorCurrent") : open ? t("studioNavigatorOpened") : t("studioNavigatorNotOpened"),
         location ? snapshotLocationLabel(location) : "", studioNavigatorMetaTime(updatedAt)].filter(Boolean).join(" · ");
+    }
+    function studioNavigatorRenderCanvasMeta(meta, current, open, location, updatedAt) {
+      const label = studioNavigatorCanvasMeta(current, open, location, updatedAt);
+      meta.title = label;
+      meta.setAttribute("aria-label", label);
+      if (!open || current) { meta.textContent = label; return; }
+      const dot = document.createElement("span");
+      dot.className = "studio-navigator-open-dot";
+      dot.textContent = "●";
+      dot.setAttribute("aria-hidden", "true");
+      meta.replaceChildren(dot, document.createTextNode(" " + [location ? snapshotLocationLabel(location) : "", studioNavigatorMetaTime(updatedAt)].filter(Boolean).join(" · ")));
     }
     function syncStudioNavigatorCurrentSource() {
       const location=String(snapshotItemsLocation||"");
@@ -494,8 +506,7 @@
       headingBody.className="studio-navigator-item-body";
       name.textContent=group.name;
       name.title=group.name;
-      meta.textContent=studioNavigatorCanvasMeta(group.current,Boolean(group.documentId),group.location,group.updatedAt);
-      meta.title=meta.textContent;
+      studioNavigatorRenderCanvasMeta(meta,group.current,Boolean(group.documentId),group.location,group.updatedAt);
       headingBody.append(name,meta);heading.append(canvasPreview,headingBody);
       if(group.documentId){
         heading.dataset.workspaceDocumentId=group.documentId;
@@ -698,8 +709,7 @@
         body.className = "studio-navigator-item-body";
         title.textContent = snapshotName(item);
         const workspaceDoc=typeof canvasDocuments!=="undefined"?[...canvasDocuments.records.values()].find(doc=>doc.locator?.id===item.id&&doc.locator?.location===item.location):null;
-        meta.textContent = studioNavigatorCanvasMeta(current, Boolean(workspaceDoc), item.location, item.updatedAt || item.createdAt);
-        meta.title = meta.textContent;
+        studioNavigatorRenderCanvasMeta(meta,current,Boolean(workspaceDoc),item.location,item.updatedAt || item.createdAt);
         body.append(title, meta);
         row.append(studioNavigatorCanvasPreview(item), body);
         if(workspaceDoc){
@@ -716,6 +726,105 @@
       renderStudioNavigatorSourceStates(studioCanvasRecentList,query);
       if(!studioCanvasRecentList.childElementCount)studioNavigatorEmpty(studioCanvasRecentList,items.length?"studioNavigatorCanvasNoMatch":"studioNavigatorCanvasEmpty");
     }
+    let studioMcpFollowLatest=false,studioMcpLatestDocumentId=null,studioMcpPendingDocumentId=null,studioMcpFollowing=false,studioMcpCloseQueue=null;
+    let studioMcpLatestRegion=null,studioMcpPendingRegion=null;
+    function studioMcpOpenDocumentIds() {
+      const live=new Set([...mcpRuntime.sessions.values()].filter(session=>!session.closed).map(session=>session.documentId));
+      return [...canvasDocuments.records.values()].filter(doc=>doc.bindings?.length||doc.sessions?.length||live.has(doc.id)).map(doc=>doc.id);
+    }
+    function syncStudioMcpActions() {
+      const follow=document.getElementById("studioMcpFollowLatest"),close=document.getElementById("studioMcpCloseAll"),group=document.getElementById("studioMcpActions");
+      const closeOthers=document.getElementById("canvasWorkspaceCloseAll");
+      if(closeOthers){
+        closeOthers.textContent=canvasDocumentsCopy("Close all","关闭其他");
+        closeOthers.title=canvasDocumentsCopy("Close all other canvases and keep the current canvas open. Saved canvases stay in the library.","关闭其他所有画布，保留当前画布。已保存画布仍保留在画布库中。");
+        closeOthers.setAttribute("aria-label",closeOthers.title);
+        closeOthers.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching||canvasDocuments.records.size<=1;
+        closeOthers.setAttribute("aria-busy",String(Boolean(studioMcpCloseQueue)));
+      }
+      if(!follow||!close)return;
+      const busy=Boolean(studioMcpCloseQueue)||canvasDocuments.switching;
+      group?.setAttribute("aria-label",canvasDocumentsCopy("MCP canvas actions","MCP 画布操作"));
+      follow.querySelector("span").textContent=canvasDocumentsCopy("Follow latest","跟随最新");
+      follow.setAttribute("aria-pressed",String(studioMcpFollowLatest));follow.disabled=busy;
+      follow.title=canvasDocumentsCopy("Follow the latest updated content, switching canvases when needed. Pauses while you edit or navigate.","跟随最新更新的内容，必要时切换画布；编辑或移动视野时暂停。");
+      close.textContent=canvasDocumentsCopy("Close all","全部关闭");close.disabled=busy||!studioMcpOpenDocumentIds().length;
+      close.setAttribute("aria-busy",String(Boolean(studioMcpCloseQueue)));
+      close.title=canvasDocumentsCopy("Close all open MCP canvases. Saved canvases stay in the library.","关闭所有已打开的 MCP 画布，已保存画布仍保留在画布库中。");
+    }
+    function cancelStudioMcpCloseAll() {studioMcpCloseQueue=null;syncStudioMcpActions();}
+    async function continueStudioMcpCloseAll(batch) {
+      if(studioMcpCloseQueue!==batch)return;
+      while(batch.length&&!canvasDocuments.records.has(batch[0]))batch.shift();
+      if(!batch.length){
+        try {
+          if(batch.retainedDocumentId&&canvasDocuments.records.has(batch.retainedDocumentId)&&canvasDocuments.activeId!==batch.retainedDocumentId)await canvasDocumentsShow(batch.retainedDocumentId);
+        } finally {cancelStudioMcpCloseAll();}
+        return;
+      }
+      const id=batch[0];
+      try {
+        await canvasDocumentsShow(id);
+        if(studioMcpCloseQueue!==batch)return;
+        await requestCanvasTransition({type:"close",documentId:id,onCancel:cancelStudioMcpCloseAll,onComplete:async()=>{
+          if(studioMcpCloseQueue!==batch)return;
+          batch.shift();await continueStudioMcpCloseAll(batch);
+        }});
+      } catch(error){cancelStudioMcpCloseAll();throw error;}
+    }
+    async function closeOtherStudioCanvases() {
+      if(studioMcpCloseQueue||canvasDocuments.switching)return;
+      const retainedDocumentId=canvasDocumentsCurrent().id;
+      const batch=[...canvasDocuments.records.keys()].filter(id=>id!==retainedDocumentId);
+      if(!batch.length)return;
+      batch.retainedDocumentId=retainedDocumentId;
+      studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      await continueStudioMcpCloseAll(batch);
+    }
+    async function closeAllStudioMcpCanvases() {
+      if(studioMcpCloseQueue)return;
+      const batch=studioMcpOpenDocumentIds();
+      if(!batch.length)return;
+      studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      await continueStudioMcpCloseAll(batch);
+    }
+    function noteStudioMcpContentUpdate(documentId,region=null) {
+      if(!documentId||!canvasDocuments.records.has(documentId))return;
+      studioMcpLatestDocumentId=documentId;
+      studioMcpLatestRegion=region;
+      if(studioMcpFollowLatest){studioMcpPendingDocumentId=documentId;studioMcpPendingRegion=region;}
+    }
+    async function flushStudioMcpFollowLatest() {
+      if(!studioMcpFollowLatest||!studioMcpPendingDocumentId||studioMcpFollowing||studioMcpCloseQueue||canvasDocuments.switching||mcpRuntime.queued||!mcpRuntime.ready)return;
+      const active=document.activeElement;
+      if(mcpViewBlockedBy()||document.querySelector("dialog[open]")||active?.matches?.("input,textarea,select,[contenteditable='true']"))return;
+      const id=studioMcpPendingDocumentId;
+      if(!canvasDocuments.records.has(id)){studioMcpPendingDocumentId=null;return;}
+      studioMcpFollowing=true;
+      try {
+        if(id!==canvasDocuments.activeId)await canvasDocumentsShow(id);
+        // Loading yields: recheck user activity and use the newest region even
+        // when another update arrived for this same document during the switch.
+        if(!studioMcpFollowLatest||studioMcpPendingDocumentId!==id||canvasDocuments.activeId!==id||mcpRuntime.queued||mcpViewBlockedBy()||document.querySelector("dialog[open]")||document.activeElement?.matches?.("input,textarea,select,[contenteditable='true']"))return;
+        const region=studioMcpPendingRegion;
+        if(region) {
+          canvasAgentFrameRegion(region,96);
+          // This explicit follow supersedes older automatic reveals on this Canvas.
+          for(const [sessionId] of mcpRuntime.pendingView||[])if(mcpRuntime.sessions.get(sessionId)?.documentId===id)mcpRuntime.pendingView.delete(sessionId);
+          if(!mcpRuntime.pendingView?.size){clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;mcpRuntime.layoutSince=0;}
+          mcpRenderCanvasStatus();
+        }
+        studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;
+      } catch(error) {
+        // Busy work keeps just the newest target until the next real checkpoint.
+        if(!["CANVAS_BUSY","CANVAS_CHANGED"].includes(error.code)){
+          studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;canvasDocumentsReport(error);
+        }
+      } finally {
+        studioMcpFollowing=false;syncStudioMcpActions();
+        if(studioMcpFollowLatest&&studioMcpPendingDocumentId&&studioMcpPendingDocumentId!==id)queueMicrotask(()=>void flushStudioMcpFollowLatest());
+      }
+    }
     function studioNavigatorMcpGroups() {
       return studioNavigatorWorkGroups().filter(group=>{
         const doc=canvasDocuments.records.get(group.documentId);
@@ -723,6 +832,7 @@
       });
     }
     function renderStudioMcpHistory() {
+      syncStudioMcpActions();
       if(!studioNavigatorIsOpen()){studioNavigatorHistoryDirty=true;return;}
       releaseStudioNavigatorPreviewUrls(studioNavigatorCanvasPreviewUrls);
       studioMcpRecentList.replaceChildren();
@@ -736,6 +846,7 @@
       enabled=Boolean(enabled);
       if(enabled===studioNavigatorMcpEnabled)return;
       studioNavigatorMcpEnabled=enabled;
+      if(!enabled){studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;}
       studioNavigatorMcpTab.hidden=!enabled;
       if(enabled){
         studioNavigatorSuspendedAgent=false;
@@ -749,6 +860,7 @@
     let studioWorkspaceSignature="";
     function studioWorkspaceChanged() {
       if(typeof canvasDocuments==="undefined")return;
+      syncStudioMcpActions();
       const documents=[...canvasDocuments.records.values()],hasUpdates=documents.some(doc=>doc.unseen>0),attention=hasUpdates||Boolean(canvasDocuments.error);
       studioNavigatorToggle.dataset.workspaceUpdates=String(attention);
       const hint=document.getElementById("studioWorkspaceUpdateHint");
@@ -903,6 +1015,19 @@
     studioNavigatorScrim.addEventListener("click", () => setStudioNavigatorOpen(false));
     studioNavigatorSearch.addEventListener("input", renderActiveStudioNavigatorHistory);
     studioNavigatorMcpTab.addEventListener("click",()=>setStudioNavigatorTab("mcp"));
+    document.getElementById("canvasWorkspaceCloseAll")?.addEventListener("click",()=>canvasDocumentsUiAction(closeOtherStudioCanvases));
+    document.getElementById("studioMcpCloseAll")?.addEventListener("click",()=>canvasDocumentsUiAction(closeAllStudioMcpCanvases));
+    document.getElementById("studioMcpFollowLatest")?.addEventListener("click",()=>{
+      studioMcpFollowLatest=!studioMcpFollowLatest;
+      studioMcpPendingDocumentId=studioMcpFollowLatest?studioMcpLatestDocumentId:null;
+      studioMcpPendingRegion=studioMcpFollowLatest?studioMcpLatestRegion:null;
+      syncStudioMcpActions();void flushStudioMcpFollowLatest();
+    });
+    const resumeMcpFollow=()=>{if(studioMcpFollowLatest&&studioMcpPendingDocumentId)queueMicrotask(()=>void flushStudioMcpFollowLatest());};
+    window.addEventListener("pointerup",resumeMcpFollow);
+    window.addEventListener("pointercancel",resumeMcpFollow);
+    document.addEventListener("focusout",resumeMcpFollow);
+    document.addEventListener("visibilitychange",resumeMcpFollow);
     studioNavigatorMcpTab.addEventListener("keydown",handleStudioNavigatorTabKeydown);
     studioNavigatorAllTab.addEventListener("click", () => setStudioNavigatorTab("all"));
     studioNavigatorAgentTab.addEventListener("click", () => setStudioNavigatorTab("agent"));
@@ -953,6 +1078,8 @@
       renderCanvases:renderActiveStudioNavigatorHistory,
       updateDocument:updateStudioDocumentState,
       workspaceChanged:studioWorkspaceChanged,
+      noteMcpContentUpdate:noteStudioMcpContentUpdate,
+      flushMcpFollow:flushStudioMcpFollowLatest,
       syncMcp:syncStudioNavigatorMcp,
       isMcpDocked:studioNavigatorIsMcpDocked,
       canvasDidLoad:studioNavigatorCanvasDidLoad,

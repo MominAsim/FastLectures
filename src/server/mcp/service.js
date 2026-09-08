@@ -107,6 +107,30 @@ function safeJsonValue(value, label, maximumBytes = MAX_FILE_BYTES) {
   } catch { throw bridgeError("invalid_browser_result", `The PenEcho canvas returned an invalid or oversized ${label}.`, 502); }
 }
 
+// The persisted workspace retains up to 40 events (more than one update).
+// Validate this response independently of the smaller per-update input limit.
+function browserSessionProgress(value) {
+  const progress = safeJsonValue(value, "session progress", 1_048_576);
+  const invalid = () => { throw bridgeError("invalid_browser_result", "The PenEcho canvas returned invalid session progress.", 502); };
+  const string = (value, maximum, empty = false) => typeof value === "string" && value.length <= maximum && (empty || value.length > 0);
+  if (!progress || typeof progress !== "object" || Array.isArray(progress)
+    || !string(progress.title, 120, true) || !string(progress.summary, 4000, true)
+    || !["working", "waiting", "done", "error"].includes(progress.status)
+    || !Array.isArray(progress.steps) || progress.steps.length > 24
+    || !Array.isArray(progress.events) || progress.events.length > 40) invalid();
+  const steps = progress.steps.map(step => {
+    if (!step || !string(step.id, 128) || !string(step.label, 160)
+      || step.status !== undefined && !["pending", "working", "done", "error"].includes(step.status)) invalid();
+    return {id:step.id,label:step.label,...(step.status === undefined ? {} : {status:step.status})};
+  });
+  const events = progress.events.map(event => {
+    if (!event || !string(event.id, 128) || !string(event.text, 4000)
+      || event.kind !== undefined && !["progress", "evidence", "info", "warning", "error"].includes(event.kind)) invalid();
+    return {id:event.id,text:event.text,...(event.kind === undefined ? {} : {kind:event.kind})};
+  });
+  return {title:progress.title,status:progress.status,summary:progress.summary,steps,events};
+}
+
 function publicVirtualResult(value, label) {
   const cloned = safeJsonValue(value, label);
   const privatePathKeys = new Set(["absolutePath", "physicalPath", "hostPath", "filesystemPath", "localPath"]);
@@ -657,9 +681,13 @@ function createMcpService(options) {
       if (args.instanceId !== instanceId) throw bridgeError("instance_mismatch", "The selected PenEcho instance is no longer active. List canvases again.", 409);
       const connection = canvases.get(args.canvasId);
       if (!connection || connection.closed) throw bridgeError("canvas_not_found", "The selected PenEcho canvas is not connected or has not opted in.", 404);
-      let openEntry;
+      let openEntry, browserArgs = args;
       if (name === "penecho_open_canvas") {
-        const signature = mutationSignature(args), prior = connection.openRequests.get(args.requestId);
+        // The browser also caches open receipts before a session exists. Scope
+        // its request ID as well as our cache key to the calling MCP owner.
+        const requestKey = crypto.createHash("sha256").update(`${ownerId}\0${args.requestId}`).digest("hex");
+        browserArgs = {...args,requestId:requestKey};
+        const signature = mutationSignature(args), prior = connection.openRequests.get(requestKey);
         if (prior && prior.signature !== signature) throw bridgeError("REQUEST_ID_CONFLICT", "requestId was already used with different open arguments. Use a new requestId.", 409);
         if (prior?.response) return {...prior.response,reused:true};
         if (!prior && connection.openRequests.size >= MAX_MUTATION_REQUESTS) {
@@ -668,9 +696,9 @@ function createMcpService(options) {
           else throw bridgeError("request_limit", "Too many unresolved open request IDs are retained for this connection.", 429);
         }
         openEntry = prior || {signature};
-        connection.openRequests.set(args.requestId, openEntry);
+        connection.openRequests.set(requestKey, openEntry);
       }
-      const { result, timing } = await canvasCall(connection, name === "penecho_open_canvas" ? "mcp_open_canvas" : "mcp_find_canvases", args, callOptions);
+      const { result, timing } = await canvasCall(connection, name === "penecho_open_canvas" ? "mcp_open_canvas" : "mcp_find_canvases", browserArgs, callOptions);
       browserObject(result, name === "penecho_open_canvas" ? "open canvas result" : "canvas candidates result");
       if (name === "penecho_find_canvases") return { ...safeJsonValue(result, "canvas candidates"), timing };
       const documentId = safeString(result.documentId, 256, "documentId"), title = safeString(result.title, 200, "title");
@@ -710,9 +738,10 @@ function createMcpService(options) {
       const boardObjectId = result.boardObjectId == null ? null : safeString(result.boardObjectId, 128, "boardObjectId"), revision = browserRevision(result.revision);
       const feedbackCursor = result.feedbackCursor === undefined ? undefined : browserCursor(result.feedbackCursor);
       const documentId = result.documentId === undefined ? undefined : safeString(result.documentId, 256, "documentId");
+      const progress = result.progress === undefined ? {} : browserSessionProgress(result.progress);
       const now = Date.now(), session = {
         id:sessionId, ownerId, connection, canvasId:args.canvasId, documentId, slotIndex, sessionKey:args.sessionKey,
-        title:args.title, status:"working", summary:"", steps:[], events:[], feedbackCursor, createdAt:now, updatedAt:now,
+        title:args.title, status:"working", summary:"", steps:[], events:[], ...progress, feedbackCursor, createdAt:now, updatedAt:now,
         render:{ state:"applied", applied:true, pixelVerified:false, ...timing, revision }, pendingUpdate:null, pendingUpdateTraces:[], pendingQueuedAt:0, pendingRenderSequence:0, renderSequence:0, updateChain:Promise.resolve(), updateTimer:null, lost:false, lostTimer:null, mutationRequests:new Map(),
       };
       sessions.set(sessionId, session);

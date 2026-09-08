@@ -76,25 +76,26 @@ test("stdio MCP negotiates 2025-11-25, lists tools, emits image blocks, and keep
   send({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:PROTOCOL_VERSION,capabilities:{},clientInfo:{name:"test",version:"1"}}});
   const initialized = await next();
   assert.equal(initialized.result.protocolVersion, PROTOCOL_VERSION);
-  assert.match(initialized.result.instructions, /Never send private chain-of-thought/);
-  assert.match(initialized.result.instructions, /preserve the unread cursor/);
-  assert.match(initialized.result.instructions, /present useful UI previews or diagrams when they help/);
-  assert.match(initialized.result.instructions, /without delaying the first useful output/);
-  assert.match(initialized.result.instructions, /when something meaningful changed/);
-  assert.match(initialized.result.instructions, /capture:false for ordinary presentation/);
-  assert.match(initialized.result.instructions, /image-input tokens/);
-  assert.match(initialized.result.instructions, /penecho_draw for native Canvas text/);
-  assert.match(initialized.result.instructions, /not iframe Widgets/);
-  assert.match(initialized.result.instructions, /penecho_capture_canvas only for an explicit bounded screenshot/);
-  assert.match(initialized.result.instructions, /data-penecho-action=choose/);
-  assert.match(initialized.result.instructions, /inspect only for an ephemeral Widget capture/);
-  assert.match(initialized.result.instructions, /do not create a progress board/);
+  assert.match(initialized.result.instructions, /never send private chain-of-thought/i);
+  assert.match(initialized.result.instructions, /keep message, feedback and file cursors independent/i);
+  assert.match(initialized.result.instructions, /with a selected live Canvas, use it proactively/i);
+  assert.match(initialized.result.instructions, /keep the first useful output fast/i);
+  assert.match(initialized.result.instructions, /batch meaningful public findings/i);
+  assert.match(initialized.result.instructions, /use capture:false ordinarily/i);
+  assert.match(initialized.result.instructions, /image-input tokens/i);
+  assert.match(initialized.result.instructions, /use draw for simple native diagrams/i);
+  assert.match(initialized.result.instructions, /present_widget for interactive HTML/i);
+  assert.match(initialized.result.instructions, /hidden Canvas capture returns CANVAS_NOT_VISIBLE/i);
+  assert.match(initialized.result.instructions, /data-penecho-action plus a bounded data-penecho-prompt/i);
+  assert.match(initialized.result.instructions, /inspect reports state, not pixel proof/i);
+  assert.match(initialized.result.instructions, /no progress boards/i);
   send({jsonrpc:"2.0",method:"notifications/initialized"});
   send({jsonrpc:"2.0",id:2,method:"tools/list",params:{}});
   const listedTools = await next();
   assert.deepEqual(listedTools.result.tools.map(tool => tool.name), ["penecho_list_canvases","penecho_open_canvas","penecho_find_canvases","penecho_start_session","penecho_list_files","penecho_read_file","penecho_patch_file","penecho_edit_canvas","penecho_capture_canvas","penecho_read_messages","penecho_ack_messages","penecho_update_session","penecho_present_widget","penecho_capture_widget","penecho_draw","penecho_plot","penecho_read_feedback","penecho_inspect_session","penecho_close_session"]);
   const widgetPresentation = listedTools.result.tools.find(tool => tool.name === "penecho_present_widget").inputSchema.properties.presentation;
   assert.deepEqual(widgetPresentation.properties.size.enum, ["base","wide","tall","large","page"]);
+  assert.equal(listedTools.result.tools.find(tool => tool.name === "penecho_present_widget").inputSchema.properties.capture.default, false);
   assert.equal(widgetPresentation.additionalProperties, false);
   send({jsonrpc:"2.0",id:11,method:"prompts/list",params:{}});
   const prompts = await next();
@@ -169,6 +170,72 @@ test("stdio MCP negotiates 2025-11-25, lists tools, emits image blocks, and keep
   await close(httpServer);
 });
 
+test("stdio keeps pending updates compact and acknowledges pull messages directly", async t => {
+  const secret = crypto.randomBytes(32).toString("hex"), instanceId = crypto.randomUUID(), bodies = [];
+  let messageIndex = 0;
+  const httpServer = http.createServer((req, res) => {
+    const chunks = [];
+    req.on("data", chunk => chunks.push(chunk));
+    req.on("end", () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      bodies.push(body);
+      const args = body.arguments || {};
+      let result = { instanceId, canvases:[{canvasId:"canvas-a",instanceId,title:"Board"}] };
+      if (body.name === "penecho_start_session") result = {sessionId:"session-a",boardObjectId:null,revision:1};
+      if (body.name === "penecho_update_session") result = {accepted:true,applied:false,pixelVerified:false,queuedAt:123,sessionId:"session-a"};
+      if (body.name === "penecho_present_widget") result = {sessionId:"session-a",artifactId:args.artifactId,objectId:"object-a",applied:true,pixelVerified:false};
+      if (body.name === "penecho_read_messages") {
+        const id = messageIndex++ === 0 ? "request-done" : "request-error";
+        result = {sessionId:"session-a",after:args.after || 0,nextCursor:messageIndex,latestCursor:messageIndex,messages:[{id,cursor:messageIndex,text:"Continue"}]};
+      }
+      if (body.name === "penecho_ack_messages") result = {sessionId:"session-a",acknowledged:args.ids,status:args.status};
+      const bytes = Buffer.from(JSON.stringify({result}));
+      res.writeHead(200,{"content-type":"application/json","content-length":bytes.length}).end(bytes);
+    });
+  });
+  const address = await listen(httpServer), input = new PassThrough(), output = new PassThrough(), next = outputReader(output);
+  const stdio = new PenEchoStdioServer({input,output,record:{instanceId,secret,port:address.port,host:"127.0.0.1"}}).start();
+  t.after(async () => {
+    stdio.close();
+    input.end();
+    if (httpServer.listening) await close(httpServer);
+  });
+  const send = value => input.write(`${JSON.stringify(value)}\n`);
+  send({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:PROTOCOL_VERSION,capabilities:{},clientInfo:{name:"test",version:"1"}}});
+  await next();
+  send({jsonrpc:"2.0",id:2,method:"tools/call",params:{name:"penecho_list_canvases",arguments:{}}});
+  await next();
+  send({jsonrpc:"2.0",id:3,method:"tools/call",params:{name:"penecho_start_session",arguments:{canvasId:"canvas-a",instanceId,title:"Compact update"}}});
+  assert.equal((await next()).result.structuredContent.sessionId,"session-a");
+
+  send({jsonrpc:"2.0",id:4,method:"tools/call",params:{name:"penecho_update_session",arguments:{sessionId:"session-a",status:"working",summary:"Queued"}}});
+  const update = await next();
+  assert.deepEqual(update.result.structuredContent,{accepted:true,applied:false,pixelVerified:false,queuedAt:123,sessionId:"session-a"});
+  assert.equal(update.result.content.length,1);
+  assert.equal(update.result.content[0].type,"text");
+  assert.doesNotMatch(update.result.content[0].text,/instructions|history|image/i);
+  assert.deepEqual(bodies.find(body => body.name === "penecho_update_session").arguments,{sessionId:"session-a",status:"working",summary:"Queued"});
+
+  send({jsonrpc:"2.0",id:5,method:"tools/call",params:{name:"penecho_present_widget",arguments:{sessionId:"session-a",artifactId:"default-capture",title:"Preview",html:"<p>Preview</p>"}}});
+  const presented = await next();
+  assert.equal(presented.result.structuredContent.image,undefined);
+  assert.equal(presented.result.content.length,1);
+  assert.equal(bodies.find(body => body.name === "penecho_present_widget").arguments.capture,undefined);
+
+  send({jsonrpc:"2.0",id:6,method:"tools/call",params:{name:"penecho_read_messages",arguments:{sessionId:"session-a"}}});
+  const doneMessage = await next();
+  send({jsonrpc:"2.0",id:7,method:"tools/call",params:{name:"penecho_ack_messages",arguments:{sessionId:"session-a",ids:[doneMessage.result.structuredContent.messages[0].id],status:"done"}}});
+  assert.deepEqual((await next()).result.structuredContent,{sessionId:"session-a",acknowledged:["request-done"],status:"done"});
+
+  send({jsonrpc:"2.0",id:8,method:"tools/call",params:{name:"penecho_read_messages",arguments:{sessionId:"session-a",after:1}}});
+  const errorMessage = await next();
+  send({jsonrpc:"2.0",id:9,method:"tools/call",params:{name:"penecho_ack_messages",arguments:{sessionId:"session-a",ids:[errorMessage.result.structuredContent.messages[0].id],status:"error",message:"Could not continue"}}});
+  assert.deepEqual((await next()).result.structuredContent,{sessionId:"session-a",acknowledged:["request-error"],status:"error"});
+
+  assert.equal(new Set(bodies.map(body => body.ownerId)).size,1);
+  assert.deepEqual([...new Set(bodies.filter(body => body.arguments?.sessionId).map(body => body.arguments.sessionId))],["session-a"]);
+});
+
 test("stdio framing rejects malformed JSON without writing logs around protocol messages", async () => {
   const input = new PassThrough(), output = new PassThrough(), next = outputReader(output);
   const stdio = new PenEchoStdioServer({ input, output, record:{instanceId:crypto.randomUUID(),secret:crypto.randomBytes(32).toString("hex"),port:1,host:"127.0.0.1"} }).start();
@@ -186,7 +253,7 @@ test("stdio starts before PenEcho, discovers multiple live instances, and pins s
   send({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:PROTOCOL_VERSION,capabilities:{},clientInfo:{name:"test",version:"1"}}});
   assert.equal((await next()).result.protocolVersion, PROTOCOL_VERSION);
   send({jsonrpc:"2.0",id:2,method:"tools/call",params:{name:"penecho_list_canvases",arguments:{}}});
-  assert.deepEqual((await next()).result.structuredContent, {canvases:[]});
+  assert.deepEqual((await next()).result.structuredContent, {canvases:[],discovery:{status:"no-local-instance",instances:0,reachable:0}});
 
   const requests = [[], []], servers = [], records = [];
   for (let index = 0; index < 2; index++) {
@@ -247,7 +314,7 @@ test("penecho mcp enters stdio directly without an app banner or model preflight
     const tools = await next();
     assert.equal(tools.result.tools.some(tool => tool.name === "penecho_list_canvases"), true);
     child.stdin.write(`${JSON.stringify({jsonrpc:"2.0",id:3,method:"tools/call",params:{name:"penecho_list_canvases",arguments:{}}})}\n`);
-    assert.deepEqual((await next()).result.structuredContent, {canvases:[]});
+    assert.deepEqual((await next()).result.structuredContent, {canvases:[],discovery:{status:"no-local-instance",instances:0,reachable:0}});
     child.stdin.end();
     const result = await exit;
     assert.deepEqual(result, {code:0,signal:null});
@@ -256,4 +323,57 @@ test("penecho mcp enters stdio directly without an app banner or model preflight
     if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
     fs.rmSync(stateDirectory, {recursive:true,force:true});
   }
+});
+
+test("canvas discovery distinguishes empty, unavailable, partial and invalid instances without leaking diagnostics", async t => {
+  const servers = [];
+  t.after(async () => { for (const server of servers) await close(server); });
+  const records = [];
+  const replies = new Map();
+  for (let index = 0; index < 10; index++) {
+    const instanceId = `discovery-${index}`;
+    const server = http.createServer((req, res) => {
+      req.resume();
+      const reply = replies.get(instanceId);
+      if (reply === "disconnect") return req.socket.destroy();
+      if (reply === "error") return res.writeHead(503).end(JSON.stringify({error:{message:"secret-token http://127.0.0.1/private /private/host-path"}}));
+      res.writeHead(200,{"content-type":"application/json"}).end(JSON.stringify({result:reply}));
+    });
+    const address = await listen(server);
+    servers.push(server);
+    records.push({instanceId,port:address.port,secret:"secret-token",rootDirectory:"/private/host-path"});
+  }
+  const stdio = new PenEchoStdioServer();
+  let selected = [];
+  stdio.records = () => selected;
+  const list = () => stdio.listCanvases();
+  const first = records[0], second = records[1];
+  const canvas = {instanceId:first.instanceId,canvasId:"canvas-a",title:"Board"};
+
+  assert.deepEqual(await list(), {canvases:[],discovery:{status:"no-local-instance",instances:0,reachable:0}});
+  selected = [first];
+  replies.set(first.instanceId,{instanceId:first.instanceId,canvases:[canvas]});
+  assert.deepEqual(await list(), {canvases:[canvas]});
+  replies.set(first.instanceId,{instanceId:first.instanceId,canvases:[]});
+  assert.deepEqual(await list(), {canvases:[],discovery:{status:"no-opted-in-canvas",instances:1,reachable:1}});
+
+  selected = [first, second];
+  replies.set(first.instanceId,{instanceId:first.instanceId,canvases:[canvas]});
+  replies.set(second.instanceId,"disconnect");
+  assert.deepEqual(await list(), {canvases:[canvas],discovery:{status:"partial",instances:2,reachable:1,issues:[{instanceId:second.instanceId,code:"connection-failed"}]}});
+  replies.set(first.instanceId,{instanceId:first.instanceId,canvases:[]});
+  assert.deepEqual(await list(), {canvases:[],discovery:{status:"partial",instances:2,reachable:1,issues:[{instanceId:second.instanceId,code:"connection-failed"}]}});
+  replies.set(first.instanceId,"error");
+  assert.deepEqual(await list(), {canvases:[],discovery:{status:"instance-unavailable",instances:2,reachable:0,issues:selected.map(record => ({instanceId:record.instanceId,code:"connection-failed"}))}});
+
+  selected = [first];
+  for (const reply of [{instanceId:"wrong-instance",canvases:[canvas]}, {instanceId:first.instanceId}, {instanceId:first.instanceId,canvases:{}}, null]) {
+    replies.set(first.instanceId,reply);
+    assert.deepEqual(await list(), {canvases:[],discovery:{status:"instance-unavailable",instances:1,reachable:0,issues:[{instanceId:first.instanceId,code:"invalid-response"}]}});
+  }
+  selected = records;
+  records.forEach(record => replies.set(record.instanceId,"error"));
+  const bounded = await list();
+  assert.deepEqual(bounded, {canvases:[],discovery:{status:"instance-unavailable",instances:10,reachable:0,issues:records.slice(0,8).map(record => ({instanceId:record.instanceId,code:"connection-failed"}))}});
+  assert.doesNotMatch(JSON.stringify(bounded), /secret-token|http:|127\.0\.0\.1|\/private/);
 });

@@ -97,7 +97,7 @@ async function invokeServiceHttp(service, remoteAddress, target, { method = "POS
   return { handled, status:res.statusCode, value:text ? JSON.parse(text) : null };
 }
 
-function openCanvas(port, calls) {
+function openCanvas(port, calls, progress) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://127.0.0.1:${port}/api/mcp/canvas`, { headers:{ "x-test-browser":"allowed" } });
     ws.once("error", reject);
@@ -164,6 +164,8 @@ function openCanvas(port, calls) {
         if (message.arguments.after === 77) result = { ...result, nextCursor:78, latestCursor:78, entries:[{cursor:"bad",kind:"stroke",bounds:{x:-1,y:-2,w:3,h:4},createdAt:1_788_000_000_000}] };
       }
       if (message.name === "mcp_inspect_session") result = { visible:true, revision:5, group:{objectIds:["draw-object-1","draw-object-2"]}, artifacts:[{artifactId:"diagram",kind:"drawing",objectIds:["draw-object-1","draw-object-2"]}] };
+      if (progress !== undefined && message.name === "mcp_start_session") result.progress = progress;
+      if (progress !== undefined && message.name === "mcp_inspect_session") Object.assign(result, progress);
       if (message.name === "mcp_capture_canvas" && message.arguments.target === "selection") {
         ws.send(JSON.stringify({type:"result",requestId:message.requestId,ok:false,error:{code:"CANVAS_NOT_VISIBLE",message:"Show this Canvas before capture.",details:{documentId:"document-new",retryable:true,retry:"show-then-capture"}}}));
       } else if (message.name === "mcp_apply_patch" && message.arguments.requestId === "browser-conflict") {
@@ -172,6 +174,82 @@ function openCanvas(port, calls) {
     });
   });
 }
+
+test("MCP open request receipts are isolated by client owner", async t => {
+  const stateDirectory = tempDirectory(), calls = [];
+  let service;
+  const server = http.createServer(async (req, res) => {
+    if (!await service.handleHttp(req, res, new URL(req.url, "http://localhost"))) res.writeHead(404).end();
+  });
+  service = createMcpService({server,authorizeBrowser:() => null,rootDirectory:process.cwd(),stateDirectory});
+  t.after(async () => { service.close(); await closeServer(server); });
+  const address = await listen(server), status = service.register(address);
+  const record = readRecords(recordsDirectory(stateDirectory))[0];
+  await openCanvas(address.port, calls);
+  const headers = {authorization:`Bearer ${record.secret}`,"x-penecho-mcp-instance":status.instanceId};
+  const firstOwner = crypto.randomUUID(), secondOwner = crypto.randomUUID();
+  const open = (ownerId, title = "Document") => requestJson(address.port, "/api/mcp/rpc", {headers,body:{operation:"call",ownerId,name:"penecho_open_canvas",arguments:{canvasId:"canvas-a",instanceId:status.instanceId,create:true,title,requestId:"shared-request"}}});
+  assert.equal((await open(firstOwner)).status, 200);
+  const second = await open(secondOwner);
+  assert.equal(second.status, 200);
+  assert.equal(second.value.result.reused, undefined);
+  assert.equal(calls.length, 2);
+  assert.notEqual(calls[0].arguments.requestId, calls[1].arguments.requestId);
+  assert.equal((await open(firstOwner)).value.result.reused, true);
+  assert.equal((await open(secondOwner)).value.result.reused, true);
+  assert.equal(calls.length, 2);
+  const conflict = await open(firstOwner, "Changed document");
+  assert.equal(conflict.value.error.code, "REQUEST_ID_CONFLICT");
+  await openCanvas(address.port, calls);
+  assert.equal((await open(firstOwner)).status, 200);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[2].arguments.requestId, calls[0].arguments.requestId);
+});
+
+test("MCP restored progress agrees in start and inspect and rejects invalid browser snapshots", async t => {
+  const stateDirectory = tempDirectory(), calls = [];
+  let service;
+  const server = http.createServer(async (req, res) => {
+    if (!await service.handleHttp(req, res, new URL(req.url, "http://localhost"))) res.writeHead(404).end();
+  });
+  service = createMcpService({server,authorizeBrowser:() => null,rootDirectory:process.cwd(),stateDirectory});
+  t.after(async () => { service.close(); await closeServer(server); });
+  const address = await listen(server), status = service.register(address);
+  const record = readRecords(recordsDirectory(stateDirectory))[0];
+  const headers = {authorization:`Bearer ${record.secret}`,"x-penecho-mcp-instance":status.instanceId};
+  const ownerId = crypto.randomUUID();
+  const rpc = (name, args) => requestJson(address.port, "/api/mcp/rpc", {headers,body:{operation:"call",ownerId,name,arguments:args}});
+  const progress = {title:"Saved title",status:"waiting",summary:"Saved evidence",steps:[{id:"s",label:"Verify",status:"working"}],events:Array.from({length:40}, (_, i) => ({id:`e-${i}`,text:`Evidence ${i}`,kind:"evidence"}))};
+  let connection = await openCanvas(address.port, calls, progress);
+  const disconnect = async () => {
+    const closed = new Promise(resolve => connection.ws.once("close", resolve));
+    connection.ws.close();
+    await closed;
+  };
+  const startArgs = {canvasId:"canvas-a",instanceId:status.instanceId,documentId:"saved-document",sessionKey:"stable",client:"Codex",title:"Reconnect title"};
+  const start = await rpc("penecho_start_session", startArgs);
+  assert.equal(start.status, 200);
+  const inspect = await rpc("penecho_inspect_session", {sessionId:start.value.result.sessionId});
+  for (const [key, value] of Object.entries(progress)) {
+    assert.deepEqual(start.value.result[key], value);
+    assert.deepEqual(inspect.value.result[key], value);
+    assert.deepEqual(inspect.value.result.browser[key], value);
+  }
+  // A replacement browser connection issues a new session ID but resumes data.
+  await disconnect();
+  connection = await openCanvas(address.port, calls, progress);
+  const resumed = await rpc("penecho_start_session", startArgs);
+  assert.equal(resumed.status, 200);
+  assert.notEqual(resumed.value.result.sessionId, start.value.result.sessionId);
+  assert.deepEqual(resumed.value.result.events, progress.events);
+  for (const invalid of [{...progress,events:[...progress.events,progress.events[0]]},{...progress,status:"unknown"},{...progress,steps:[{id:"bad",label:42}]},{...progress,summary:"x".repeat(4001)}]) {
+    await disconnect();
+    connection = await openCanvas(address.port, calls, invalid);
+    const rejected = await rpc("penecho_start_session", startArgs);
+    assert.equal(rejected.status, 502);
+    assert.equal(rejected.value.error.code, "invalid_browser_result");
+  }
+});
 
 test("MCP service keeps discovery credentials private and binds a session to its exact opted-in canvas", async () => {
   const stateDirectory = tempDirectory(), calls = [];
