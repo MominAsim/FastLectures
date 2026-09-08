@@ -323,9 +323,6 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       widgetInteract: "Interact with widget",
       widgetExitInteraction: "Exit interaction",
       canvasNavigationActions: "Canvas navigation",
-      canvasZoomOut: "Zoom out",
-      canvasZoomIn: "Zoom in",
-      canvasZoomReset: "Reset zoom to 100%",
       canvasFitContents: "Fit all content",
       canvasWheelZoom: "Use scrolling to zoom",
       canvasWheelZoomHelp: "Off: scroll to pan; pinch or Ctrl/Cmd + scroll to zoom. Turning this on also changes trackpad scrolling.",
@@ -789,6 +786,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       historyOpenCanvas: "Open Canvas",
       historyDeleteTitle: "Delete this Canvas?",
       studioNavigatorTitle: "Recent work",
+      studioNavigatorMcpEmpty: "Canvases connected through MCP will appear here.",
       studioNavigatorOpen: "Open recent work",
       studioNavigatorClose: "Close recent work",
       studioNavigatorSearch: "Search work",
@@ -796,6 +794,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       studioNavigatorAgents: "Agent",
       studioNavigatorCanvases: "Canvases",
       studioNavigatorCurrent: "Current",
+      studioNavigatorOpened: "Open",
+      studioNavigatorNotOpened: "Not open",
       studioNavigatorRecent: "Recent work",
       studioNavigatorEmpty: "No recent work yet.",
       studioNavigatorNoMatch: "No matching recent work.",
@@ -860,6 +860,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasBrowserWelcomeBody: "Choose a PenEcho cloud model in Settings to work with this Canvas online. Connect a device to use local files and connections.",
       exportPng: "Export PNG",
       newCanvasTitle: "New canvas",
+      closeCanvasTitle: "Close canvas",
+      closeCanvasDescription: "Save your changes before closing this canvas?",
+      closeWithoutSave: "Close without saving",
+      saveAsNewAndClose: "Save as new and close",
+      overwriteAndClose: "Save and close",
+
       newCanvasDescription: "Save this canvas if needed. Unaccepted AI drafts aren't included.",
       loadCanvasTitle: "Load another canvas?",
       loadCanvasDescription: "Save changes before loading another canvas.",
@@ -1044,6 +1050,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       closeCanvasAgent: "Close PenEcho Agent",
       newCanvasAgentConversation: "New PenEcho Agent conversation",
       canvasAgentAutoAIFocusPaused: "PenEcho Agent has focus · Canvas Auto AI is paused.",
+      canvasAgentExternalAIPaused: "External conversation selected · Canvas Auto AI is paused. Feedback is kept for the external AI.",
       canvasAgentAutoAIRequestPaused: "PenEcho Agent is working · Canvas Auto AI is paused.",
       canvasAgentProject: "Manage projects and files",
       canvasAgentProjectClose: "Close project manager",
@@ -1172,6 +1179,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentPromptOrganizeTitle: "Organize the Current Canvas",
       canvasAgentPromptApplyAnnotationsTitle: "Apply My Canvas Annotations",
       canvasAgentPromptFollowCanvasCuesTitle: "Follow My Canvas Cues",
+      canvasAgentPromptCheckWorkTitle: "Find and Mark My Mistakes",
       canvasAgentPromptPptTitle: "Create a Presentation Layout",
       canvasAgentPromptExcelTitle: "Chart Spreadsheet Insights",
       canvasAgentPromptCompareFilesTitle: "Compare Related Files",
@@ -1230,6 +1238,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentPromptOrganize: "Do not only describe how to organize it. Reorganize and display the current Canvas as clear visual notes with themes, hierarchy, and information gaps.",
       canvasAgentPromptApplyAnnotations: "Apply my new Canvas annotations and sketches: add, remove, move, resize, or reconnect only clearly marked content, and ask about ambiguity first.",
       canvasAgentPromptFollowCanvasCues: "Follow my latest Canvas drawings, images, text boxes, and annotations. Continue and refine the work without changing unmarked content; ask if unclear.",
+      canvasAgentPromptCheckWork: "Keep my original content unchanged—do not edit, erase, or move it. Review the current page and find every mistake: mark each error in place with a clear, compact annotation, and write the correct answer or steps in a suitable open space nearby, visually linked to its error. Briefly summarize in chat what was wrong and why.",
       canvasAgentPromptImageVisual: "Do not return only text. Create and display a visual analysis on Canvas of the current image's subjects, structure, relationships, important details, and uncertainties.",
       canvasAgentPromptImageLayer: "Keep the image unchanged and add a transparent explanation layer with labels, links, graphics, or motion.",
       canvasAgentPromptImagePublish: "Extract the image's key information; publish visuals to Canvas and send the summary in chat.",
@@ -1262,6 +1271,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentPromptOrganizeSummary: "Organize the canvas into clear visual notes and surface gaps.",
       canvasAgentPromptApplyAnnotationsSummary: "Apply only clearly marked Canvas changes; ask if anything is unclear.",
       canvasAgentPromptFollowCanvasCuesSummary: "Continue from the latest cues without changing unmarked content.",
+      canvasAgentPromptCheckWorkSummary: "Mark each error in place and write the correct answer or steps nearby.",
       canvasAgentPromptPptSummary: "Turn this view into a presentation layout and return the final image.",
       canvasAgentPromptExcelSummary: "Chart the spreadsheet's key metrics, trends, anomalies, and conclusions.",
       canvasAgentPromptCompareFilesSummary: "Create a visual Canvas comparison, then summarize differences, conflicts, gaps, and resolutions.",
@@ -4359,6 +4369,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function applyLanguage() {
     mcpRenderSettings();
+    if(typeof canvasDocuments!=="undefined")canvasDocumentsRender();
     document.documentElement.lang = state.language === "zh" ? "zh-CN" : "en";
     document.title = t("title");
     document.querySelectorAll("[data-i18n]").forEach((node) => (node.textContent = t(node.dataset.i18n)));

@@ -78,9 +78,10 @@
       </header>
 
       <nav class="toolbar" data-i18n-aria="boardTools" aria-label="Board tools">
-        <button id="studioNavigatorToggle" class="studio-navigator-toggle" type="button" aria-expanded="true" aria-controls="studioNavigator" data-i18n-aria="studioNavigatorOpen" aria-label="Open recent work" data-i18n-title="studioNavigatorOpen" title="Open recent work" data-pe-button="toolbar" data-pe-density="compact">
+        <button id="studioNavigatorToggle" aria-describedby="studioWorkspaceUpdateHint" class="studio-navigator-toggle" type="button" aria-expanded="true" aria-controls="studioNavigator" data-i18n-aria="studioNavigatorOpen" aria-label="Open recent work" data-i18n-title="studioNavigatorOpen" title="Open recent work" data-pe-button="toolbar" data-pe-density="compact">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M9 4v16M6.2 8h.1M6.2 12h.1M6.2 16h.1"/></svg>
         </button>
+        <span id="studioWorkspaceUpdateHint" class="sr-only"></span>
         <span class="toolbar-leading-divider" aria-hidden="true"></span>
         <div class="tool-group primary-tools">
           <div id="aiToolsSection" class="ai-tools-section" role="group" data-i18n-aria="aiTools" aria-label="AI tools">
@@ -206,7 +207,10 @@
         </div>
         <span id="canvasAgentToolbarHome" class="canvas-agent-toolbar-home">
           <div id="canvasAgentControl" class="canvas-agent-control">
-            <button id="canvasAgentToggle" class="canvas-agent-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="canvasAgentPanel" data-i18n-aria="openCanvasAgent" aria-label="Open PenEcho Agent" data-i18n-title="canvasAgent" title="PenEcho Agent" data-pe-button="toolbar" data-pe-density="compact">
+            <button id="mcpToolbarToggle" class="canvas-agent-trigger" type="button" aria-pressed="false" aria-label="Set up MCP Server" title="Set up MCP Server" data-state="off">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="7" rx="2"/><path d="M8 6.5h.1M12 10v5M5 19v-4h14v4M12 15v4"/></svg><i class="mcp-toolbar-dot" aria-hidden="true"></i><span>MCP</span>
+            </button>
+            <button id="canvasAgentToggle" class="canvas-agent-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="canvasAgentPanel" data-i18n-aria="openCanvasAgent" aria-label="Open PenEcho Agent" data-i18n-title="canvasAgent" title="PenEcho Agent">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5.5h10a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3h-5l-4.5 3v-3H7a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3Z"/><path d="M8 10h8M8 13h5"/></svg>
               <span data-i18n="canvasAgent">PenEcho Agent</span>
             </button>
@@ -414,6 +418,7 @@
           </label>
           <div class="studio-navigator-tabs" data-pe-control="tab" role="tablist" data-i18n-aria="studioNavigatorTitle" aria-label="Recent work">
             <button id="studioNavigatorAllTab" type="button" role="tab" aria-selected="true" aria-controls="studioNavigatorAllPanel" data-studio-navigator-tab="all" data-i18n="studioNavigatorAll">All</button>
+            <button id="studioNavigatorMcpTab" type="button" role="tab" aria-selected="false" aria-controls="studioNavigatorMcpPanel" data-studio-navigator-tab="mcp" tabindex="-1" hidden>MCP</button>
             <button id="studioNavigatorCanvasTab" type="button" role="tab" aria-selected="false" aria-controls="studioNavigatorCanvasPanel" data-studio-navigator-tab="canvas" data-i18n="studioNavigatorCanvases">Canvases</button>
             <button id="studioNavigatorAgentTab" type="button" role="tab" aria-selected="false" aria-controls="studioNavigatorAgentPanel" data-studio-navigator-tab="agent" data-i18n="studioNavigatorAgents">Agent</button>
           </div>
@@ -421,6 +426,9 @@
         <div class="studio-navigator-body">
           <section id="studioNavigatorAllPanel" class="studio-navigator-panel" role="tabpanel" aria-labelledby="studioNavigatorAllTab">
             <div id="studioWorkRecentList" class="studio-navigator-list"></div>
+          </section>
+          <section id="studioNavigatorMcpPanel" class="studio-navigator-panel" role="tabpanel" aria-labelledby="studioNavigatorMcpTab" hidden>
+            <div id="studioMcpRecentList" class="studio-navigator-list"></div>
           </section>
           <section id="studioNavigatorAgentPanel" class="studio-navigator-panel" role="tabpanel" aria-labelledby="studioNavigatorAgentTab" hidden>
             <div id="studioAgentRecentList" class="studio-navigator-list"></div>
@@ -430,6 +438,12 @@
           </section>
         </div>
         <footer class="studio-navigator-foot">
+          <div id="canvasWorkspace" class="canvas-workspace" hidden>
+            <button id="canvasWorkspaceNew" type="button" data-pe-button="ghost" data-pe-density="compact">New Canvas</button>
+            <button id="canvasWorkspaceClose" type="button" data-pe-button="ghost" data-pe-density="compact">Close Canvas</button>
+            <span id="canvasWorkspaceStatus" role="status" aria-live="polite"></span>
+            <button id="canvasWorkspaceRetry" type="button" data-pe-button="secondary" data-pe-density="compact" hidden>Retry</button>
+          </div>
           <button id="studioNavigatorManage" type="button" data-pe-button="ghost" data-pe-density="compact">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4Z"/><path d="M8 5V3h8v2M8 10h8M8 14h6"/></svg>
             <span data-i18n="studioNavigatorManageCanvases">Manage Canvas Library</span>
@@ -467,10 +481,8 @@
         </div>
         <div id="canvasNavigationActions" class="canvas-navigation-actions" role="toolbar" data-i18n-aria="canvasNavigationActions" aria-label="Canvas navigation" data-pe-surface="tool-panel" data-pe-size="xs" data-pe-layout="single" data-pe-presentation="context-toolbar" data-pe-material="control-glass">
           <button id="canvasWidgetExit" type="button" hidden data-i18n="widgetExitInteraction" data-pe-button="secondary" data-pe-density="compact">Exit interaction</button>
-<button id="canvasZoomOut" type="button" data-i18n-aria="canvasZoomOut" aria-label="Zoom out" data-i18n-title="canvasZoomOut" title="Zoom out" data-pe-button="toolbar" data-pe-density="compact"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
-          <button id="canvasZoomReset" type="button" data-i18n-title="canvasZoomReset" title="Reset zoom to 100%" data-pe-button="toolbar" data-pe-density="compact">100%</button>
-<button id="canvasZoomIn" type="button" data-i18n-aria="canvasZoomIn" aria-label="Zoom in" data-i18n-title="canvasZoomIn" title="Zoom in" data-pe-button="toolbar" data-pe-density="compact"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button><button id="canvasFitContents" type="button" data-i18n-aria="canvasFitContents" aria-label="Fit all content" data-i18n-title="canvasFitContents" title="Fit all content" data-pe-button="toolbar" data-pe-density="compact"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M8 8h8v8H8z"/></svg></button>
         </div>
+        <button id="canvasFitContents" class="canvas-fit-contents" type="button" data-i18n-aria="canvasFitContents" aria-label="Fit all content" data-i18n-title="canvasFitContents" title="Fit all content" data-pe-button="toolbar" data-pe-density="compact"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M8 8h8v8H8z"/></svg></button>
         <button id="canvasNavigationLock" class="canvas-navigation-lock" type="button" aria-pressed="false" data-i18n-aria="canvasLockNavigation" aria-label="Lock canvas navigation" data-i18n-title="canvasLockNavigation" title="Lock canvas navigation" data-pe-button="toolbar" data-pe-density="compact">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path class="navigation-lock-shackle open" d="M8 10V7.5a4 4 0 0 1 7.7-1.5"/>
@@ -484,6 +496,7 @@
           <button id="mcpShowNewContent" type="button" data-pe-button="secondary" data-pe-density="compact" hidden>Show new content</button>
           <button id="mcpCanvasNoticeButton" type="button" data-pe-button="secondary" data-pe-density="compact" aria-controls="settingsPanel">MCP open · Waiting for AI</button>
         </div>
+
         <div id="canvasWelcome" class="canvas-welcome" role="status" aria-live="polite" hidden>
           <span class="canvas-welcome-kicker">
             <span data-i18n="canvasWelcomeKicker">start here</span>
@@ -650,6 +663,17 @@
             <div><button id="canvasAgentApprovalReject" type="button" data-i18n="canvasAgentApprovalReject" data-pe-button="secondary" data-pe-density="compact">Reject</button><button id="canvasAgentApprovalAllow" type="button" data-i18n="canvasAgentApprovalAllow" data-pe-button="primary" data-pe-density="compact">Allow once</button></div>
           </section>
           <form id="canvasAgentForm" class="canvas-agent-composer">
+            <div id="canvasProcessorRow" class="canvas-processor-row" hidden>
+              <label id="canvasProcessorLabel" for="canvasProcessorSelect">Send to</label>
+              <select id="canvasProcessorSelect" data-pe-control="select" aria-describedby="canvasProcessorHelp"><option value="penecho">PenEcho Agent</option></select>
+              <span id="canvasProcessorHelp"></span>
+            </div>
+            <div id="canvasExternalMessage" class="canvas-external-message" hidden>
+              <select id="canvasExternalMessageSelect" aria-label="External instructions"></select>
+              <span id="canvasExternalMessageText" role="status" aria-live="polite"></span>
+              <button id="canvasExternalMessageRetry" type="button" data-pe-button="secondary" data-pe-density="compact">Retry</button>
+              <button id="canvasExternalMessageCancel" type="button" data-pe-button="secondary" data-pe-density="compact">Cancel</button>
+            </div>
             <p id="canvasAgentInputHint" class="canvas-agent-input-hint" data-i18n="canvasAgentInputHint">Type or use the Pen button to write by hand. Reference a Widget, then ask Agent to extract canvas handwriting, inspect source, arrange content, or edit the Widget.</p>
             <div class="canvas-agent-composer-surface">
               <div class="canvas-agent-composer-toolbar" data-pe-region="toolbar">
@@ -1026,27 +1050,25 @@
           </section>
           <section id="settingsPageMcp" class="settings-page" role="tabpanel" aria-labelledby="settingsNavMcp" data-settings-page="mcp" hidden>
             <section class="settings-group settings-entry-group" aria-labelledby="mcpHeading">
-              <div class="settings-section-heading"><div><h3 id="mcpHeading" data-mcp-label="heading">Work alongside your AI</h3><p data-mcp-label="description">Bring external AI sessions, progress and interactive previews onto this canvas.</p></div></div>
-              <div class="settings-quick-heading"><label id="mcpEnableLabel" for="mcpEnabled" data-mcp-label="enable">Allow external AI on this canvas</label><button id="mcpEnabled" class="settings-switch" type="button" role="switch" aria-checked="false" aria-labelledby="mcpEnableLabel" data-pe-control="switch"><span class="settings-switch-thumb" aria-hidden="true"></span></button></div>
-              <p class="settings-help" data-mcp-label="accessHelp">While connected, external AI can update its session objects and read new text, strokes and images you commit to this canvas after its session starts. Previews and visual feedback are captured on request.</p>
+              <div class="settings-section-heading"><div><h3 id="mcpHeading" data-mcp-label="heading">Give your AI a spatial workspace</h3><p data-mcp-label="description">Connect Codex or Claude. Show, annotate and iterate on Canvas.</p></div></div>
+              <div class="settings-quick-heading"><label id="mcpEnableLabel" for="mcpEnabled" data-mcp-label="enable">Make workspace discoverable</label><button id="mcpEnabled" class="settings-switch" type="button" role="switch" aria-checked="false" aria-labelledby="mcpEnableLabel" data-pe-control="switch"><span class="settings-switch-thumb" aria-hidden="true"></span></button></div>
+              <p class="settings-help" data-mcp-label="accessBrief">Connected AI can read and edit your canvases.</p>
               <p id="mcpConnectionStatus" class="settings-save-status" role="status" aria-live="polite"></p>
             </section>
             <section class="settings-group settings-entry-group" aria-labelledby="mcpSetupHeading">
-              <div class="settings-quick-heading"><h3 id="mcpSetupHeading" data-mcp-label="setup">Connect an AI client</h3><button id="mcpRefresh" type="button" data-pe-button="secondary" data-pe-density="compact" data-mcp-label="refresh">Check connection</button></div>
-              <label class="settings-field" for="mcpClient"><span data-mcp-label="client">AI client</span><select id="mcpClient"><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="other">Kimi / ZCode / Other</option></select></label>
-              <div class="mcp-actions"><button id="mcpConfigure" type="button" data-pe-button="primary" data-mcp-label="configure">Configure automatically</button><button id="mcpCopyConfig" type="button" data-pe-button="secondary" data-mcp-label="copyConfig">Copy configuration</button><button id="mcpCopyInstructions" type="button" data-pe-button="secondary" data-mcp-label="copyInstructions">Copy AI setup instructions</button></div>
+              <div class="settings-quick-heading"><h3 id="mcpSetupHeading" data-mcp-label="setup">Connect your AI</h3><button id="mcpRefresh" type="button" data-pe-button="ghost" data-pe-density="compact" data-mcp-label="refresh">Check / Retry</button></div>
+              <div class="mcp-setup-row"><label class="settings-field" for="mcpClient"><span data-mcp-label="client">AI client</span><select id="mcpClient"><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="other">Kimi / ZCode / Other</option></select></label><button id="mcpConfigure" type="button" data-pe-button="primary" data-mcp-label="configure">Set up</button></div>
               <p id="mcpConfigureStatus" class="settings-save-status" role="status" aria-live="polite" aria-atomic="true" hidden></p>
               <p id="mcpConfigStatus" class="settings-save-status" role="status" aria-live="polite" hidden></p>
-              <p class="settings-help" data-mcp-label="setupHelp">Configure once. PenEcho finds its current port automatically. Reload the AI client after configuration.</p>
-              <details><summary data-mcp-label="manual">Manual configuration</summary><pre id="mcpConfig" class="mcp-config" tabindex="0"></pre></details>
-              <div class="mcp-actions"><button id="mcpCopySkill" type="button" data-pe-button="secondary" data-mcp-label="copySkill">Copy workflow skill</button><button id="mcpCopyGuide" type="button" data-pe-button="secondary" data-mcp-label="copyGuide">Copy setup guide</button></div>
+              <p class="settings-help" data-mcp-label="setupHelp">Reload your AI client, then ask: “Show this in PenEcho.”</p>
+              <details id="mcpManual"><summary data-mcp-label="manual">Manual setup &amp; details</summary>
+                <div class="mcp-actions"><button id="mcpCopyInstructions" type="button" data-pe-button="secondary" data-mcp-label="copyInstructions">Copy setup prompt</button><button id="mcpCopyConfig" type="button" data-pe-button="secondary" data-mcp-label="copyConfig">Copy config</button></div>
+                <pre id="mcpConfig" class="mcp-config" tabindex="0"></pre>
+                <div class="mcp-actions"><button id="mcpCopySkill" type="button" data-pe-button="secondary" data-mcp-label="copySkill">Copy skill</button><button id="mcpCopyGuide" type="button" data-pe-button="secondary" data-mcp-label="copyGuide">Copy guide</button></div>
+                <p class="settings-help" data-mcp-label="accessHelp"></p>
+                <p class="settings-help" data-mcp-label="howHelp"></p>
+              </details>
               <p id="mcpSetupStatus" class="settings-save-status" role="status" aria-live="polite"></p>
-            </section>
-            <section class="settings-group settings-entry-group" aria-labelledby="mcpSessionsHeading">
-              <div class="settings-quick-heading"><h3 id="mcpSessionsHeading" data-mcp-label="sessions">Sessions on this canvas</h3></div>
-              <p id="mcpEmpty" class="settings-help" data-mcp-label="empty">Connect your AI, then ask it to show its work in PenEcho. Each session gets its own work area.</p>
-              <div id="mcpSessionList" class="settings-connection-quick-list"></div>
-              <details><summary data-mcp-label="how">How to use it</summary><p class="settings-help" data-mcp-label="howHelp">Ask your AI to publish a short plan and meaningful milestones, and place diagrams or UI code in Widgets. Ask for a screenshot when checking a design. Progress updates do not call another model or take screenshots.</p><p class="settings-help" data-mcp-label="thoughtHelp">Shows the AI’s shared plans, decisions and results. Session updates are supplied by the external AI client.</p></details>
             </section>
           </section>
         <form id="canvasSettingsForm" class="canvas-settings-form" hidden>

@@ -1,7 +1,13 @@
   // External MCP sessions share Canvas primitives, but never an Agent conversation.
-  var mcpRuntime = { socket:null, generation:0, sessions:new Map(), controllers:new Map(), queue:Promise.resolve(), queued:0, status:null, loading:null, loadError:null, configuring:false, configureResult:null, feedbackSequence:0, feedback:[], ready:false, connectionLost:false, heartbeatTimer:0, heartbeatSupported:false, lastPong:0, activeMutation:null, glowTimer:0, glowing:false, pendingView:new Map(), layoutTimer:0, layoutSince:0, viewPaused:false };
+  var mcpRuntime = { socket:null, generation:0, sessions:new Map(), previews:new Map(), controllers:new Map(), queue:Promise.resolve(), queued:0, status:null, loading:null, loadError:null, configuring:false, configureResult:null, feedbackSequence:0, feedback:[], ready:false, connectionLost:false, heartbeatTimer:0, heartbeatSupported:false, lastPong:0, activeMutation:null, mutationDocumentId:null, glowTimer:0, glowing:false, pendingView:new Map(), layoutTimer:0, layoutSince:0, viewPaused:false };
   const mcpCopy = {
-    nav:["MCP service","MCP 服务"], heading:["Work alongside your AI","与外部 AI 一起工作"],
+    checkingSetup:["Checking MCP setup…","正在检查 MCP 配置…"],
+    accessBrief:["Connected AI can read and edit your canvases.","连接的 AI 可读取和编辑你的画布。"],
+    toolbarSetup:["Set up MCP Server","配置 MCP Server"],
+    toolbarOpen:["Make canvases discoverable to external AI","允许外部 AI 发现并编辑画布"],
+    toolbarClose:["Turn off MCP discovery","关闭 MCP 开放"],
+    toolbarRetry:["Connection failed. Click MCP Server to retry.","连接失败。点击 MCP Server 重试。"],
+    nav:["MCP service","MCP 服务"], heading:["Give your AI a spatial workspace", "给你的 AI 一个空间工作区"],
     canvasNotice:["MCP connected · AI can update this canvas","MCP 已连接 · AI 可更新此画布"],
     canvasWaiting:["MCP open · Waiting for AI","MCP 已开放 · 等待 AI"],
     canvasLost:["MCP connection lost","MCP 连接已断开"],
@@ -11,21 +17,20 @@
     newContent:["Show new content","查看新内容"],
     lastUpdate:["Last update","最近更新"],
     canvasNoticeHelp:["Open MCP settings to manage or turn off access to this canvas.","打开 MCP 设置，管理或关闭对此画布的访问。"],
-    description:["Bring external AI sessions, progress and interactive previews onto this canvas.","把外部 AI 的会话、工作进度和交互预览带到这张画布。"],
-    enable:["Allow external AI on this canvas","允许外部 AI 连接此画布"],
-    accessHelp:["While connected, external AI can update its session objects and read new text, strokes and images you commit to this canvas after its session starts. Previews and visual feedback are captured on request.","连接期间，外部 AI 可以更新自己的会话对象，并读取会话开始后你在此画布提交的文字、笔画和图片。预览和视觉反馈仅按需截图。"],
-    setup:["Connect an AI client","连接 AI 客户端"],refresh:["Check connection","检查连接"],client:["AI client","AI 客户端"],
-    configure:["Configure automatically","自动配置"],copyConfig:["Copy configuration","复制配置"],copyInstructions:["Copy AI setup instructions","复制 AI 配置指引"],
-    setupHelp:["Configure once. PenEcho finds its current port automatically. Reload the AI client after configuration.","只需配置一次，PenEcho 会自动发现当前端口。配置后请重新加载 AI 客户端。"],
-    manual:["Manual configuration","手动配置"],sessions:["Sessions on this canvas","此画布上的会话"],
-    copySkill:["Copy workflow skill","复制工作流技能"],copyGuide:["Copy setup guide","复制设置文档"],
-    empty:["Connect your AI, then ask it to show its work in PenEcho. Each session gets its own work area.","连接 AI 后，让它在 PenEcho 展示工作。每个会话都有自己的工作区域。"],
+    description:["Connect Codex or Claude. Show, annotate and iterate on Canvas.", "连接 Codex、Claude，在画布上展示、批注、迭代。"],
+    enable:["Make workspace discoverable", "开放空间工作区"],
+    accessHelp:["Connected clients can find and open your Device, Server and connected Cloud canvases, read their content, and edit the Canvas bound to a conversation. Images are captured on request. Turn this off to disconnect all external sessions.","外部客户端可查找并打开本设备、Server 和已连接 Cloud 中的画布，读取内容，并编辑对话绑定的画布。截图按需获取。关闭后会断开全部外部会话。"],
+    setup:["Connect your AI", "连接你的 AI"],refresh:["Check / Retry", "检查 / 重试"],client:["AI client","AI 客户端"],
+    configure:["Set up", "配置连接"],copyConfig:["Copy config", "复制配置"],copyInstructions:["Copy setup prompt", "复制配置指引"],
+    setupHelp:["Reload your AI client, then ask: “Show this in PenEcho.”", "重载 AI 客户端，然后说：“把这个展示在 PenEcho。”"],
+    manual:["Manual setup & details", "手动配置与详情"],
+    copySkill:["Copy skill", "复制技能"],copyGuide:["Copy guide", "复制指南"],
     how:["How to use it","如何使用"],
-    howHelp:["Ask your AI to publish a short plan and meaningful milestones. Use lightweight drawings for text and diagrams, function plots for curves, and Widgets for interactive UI. Request a screenshot when checking a design. Progress updates do not call another model or take screenshots.","让 AI 发布简短计划和重要进展。文字和关系图使用轻量绘图，曲线使用函数图，交互 UI 使用 Widget。检查设计时再获取截图。进度更新不调用额外模型，也不生成截图。"],
+    howHelp:["Ask your AI to show useful work and revise it from your feedback. Use lightweight drawings for text and diagrams, function plots for curves, and Widgets for interactive UI. Request a screenshot when checking a design. Progress updates do not call another model or take screenshots.","让 AI 展示有用的成果，并结合你的反馈继续修改。文字和关系图使用轻量绘图，曲线使用函数图，交互 UI 使用 Widget。检查设计时再获取截图。进度更新不调用额外模型，也不生成截图。"],
     thoughtHelp:["Shows the AI’s shared plans, decisions and results. Session updates are supplied by the external AI client.","展示 AI 分享的计划、决策和结果。会话更新由外部 AI 客户端主动提供。"],
-    connected:["Connected · this canvas is discoverable","已连接 · 外部 AI 可发现此画布"], disconnected:["Disconnected · external access is off","未连接 · 外部访问已关闭"],connecting:["Connecting…","正在连接…"],
+    connected:["Discoverable · AI can connect", "已可被发现 · AI 可连接"], disconnected:["Not discoverable", "未开放"],connecting:["Opening MCP Server…", "正在开放 MCP Server…"],
     localOnly:["Open this canvas on the local PenEcho host to enable MCP. Cloud MCP routing is not available yet.","请在本机 PenEcho 中打开画布以启用 MCP。当前版本尚不支持 Cloud MCP 路由。"],
-    copied:["Copied","已复制"],configured:["Configuration saved. Reload the AI client, then check that PenEcho tools are available.","配置已保存。请重新加载 AI 客户端，并检查是否出现 PenEcho 工具。"],
+    copied:["Copied","已复制"],configured:["Reload your AI client to finish.", "重载 AI 客户端即可完成。"],
     loadingConfig:["Loading connection configuration…","正在加载连接配置…"],
     configuring:["Configuring…","正在配置…"],
     configurePending:["Saving the MCP configuration. This may take up to 20 seconds.","正在保存 MCP 配置，可能需要约 20 秒。"],
@@ -33,10 +38,10 @@
     configureExisting:["Existing configuration found · not verified","已发现已有配置 · 尚未验证"],
     configureExistingHelp:["No changes were made. Reload this AI client and check for PenEcho tools. If they are unavailable, compare its existing entry with Manual configuration below.","本次未修改配置。请重新加载此 AI 客户端，检查是否出现 PenEcho 工具；若未出现，请对照下方“手动配置”检查已有条目。"],
     configureFailed:["Automatic configuration failed","自动配置失败"],
-    configureFailedHelp:["Try again, or use Copy AI setup instructions to finish setup in your client.","请重试，或使用“复制 AI 配置指引”在客户端完成设置。"],
+    configureFailedHelp:["Retry, or open Manual setup & details and copy the setup prompt.","请重试，或展开“手动配置与详情”，复制配置指引。"],
     configureUncertain:["Configuration result not confirmed","配置结果尚未确认"],
     configureUncertainHelp:["The request did not finish. Check the AI client's PenEcho entry before retrying; it may already have been saved.","请求未完成。重试前请检查 AI 客户端中的 PenEcho 条目，配置可能已经保存。"],
-    loadFailed:["Could not load the connection configuration. Select Check connection to retry.","未能加载连接配置。请点击“检查连接”重试。"],
+    loadFailed:["Could not load configuration. Select Check / Retry.","未能加载配置。请点击“检查 / 重试”。"],
     serviceOutdated:["This running PenEcho service has no usable MCP configuration. Restart PenEcho to load the updated service, then check again.","当前运行的 PenEcho 服务未提供有效的 MCP 配置。请重启 PenEcho 以加载更新后的服务，然后重新检查。"],
     hostRequired:["Configure MCP on the computer running PenEcho. Other devices can view the canvas but cannot configure its local AI clients.","请在运行 PenEcho 的电脑上配置 MCP。其他设备可以查看画布，但不能配置这台电脑的 AI 客户端。"],
     accessDenied:["MCP access was refused. On the PenEcho computer, try its localhost address, or refresh and unlock this page before checking again.","MCP 访问被拒绝。请在 PenEcho 所在电脑尝试 localhost 地址，或刷新并解锁页面后重新检查。"],
@@ -47,66 +52,93 @@
   function mcpLocal() { return !["cloud","viewer"].includes(window.PENECHO_CONFIG?.runtime); }
   function mcpExecutionCurrent(execution) {
     return execution.socket === mcpRuntime.socket && execution.socket?.readyState === WebSocket.OPEN
-      && execution.generation === mcpRuntime.generation && !execution.controller.signal.aborted;
+      && execution.generation === mcpRuntime.generation && !execution.controller.signal.aborted
+      && (typeof canvasDocuments==="undefined" || !execution.documentId || execution.documentEpoch===canvasDocuments.epoch)
+      && (!execution.activeDocumentId || typeof canvasDocuments==="undefined" || execution.activeDocumentId===canvasDocuments.activeId);
   }
   function mcpDisconnect(lost=false) {
     if(!mcpRuntime)return;
+    if(typeof canvasDocuments!=="undefined"&&canvasDocuments.activeId) {
+      const active=canvasDocumentsCurrent();active.feedback=mcpRuntime.feedback;active.feedbackSequence=mcpRuntime.feedbackSequence;
+      for(const doc of canvasDocuments.records.values())doc.sessions=canvasDocumentsWorkspaceData(doc).sessions;
+      canvasDocumentsSyncExtension(active);
+    }
     mcpRuntime.generation++;
     clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;mcpRuntime.layoutSince=0;mcpRuntime.pendingView.clear();mcpRuntime.viewPaused=false;
     clearTimeout(mcpRuntime.heartbeatTimer);clearTimeout(mcpRuntime.glowTimer);
-    mcpRuntime.heartbeatTimer=0;mcpRuntime.glowTimer=0;mcpRuntime.ready=false;mcpRuntime.heartbeatSupported=false;mcpRuntime.connectionLost=lost;mcpRuntime.activeMutation=null;mcpRuntime.glowing=false;
+    mcpRuntime.heartbeatTimer=0;mcpRuntime.glowTimer=0;mcpRuntime.ready=false;mcpRuntime.heartbeatSupported=false;mcpRuntime.connectionLost=lost;mcpRuntime.activeMutation=null;mcpRuntime.mutationDocumentId=null;mcpRuntime.glowing=false;
     for (const controller of mcpRuntime.controllers.values()) controller.abort();
     mcpRuntime.controllers.clear();
+    for(const widget of mcpRuntime.previews.values())unmountWidget(widget);mcpRuntime.previews.clear();
     const socket=mcpRuntime.socket; mcpRuntime.socket=null; socket?.close();
     mcpRuntime.sessions.clear();
     mcpRuntime.feedback=[];
     mcpRenderSettings();
+    if(mcpRuntime.toolbarManaged&&(!mcpRuntime.toolbarPending||lost))setStatus(mcpText(lost?"toolbarRetry":"disconnected"));
+    if(lost&&typeof canvasDocumentsReport==="function")canvasDocumentsReport(canvasDocumentsCopy("External connection lost. Your canvases and instructions are kept. Reconnect, then resume the same document ID.","外部连接已断开。画布和指令都已保留。请重连后继续同一个画布。"),async()=>{mcpConnect();});
   }
   function mcpRenderCanvasStatus() {
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,
-      sessions=[...mcpRuntime.sessions.values()].filter(session=>!session.closed),
+      sessions=[...mcpRuntime.sessions.values()].filter(session=>!session.closed&&mcpSessionVisible(session)),
       clients=[...new Set(sessions.map(session=>session.client||"AI"))],
+      mutationVisible=!mcpRuntime.mutationDocumentId||typeof canvasDocuments==="undefined"||mcpRuntime.mutationDocumentId===canvasDocuments.activeId,
       notice=mcpEl("mcpCanvasNotice"),ring=mcpEl("mcpCanvasRing"),button=mcpEl("mcpCanvasNoticeButton");
     if(notice)notice.hidden=!mcpLocal()||(!connected&&!mcpRuntime.connectionLost);
-    if(ring){ring.hidden=!connected;ring.setAttribute("data-state",mcpRuntime.glowing?"updating":"open");}
-    const newButton=mcpEl("mcpShowNewContent"),count=[...mcpRuntime.pendingView.values()].reduce((sum,ids)=>sum+ids.size,0);
-    if(newButton){newButton.hidden=!connected||!count;newButton.textContent=`${mcpText("newContent")} · ${count}`;}
+    if(ring){ring.hidden=!connected;ring.setAttribute("data-state",mcpRuntime.glowing&&mutationVisible?"updating":"open");}
+    const newButton=mcpEl("mcpShowNewContent"),count=[...mcpRuntime.pendingView].filter(([id])=>mcpSessionVisible(mcpRuntime.sessions.get(id))).reduce((sum,[,ids])=>sum+ids.size,0);
+    if(newButton){newButton.hidden=!connected||!count;newButton.textContent=mcpText("newContent");}
     let label=mcpText("canvasLost");
-    if(connected)label=mcpRuntime.activeMutation?`${mcpRuntime.activeMutation} ${mcpText("canvasApplying")}`:sessions.length?`MCP · ${clients.slice(0,2).join(" / ")}${clients.length>2?" +":""} · ${sessions.length} ${mcpText(sessions.length===1?"canvasSession":"canvasSessions")}`:mcpText("canvasWaiting");
+    if(connected)label=mcpRuntime.activeMutation&&mutationVisible?`${mcpRuntime.activeMutation} ${mcpText("canvasApplying")}`:sessions.length?`MCP · ${clients.slice(0,2).join(" / ")}${clients.length>2?" +":""} · ${sessions.length} ${mcpText(sessions.length===1?"canvasSession":"canvasSessions")}`:mcpText("canvasWaiting");
     if(button){if(button.textContent!==label)button.textContent=label;button.title=mcpText("canvasNoticeHelp");}
   }
   // PenEcho owns deterministic placement and camera batching; MCP clients provide only content.
+  function mcpSessionVisible(session) {
+    return Boolean(session)&&(!session.documentId||typeof canvasDocuments==="undefined"||session.documentId===canvasDocuments.activeId);
+  }
   function mcpTaskBounds(session,ids=null) {
     let region=null;
     for(const id of ids||[session.boardObjectId,...[...session.artifacts.values()].flatMap(item=>item.objectIds||[item.objectId])]){
-      const object=canvasAgentObject(id);if(object)region=unionDirtyBounds(region,canvasAgentBox(object));
+      const doc=typeof canvasDocuments!=="undefined"&&canvasDocuments.records.get(session.documentId),object=doc?canvasDocumentsObject(doc,id):canvasAgentObject(id);if(object)region=unionDirtyBounds(region,doc?canvasDocumentsBounds(object):canvasAgentBox(object));
     }
     return region;
   }
-  function mcpPlanPlacement(width,height,session=null) {
-    const reserved=[...mcpRuntime.sessions.values()].filter(item=>item!==session&&item.layout).map(item=>item.layout.zone);
-    if(!session){
-      const zone=canvasAgentPlacementBox(4608,2400,{mode:"auto",gap:96},reserved);
-      if(zone.crowded)throw Error("No clear space for another task. Free some Canvas space and try again.");
-      return {placement:{mode:"absolute",x:zone.x,y:zone.y},layout:{zone:{x:zone.x,y:zone.y,w:4608,h:2400},x:zone.x,y:zone.y+height+48,rowHeight:0}};
+  const MCP_PRESENTATION_SIZES = {base:[480,360],wide:[992,360],tall:[480,752],large:[992,752],page:[1200,800]};
+  function mcpPresentation(args,previous=null) {
+    const input=args.presentation||previous?.presentation||{},intent=input.intent||"deliver",role=input.role||"primary";
+    return {...input,intent,role,attention:input.attention||(intent==="review"?"request":role!=="primary"||intent==="inspect"?"quiet":"normal")};
+  }
+  function mcpPresentationSize(args) {
+    const size=MCP_PRESENTATION_SIZES[args.presentation?.size||"base"]||MCP_PRESENTATION_SIZES.base;
+    return {width:args.width||size[0],height:args.height||size[1]};
+  }
+  // Semantic placement has one owner for visible and parked documents. It never
+  // changes existing geometry, and searches downwards instead of a 4608px shelf.
+  function mcpArrange(width,height,session,presentation,view,boundsFor,collisions) {
+    const gap=32,p= presentation||{},owned=[...(session?.artifacts.values()||[])],
+      anchor=p.relativeTo?session?.artifacts.get(p.relativeTo):null;
+    if(p.relativeTo&&!anchor)throw Error("Related artifact not found in this session. Use an existing artifactId.");
+    const reference=anchor?boundsFor(anchor):null;
+    if(anchor&&!reference)throw Error("Related artifact was removed. Choose an existing artifact.");
+    const primary=owned.find(a=>a.presentation?.role!=="supporting"&&a.presentation?.role!=="alternative"),
+      primaryBounds=primary&&boundsFor(primary),last=owned.map(boundsFor).filter(Boolean).at(-1),
+      viewport=view||{x:0,y:0,w:1280,h:900},
+      origin={x:Math.max(48,Math.min(SIZE-width-48,viewport.x+Math.max(48,(viewport.w-width)/2))),y:Math.max(128,Math.min(SIZE-height-48,viewport.y+Math.min(160,viewport.h*.18)))};
+    let x=reference?.x??primaryBounds?.x??last?.x??origin.x,
+      y=reference?reference.y+reference.h+gap:last?last.y+last.h+gap:origin.y;
+    const beside=reference&&(p.relation==="beside"||!p.relation&&p.intent==="compare");
+    if(beside&&reference.w+gap+width<=Math.max(width,(viewport.readableWidth||viewport.w)-96)) {x=reference.x+reference.w+gap;y=reference.y;}
+    x=Math.max(48,Math.min(SIZE-width-48,x));
+    for(let attempt=0;attempt<2048&&y+height<=SIZE-48;attempt++) {
+      const hits=collisions({x:x-gap/2,y:y-gap/2,w:width+gap,h:height+gap});
+      if(!hits.length)return {placement:{mode:"absolute",x,y},layout:{zone:{x,y,w:width,h:height},x:0,y:height+gap,rowHeight:height}};
+      y=Math.max(y+gap,...hits.map(b=>b.y+b.h+gap));
     }
-    const layout=session.layout||{zone:{...mcpTaskBounds(session)},x:0,y:0,rowHeight:0},zone=layout.zone,
-      ink=visibleInkBounds({x:0,y:0,w:SIZE,h:SIZE}),occupied=[...canvasAgentAllObjects().map(item=>canvasAgentInternalRect(item.box)),...reserved,...(ink?[ink]:[])],
-      right=Math.min(SIZE,zone.x+Math.max(2200,width));
-    let x=layout.x,y=layout.y,rowHeight=layout.rowHeight;
-    for(let attempt=0;attempt<256;attempt++){
-      if(x+width>right){x=zone.x;y+=Math.max(rowHeight,1)+48;rowHeight=0;}
-      if(y+height>SIZE)break;
-      const candidate={x:x-24,y:y-24,w:width+48,h:height+48},hit=occupied.find(box=>intersection(candidate,box));
-      if(hit){
-        // Skip occupied space without moving user content or any earlier artifact.
-        if(hit.x+hit.w+48+width<=right)x=hit.x+hit.w+48;
-        else{x=zone.x;y=Math.max(y+48,hit.y+hit.h+48);rowHeight=0;}
-        continue;
-      }
-      return {placement:{mode:"absolute",x,y},layout:{zone:{...zone,h:Math.max(zone.h,y+height-zone.y+48)},x:x+width+48,y,rowHeight:Math.max(rowHeight,height)}};
-    }
-    throw Error("This task has no clear space left. Move the task or free Canvas space before adding more previews.");
+    throw Error("No clear space remains below this work. Move the group or use another Canvas.");
+  }
+  function mcpPlanPlacement(width,height,session=null,presentation=null) {
+    if(typeof canvasDocumentsCurrent==="function")return canvasDocumentsPlace(canvasDocumentsCurrent(),width,height,session,presentation);
+    const occupied=canvasAgentAllObjects().map(item=>canvasAgentInternalRect(item.box)),ink=visibleInkBounds({x:0,y:0,w:SIZE,h:SIZE});if(ink)occupied.push(ink);
+    return mcpArrange(width,height,session,presentation,typeof viewportRect==="function"?viewportRect():null,a=>mcpTaskBounds(session,a.objectIds||[a.objectId]),box=>occupied.filter(b=>intersection(box,b)));
   }
   function mcpViewBusy() {
     return document.hidden||state.navigationLocked||state.drawing||state.panGesture||state.touchGesture||state.widgetGesture||state.imageGesture||state.selectionGesture||state.animationGesture||state.textEditors?.size||state.pointers?.size||document.activeElement?.tagName==="IFRAME"||mcpEl("settingsLayer")?.hidden===false;
@@ -115,7 +147,8 @@
     if(!mcpRuntime.socket)return;
     mcpRuntime.viewPaused=true;clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;mcpRenderCanvasStatus();
   }
-  function mcpQueueView(session,widget) {
+  function mcpQueueView(session,widget,presentation=null) {
+    if(presentation?.attention==="quiet"||presentation?.intent==="inspect")return;
     if(!mcpRuntime.ready||mcpRuntime.socket?.readyState!==WebSocket.OPEN)return;
     let pending=mcpRuntime.pendingView.get(session.sessionId);
     if(!pending){pending=new Set();mcpRuntime.pendingView.set(session.sessionId,pending);}
@@ -130,18 +163,31 @@
     if(!mcpRuntime.ready||!mcpRuntime.pendingView.size)return;
     if(mcpRuntime.queued){mcpRuntime.layoutTimer=setTimeout(()=>mcpFlushView(explicit),150);return;}
     if(mcpViewBusy()||(!explicit&&mcpRuntime.viewPaused)){mcpRuntime.viewPaused=true;mcpRenderCanvasStatus();return;}
-    const groups=[...mcpRuntime.pendingView].filter(([id])=>mcpRuntime.sessions.has(id));
-    if(!groups.length){mcpRuntime.pendingView.clear();mcpRenderCanvasStatus();return;}
-    let region=null;
-    for(const [id,ids] of groups)region=unionDirtyBounds(region,mcpTaskBounds(mcpRuntime.sessions.get(id),ids));
-    let shown=groups;
-    if(region&&canvasAgentFramePlan(region,64).scale<.4){
-      shown=[groups[0]];region=mcpTaskBounds(mcpRuntime.sessions.get(shown[0][0]),shown[0][1]);
+    const groups=[...mcpRuntime.pendingView].filter(([id])=>mcpSessionVisible(mcpRuntime.sessions.get(id)));
+    if(!groups.length){mcpRenderCanvasStatus();return;}
+    const candidates=groups.flatMap(([id,ids])=>{
+      const session=mcpRuntime.sessions.get(id),seen=new Set(),items=[];
+      for(const objectId of ids){
+        const artifact=[...session.artifacts.values()].find(a=>(a.objectIds||[a.objectId]).includes(objectId)),key=artifact||objectId;
+        if(seen.has(key))continue;seen.add(key);
+        const objectIds=artifact?(artifact.objectIds||[artifact.objectId]):[objectId],p=artifact?.presentation||{};
+        items.push({id,objectIds:objectIds.filter(value=>ids.has(value)),bounds:mcpTaskBounds(session,objectIds),rank:p.attention==="request"?3:p.role==="supporting"||p.role==="alternative"?1:2});
+      }
+      return items;
+    }).filter(item=>item.bounds).sort((a,b)=>b.rank-a.rank);
+    if(!candidates.length){for(const [id] of groups)mcpRuntime.pendingView.delete(id);mcpRenderCanvasStatus();return;}
+    let shown=candidates,region=candidates.reduce((bounds,item)=>unionDirtyBounds(bounds,item.bounds),null);
+    if(canvasAgentFramePlan(region,96).scale<.65){shown=[candidates[0]];region=shown[0].bounds;}
+    const view=typeof viewportRect==="function"?viewportRect():null,stage=canvasAgentFramePlan(region,96).stage,scale=state.scale||1,
+      screenX=(state.panX||0)+region.x*scale,screenY=(state.panY||0)+region.y*scale,
+      unobscured=!stage||screenX>=stage.x+24&&screenY>=stage.y+24&&screenX+region.w*scale<=stage.x+stage.w-24&&screenY+region.h*scale<=stage.y+stage.h-24,
+      alreadyVisible=scale>=.65&&unobscured&&view&&region.x>=view.x+24&&region.y>=view.y+24&&region.x+region.w<=view.x+view.w-24&&region.y+region.h<=view.y+view.h-24;
+    if(!alreadyVisible) {
+      if(!explicit&&canvasAgentFramePlan(region,96).scale<.5){mcpRuntime.viewPaused=true;mcpRenderCanvasStatus();return;}
+      canvasAgentFrameRegion(region,96);
     }
-    if(!region){for(const [id] of shown)mcpRuntime.pendingView.delete(id);mcpRenderCanvasStatus();return;}
-    if(!explicit&&canvasAgentFramePlan(region,64).scale<.3){mcpRuntime.viewPaused=true;mcpRenderCanvasStatus();return;}
-    canvasAgentFrameRegion(region,64);
-    for(const [id] of shown)mcpRuntime.pendingView.delete(id);
+    for(const item of shown){const ids=mcpRuntime.pendingView.get(item.id);for(const objectId of item.objectIds)ids?.delete(objectId);if(!ids?.size)mcpRuntime.pendingView.delete(item.id);}
+
     mcpRuntime.layoutSince=0;mcpRuntime.viewPaused=false;mcpRenderCanvasStatus();
   }
 
@@ -151,8 +197,8 @@
     if(socket.readyState===WebSocket.OPEN&&mcpRuntime.ready&&mcpRuntime.heartbeatSupported){try{socket.send(JSON.stringify({type:"ping"}));}catch{mcpDisconnect(true);return;}}
     mcpRuntime.heartbeatTimer=setTimeout(()=>mcpHeartbeat(socket),15000);
   }
-  function mcpBeginMutation(client) {
-    clearTimeout(mcpRuntime.glowTimer);mcpRuntime.activeMutation=client||"AI";mcpRuntime.glowing=true;mcpRenderCanvasStatus();
+  function mcpBeginMutation(client,documentId=null) {
+    clearTimeout(mcpRuntime.glowTimer);mcpRuntime.activeMutation=client||"AI";mcpRuntime.mutationDocumentId=documentId;mcpRuntime.glowing=true;mcpRenderCanvasStatus();
   }
   function mcpEndMutation() {
     mcpRuntime.activeMutation=null;mcpRenderCanvasStatus();
@@ -162,7 +208,7 @@
     if(!mcpRuntime)return;
     document.querySelectorAll("[data-mcp-label]").forEach(node=>{node.textContent=mcpText(node.dataset.mcpLabel);});
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN, connecting=!!mcpRuntime.socket&&!connected;
-    mcpRenderCanvasStatus();
+    mcpRenderCanvasStatus();mcpRenderToolbar();
     if(mcpEl("mcpEnabled")){mcpEl("mcpEnabled").setAttribute("aria-checked",String(connected||connecting));mcpEl("mcpEnabled").classList.toggle("on",connected||connecting);mcpEl("mcpEnabled").disabled=!mcpLocal();}
     if(mcpEl("mcpConnectionStatus"))mcpEl("mcpConnectionStatus").textContent=mcpText(!mcpLocal()?"localOnly":connected?"connected":connecting?"connecting":"disconnected");
     const config=mcpRuntime.status?.config;
@@ -181,16 +227,46 @@
       configureNotice.textContent=mcpRuntime.configuring?mcpText("configurePending"):outcome?`${outcome.client} · ${mcpText({saved:"configureSaved",existing:"configureExisting",failed:"configureFailed",uncertain:"configureUncertain"}[outcome.kind])}\n${mcpText({saved:"configured",existing:"configureExistingHelp",failed:"configureFailedHelp",uncertain:"configureUncertainHelp"}[outcome.kind])}${outcome.detail?`\n${outcome.detail}`:""}`:"";
     }
     if(mcpEl("mcpConfigure"))mcpEl("mcpConfigure").hidden=mcpEl("mcpClient")?.value==="other";
-    if(mcpEl("settingsPageMcp")?.hidden!==false)return;
-    const list=mcpEl("mcpSessionList"); if(!list)return;
-    list.replaceChildren();
-    mcpEl("mcpEmpty").hidden=mcpRuntime.sessions.size>0;
-    for(const session of mcpRuntime.sessions.values()){
-      const row=document.createElement("div"),copy=document.createElement("div"),title=document.createElement("strong"),status=document.createElement("small"),button=document.createElement("button");
-      copy.className="mcp-session-copy";title.textContent=session.title;status.textContent=[session.client,mcpText(session.status),session.updatedAt?`${mcpText("lastUpdate")} ${new Date(session.updatedAt).toLocaleTimeString(state.language==="zh"?"zh-CN":"en-US",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}`:""].filter(Boolean).join(" · ");
-      copy.append(title,status);button.type="button";button.textContent=mcpText("focus");peButton(button,"secondary","compact");
-      button.addEventListener("click",()=>{const board=canvasAgentObject(session.boardObjectId);if(board){mcpPauseView();closeSettings();canvasAgentFrameRegion(mcpTaskBounds(session)||canvasAgentBox(board),64);mcpRuntime.pendingView.delete(session.sessionId);mcpRenderCanvasStatus();}});
-      row.append(copy,button);list.append(row);
+  }
+  function mcpRememberSetup() {
+    mcpRuntime.setupKnown=true;
+    try{localStorage.setItem("penecho-mcp-setup-completed","true");}catch{}
+  }
+  function mcpSetupKnown() {
+    if(mcpRuntime.setupKnown)return true;
+    try{return localStorage.getItem("penecho-mcp-setup-completed")==="true";}catch{return false;}
+  }
+  async function mcpToolbarClick() {
+    if(mcpRuntime.toolbarChecking)return;
+    if(mcpRuntime.socket){
+      if(mcpRuntime.ready)mcpRememberSetup();
+      mcpRuntime.toolbarManaged=false;mcpRuntime.toolbarPending=false;mcpDisconnect();setStatus(mcpText("disconnected"));return;
+    }
+    if(!mcpLocal()){openSettings();selectSettingsPage("mcp");return;}
+    if(!mcpSetupKnown()) {
+      const generation=mcpRuntime.generation;
+      mcpRuntime.toolbarChecking=true;setStatus(mcpText("checkingSetup"));mcpRenderToolbar();
+      try{
+        const result=await mcpApi("status?inspectClients=1");
+        if(generation!==mcpRuntime.generation)return;
+        if(Array.isArray(result.configuredClients)&&result.configuredClients.some(client=>["codex","claude"].includes(client)))mcpRememberSetup();
+      }catch{}finally{mcpRuntime.toolbarChecking=false;mcpRenderToolbar();}
+      if(generation!==mcpRuntime.generation)return;
+      if(!mcpSetupKnown()){openSettings();selectSettingsPage("mcp");return;}
+    }
+    mcpRuntime.toolbarManaged=true;mcpRuntime.toolbarPending=true;setStatus(mcpText("connecting"));
+    try{mcpConnect();}catch{mcpRuntime.toolbarPending=false;setStatus(mcpText("toolbarRetry"));mcpRenderToolbar();}
+  }
+  function mcpRenderToolbar() {
+    window.PenEchoStudioNavigator?.syncMcp?.(Boolean(mcpRuntime.socket));
+    const button=mcpEl("mcpToolbarToggle");if(!button)return;
+    const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,opening=Boolean(mcpRuntime.socket)&&!connected;
+    button.setAttribute("aria-pressed",String(connected||opening));button.setAttribute("aria-busy",String(opening||Boolean(mcpRuntime.toolbarChecking)));button.disabled=Boolean(mcpRuntime.toolbarChecking);
+    const title=mcpText(connected||opening?"toolbarClose":mcpRuntime.connectionLost?"toolbarRetry":mcpSetupKnown()?"toolbarOpen":"toolbarSetup");
+    button.title=title;button.setAttribute("aria-label",`MCP Server · ${title}`);
+    button.setAttribute("data-state",connected?"connected":opening||mcpRuntime.toolbarChecking?"connecting":mcpRuntime.connectionLost?"failed":"off");
+    if(mcpRuntime.toolbarPending&&(connected||mcpRuntime.connectionLost)){
+      setStatus(mcpText(connected?"connected":"toolbarRetry"));mcpRuntime.toolbarPending=false;
     }
   }
   function mcpConfigurationErrorText(error) {
@@ -219,17 +295,18 @@
     mcpRenderSettings();return mcpRuntime.loading;
   }
   function mcpInstructions() {
-    return `Configure PenEcho MCP for the AI client I am using. Read its installed MCP help or official documentation. Preserve unrelated servers and settings; do not invent client commands. Use this exact stdio launch configuration (absolute paths and env matter):\n${JSON.stringify({mcpServers:{penecho:mcpRuntime.status?.config}},null,2)}\nNo server URL, port, API key or npm download is needed. This bridge discovers local PenEcho instances. Reload the client and verify penecho_list_canvases appears. If no canvas is listed, ask me to open PenEcho Settings → MCP service and allow this canvas. Select the intended instanceId and canvasId explicitly, then penecho_start_session with a descriptive title, client name and a unique sessionKey for this conversation. Each conversation must use its own sessionId.\nWith an already selected live connection, proactively show useful UI previews, a small set of alternatives for user choice, or a diagram when it clarifies the task. Avoid decorative output for routine edits. Update stable artifacts and keep ordinary presentation capture:false: generating a screenshot does not call a model, but a model reading that image may incur image-input tokens. While doing my real work, publish a concise public plan and meaningful milestones with penecho_update_session (batch steps/events). Never publish private chain of thought, secrets or full transcripts. Do not update per token or every tool call. Keep the primary task moving if visualization is offline. Use penecho_draw for lightweight native text, shapes, connectors or paths, and penecho_plot for function expressions. Nodes can omit local positions; PenEcho handles placement. Draw items are a complete artifact replacement, so retain all desired element IDs. Shapes and paths are native image objects, not editable vector handles or eraser-layer strokes. Both tools support capture:true for bounded visual verification. Use penecho_present_widget with a stable artifactId for interactive HTML UI previews. When presenting code that needs immediate visual validation, use penecho_present_widget with capture:true in one call. Otherwise use penecho_capture_widget only when visual validation is needed; read the image and timing/diagnostics. It is an embedded Widget preview, not full browser navigation or end-to-end automation. Before revising a design, call penecho_read_feedback for your session. Keep an independent after cursor, page with nextCursor while hasMore, and advance only after processing. Feedback defaults to one compressed screenshot with nearby design context, including text-only feedback. Read the image; use capture:false only for a lightweight availability check. Never discard unread feedback by replacing your cursor with a newer presentation feedbackCursor. Reads do not clear Canvas dirty state or other sessions. Handle truncated history explicitly. Only committed user input after the session board was applied is available; no automatic wake-up or tight polling. Finish with status done or error and a short verified result. Do not claim a tool succeeded without its result.\n${mcpRuntime.status?.instructions||""}`;
+    return `Configure PenEcho MCP for the AI client I am using. Read its installed MCP help or official documentation. Preserve unrelated servers and settings; do not invent client commands. Use this exact stdio launch configuration (absolute paths and env matter):\n${JSON.stringify({mcpServers:{penecho:mcpRuntime.status?.config}},null,2)}\nNo server URL, port, API key or npm download is needed. This bridge discovers local PenEcho instances. Reload the client and verify penecho_list_canvases appears. If no canvas is listed, ask me to open PenEcho Settings → MCP service and allow this canvas. Select the intended instanceId and canvasId explicitly, then penecho_start_session with a descriptive title, client name and a unique sessionKey for this conversation. Each conversation must use its own sessionId. Retain the returned documentId across reconnects. New conversation keys get a separate Canvas when the current one already contains work; pass documentId explicitly only to attach an existing Canvas. Use penecho_find_canvases to resolve saved IDs across Device, Server and connected Cloud; an unavailable store is not a missing document. Use an exact locator if copies are ambiguous. Open uses show:false by default, so background work never steals the viewport. List/read virtual files before patching: use the returned contentHash, one unified patch and a stable requestId; retry the same requestId after an uncertain result. Keep context.md concise with the goal, decisions and next step. Use runtime/viewport.json and runtime/selection.json only as current context. Read penecho_read_messages at natural task boundaries, acknowledge received/working/done/error explicitly and deduplicate instruction IDs across retries. Reading does not acknowledge; queued instructions cannot wake this client. The external processor pauses local Auto AI and never silently falls back to another model. Widget controls may opt in with data-penecho-action and data-penecho-prompt; only a trusted click queues a text instruction for the owning conversation. Width and height apply on creation; later HTML updates preserve geometry. Use penecho_edit_canvas for explicit geometry changes.\nWith an already selected live connection, proactively show useful UI previews, a small set of alternatives for user choice, or a diagram when it clarifies the task. Avoid decorative output for routine edits. Update stable artifacts and keep ordinary presentation capture:false: generating a screenshot does not call a model, but a model reading that image may incur image-input tokens. While doing my real work, use concise session status only when useful information changes; keep a stable main artifact, use presentation intent and standard sizes, and use inspect with capture:true for temporary render checks. Never publish private chain of thought, secrets or full transcripts. Do not update per token or every tool call. Keep the primary task moving if visualization is offline. Use penecho_draw for lightweight native text, shapes, connectors or paths, and penecho_plot for function expressions. Nodes can omit local positions; PenEcho handles placement. Draw items are a complete artifact replacement, so retain all desired element IDs. Shapes and paths are native image objects, not editable vector handles or eraser-layer strokes. Both tools support capture:true for bounded visual verification. Use penecho_present_widget with a stable artifactId for interactive HTML UI previews. When presenting code that needs immediate visual validation, use penecho_present_widget with capture:true in one call. Otherwise use penecho_capture_widget only when visual validation is needed; read the image and timing/diagnostics. It is an embedded Widget preview, not full browser navigation or end-to-end automation. Before revising a design, call penecho_read_feedback for your session. Keep an independent after cursor, page with nextCursor while hasMore, and advance only after processing. Feedback defaults to one compressed screenshot with nearby design context, including text-only feedback. Read the image; use capture:false only for a lightweight availability check. Never discard unread feedback by replacing your cursor with a newer presentation feedbackCursor. Reads do not clear Canvas dirty state or other sessions. Handle truncated history explicitly. Only committed user input after the session was established is available; no automatic wake-up or tight polling. Finish with status done or error and a short verified result. Do not claim a tool succeeded without its result.\n${mcpRuntime.status?.instructions||""}`;
   }
   function mcpConnect() {
     if(!mcpLocal())return;
     mcpDisconnect();
+    if(typeof canvasDocumentsReady==="function")void canvasDocumentsReady().then(()=>{const doc=canvasDocumentsCurrent();mcpRuntime.feedback=doc.feedback;mcpRuntime.feedbackSequence=doc.feedbackSequence;canvasDocumentsRender();}).catch(error=>canvasDocumentsReport(error,()=>canvasDocumentsReady()));
     const socket=new WebSocket(`${location.protocol==="https:"?"wss:":"ws:"}//${location.host}/api/mcp/canvas`),generation=mcpRuntime.generation;
     mcpRuntime.socket=socket;mcpRuntime.lastPong=Date.now();mcpHeartbeat(socket);
     socket.addEventListener("open",()=>{if(socket!==mcpRuntime.socket)return;socket.send(JSON.stringify({type:"hello",canvasId:canvasClientId(),title:state.currentSnapshotName||"PenEcho Canvas"}));mcpRenderSettings();});
     socket.addEventListener("message",event=>{
       if(socket!==mcpRuntime.socket)return;let message;try{message=JSON.parse(event.data);}catch{return;}
-      if(message.type==="ready"){mcpRuntime.ready=true;mcpRuntime.heartbeatSupported=message.heartbeat===true;mcpRuntime.lastPong=Date.now();mcpRenderSettings();return;}
+      if(message.type==="ready"){mcpRuntime.ready=true;mcpRuntime.connectionLost=false;mcpRuntime.heartbeatSupported=message.heartbeat===true;mcpRuntime.lastPong=Date.now();mcpRenderSettings();if(typeof canvasDocuments!=="undefined"){canvasDocuments.error=null;canvasDocuments.retry=null;canvasDocumentsRender();}return;}
       if(message.type==="pong"){mcpRuntime.lastPong=Date.now();return;}
       if(message.type==="cancel"){mcpRuntime.controllers.get(message.requestId)?.abort();return;}
       if(message.type!=="call")return;
@@ -237,15 +314,15 @@
       const controller=new AbortController();mcpRuntime.controllers.set(message.requestId,controller);mcpRuntime.queued++;
       const execution={kind:"mcp",socket,generation,controller,preserveView:true};
       mcpRuntime.queue=mcpRuntime.queue.catch(()=>{}).then(async()=>{
-        const started=performance.now(),mutation=["mcp_start_session","mcp_update_session","mcp_present_widget","mcp_draw","mcp_plot","mcp_close_session"].includes(message.name);
+        const started=performance.now(),mutation=["mcp_start_session","mcp_update_session","mcp_present_widget","mcp_draw","mcp_plot","mcp_close_session"].includes(message.name)&&message.arguments?.presentation?.intent!=="inspect";
         try{
           canvasAgentAssertToolExecution(execution);
-          if(mutation)mcpBeginMutation(message.arguments?.client||mcpRuntime.sessions.get(message.arguments?.sessionId)?.client);
-          const result=await mcpExecute(message.name,message.arguments||{},execution);
+          if(mutation)mcpBeginMutation(message.arguments?.client||mcpRuntime.sessions.get(message.arguments?.sessionId)?.client,message.arguments?.documentId||mcpRuntime.sessions.get(message.arguments?.sessionId)?.documentId||null);
+          const result=typeof canvasDocumentsExecute==="function"?await canvasDocumentsExecute(message.name,message.arguments||{},execution):await mcpExecute(message.name,message.arguments||{},execution);
           canvasAgentAssertToolExecution(execution);
           if(mutation){const session=mcpRuntime.sessions.get(message.arguments?.sessionId);if(session)session.updatedAt=Date.now();}
           socket.send(JSON.stringify({type:"result",requestId:message.requestId,ok:true,result:{...result,browserElapsedMs:Math.round(performance.now()-started)}}));
-        }catch(error){if(socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:"result",requestId:message.requestId,ok:false,error:{code:error.code||"CANVAS_TOOL_FAILED",message:String(error.message||error)}}));}
+        }catch(error){if(socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:"result",requestId:message.requestId,ok:false,error:{code:error.code||"CANVAS_TOOL_FAILED",message:String(error.message||error),...(error.details?{details:error.details}:{})}}));}
         finally{mcpRuntime.queued--;mcpRuntime.controllers.delete(message.requestId);if(mutation&&socket===mcpRuntime.socket){mcpEndMutation();mcpRenderSettings();}}
       });
     });
@@ -256,13 +333,14 @@
   function mcpEscape(text) { return String(text??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
   // Record committed user input only. Never scan pixels or consume Canvas dirty state here.
   function mcpRecordFeedback(kind,bounds,item=null) {
-    if(!mcpRuntime||mcpRuntime.socket?.readyState!==WebSocket.OPEN||!bounds)return;
+    if(!mcpRuntime||(!mcpRuntime.socket&&!(typeof canvasDocumentsExternal==="function"&&canvasDocumentsExternal()))||!bounds)return;
     if(![bounds.x,bounds.y,bounds.w,bounds.h].every(Number.isFinite))return;
     const entry={cursor:++mcpRuntime.feedbackSequence,kind,bounds:{x:bounds.x,y:bounds.y,w:Math.max(1,bounds.w),h:Math.max(1,bounds.h)},createdAt:Date.now()};
     if(item?.id)entry.objectId=String(item.id);
     if(kind==="text"){entry.text=String(item?.text||"").slice(0,4000);entry.textTruncated=String(item?.text||"").length>4000;}
     mcpRuntime.feedback.push(entry);
     if(mcpRuntime.feedback.length>200)mcpRuntime.feedback.splice(0,mcpRuntime.feedback.length-200);
+    if(typeof canvasDocumentsCurrent==="function"){const doc=canvasDocumentsCurrent();doc.feedback=mcpRuntime.feedback;doc.feedbackSequence=mcpRuntime.feedbackSequence;doc.changes.push({cursor:++doc.changeSequence,kind,objectId:item?.id||null,bounds:entry.bounds,createdAt:entry.createdAt});if(doc.changes.length>200)doc.changes.shift();}
   }
   async function mcpReadFeedback(session,args,execution) {
     const after=Math.max(session.feedbackStart,args.after??session.feedbackStart),latestCursor=mcpRuntime.feedbackSequence;
@@ -318,50 +396,82 @@
       (widget.mcpLoadWaiters||=new Set()).add(finish);signal.addEventListener("abort",abort,{once:true});if(signal.aborted)abort();
     });
   }
+  async function mcpCaptureWidget(widget,args,execution) {
+      if(!widget.frame?.contentWindow)mountWidget(widget);
+      if(!widget.frame?.contentWindow)throw Error("Preview could not be mounted. Check that the General Widget plugin is available.");
+      const previousActive=widget.renderActive;
+      try {
+      await mcpWaitForWidgetLoad(widget,execution);
+      const quality=args.quality||"basic",policy=quality==="detail"?CANVAS_AGENT_DETAIL_CAPTURE_POLICY:CANVAS_AGENT_LAYOUT_CAPTURE_POLICY,
+        started=performance.now(),snapshot=await requestWidgetSnapshot(widget,WIDGET_SNAPSHOT_TIMEOUT_MS,true,execution.controller.signal,quality==="detail");
+      canvasAgentAssertToolExecution(execution);
+      const rasterMs=Math.round(performance.now()-started),scale=Math.min(1,policy.maxLongEdge/Math.max(snapshot.width,snapshot.height),Math.sqrt(policy.maxPixels/(snapshot.width*snapshot.height))),canvas=document.createElement("canvas");
+      canvas.width=Math.max(1,Math.floor(snapshot.width*scale));canvas.height=Math.max(1,Math.floor(snapshot.height*scale));canvas.getContext("2d").drawImage(snapshot,0,0,canvas.width,canvas.height);
+      const encoded=await canvasAgentCompressedCanvas(canvas,policy),dataUrl=await canvasAgentReadDataUrl(encoded.blob);
+      canvasAgentAssertToolExecution(execution);
+      const result={dataUrl,mediaType:encoded.blob.type,width:encoded.canvas.width,height:encoded.canvas.height,encodedBytes:encoded.blob.size,quality,
+        artifactId:args.artifactId,objectId:widget.id,revision:state.userRevision,viewport:{width:widget.contentW,height:widget.contentH},rasterMs,
+        runtimeDiagnostics:widget.runtimeDiagnostics||null};
+      canvas.width=canvas.height=1;if(encoded.canvas!==canvas)encoded.canvas.width=encoded.canvas.height=1;
+      return result;
+      } finally { if(previousActive===false){widget.renderActive=false;widget.shell?.classList.add("widget-offscreen");sendWidgetHostState(widget,undefined,undefined,true);} }
+  }
+  async function mcpInspectHtml(args,execution) {
+    const size=mcpPresentationSize(args),id=`mcp-preview-${canvasClientId()}`,
+      widget={id,widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:0,y:0,w:size.width,h:size.height,contentW:size.width,contentH:size.height,contentVersion:0,refreshSeconds:0,mcpEphemeral:true};
+    mcpRuntime.previews.set(id,widget);
+    try {
+      canvasAgentAssertToolExecution(execution);mountWidget(widget);
+      if(widget.shell){widget.shell.setAttribute("aria-hidden","true");widget.shell.inert=true;Object.assign(widget.shell.style,{position:"fixed",left:"-20000px",top:"0",transform:"none",pointerEvents:"none"});}
+      const result=await mcpCaptureWidget(widget,args,execution);
+      const {objectId,...capture}=result;
+      return {...capture,ephemeral:true,presentation:mcpPresentation(args)};
+    } finally {unmountWidget(widget);mcpRuntime.previews.delete(id);widget.snapshotImage=null;widget.snapshotDataUrl="";}
+  }
   async function mcpExecute(name,args,execution) {
     if(name==="mcp_start_session"){
       if(mcpRuntime.sessions.has(args.sessionId))return {sessionId:args.sessionId,boardObjectId:mcpRuntime.sessions.get(args.sessionId).boardObjectId,feedbackCursor:mcpRuntime.sessions.get(args.sessionId).feedbackStart};
       const session={sessionId:args.sessionId,title:args.title,client:args.client||"",status:"working",summary:"",steps:[],events:[],artifacts:new Map(),feedbackStart:mcpRuntime.feedbackSequence};
-      const plan=mcpPlanPlacement(840,600);
-      const board=await mcpCreateWidget({title:session.title,html:mcpBoardHtml(session),width:840,height:600,placement:plan.placement},{...execution,preserveView:true});
-      session.layout=plan.layout;
-      session.feedbackStart=mcpRuntime.feedbackSequence;session.boardObjectId=board.id;mcpRuntime.sessions.set(args.sessionId,session);mcpQueueView(session,board);mcpRenderSettings();
-      return {sessionId:args.sessionId,boardObjectId:board.id,revision:state.userRevision,feedbackCursor:session.feedbackStart};
+      session.boardObjectId=null;
+      mcpRuntime.sessions.set(args.sessionId,session);mcpRenderSettings();
+      return {sessionId:args.sessionId,boardObjectId:null,revision:state.userRevision,feedbackCursor:session.feedbackStart};
     }
     const session=mcpRuntime.sessions.get(args.sessionId);if(!session)throw Error("MCP session is no longer connected to this canvas. Start a new session.");
     if(name==="mcp_read_feedback")return mcpReadFeedback(session,args,execution);
-    const board=canvasAgentObject(session.boardObjectId)?.item;if(!board)throw Error("The session board was removed. Start a new session.");
+    const board=session.boardObjectId&&canvasAgentObject(session.boardObjectId)?.item;
     if(name==="mcp_update_session"){
       for(const key of ["title","status","summary","steps"])if(args[key]!==undefined)session[key]=args[key];
       if(args.events){const events=new Map(session.events.map(event=>[event.id,event]));for(const event of args.events)events.set(event.id,event);session.events=[...events.values()].slice(-40);}
-      board.html=mcpBoardHtml(session);board.title=session.title;board.mcpProgress=mcpProgressData(session);board.contentVersion=(board.contentVersion||0)+1;
-      board.shell?.setAttribute("aria-label",`${session.title}. ${t("widgetRefineHint")}`);if(board.frame)board.frame.title=session.title;
-      board.snapshotVersion=-1;state.userRevision++;syncMcpWidgetProgress(board);
+      // Keep legacy user-owned boards usable; new sessions only update metadata.
+      if(board){board.html=mcpBoardHtml(session);board.title=session.title;board.mcpProgress=mcpProgressData(session);board.contentVersion=(board.contentVersion||0)+1;
+        board.shell?.setAttribute("aria-label",`${session.title}. ${t("widgetRefineHint")}`);if(board.frame)board.frame.title=session.title;
+        board.snapshotVersion=-1;state.userRevision++;syncMcpWidgetProgress(board);}
+      session.updatedAt=Date.now();
       if(["done","error"].includes(session.status))save();
-      mcpRenderSettings();return {applied:true,visible:board.renderActive!==false,revision:state.userRevision};
+      mcpRenderSettings();return {applied:true,visible:mcpSessionVisible(session),revision:state.userRevision};
     }
     if(name==="mcp_draw"||name==="mcp_plot")return mcpPresentPrimitives(session,args,name==="mcp_draw"?"drawing":"plot",execution);
     if(name==="mcp_present_widget"){
+      if(args.presentation?.intent==="inspect")return mcpInspectHtml(args,execution);
       if(session.artifacts.get(args.artifactId)?.kind)throw Error("This artifact is a drawing or plot. Use its original tool to update it.");
       let artifact=session.artifacts.get(args.artifactId),widget=artifact&&canvasAgentObject(artifact.objectId)?.item;
+      const presentation=mcpPresentation(args,artifact),size=mcpPresentationSize(args);
       if(artifact&&!widget)throw Error("This preview was removed. Use a new artifactId to create another.");
       if(widget){
         const context=widgetEditContext(widget,"agent"),expectedHash=await canvasAgentHash(context);
         const command={...context,tool:"html_widget",pluginId:"general",html:args.html,title:args.title,x:widget.x,y:widget.y,w:widget.w,h:widget.h};
         await canvasAgentReplaceWidget({baseRevision:state.userRevision,objectId:widget.id,expectedHash,command},execution);
-        // Resize the document viewport along with its footprint, preserving typography scale.
-        for(const dimension of ["width","height"]){
-          const contentKey=dimension==="width"?"contentW":"contentH",sizeKey=dimension==="width"?"w":"h";
-          if(args[dimension]&&args[dimension]!==widget[contentKey])await canvasAgentEdit({baseRevision:state.userRevision,operations:[{type:"resize_widget",objectId:widget.id,dimension,value:args[dimension]*widget[sizeKey]/widget[contentKey]}]},execution);
-        }
+        // Source updates preserve the user's footprint. Explicit geometry edits use
+        // penecho_edit_canvas and its revision/collision checks.
       }else{
-        const plan=mcpPlanPlacement(args.width||960,args.height||640,session);
-        widget=await mcpCreateWidget({title:args.title,html:args.html,width:args.width||960,height:args.height||640,placement:plan.placement},{...execution,preserveView:true});
-        session.layout=plan.layout;mcpQueueView(session,widget);
+        const plan=mcpPlanPlacement(size.width,size.height,session,presentation);
+        widget=await mcpCreateWidget({title:args.title,html:args.html,width:size.width,height:size.height,placement:plan.placement},{...execution,preserveView:true});
+        session.layout=plan.layout;mcpQueueView(session,widget,presentation);
         artifact={objectId:widget.id,title:args.title};session.artifacts.set(args.artifactId,artifact);
       }
-      artifact.title=args.title;
-      return {artifactId:args.artifactId,objectId:widget.id,revision:state.userRevision,feedbackCursor:mcpRuntime.feedbackSequence,viewport:{width:widget.contentW,height:widget.contentH},runtimeDiagnostics:widget.runtimeDiagnostics||null};
+      artifact.title=args.title;artifact.presentation=presentation;
+      if(presentation.attention==="request")mcpQueueView(session,widget,presentation);
+      return {artifactId:args.artifactId,objectId:widget.id,revision:state.userRevision,feedbackCursor:mcpRuntime.feedbackSequence,viewport:{width:widget.contentW,height:widget.contentH},runtimeDiagnostics:widget.runtimeDiagnostics||null,presentation};
     }
     if(name==="mcp_capture_primitives"){
       const artifact=session.artifacts.get(args.artifactId);
@@ -377,29 +487,13 @@
       const artifact=session.artifacts.get(args.artifactId);if(!artifact)throw Error("Preview not found in this session. Present the Widget first.");
       const object=canvasAgentObject(artifact.objectId);if(!object)throw Error("Preview was removed.");
       if(object.kind!=="widget")throw Error("This tool captures Widgets only. Read user annotations with penecho_read_feedback.");
-      if(!object.item.frame?.contentWindow)mountWidget(object.item);
-      if(!object.item.frame?.contentWindow)throw Error("Preview could not be mounted. Check that the General Widget plugin is available.");
-      const previousActive=object.item.renderActive;
-      try {
-      await mcpWaitForWidgetLoad(object.item,execution);
-      const quality=args.quality||"basic",policy=quality==="detail"?CANVAS_AGENT_DETAIL_CAPTURE_POLICY:CANVAS_AGENT_LAYOUT_CAPTURE_POLICY,
-        started=performance.now(),snapshot=await requestWidgetSnapshot(object.item,WIDGET_SNAPSHOT_TIMEOUT_MS,true,execution.controller.signal,quality==="detail");
-      canvasAgentAssertToolExecution(execution);
-      const rasterMs=Math.round(performance.now()-started),scale=Math.min(1,policy.maxLongEdge/Math.max(snapshot.width,snapshot.height),Math.sqrt(policy.maxPixels/(snapshot.width*snapshot.height))),canvas=document.createElement("canvas");
-      canvas.width=Math.max(1,Math.floor(snapshot.width*scale));canvas.height=Math.max(1,Math.floor(snapshot.height*scale));canvas.getContext("2d").drawImage(snapshot,0,0,canvas.width,canvas.height);
-      const encoded=await canvasAgentCompressedCanvas(canvas,policy),dataUrl=await canvasAgentReadDataUrl(encoded.blob);
-      canvasAgentAssertToolExecution(execution);
-      const result={dataUrl,mediaType:encoded.blob.type,width:encoded.canvas.width,height:encoded.canvas.height,encodedBytes:encoded.blob.size,quality,
-        artifactId:args.artifactId,objectId:artifact.objectId,revision:state.userRevision,viewport:{width:object.item.contentW,height:object.item.contentH},rasterMs,
-        runtimeDiagnostics:object.item.runtimeDiagnostics||null};
-      canvas.width=canvas.height=1;if(encoded.canvas!==canvas)encoded.canvas.width=encoded.canvas.height=1;
-      return result;
-      } finally { if(previousActive===false){object.item.renderActive=false;object.item.shell?.classList.add("widget-offscreen");sendWidgetHostState(object.item,undefined,undefined,true);} }
+      return mcpCaptureWidget(object.item,args,execution);
     }
-    if(name==="mcp_inspect_session")return {sessionId:session.sessionId,boardObjectId:board.id,...mcpProgressData(session),artifacts:[...session.artifacts].map(([artifactId,value])=>{const object=canvasAgentObject(value.objectId);return {artifactId,title:value.title,kind:value.kind||"widget",objectId:value.objectId,...(value.objectIds?{objectIds:value.objectIds,elements:(value.elements||[]).map(([id,entry])=>{const child=canvasAgentObject(entry.objectId);return {id,objectId:entry.objectId,kind:entry.kind,...(child?{bounds:canvasAgentBox(child)}:{removed:true})};})}:{}),...(object?{bounds:value.objectIds?mcpTaskBounds(session,value.objectIds):canvasAgentBox(object)}:{removed:true})};}),revision:state.userRevision};
+    if(name==="mcp_inspect_session")return {sessionId:session.sessionId,boardObjectId:board?.id||null,...mcpProgressData(session),artifacts:[...session.artifacts].map(([artifactId,value])=>{const object=canvasAgentObject(value.objectId);return {artifactId,title:value.title,presentation:value.presentation,kind:value.kind||"widget",objectId:value.objectId,...(value.objectIds?{objectIds:value.objectIds,elements:(value.elements||[]).map(([id,entry])=>{const child=canvasAgentObject(entry.objectId);return {id,objectId:entry.objectId,kind:entry.kind,...(child?{bounds:canvasAgentBox(child)}:{removed:true})};})}:{}),...(object?{bounds:value.objectIds?mcpTaskBounds(session,value.objectIds):canvasAgentBox(object)}:{removed:true})};}),revision:state.userRevision};
     if(name==="mcp_close_session"){session.status="done";await mcpExecute("mcp_update_session",{sessionId:args.sessionId,status:"done"},execution);session.closed=true;mcpRuntime.pendingView.delete(session.sessionId);mcpRenderSettings();return {closed:true,retainedOnCanvas:true};}
     throw Error(`Unsupported MCP Canvas operation: ${name}`);
   }
+  mcpEl("mcpToolbarToggle")?.addEventListener("click",mcpToolbarClick);
   mcpEl("mcpEnabled")?.addEventListener("click",event=>event.currentTarget.getAttribute("aria-checked")==="true"?mcpDisconnect():mcpConnect());
   mcpEl("mcpCanvasNoticeButton")?.addEventListener("pointerdown",event=>event.stopPropagation());
   mcpEl("mcpCanvasNoticeButton")?.addEventListener("click",event=>{event.stopPropagation();openSettings();selectSettingsPage("mcp");});
@@ -409,7 +503,7 @@
   mcpEl("viewport")?.addEventListener("wheel",mcpPauseView,{passive:true});
   mcpEl("viewport")?.addEventListener("keydown",event=>{if([" ","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","+","-","="].includes(event.key))mcpPauseView();});
   mcpEl("mcpRefresh")?.addEventListener("click",()=>void mcpRefreshSettings());
-  mcpEl("mcpClient")?.addEventListener("change",()=>{mcpRuntime.configureResult=null;mcpRenderSettings();});
+  mcpEl("mcpClient")?.addEventListener("change",()=>{mcpRuntime.configureResult=null;if(mcpEl("mcpManual"))mcpEl("mcpManual").open=mcpEl("mcpClient").value==="other";mcpRenderSettings();});
   for(const [id,instructions] of [["mcpCopyConfig",false],["mcpCopyInstructions",true]])mcpEl(id)?.addEventListener("click",async()=>{
     const copied=await writeClipboardText(instructions?mcpInstructions():JSON.stringify({mcpServers:{penecho:mcpRuntime.status?.config}},null,2));mcpEl("mcpSetupStatus").textContent=copied?mcpText("copied"):t("copyFailed");
   });
@@ -423,6 +517,7 @@
     mcpRuntime.configuring=true;mcpRuntime.configureResult=null;mcpRenderSettings();mcpEl("mcpConfigureStatus")?.scrollIntoView?.({block:"nearest"});
     try{
       const result=await mcpApi("configure",{client});
+      if(result.configured===true)mcpRememberSetup();
       mcpRuntime.configureResult={client:clientName,kind:result.configured===true?"saved":result.existing?"existing":"uncertain"};
     }catch(error){
       const kind=error.existing?"existing":!error.status?"uncertain":"failed";

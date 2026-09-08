@@ -105,7 +105,7 @@
       }
     }
     canvasAgentAssertRevision(revision);canvasAgentMutationIdle(execution);
-    const plan=previous?null:mcpPlanPlacement(scene.bounds.w,scene.bounds.h,session),origin=previous?.origin||{x:plan.placement.x-scene.bounds.x,y:plan.placement.y-scene.bounds.y},elements=new Map(),records=[];
+    const plan=previous?null:mcpPlanPlacement(scene.bounds.w,scene.bounds.h,session,mcpPresentation(args,previous)),origin=previous?.origin||{x:plan.placement.x-scene.bounds.x,y:plan.placement.y-scene.bounds.y},elements=new Map(),records=[];
     for(const item of prepared){
       const former=old.get(item.id),object=former&&canvasAgentObject(former.objectId),box={x:origin.x+item.box.x,y:origin.y+item.box.y,w:item.box.w,h:item.box.h};
       if(object&&(kind==='plot'||item.preserveFrame))Object.assign(box,canvasAgentBox(object));
@@ -119,9 +119,10 @@
     save();state.textBoxHistoryBefore=textBoxHistoryState();state.imageHistoryBefore=imageHistoryState();
     for(const key of ['textBoxes','images'])state[key]=state[key].filter(item=>!removed.has(item.id));
     for(const item of records){if(item.object)Object.assign(item.object.item,item.record);else state[item.kind==='text'?'textBoxes':'images'].push(item.record);}
-    const objectIds=records.map(item=>item.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,elements:[...elements]});
+    const objectIds=records.map(item=>item.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,presentation:mcpPresentation(args,previous),elements:[...elements]});
     if(plan)session.layout=plan.layout;
     state.userRevision++;save();requestRender();canvasAgentSyncState();
-    for(const item of records.filter(item=>!item.object))mcpQueueView(session,item.record);
+    const presentation=mcpPresentation(args,previous);
+    for(const item of records.filter(item=>!item.object||presentation.attention==='request'))mcpQueueView(session,item.record,presentation);
     return {artifactId:args.artifactId,objectId:objectIds[0],objectIds,kind,revision:state.userRevision,feedbackCursor:mcpRuntime.feedbackSequence};
   }

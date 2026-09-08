@@ -1,6 +1,6 @@
 ---
 name: penecho-mcp
-description: Use when an external AI client needs PenEcho's local MCP bridge to configure a client, discover an explicitly enabled Canvas, publish public session progress, draw lightweight Canvas content, plot functions, present HTML previews, or read bounded visual feedback. For PenEcho engineering changes, apply the project's engineering guidance alongside this workflow.
+description: Use when an external AI client needs PenEcho's local MCP bridge to configure a client, discover an explicitly enabled Canvas, open persistent documents, work with virtual public files, publish session progress, edit, draw, or explicitly capture Canvas content, present HTML previews, or pull bounded feedback and messages. For PenEcho engineering changes, apply the project's engineering guidance alongside this workflow.
 metadata:
   short-description: Use PenEcho's local Canvas MCP bridge
 ---
@@ -8,10 +8,12 @@ metadata:
 # PenEcho MCP
 
 Use this skill when an external AI works through PenEcho's local MCP bridge. The
-bridge can publish a bounded work surface on an explicitly enabled Canvas and
-read committed user feedback for the exact session. It does not grant general
-browser automation, remote transport, or access to another Canvas. Keep client
-configuration and user approval within the requested scope.
+bridge can bind a persistent document to an explicitly enabled Canvas
+connection, expose bounded virtual public source, publish a work surface, and
+read committed feedback or pulled messages for the exact session. It does not
+grant general browser automation, remote transport, host filesystem access, or
+access to another Canvas. Keep client configuration and user approval within
+the requested scope.
 
 ## Configure only when requested
 
@@ -34,21 +36,23 @@ configuration and user approval within the requested scope.
 Use these phases for one coherent task. Keep public updates concise and bounded.
 
 1. **Plan.** Call `penecho_list_canvases`, select the exact connected and enabled
-   `instanceId` plus `canvasId`, and call `penecho_start_session`. Use a unique
+   `instanceId` plus `canvasId`, then open/find a persistent document when needed
+   and call `penecho_start_session`. Use a unique
    `sessionKey` for each independent conversation and retain the returned
    `sessionId`. If more than one valid Canvas or session could be the target,
    ask one pointed question before mutating anything; title, recency, or a
    nearby connection is not a selector.
 2. **Preview.** With a valid selected connection, proactively present useful UI
    choices, previews, or a visual explanation when they help the user decide or
-   understand. Skip decorative progress boards or previews for routine edits.
-   Publish a short plan and meaningful milestones with
-   `penecho_update_session`, batching steps and events instead of streaming
-   tokens or every tool call. Keep `artifactId` stable so later HTML changes
+   understand. Keep routine work visible with concise text updates; no decorative
+   boards or screenshots for progress. Do not delay the first useful output
+   to publish a plan. Use `penecho_update_session` for findings, decisions,
+   blockers and completion only when useful information changed. Batch related
+   facts; no timers, idle polling or tool-count quotas. Keep `artifactId` stable so later HTML changes
    update the same Widget.
 3. **Feedback.** Before a design revision, call `penecho_read_feedback` for the
-   same session. Its baseline is established only after the first session board
-   is successfully applied. A presentation's `feedbackCursor` is taken after
+   same session. Session start returns its feedback baseline even when no progress
+   board is created. A presentation's `feedbackCursor` is taken after
    that presentation is applied. Keep an independent unread cursor; a later
    presentation cursor must never overwrite unread feedback.
 4. **Revise.** Read the returned current screenshot when one is requested and
@@ -60,7 +64,8 @@ Use these phases for one coherent task. Keep public updates concise and bounded.
    destructive, or irreversible action. Ask a pointed question when its target
    or intended change is unclear.
 5. **Verify.** Ordinary `penecho_present_widget` calls use `capture:false`; take
-   a Widget capture, or use `capture:true` to combine presentation and capture,
+   a Widget capture, use `capture:true` to combine presentation and capture, or
+   explicitly call `penecho_capture_canvas` for existing visible Canvas content
    only when the model needs visual evidence. Inspect reports application and
    visibility state, not painted pixels. Treat only a returned image with
    `pixelVerified:true` as pixel evidence. Keep the primary task moving if the
@@ -78,7 +83,9 @@ Use these phases for one coherent task. Keep public updates concise and bounded.
   Canvases are unavailable. Every later call stays on the returned
   `sessionId`.
 - Start requires `instanceId`, `canvasId`, and `title` (maximum 120 characters);
-  `client` and `sessionKey` are optional. Update requires `sessionId` plus at
+  `documentId`, `takeover` (default false), `client`, and `sessionKey` are optional.
+  The browser-returned `documentId` is included in the session snapshot when
+  available. Update requires `sessionId` plus at
   least one update field. Status is `working|waiting|done|error`; summary is
   at most 2,000 characters; steps are at most 24 and events at most 20.
 - `penecho_present_widget` requires `sessionId`, a stable `artifactId`, `title`,
@@ -88,10 +95,88 @@ Use these phases for one coherent task. Keep public updates concise and bounded.
   is valid only with `capture:true`.
 - `penecho_capture_widget` requires `sessionId` and `artifactId`, with optional
   `quality` (`basic|detail`). It captures the existing Widget on demand.
+- `penecho_capture_canvas` requires `sessionId`; target defaults to `viewport`
+  and may be `canvas|viewport|selection|region|object`. `object` requires
+  `objectId`, `region` requires `{x,y,w,h}`, and quality is `basic|detail`.
+  It captures only an already visible session document. `CANVAS_NOT_VISIBLE`
+  includes its document ID and retry guidance; never show it implicitly.
 - `penecho_inspect_session` and `penecho_close_session` require `sessionId`.
   A queued update is not proof of application; use inspect for
   `render.state` (`queued|applied|accepted|error`) and application/visibility
   fields.
+
+## Presentation semantics
+
+`penecho_present_widget`, `penecho_draw`, and `penecho_plot` accept optional
+`presentation`. Omit it when updating source without changing the artifact's
+existing presentation. When supplied, it uses only these fields:
+
+- `intent`: `explain|deliver|compare|review|inspect` (default `deliver`).
+  `inspect` is Widget-only, requires `capture:true`, and returns one ephemeral,
+  pixel-verified render with no persistent object or `objectId`; it never makes a
+  second capture call.
+- `role`: `primary|supporting|alternative` (default `primary`). Supporting and
+  alternative artifacts default to quiet attention unless intent is `review`.
+- `size`: `base|wide|tall|large|page`, mapping to 480×360, 992×360, 480×752,
+  992×752, and 1200×800. It is available for Widgets and plots; drawings use
+  their natural scene bounds. Legacy explicit width/height remain supported,
+  but cannot be combined with an explicitly supplied size.
+- `relativeTo`: a stable artifact ID, with `relation` `below|beside`. Relation
+  requires `relativeTo`; compare defaults to beside and other intents to below.
+- `attention`: `quiet|normal|request`. It defaults to normal, except review
+  defaults to request and supporting/alternative artifacts default to quiet.
+
+The server resolves Widget/plot presets to concrete width and height before the
+browser call. Keep `artifactId` stable for revision, use intent and role to express
+meaningful hierarchy, and avoid decorative alternatives. Interaction should
+change useful local content or use the explicit opted-in inbox choice contract;
+never draw a fake button or claim an arbitrary Widget callback reaches the client.
+Explain/compare may use Visual Explorer's infographic structure. Review/deliver
+of an actual page must preserve the product UI, page background, and real local
+interactions rather than wrap it in an explanatory card. Inspect faithfully
+renders the supplied HTML at the requested viewport without redesign or extra
+labels; use page 1200×800 or legacy explicit dimensions for a mobile viewport.
+
+## Persistent documents, virtual files, and inbox
+
+- `canvasId` identifies the single opted-in browser bridge connection;
+  `documentId` identifies a persistent document and is independent. Use
+  `penecho_open_canvas` with the exact `instanceId`/`canvasId`, a required stable
+  `requestId`, and either exclusive `create:true`, or `documentId`, a
+  `{location:"device|server|cloud",id}` locator, or both for exact saved-copy
+  verification. `show` defaults false. Set it
+  true only when the user explicitly asks to change the visible document.
+- Use `penecho_find_canvases` on that same exact connection for authorized
+  candidates and per-provider statuses. Never infer a document from a title or
+  guess across hosts or storage providers. Preserve structured ambiguity and
+  cross-storage retry details when reporting failure.
+- A returned `sessionId` owns all later routing for one document. Keep
+  `client` and `sessionKey` unchanged so the browser can bind reconnects to the
+  exact pair; server isolation remains scoped to the MCP owner. Use `takeover`
+  only when the user intends to replace an existing binding.
+- `penecho_list_files` and `penecho_read_file` expose public virtual Canvas
+  sources, never host filesystem paths. Paths use `/`, cannot traverse, and
+  reads/patches are capped at 800,000 UTF-8 bytes. File pagination and feedback
+  or message cursors are independent. `context.md` is user-editable document
+  context that PenEcho appends to the internal Agent's local user turn.
+- Before `penecho_patch_file`, read the file and keep its `contentHash`. Send a
+  one-file unified diff with exact `--- a/<path>` and `+++ b/<path>` headers and
+  fuzz zero. Patches cannot create, delete, or rename. On `SOURCE_CONFLICT`,
+  re-read and submit a new patch with a new request ID. When the browser outcome
+  is unknown, retry the identical arguments with the same request ID. Source
+  edits do not change Canvas geometry.
+- `penecho_edit_canvas` provides bounded idempotent actions for text, object
+  movement/resize/delete, ink erasure, image replacement, and explicit show.
+  Supply the current `baseRevision` for move, resize, delete, erase, and replace
+  so a stale client cannot overwrite newer user changes; create_text and show
+  do not require it.
+  Image replacement accepts only a bounded image data URL or an authorized
+  same-document `penecho-ref:objects/<encoded-id>/image`; it cannot fetch a URL.
+- `penecho_read_messages` is a pull inbox. Reading does not acknowledge receipt
+  and does not automatically wake a stopped client. Use `penecho_ack_messages`
+  explicitly with `received`, `working`, `done`, or `error`, and poll only at
+  meaningful milestones or during a user-authorized wait. Keep the primary task
+  moving during a bridge or storage outage.
 
 ## Lightweight drawing and function plots
 
@@ -112,7 +197,8 @@ when the tool runs; they are not live constraints during subsequent user drags.
 
 `penecho_plot` takes `sessionId`, `artifactId`, `title`, `expression` (up to 180
 characters), optional `xMin`/`xMax`, optional `yMin`/`yMax` with an x domain,
-and optional width 300–1600 / height 200–1200. Supply expressions such as
+and optional width 300–1600 / height 200–1200 or a presentation size preset.
+Supply expressions such as
 `sin(x)` or `x^2`, not sampled points or JavaScript. Supported functions are
 sin, cos, tan, sqrt, abs, exp, log and ln; constants are pi and e. Sampling,
 axes and rendering run locally. Explicit parentheses clarify negated powers.
@@ -180,10 +266,13 @@ the loss, require a fresh exact discovery and session, and preserve any local
 work that is still valid. A disconnected or stopped client is not woken by this
 workflow.
 
-Widget controls rendered inside a preview are visual content only. Their
-buttons are not callbacks to the MCP client yet; users indicate a choice in
-chat or by adding a Canvas annotation. Never claim that clicking a Widget
-choice automatically reaches the client.
+An MCP preview may opt a button into the pull inbox with
+`data-penecho-action="choose"` and a bounded `data-penecho-prompt`. A trusted
+click queues that prompt with `source:"widget"`, the exact preview object ID,
+and its owning session/client/key. It does not call a model automatically,
+serialize arbitrary forms or passwords, or grant approval for an external or
+irreversible action. Read the message and acknowledge `received`, `working`,
+`done`, or `error` explicitly.
 
 ## Skill, initialize instructions, and prompts
 
@@ -193,9 +282,20 @@ follow the client’s skill-loading/reload behavior. It does not change client
 configuration or create a callback channel. The stdio server's
 `initialize.instructions` is already present and carries bridge guidance; the
 MCP client controls whether it adopts, displays, or merges those instructions.
-MCP prompts are user-selected templates. This server currently provides no
-`prompts/list` or `prompts/get`; do not claim that PenEcho added MCP prompts or
-that a prompt is automatically selected.
+MCP prompts are user-selected templates. This server exposes four through
+`prompts/list` and `prompts/get`: Visual Explorer, explain selection, revise
+feedback, and resume document. The server never selects a prompt automatically.
+
+The default instructions carry only compact visual guidance. Retrieve the optional
+`penecho_visual_explorer` prompt once when substantial visual authoring needs the
+full shared Visual Explorer design contract. It uses the built-in design sections
+with MCP delivery instructions, without internal Agent tool names. Prioritize
+information hierarchy, concise labels, meaningful diagrams/tables, readable
+responsive typography, semantic colors and unclipped content. Respect requested
+product styling. Session start/reuse returns only a short workflow reminder;
+ordinary update responses do not repeat it. Read/ack messages at natural
+checkpoints when awaiting input or working interactively. Reuse existing visual
+work and stable artifact IDs rather than generating a new visual for each update.
 
 Canvas layout and camera behavior belong to PenEcho. Supply task identity and
 stable artifact IDs; leave world placement to PenEcho and do not invent viewport tools.
@@ -214,3 +314,10 @@ unrelated raw user data in progress fields. This local stdio bridge keeps its
 dynamic ports and secrets internal. It is not Playwright, arbitrary navigation,
 unrelated DOM inspection, or general computer control. Keep connection
 failures and visual limitations concise while continuing the primary task.
+
+Existing artifact updates preserve the user’s position, size, and presentation
+when `presentation` is omitted. Explicit Widget dimensions and presentation size
+presets apply to the requested content viewport; use `penecho_edit_canvas` with
+the current revision for a later explicit resize. A new conversation key gets its
+own Canvas when the visible Canvas already contains work; retain the returned
+`documentId` and reopen it on reconnect.

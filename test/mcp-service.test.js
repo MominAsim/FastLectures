@@ -9,7 +9,8 @@ const path = require("node:path");
 const { EventEmitter } = require("node:events");
 const { after, test } = require("node:test");
 const { WebSocket } = require("ws");
-const { configurationArguments, configureClient } = require("../src/server/mcp/configure.js");
+const { configurationArguments, configureClient, inspectConfiguredClients } = require("../src/server/mcp/configure.js");
+const { SESSION_INSTRUCTIONS } = require("../src/server/mcp/guidance.js");
 const { readRecords, recordsDirectory } = require("../src/server/mcp/records.js");
 const { createMcpService } = require("../src/server/mcp/service.js");
 
@@ -106,9 +107,29 @@ function openCanvas(port, calls) {
       if (message.type === "ready") { ws.off("error", reject); resolve({ ws, ready:message }); return; }
       if (message.type !== "call") return;
       calls.push(message);
+      if (message.name === "mcp_apply_patch" && message.arguments.requestId === "unknown-outcome" && calls.filter(call => call.name === "mcp_apply_patch" && call.arguments.requestId === "unknown-outcome").length === 1) return;
       let result = { applied:true, visible:true, revision:calls.length };
-      if (message.name === "mcp_start_session") result = { sessionId:message.arguments.sessionId, boardObjectId:"board-object", revision:1, feedbackCursor:0 };
-      if (message.name === "mcp_present_widget") result = { objectId:"widget-object", artifactId:message.arguments.artifactId, revision:3, feedbackCursor:1, browserElapsedMs:4, viewport:{width:800,height:600} };
+      if (message.name === "mcp_start_session") result = { sessionId:message.arguments.sessionId, documentId:message.arguments.documentId || "document-active", boardObjectId:null, revision:1, feedbackCursor:0 };
+      if (message.name === "mcp_open_canvas") result = {documentId:"document-new",title:"Persistent document",active:message.arguments.show,locator:{location:"device",id:"device-1"}};
+      if (message.name === "mcp_find_canvases") result = {candidates:[{documentId:"document-new",title:"Persistent document"}],providers:{device:{status:"available"},cloud:{status:"signed_out"}}};
+      if (message.name === "mcp_list_files") result = {sessionId:message.arguments.sessionId,path:message.arguments.path,files:[{path:"/notes.md",kind:"text"}],offset:0,nextOffset:null};
+      if (message.name === "mcp_read_file") result = {sessionId:message.arguments.sessionId,path:message.arguments.path,content:"hello\n",contentHash:"hash-1"};
+      if (message.name === "mcp_prepare_patch") result = {content:"hello\n",contentHash:"hash-1"};
+      if (message.name === "mcp_prepare_patch" && message.arguments.requestId === "receipt-recovery") result = {alreadyApplied:true,result:{sessionId:message.arguments.sessionId,path:message.arguments.path,contentHash:"hash-recovered",applied:true}};
+      if (message.name === "mcp_apply_patch") result = {sessionId:message.arguments.sessionId,path:message.arguments.path,contentHash:"hash-2",applied:true};
+      if (message.name === "mcp_edit_canvas") result = {sessionId:message.arguments.sessionId,requestId:message.arguments.requestId,applied:true};
+      if (message.name === "mcp_capture_canvas") result = {dataUrl:"data:image/webp;base64,AQIDBA==",mediaType:"image/webp",width:24,height:12,encodedBytes:4,revision:7,viewport:{width:1200,height:800}};
+      if (message.name === "mcp_capture_canvas" && message.arguments.objectId === "bad-bytes") result.encodedBytes = 5;
+      if (message.name === "mcp_read_messages") result = {sessionId:message.arguments.sessionId,after:message.arguments.after,nextCursor:1,messages:[{id:"request-1",cursor:1,text:"Please continue"}]};
+      if (message.name === "mcp_ack_messages") result = {sessionId:message.arguments.sessionId,acknowledged:message.arguments.ids};
+      if (message.name === "mcp_present_widget") result = message.arguments.presentation?.intent === "inspect"
+        ? {artifactId:message.arguments.artifactId,dataUrl:"data:image/webp;base64,AQIDBA==",mediaType:"image/webp",width:message.arguments.width,height:message.arguments.height,encodedBytes:4,revision:8,ephemeral:true,viewport:{width:message.arguments.width,height:message.arguments.height}}
+        : { objectId:"widget-object", artifactId:message.arguments.artifactId, revision:3, feedbackCursor:1, browserElapsedMs:4, viewport:{width:800,height:600} };
+      if (message.name === "mcp_present_widget" && message.arguments.artifactId === "inspection-too-large") result.width = 1025;
+      if (message.name === "mcp_present_widget" && message.arguments.artifactId === "inspection-viewport-mismatch") result.viewport.width += 1;
+      if (message.name === "mcp_present_widget" && message.arguments.artifactId === "inspection-object") result.objectId = "must-not-persist";
+      if (message.name === "mcp_present_widget" && message.arguments.artifactId === "inspection-bad-bytes") result.encodedBytes = 5;
+      if (message.name === "mcp_present_widget" && message.arguments.artifactId === "inspection-persistent") result.ephemeral = false;
       if (message.name === "mcp_capture_widget") result = { dataUrl:"data:image/png;base64,AQID", mediaType:"image/png", width:10, height:20, revision:4, browserElapsedMs:12, viewport:{width:900,height:700}, mapping:{scale:2}, runtimeDiagnostics:{renderer:"canvas"} };
       if (message.name === "mcp_draw") result = { artifactId:message.arguments.artifactId, objectId:"draw-object-1", objectIds:["draw-object-1","draw-object-2"], kind:"drawing", revision:4, feedbackCursor:2 };
       if (message.name === "mcp_plot") result = { artifactId:message.arguments.artifactId, objectId:"plot-object", objectIds:["plot-object"], kind:"plot", revision:5, feedbackCursor:3 };
@@ -143,7 +164,11 @@ function openCanvas(port, calls) {
         if (message.arguments.after === 77) result = { ...result, nextCursor:78, latestCursor:78, entries:[{cursor:"bad",kind:"stroke",bounds:{x:-1,y:-2,w:3,h:4},createdAt:1_788_000_000_000}] };
       }
       if (message.name === "mcp_inspect_session") result = { visible:true, revision:5, group:{objectIds:["draw-object-1","draw-object-2"]}, artifacts:[{artifactId:"diagram",kind:"drawing",objectIds:["draw-object-1","draw-object-2"]}] };
-      ws.send(JSON.stringify({ type:"result", requestId:message.requestId, ok:true, result }));
+      if (message.name === "mcp_capture_canvas" && message.arguments.target === "selection") {
+        ws.send(JSON.stringify({type:"result",requestId:message.requestId,ok:false,error:{code:"CANVAS_NOT_VISIBLE",message:"Show this Canvas before capture.",details:{documentId:"document-new",retryable:true,retry:"show-then-capture"}}}));
+      } else if (message.name === "mcp_apply_patch" && message.arguments.requestId === "browser-conflict") {
+        ws.send(JSON.stringify({type:"result",requestId:message.requestId,ok:false,error:{code:"SOURCE_CONFLICT",message:"Source changed during apply.",details:{currentContentHash:"hash-3",retry:"read-before-patch"}}}));
+      } else ws.send(JSON.stringify({ type:"result", requestId:message.requestId, ok:true, result }));
     });
   });
 }
@@ -186,14 +211,82 @@ test("MCP service keeps discovery credentials private and binds a session to its
   const ownerId = crypto.randomUUID();
   const listed = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"list_canvases",ownerId} });
   assert.deepEqual(listed.value.result.canvases.map(item => item.canvasId), ["canvas-a"]);
-  const started = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_start_session",arguments:{canvasId:"canvas-a",instanceId:status.instanceId,title:"Build chart",sessionKey:"stable"}} });
+  const opened = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_open_canvas",arguments:{canvasId:"canvas-a",instanceId:status.instanceId,create:true,title:"Persistent document",requestId:"open-1"}}});
+  assert.deepEqual({documentId:opened.value.result.documentId,active:opened.value.result.active,locator:opened.value.result.locator},{documentId:"document-new",active:false,locator:{location:"device",id:"device-1"}});
+  assert.equal(calls.at(-1).arguments.show,false);
+  const openedRetry = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_open_canvas",arguments:{canvasId:"canvas-a",instanceId:status.instanceId,create:true,title:"Persistent document",requestId:"open-1"}}});
+  assert.equal(openedRetry.value.result.reused,true);
+  assert.equal(calls.filter(call => call.name === "mcp_open_canvas").length,1);
+  const found = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_find_canvases",arguments:{canvasId:"canvas-a",instanceId:status.instanceId,documentId:"document-new"}}});
+  assert.equal(found.value.result.candidates[0].documentId,"document-new");
+  const started = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_start_session",arguments:{canvasId:"canvas-a",instanceId:status.instanceId,documentId:"document-new",takeover:true,title:"Build chart",client:"Codex",sessionKey:"stable"}} });
   assert.equal(started.status, 200);
   assert.equal(started.value.result.slotIndex, 0);
-  assert.equal(started.value.result.boardObjectId, "board-object");
+  assert.equal(started.value.result.boardObjectId, null);
   assert.equal(started.value.result.feedbackCursor, 0);
+  assert.equal(started.value.result.documentId, "document-new");
+  assert.equal(started.value.result.instructions, SESSION_INSTRUCTIONS);
   const sessionId = started.value.result.sessionId;
-  assert.equal(calls[0].name, "mcp_start_session");
-  assert.equal(calls[0].arguments.slotIndex, 0);
+  const startCall = calls.find(call => call.name === "mcp_start_session");
+  assert.equal(startCall.arguments.slotIndex, 0);
+  assert.deepEqual({documentId:startCall.arguments.documentId,takeover:startCall.arguments.takeover,client:startCall.arguments.client,sessionKey:startCall.arguments.sessionKey},{documentId:"document-new",takeover:true,client:"Codex",sessionKey:"stable"});
+  assert.equal(startCall.arguments.instructions, undefined);
+
+  const reused = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_start_session",arguments:{canvasId:"canvas-a",instanceId:status.instanceId,documentId:"document-new",takeover:true,title:"Build chart",client:"Codex",sessionKey:"stable"}} });
+  assert.equal(reused.status, 200);
+  assert.equal(reused.value.result.reused, true);
+  assert.equal(reused.value.result.instructions, SESSION_INSTRUCTIONS);
+  assert.equal(reused.value.result.sessionId, sessionId);
+  assert.equal(calls.filter(call => call.name === "mcp_start_session").length, 1);
+
+  const files = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_list_files",arguments:{sessionId}}});
+  assert.deepEqual(files.value.result.files,[{path:"/notes.md",kind:"text"}]);
+  const read = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_read_file",arguments:{sessionId,path:"/notes.md"}}});
+  assert.deepEqual({content:read.value.result.content,contentHash:read.value.result.contentHash},{content:"hello\n",contentHash:"hash-1"});
+  const patchArgs = {sessionId,path:"/notes.md",contentHash:"hash-1",patch:"--- a/notes.md\n+++ b/notes.md\n@@ -1 +1 @@\n-hello\n+world\n",requestId:"patch-1"};
+  const patched = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_patch_file",arguments:patchArgs}});
+  assert.equal(patched.value.result.applied,true);
+  assert.deepEqual(calls.find(call => call.name === "mcp_prepare_patch").arguments,{sessionId,path:"/notes.md",requestId:"patch-1",expectedHash:"hash-1"});
+  assert.equal(calls.find(call => call.name === "mcp_apply_patch").arguments.content,"world\n");
+  const patchRetry = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_patch_file",arguments:patchArgs}});
+  assert.equal(patchRetry.value.result.reused,true);
+  assert.equal(calls.filter(call => call.name === "mcp_prepare_patch").length,1);
+  assert.equal(calls.filter(call => call.name === "mcp_apply_patch").length,1);
+  const patchConflict = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_patch_file",arguments:{...patchArgs,patch:patchArgs.patch.replace("world","again")}}});
+  assert.equal(patchConflict.value.error.code,"REQUEST_ID_CONFLICT");
+  const stalePatch = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_patch_file",arguments:{...patchArgs,contentHash:"stale",requestId:"patch-stale"}}});
+  assert.equal(stalePatch.value.error.code,"SOURCE_CONFLICT");
+  assert.deepEqual(stalePatch.value.error.details,{currentContentHash:"hash-1",retry:"read-before-patch"});
+  const browserConflict = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_patch_file",arguments:{...patchArgs,requestId:"browser-conflict"}}});
+  assert.equal(browserConflict.value.error.code,"SOURCE_CONFLICT");
+  assert.deepEqual(browserConflict.value.error.details,{currentContentHash:"hash-3",retry:"read-before-patch"});
+  const invalidPatch = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_patch_file",arguments:{...patchArgs,patch:"--- a/other.md\n+++ b/other.md\n@@ -1 +1 @@\n-hello\n+world\n",requestId:"patch-invalid"}}});
+  assert.equal(invalidPatch.value.error.code,"invalid_patch");
+  const unknownArgs = {...patchArgs,requestId:"unknown-outcome"};
+  await assert.rejects(() => service.callTool(ownerId,"penecho_patch_file",unknownArgs,{timeoutMs:10}), error => error.code === "canvas_timeout");
+  const unknownRetry = await service.callTool(ownerId,"penecho_patch_file",unknownArgs);
+  assert.equal(unknownRetry.applied,true);
+  assert.equal(calls.filter(call => call.name === "mcp_prepare_patch" && call.arguments.path === "/notes.md").length,5);
+  assert.equal(calls.filter(call => call.name === "mcp_apply_patch" && call.arguments.requestId === "unknown-outcome").length,2);
+  const receiptRecovery = await service.callTool(ownerId,"penecho_patch_file",{...patchArgs,requestId:"receipt-recovery"});
+  assert.deepEqual({applied:receiptRecovery.applied,contentHash:receiptRecovery.contentHash,reused:receiptRecovery.reused},{applied:true,contentHash:"hash-recovered",reused:true});
+  assert.equal(calls.some(call => call.name === "mcp_apply_patch" && call.arguments.requestId === "receipt-recovery"),false);
+  const edited = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_edit_canvas",arguments:{sessionId,requestId:"edit-1",action:"show"}}});
+  assert.equal(edited.value.result.applied,true);
+  const canvasCapture = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_capture_canvas",arguments:{sessionId}}});
+  assert.deepEqual(canvasCapture.value.result.image,{mimeType:"image/webp",data:"AQIDBA==",bytes:4});
+  assert.deepEqual({target:canvasCapture.value.result.target,width:canvasCapture.value.result.width,height:canvasCapture.value.result.height,encodedBytes:canvasCapture.value.result.encodedBytes,revision:canvasCapture.value.result.revision,pixelVerified:canvasCapture.value.result.pixelVerified},{target:"viewport",width:24,height:12,encodedBytes:4,revision:7,pixelVerified:true});
+  assert.deepEqual(calls.filter(call => call.name === "mcp_capture_canvas").at(-1).arguments,{sessionId,target:"viewport",quality:"basic"});
+  const hiddenCapture = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_capture_canvas",arguments:{sessionId,target:"selection",quality:"detail"}}});
+  assert.equal(hiddenCapture.value.error.code,"CANVAS_NOT_VISIBLE");
+  assert.deepEqual(hiddenCapture.value.error.details,{documentId:"document-new",retryable:true,retry:"show-then-capture"});
+  const invalidCanvasCapture = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_capture_canvas",arguments:{sessionId,target:"object",objectId:"bad-bytes"}}});
+  assert.equal(invalidCanvasCapture.value.error.code,"invalid_capture");
+  assert.equal(invalidCanvasCapture.status,502);
+  const messages = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_read_messages",arguments:{sessionId}}});
+  assert.equal(messages.value.result.messages[0].id,"request-1");
+  const ack = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_ack_messages",arguments:{sessionId,ids:["request-1"],status:"working"}}});
+  assert.deepEqual(ack.value.result.acknowledged,["request-1"]);
 
   const stolen = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId:crypto.randomUUID(),name:"penecho_update_session",arguments:{sessionId,status:"done"}} });
   assert.equal(stolen.status, 404);
@@ -210,6 +303,7 @@ test("MCP service keeps discovery credentials private and binds a session to its
   assert.equal(inspected.value.result.browser.visible, true);
   assert.deepEqual(inspected.value.result.browser.group, {objectIds:["draw-object-1","draw-object-2"]});
   assert.deepEqual(inspected.value.result.browser.artifacts, [{artifactId:"diagram",kind:"drawing",objectIds:["draw-object-1","draw-object-2"]}]);
+  assert.equal(inspected.value.result.instructions, undefined);
 
   const beforeDrawUpdate = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_update_session",arguments:{sessionId,summary:"Before native drawing"}} });
   assert.equal(beforeDrawUpdate.value.result.applied, false);
@@ -218,21 +312,23 @@ test("MCP service keeps discovery credentials private and binds a session to its
     {id:"shape",type:"rect",text:"Plan",fontSize:18,width:240,height:120,fill:"transparent"},
     {id:"edge",type:"arrow",from:"label",to:"shape",strokeWidth:2},
   ];
-  const drawing = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_draw",arguments:{sessionId,artifactId:"diagram",title:"Diagram",items:drawItems,capture:true}} });
+  const drawing = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_draw",arguments:{sessionId,artifactId:"diagram",title:"Diagram",items:drawItems,capture:true,presentation:{intent:"explain",role:"supporting"}}} });
   assert.equal(drawing.status, 200);
   assert.deepEqual({artifactId:drawing.value.result.artifactId,objectId:drawing.value.result.objectId,objectIds:drawing.value.result.objectIds,kind:drawing.value.result.kind,revision:drawing.value.result.revision,feedbackCursor:drawing.value.result.feedbackCursor,applied:drawing.value.result.applied,pixelVerified:drawing.value.result.pixelVerified}, {artifactId:"diagram",objectId:"draw-object-1",objectIds:["draw-object-1","draw-object-2"],kind:"drawing",revision:4,feedbackCursor:2,applied:true,pixelVerified:true});
   assert.deepEqual(drawing.value.result.image, {mimeType:"image/webp",data:"BwgJ",bytes:3});
+  assert.deepEqual(drawing.value.result.presentation, {intent:"explain",role:"supporting",attention:"quiet"});
   assert.deepEqual({width:drawing.value.result.width,height:drawing.value.result.height,encodedBytes:drawing.value.result.encodedBytes,captureRevision:drawing.value.result.captureRevision}, {width:12,height:8,encodedBytes:3,captureRevision:6});
   const nativeCalls = calls.filter(call => call.name === "mcp_update_session" && call.arguments.summary === "Before native drawing" || ["mcp_draw","mcp_capture_primitives"].includes(call.name));
   assert.deepEqual(nativeCalls.map(call => call.name), ["mcp_update_session","mcp_draw","mcp_capture_primitives"]);
-  assert.deepEqual(nativeCalls[1].arguments, {sessionId,artifactId:"diagram",title:"Diagram",items:drawItems});
+  assert.deepEqual(nativeCalls[1].arguments, {sessionId,artifactId:"diagram",title:"Diagram",items:drawItems,presentation:{intent:"explain",role:"supporting",attention:"quiet"}});
   assert.deepEqual(nativeCalls[2].arguments, {sessionId,artifactId:"diagram"});
 
-  const plot = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_plot",arguments:{sessionId,artifactId:"plot",title:"Sine",expression:"sin(x)",width:640,height:360,xMin:-10,xMax:10,color:"#ABC"}} });
+  const plot = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_plot",arguments:{sessionId,artifactId:"plot",title:"Sine",expression:"sin(x)",xMin:-10,xMax:10,color:"#ABC",presentation:{intent:"compare",size:"wide",relativeTo:"diagram"}}} });
   assert.equal(plot.status, 200);
   assert.deepEqual({artifactId:plot.value.result.artifactId,objectIds:plot.value.result.objectIds,kind:plot.value.result.kind,applied:plot.value.result.applied,pixelVerified:plot.value.result.pixelVerified}, {artifactId:"plot",objectIds:["plot-object"],kind:"plot",applied:true,pixelVerified:false});
+  assert.deepEqual(plot.value.result.presentation, {intent:"compare",role:"primary",size:"wide",relativeTo:"diagram",relation:"beside",attention:"normal"});
   assert.equal(calls.filter(call => call.name === "mcp_capture_primitives").length, 1);
-  assert.deepEqual(calls.find(call => call.name === "mcp_plot").arguments, {sessionId,artifactId:"plot",title:"Sine",expression:"sin(x)",width:640,height:360,xMin:-10,xMax:10,color:"#ABC"});
+  assert.deepEqual(calls.find(call => call.name === "mcp_plot").arguments, {sessionId,artifactId:"plot",title:"Sine",expression:"sin(x)",width:992,height:360,xMin:-10,xMax:10,color:"#ABC",presentation:{intent:"compare",role:"primary",size:"wide",relativeTo:"diagram",relation:"beside",attention:"normal"}});
   const mismatchedDrawing = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_draw",arguments:{sessionId,artifactId:"mismatched",title:"Mismatch",items:[{id:"n",type:"rect"}]}} });
   assert.equal(mismatchedDrawing.status, 502);
   assert.equal(mismatchedDrawing.value.error.code, "invalid_browser_result");
@@ -246,6 +342,7 @@ test("MCP service keeps discovery credentials private and binds a session to its
   assert.equal(plainPresentation.value.result.pixelVerified, false);
   assert.equal(plainPresentation.value.result.feedbackCursor, 1);
   assert.equal(plainPresentation.value.result.image, undefined);
+  assert.deepEqual(calls.find(call => call.name === "mcp_present_widget" && call.arguments.artifactId === "plain").arguments, {sessionId,artifactId:"plain",title:"Plain",html:"<p>Plain</p>",width:480,height:360});
   assert.equal(calls.some(call => call.name === "mcp_capture_widget" && call.arguments.artifactId === "plain"), false);
   const combined = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_present_widget",arguments:{sessionId,artifactId:"chart",title:"Chart",html:"<p>Chart</p>",capture:true,quality:"detail"}} });
   assert.deepEqual(combined.value.result.image, { mimeType:"image/png", data:"AQID", bytes:3 });
@@ -260,6 +357,29 @@ test("MCP service keeps discovery credentials private and binds a session to its
   assert.deepEqual(chartCalls.map(call => call.name), ["mcp_present_widget","mcp_capture_widget"]);
   assert.equal(chartCalls[0].arguments.capture, undefined);
   assert.deepEqual(chartCalls[1].arguments, {sessionId,artifactId:"chart",quality:"detail"});
+  const compared = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_present_widget",arguments:{sessionId,artifactId:"comparison",title:"Comparison",html:"<p>Comparison</p>",presentation:{intent:"compare",role:"supporting",size:"large",relativeTo:"plain"}}} });
+  assert.deepEqual(compared.value.result.presentation, {intent:"compare",role:"supporting",size:"large",relativeTo:"plain",relation:"beside",attention:"quiet"});
+  assert.deepEqual(calls.find(call => call.name === "mcp_present_widget" && call.arguments.artifactId === "comparison").arguments, {sessionId,artifactId:"comparison",title:"Comparison",html:"<p>Comparison</p>",width:992,height:752,presentation:compared.value.result.presentation});
+  const captureCountBeforeInspect = calls.filter(call => call.name === "mcp_capture_widget").length;
+  const inspectedWidget = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_present_widget",arguments:{sessionId,artifactId:"inspection",title:"Inspection",html:"<p>Inspect</p>",capture:true,presentation:{intent:"inspect",size:"wide"}}} });
+  assert.deepEqual({ephemeral:inspectedWidget.value.result.ephemeral,applied:inspectedWidget.value.result.applied,pixelVerified:inspectedWidget.value.result.pixelVerified,width:inspectedWidget.value.result.width,height:inspectedWidget.value.result.height,encodedBytes:inspectedWidget.value.result.encodedBytes,revision:inspectedWidget.value.result.revision}, {ephemeral:true,applied:true,pixelVerified:true,width:992,height:360,encodedBytes:4,revision:8});
+  assert.equal(inspectedWidget.value.result.objectId, undefined);
+  assert.deepEqual(inspectedWidget.value.result.image, {mimeType:"image/webp",data:"AQIDBA==",bytes:4});
+  assert.equal(calls.filter(call => call.name === "mcp_capture_widget").length, captureCountBeforeInspect);
+  assert.deepEqual(calls.find(call => call.name === "mcp_present_widget" && call.arguments.artifactId === "inspection").arguments, {sessionId,artifactId:"inspection",title:"Inspection",html:"<p>Inspect</p>",width:992,height:360,presentation:{intent:"inspect",role:"primary",size:"wide",attention:"quiet"},capture:true,quality:"basic"});
+  const invalidInspections = [
+    ["inspection-too-large",413,"capture_too_large"],
+    ["inspection-viewport-mismatch",502,"invalid_browser_result"],
+    ["inspection-object",502,"invalid_browser_result"],
+    ["inspection-bad-bytes",502,"invalid_capture"],
+    ["inspection-persistent",502,"invalid_browser_result"],
+  ];
+  for (const [artifactId,status,code] of invalidInspections) {
+    const response = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_present_widget",arguments:{sessionId,artifactId,title:"Invalid inspection",html:"<p>Inspect</p>",capture:true,presentation:{intent:"inspect",size:"wide"}}} });
+    assert.equal(response.status, status);
+    assert.equal(response.value.error.code, code);
+  }
+  assert.equal(calls.filter(call => call.name === "mcp_capture_widget").length, captureCountBeforeInspect);
   const feedback = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_read_feedback",arguments:{sessionId}} });
   assert.equal(feedback.value.result.entries, undefined);
   assert.deepEqual(feedback.value.result.image, {mimeType:"image/webp",data:"AQIDBA==",bytes:4});
@@ -368,6 +488,38 @@ test("browser routes accept only exact host addresses while private RPC stays lo
   assert.match(upgradeResult, /local_host_required/);
   assert.equal(upgradeResult.includes("192.168.50"), false);
 
+  await service.close();
+});
+
+test("MCP status inspects configured clients only when explicitly requested", async () => {
+  const server = http.createServer();
+  let inspections = 0;
+  const service = createMcpService({
+    server,
+    authorizeBrowser:req => req.headers["x-test-browser"] === "allowed" ? null : "Forbidden",
+    rootDirectory:process.cwd(),
+    stateDirectory:tempDirectory(),
+    inspectConfiguredClients:async () => { inspections += 1; return ["codex"]; },
+  });
+
+  const ordinary = await invokeServiceHttp(service, "127.0.0.1", "/api/mcp/status", { method:"GET", headers:{"x-test-browser":"allowed"} });
+  assert.equal(ordinary.status, 200);
+  assert.equal(ordinary.value.configuredClients, undefined);
+  assert.equal(inspections, 0);
+
+  const denied = await invokeServiceHttp(service, "127.0.0.1", "/api/mcp/status?inspectClients=1", { method:"GET" });
+  assert.equal(denied.status, 403);
+  assert.equal(inspections, 0);
+
+  const inspected = await invokeServiceHttp(service, "127.0.0.1", "/api/mcp/status?inspectClients=1", { method:"GET", headers:{"x-test-browser":"allowed"} });
+  assert.equal(inspected.status, 200);
+  assert.deepEqual(inspected.value.configuredClients, ["codex"]);
+  assert.equal(inspections, 1);
+
+  const ignored = await invokeServiceHttp(service, "127.0.0.1", "/api/mcp/status?inspectClients=true", { method:"GET", headers:{"x-test-browser":"allowed"} });
+  assert.equal(ignored.status, 200);
+  assert.equal(ignored.value.configuredClients, undefined);
+  assert.equal(inspections, 1);
   await service.close();
 });
 
@@ -493,4 +645,46 @@ test("MCP tool validation is strict and client configuration uses official argv 
   assert.equal(existing.existing, true);
   assert.deepEqual(existingExecutions, [{executable:"/opt/claude",args:["mcp","get","penecho"]}]);
   await service.close();
+});
+
+test("configured MCP client inspection is bounded, read-only, and treats failures as unknown", async () => {
+  const executions = [];
+  const configured = await inspectConfiguredClients({
+    candidates:{
+      codex:[{executable:"/opt/codex-one"},{executable:"/opt/codex-two"},{executable:"/opt/codex-ignored"}],
+      claude:[{executable:"/opt/claude"}],
+    },
+    executeFile:async (executable, args, options) => {
+      executions.push({executable,args,timeout:options.timeout});
+      if (executable === "/opt/codex-one") throw new Error("missing entry");
+      return {stdout:"private client configuration",stderr:""};
+    },
+  });
+  assert.deepEqual(configured, ["codex","claude"]);
+  assert.deepEqual(executions.map(item => item.executable).sort(), ["/opt/claude","/opt/codex-one","/opt/codex-two"]);
+  assert.equal(executions.every(item => item.args.join(" ") === "mcp get penecho"), true);
+  assert.equal(executions.every(item => item.timeout === 1_000), true);
+  assert.equal(executions.some(item => item.executable.includes("ignored")), false);
+
+  const failedCommands = [];
+  const failed = await inspectConfiguredClients({
+    candidates:{
+      codex:[{executable:"/private/codex-one"},{executable:"/private/codex-two"},{executable:"/private/codex-ignored"}],
+      claude:[{executable:"/private/claude"}],
+    },
+    executeFile:async (executable, args) => { failedCommands.push({executable,args}); throw Object.assign(new Error("secret path"), {stdout:"secret stdout",stderr:"secret stderr"}); },
+  });
+  assert.deepEqual(failed, []);
+  assert.deepEqual(failedCommands.map(item => item.executable).sort(), ["/private/claude","/private/codex-one","/private/codex-two"]);
+  assert.equal(failedCommands.some(item => item.executable.includes("ignored")), false);
+  assert.equal(failedCommands.every(item => item.args.join(" ") === "mcp get penecho"), true);
+
+  const startedAt = Date.now();
+  const timedOut = await inspectConfiguredClients({
+    candidates:{codex:[{executable:"/opt/codex"}],claude:[]},
+    timeoutMs:10,
+    executeFile:async () => new Promise(() => {}),
+  });
+  assert.deepEqual(timedOut, []);
+  assert.equal(Date.now() - startedAt < 250, true);
 });

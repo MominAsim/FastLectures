@@ -127,18 +127,21 @@
     event.preventDefault();
     state.trackpadGesture = null;
   }
-  function zoomCanvasFromControl(direction) {
-    if (state.drawing) return;
-    const rect = view.getBoundingClientRect();
-    setWidgetInteraction(null);
-    if (state.navigationLocked) setCanvasNavigationLocked(false);
-    const stops = [.03, .05, .10, .15, .25, .33, .50, .67, 1, 1.5, 2];
-    const target = direction < 0
-      ? stops.find(scale => scale > state.scale + .0001) || 2
-      : [...stops].reverse().find(scale => scale < state.scale - .0001) || .03;
-    const delta = -Math.log(target / state.scale) / .002;
-    const count = Math.max(1, Math.ceil(Math.abs(delta) / 300));
-    for (let i = 0; i < count; i++) zoomCanvasAt(rect.x + rect.width / 2, rect.y + rect.height / 2, delta / count);
+  function canvasFitViewportSize() {
+    const metrics = canvasViewportMetrics();
+    let width = metrics.width, height = metrics.height;
+    const panel = document.querySelector('#canvasAgentPanel');
+    if (panel && !panel.hidden && document.body.classList.contains('canvas-agent-open')
+      && !document.body.classList.contains('canvas-agent-navigation-hidden')) {
+      const rect = canvasElementLayoutRect(panel);
+      if (rect && rect.width > 0 && rect.height > 0 && rect.right > 0
+        && rect.left < width && rect.bottom > 0 && rect.top < height) {
+        // Only the Agent panel occludes Fit All; the left navigator is ignored.
+        if (rect.left > 0) width = Math.min(width, rect.left);
+        else if (rect.top > 0) height = Math.min(height, rect.top);
+      }
+    }
+    return { width, height };
   }
   function fitCanvasContents() {
     if (state.drawing) return;
@@ -147,7 +150,7 @@
     let bounds = visibleInkBounds({ x:0, y:0, w:SIZE, h:SIZE });
     for (const next of [imageBounds(), textBoxBounds(), animationBounds(), widgetBounds()]) bounds = unionLocalBounds(bounds, next);
     if (!bounds) bounds = { x:SIZE / 2 - 1500, y:SIZE / 2 - 1000, w:3000, h:2000 };
-    const metrics = canvasViewportMetrics(), padding = 64;
+    const metrics = canvasFitViewportSize(), padding = 64;
     const previousPanX = state.panX, previousPanY = state.panY, previousScale = state.scale;
     state.scale = Math.max(.03, Math.min(2, (metrics.width - padding * 2) / Math.max(1,bounds.w), (metrics.height - padding * 2) / Math.max(1,bounds.h)));
     state.panX = (metrics.width - bounds.w * state.scale) / 2 - bounds.x * state.scale;
@@ -161,18 +164,7 @@
     setWidgetInteraction(null);
     (state.viewMode ? document.querySelector('#canvasViewSelect') : document.querySelector('#lassoToolBtn'))?.focus({ preventScroll:true });
   });
-  document.querySelector('#canvasZoomOut')?.addEventListener('click', () => zoomCanvasFromControl(1));
-  document.querySelector('#canvasZoomIn')?.addEventListener('click', () => zoomCanvasFromControl(-1));
   document.querySelector('#canvasFitContents')?.addEventListener('click', fitCanvasContents);
-  document.querySelector('#canvasZoomReset')?.addEventListener('click', () => {
-    const rect = view.getBoundingClientRect();
-    setWidgetInteraction(null);
-    if (state.navigationLocked) setCanvasNavigationLocked(false);
-    // Use bounded steps to reach 100% without changing the zoom anchor.
-    const delta = Math.log(state.scale) / .002;
-    const count = Math.max(1, Math.ceil(Math.abs(delta) / 300));
-    for (let i = 0; i < count; i++) zoomCanvasAt(rect.x + rect.width / 2, rect.y + rect.height / 2, delta / count);
-  });
   const wheelZoomSetting = document.querySelector('#settingsWheelZoom');
   if (wheelZoomSetting) {
     wheelZoomSetting.setAttribute('aria-checked', String(state.wheelZoom));

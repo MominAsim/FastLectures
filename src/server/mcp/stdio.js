@@ -5,12 +5,35 @@ const crypto = require("node:crypto");
 const http = require("node:http");
 const { processIsAlive, readRecords, recordsDirectory } = require("./records.js");
 const { TOOLS } = require("./schema.js");
+const { SESSION_INSTRUCTIONS, VISUAL_INSTRUCTIONS, visualExplorerPrompt } = require("./guidance.js");
 
 const PROTOCOL_VERSION = "2025-11-25";
 const MAX_INPUT_LINE_BYTES = 3 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 12 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 50_000;
-const INSTRUCTIONS = "PenEcho shows concise public plans, milestone progress, and evidence on canvases that explicitly opt in. With an already selected live connection, proactively present useful UI previews, choices, or clarifying diagrams; skip decorative output and routine edits. Use penecho_draw for native Canvas text and rasterized shapes, and penecho_plot for a safely compiled native raster plot. These artifacts are saved with the Canvas, can be moved or resized, and can be replaced by their stable MCP artifactId; they are not iframe Widgets and do not expose editable vector handles. Before the next design revision, read compressed feedback, preserve the unread cursor until it is handled, and update stable artifacts in place. Use capture:false for ordinary presentation of Widgets. Screenshot creation is local and invokes no model, though images viewed by a model may consume image-input tokens. Never send private chain-of-thought. Batch updates at meaningful milestones instead of sending per-token updates, and never auto-wake or poll in a tight loop. A queued update is not yet applied; inspect_session reports browser application and surface visibility, not pixel-level paint proof.";
+const INSTRUCTIONS = "PenEcho exposes persistent documents through exact browser connections that explicitly opt in. Keep documentId separate from the bridge canvasId, retain the sessionId returned for one document, and never guess across hosts or storage providers. Opening changes the visible document only when show:true; use show only after an explicit request. Read a virtual file before patching, submit its contentHash, and on SOURCE_CONFLICT re-read and retry with a new requestId; retry an unknown mutation outcome with the same requestId. Supply baseRevision when moving, resizing, deleting, erasing, or replacing so newer user work is not overwritten. Virtual paths never grant physical filesystem access, and source edits do not edit Canvas geometry. Pull messages at natural active-work checkpoints and acknowledge them explicitly; reading alone does not claim receipt, and the bridge never auto-wakes a stopped client. A Widget choice enters that inbox only through an opted-in data-penecho-action=choose button; it never calls the model or grants approval automatically. Keep the primary task moving during bridge outages and preserve the unread cursor while keeping feedback, message, and file cursors independent. With a selected live connection, present useful UI previews or diagrams when they help. Use presentation intent, role, size, relative placement, and attention to express purpose; keep artifact IDs stable. Use inspect only for an ephemeral Widget capture before delivery. Use penecho_draw for native Canvas text and penecho_plot for safe plots; these are not iframe Widgets. Use capture:false for ordinary presentation. Call penecho_capture_canvas only for an explicit bounded screenshot of existing visible Canvas content; a hidden document returns CANVAS_NOT_VISIBLE and must never be shown implicitly. A viewed image may consume image-input tokens. Never send private chain-of-thought. Inspect reports application and visibility, not pixel proof." + "\n\n" + SESSION_INSTRUCTIONS + "\n\n" + VISUAL_INSTRUCTIONS;
+
+const PROMPTS = [
+  {name:"penecho_visual_explorer",description:"Author a clear spatial explanation using PenEcho’s shared Visual Explorer design standard.",arguments:[]},
+  {name:"penecho_explain_selection",description:"Explain the currently selected PenEcho material in its document context.",arguments:[{name:"focus",description:"Optional explanation focus.",required:false}]},
+  {name:"penecho_revise_feedback",description:"Read current PenEcho feedback and revise the bound document safely.",arguments:[{name:"goal",description:"Optional revision goal.",required:false}]},
+  {name:"penecho_resume_document",description:"Resume work on a known persistent PenEcho document without changing the current view.",arguments:[{name:"documentId",description:"Persistent PenEcho document ID.",required:true}]},
+];
+
+function promptResult(name, args) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) throw Object.assign(new Error("Prompt arguments are invalid."), {code:-32602});
+  const allowed = name === "penecho_explain_selection" ? new Set(["focus"]) : name === "penecho_revise_feedback" ? new Set(["goal"]) : name === "penecho_resume_document" ? new Set(["documentId"]) : new Set();
+  if (Object.keys(args).some(key => !allowed.has(key))) throw Object.assign(new Error("Prompt arguments contain an unsupported field."), {code:-32602});
+  for (const value of Object.values(args)) if (typeof value !== "string" || !value || value.length > 500 || /[\u0000-\u001f\u007f]/.test(value)) throw Object.assign(new Error("Prompt argument is invalid."), {code:-32602});
+  if (name === "penecho_visual_explorer") return {description:"PenEcho Visual Explorer design and workspace workflow",messages:[{role:"user",content:{type:"text",text:visualExplorerPrompt()}}]};
+  if (name === "penecho_explain_selection") return {description:"Explain selected PenEcho material",messages:[{role:"user",content:{type:"text",text:`Use the exact opted-in PenEcho connection and session. Explain the selected material${args.focus ? ` with this focus: ${args.focus}` : ""}. Keep the explanation public and concise.\n\n${VISUAL_INSTRUCTIONS}`}}]};
+  if (name === "penecho_revise_feedback") return {description:"Revise from PenEcho feedback",messages:[{role:"user",content:{type:"text",text:`Read unread feedback for the bound PenEcho document, preserve independent cursors, and revise the stable artifact or virtual source${args.goal ? ` toward: ${args.goal}` : ""}. Read source before patching.\n\n${SESSION_INSTRUCTIONS}`}}]};
+  if (name === "penecho_resume_document") {
+    if (typeof args.documentId !== "string" || !args.documentId || args.documentId.length > 256) throw Object.assign(new Error("documentId is required."), {code:-32602});
+    return {description:"Resume a persistent PenEcho document",messages:[{role:"user",content:{type:"text",text:`Find and resume PenEcho document ${args.documentId}. Keep show:false unless the user explicitly asks to change the visible document. Continue the primary task if the bridge is unavailable.\n\n${SESSION_INSTRUCTIONS}`}}]};
+  }
+  throw Object.assign(new Error("Prompt not found."), {code:-32602});
+}
 
 function argumentValue(argv, name) {
   const index = argv.indexOf(name);
@@ -67,6 +90,7 @@ function bridgeRequest(record, payload, signal) {
         if (response.statusCode !== 200 || value?.error) {
           const error = new Error(String(value?.error?.message || `PenEcho MCP request failed (${response.statusCode}).`));
           error.code = value?.error?.code;
+          error.details = value?.error?.details;
           return reject(error);
         }
         resolve(value.result);
@@ -125,7 +149,7 @@ class PenEchoStdioServer {
   }
 
   recordForCall(name, args) {
-    if (name === "penecho_start_session") {
+    if (["penecho_start_session", "penecho_open_canvas", "penecho_find_canvases"].includes(name)) {
       const record = this.records().find(item => item.instanceId === args.instanceId);
       if (!record) throw new Error("The selected PenEcho instance is no longer available. List canvases again.");
       return record;
@@ -185,11 +209,16 @@ class PenEchoStdioServer {
     try {
       if (message.method === "initialize") {
         this.initialized = true;
-        return this.send({ jsonrpc:"2.0", id, result:{ protocolVersion:PROTOCOL_VERSION, capabilities:{ tools:{ listChanged:false } }, serverInfo:{ name:"PenEcho", version:"1.0.0" }, instructions:INSTRUCTIONS } });
+        return this.send({ jsonrpc:"2.0", id, result:{ protocolVersion:PROTOCOL_VERSION, capabilities:{ tools:{ listChanged:false }, prompts:{listChanged:false} }, serverInfo:{ name:"PenEcho", version:"1.0.0" }, instructions:INSTRUCTIONS } });
       }
       if (message.method === "ping") return this.send({ jsonrpc:"2.0", id, result:{} });
       if (!this.initialized) return this.send({ jsonrpc:"2.0", id, error:{ code:-32002, message:"Initialize the PenEcho MCP server first." } });
       if (message.method === "tools/list") return this.send({ jsonrpc:"2.0", id, result:{ tools:TOOLS } });
+      if (message.method === "prompts/list") return this.send({jsonrpc:"2.0",id,result:{prompts:PROMPTS}});
+      if (message.method === "prompts/get") {
+        try { return this.send({jsonrpc:"2.0",id,result:promptResult(message.params?.name,message.params?.arguments || {})}); }
+        catch (error) { return this.send({jsonrpc:"2.0",id,error:{code:error?.code || -32602,message:String(error?.message || "Invalid params").slice(0,500)}}); }
+      }
       if (message.method !== "tools/call") return this.send({ jsonrpc:"2.0", id, error:{ code:-32601, message:"Method not found" } });
       const name = message.params?.name, args = message.params?.arguments === undefined ? {} : message.params.arguments;
       if (typeof name !== "string" || !args || typeof args !== "object" || Array.isArray(args)) return this.send({ jsonrpc:"2.0", id, error:{ code:-32602, message:"Invalid params" } });
@@ -206,7 +235,8 @@ class PenEchoStdioServer {
         this.send({ jsonrpc:"2.0", id, result:value?.image ? captureToolResult(value) : normalToolResult(value) });
       } catch (error) {
         if (!this.pending.has(key)) return;
-        this.send({ jsonrpc:"2.0", id, result:{ content:[{ type:"text", text:String(error?.message || "PenEcho MCP request failed.").slice(0, 1_000) }], isError:true } });
+        const failure = {code:String(error?.code || "mcp_bridge_error").slice(0,80),message:String(error?.message || "PenEcho MCP request failed.").slice(0,1_000),...(error?.details === undefined ? {} : {details:error.details})};
+        this.send({ jsonrpc:"2.0", id, result:{ content:[{ type:"text", text:JSON.stringify(failure) }], structuredContent:failure, isError:true } });
       } finally { this.pending.delete(key); }
     } catch (error) {
       this.send({ jsonrpc:"2.0", id, error:{ code:-32603, message:String(error?.message || "Internal error").slice(0, 500) } });
@@ -235,4 +265,4 @@ function main(argv = process.argv.slice(2)) {
 
 if (require.main === module) main();
 
-module.exports = { INSTRUCTIONS, MAX_INPUT_LINE_BYTES, PROTOCOL_VERSION, PenEchoStdioServer, bridgeRequest, captureToolResult, main, selectRecord };
+module.exports = { INSTRUCTIONS, MAX_INPUT_LINE_BYTES, PROMPTS, PROTOCOL_VERSION, PenEchoStdioServer, bridgeRequest, captureToolResult, main, promptResult, selectRecord };

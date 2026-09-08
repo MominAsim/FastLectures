@@ -553,7 +553,7 @@ test("Select exposes one focused object toolbar, drags from its surface, and exp
   assert.match(createChromeButton, /dragSurface = kind === "move" \|\| kind === "toolbar"[\s\S]*?if \(dragSurface\) activateHandObjectToolbar[\s\S]*?beginObjectChromeMove/);
   assert.match(createChromeButton, /button\.className = kind === "toolbar" \? "object-chrome-button" : `object-chrome-button \$\{kind\}`/);
   assert.match(selectionDispatch, /hideHandObjectToolbar\(\{ all:true \}\)/);
-  assert.match(refineHoverOutline, /state\.widgetRefineButtonHoverId[\s\S]*?\["pen", "hand"\]\.includes\(state\.mode\)/);
+  assert.match(refineHoverOutline, /state\.widgetRefineButtonHoverId[\s\S]*?state\.mode !== "pen"/);
   assert.match(functionSource(app, "widgetRefineOutlineTarget"), /visibleWidgets\(\)\.find\(\(item\) => item\.id === widgetId\)/);
   assert.doesNotMatch(refineHoverOutline, /widgetRefineHoveredWidgetId|widgetRefineHintHovered/);
   const refineOutline = functionSource(app, "strokeWidgetRefineOutline");
@@ -746,8 +746,9 @@ test("PenEcho Agent auto-open is a default-on canvas preference", () => {
   assert.match(setter, /localStorage\.setItem\("penecho-canvas-agent-auto-open"[\s\S]*?aria-checked/);
   assert.match(app, /settingsCanvasAgentAutoOpen: "Open PenEcho Agent with each canvas"/);
   assert.match(zh, /settingsCanvasAgentAutoOpen: "打开画布时自动打开 PenEcho Agent"/);
-  let openCount = 0, shellOpen = false;
+  let openCount = 0, shellOpen = false, mcpDocked = false;
   const context = {
+    window:{PenEchoStudioNavigator:{isMcpDocked:()=>mcpDocked}},
     canvasAgent:{ socket:null, connectPromise:null }, state:{ canvasAgentAutoOpen:false }, canvasAgentPanel:{ hidden:true }, WebSocket:{ OPEN:1 },
     mcpDisconnect:()=>{},
     document:{ body:{ classList:{ contains:() => shellOpen } } },
@@ -766,6 +767,12 @@ test("PenEcho Agent auto-open is a default-on canvas preference", () => {
   shellOpen = false;
   context.canvasAgentCanvasDidChange();
   assert.equal(openCount, 2, "a stale visible panel without the shell open state is reopened");
+  mcpDocked = true;
+  context.canvasAgentCanvasDidChange();
+  assert.equal(openCount, 2, "MCP dock suppresses automatic opening");
+  mcpDocked = false;
+  context.canvasAgentCanvasDidChange();
+  assert.equal(openCount, 3, "other sidebar tabs preserve the preference");
 });
 
 test("pen ink stays above widgets and the eraser exposes a dashed footprint", () => {
@@ -1198,6 +1205,10 @@ test("canvas navigation lock freezes only the outer view and leaves locked widge
   assert.match(css, /body\[data-theme="scifi"\] \.canvas-navigation-lock:not\(\.locked\)\s*\{[^}]*var\(--outside\) 78%[^}]*opacity:\s*\.38/);
   assert.match(css, /body\[data-theme="scifi"\] #viewport\.is-navigating \.canvas-navigation-lock:not\(\.locked\)\s*\{[^}]*opacity:\s*\.5/);
   assert.match(css, /body\[data-theme="scifi"\] \.canvas-navigation-lock:not\(\.locked\):hover[\s\S]*?opacity:\s*\.66/);
+  assert.match(html, /id="canvasFitContents"[^>]*class="canvas-fit-contents"[^>]*data-i18n-aria="canvasFitContents"/);
+  assert.doesNotMatch(html, /id="canvasZoom(?:Out|In|Reset)"/);
+  assert.match(css, /\.canvas-fit-contents\s*\{[^}]*bottom:\s*10px[^}]*left:\s*10px[^}]*width:\s*30px[^}]*height:\s*30px[^}]*opacity:\s*\.3/);
+  assert.match(css, /#viewport\.is-navigating \.canvas-fit-contents[^}]*opacity:\s*\.58/);
   assert.match(css, /\.canvas-navigation-lock-hint\s*\{[^}]*max-width:\s*min\(440px, 100%\)[^}]*visibility:\s*hidden[^}]*opacity:\s*0[^}]*white-space:\s*nowrap/);
   assert.match(css, /main:has\(#viewport\.navigation-locked\) \.canvas-navigation-lock-hint\s*\{[^}]*visibility:\s*visible[^}]*opacity:\s*1/);
   assert.match(app, /NAVIGATION_HINT_VISIBLE_MS\s*=\s*10000/);
@@ -2403,7 +2414,7 @@ test("widget AI refinement is discoverable near ink and replaces only its locked
   assert.doesNotMatch(nonHandChrome, /copy:true/);
   assert.doesNotMatch(chrome, /target:"text-box"/);
   assert.match(chrome, /if \(!state\.viewMode && !state\.interactingWidgetId && persistentCandidate\) addWidgetToolSpecs\(specs, persistentCandidate\.widget, \{ refine:persistentCandidate \}\)/);
-  assert.match(functionSource(app, "updateWidgetRefinePointer"), /\["pen", "hand"\]\.includes\(state\.mode\)[\s\S]*?widgetAtRefinePoint[\s\S]*?const hasDirty = viewportHasWidgetRefineInput/);
+  assert.match(functionSource(app, "updateWidgetRefinePointer"), /state\.mode === "pen" \? widgetAtRefinePoint[\s\S]*?const hasDirty = viewportHasWidgetRefineInput/);
   assert.match(functionSource(app, "updateWidgetRefinePointer"), /instructionMode:"viewport-dirty"[\s\S]*?hintKey:"widgetRefineViewportHint"/);
   assert.match(selectedRefine, /persistentCandidate\?\.widget === widget[\s\S]*?hoverCandidate\?\.widget === widget/);
   assert.match(selectedRefine, /const hasDirty = viewportHasWidgetRefineInput\(\)[\s\S]*?instructionMode:hasDirty \? "viewport-dirty" : "implicit-polish"[\s\S]*?hintKey:hasDirty \? "widgetRefineViewportHint" : "widgetRefineNoInputHint"/);
@@ -2438,8 +2449,7 @@ test("widget AI refinement is discoverable near ink and replaces only its locked
   assert.deepEqual({ ...confirmationPosition({ x:930, y:220, width:64, height:34 }, 360, 50, 1000, 700) }, { x:632, y:212 });
   assert.deepEqual({ ...confirmationPosition({ x:300, y:670, width:112, height:34 }, 360, 50, 1000, 700) }, { x:176, y:642 });
   const handChrome = chrome.slice(chrome.indexOf("const specs = [];", chrome.indexOf("return specs;") + 1));
-  assert.match(handChrome, /if \(state\.mode === "hand"\) \{[\s\S]*?refine:persistentCandidate/);
-  assert.doesNotMatch(handChrome.slice(handChrome.indexOf("for (const [key, record]")), /addWidgetToolSpecs\([^\n]*refine:/);
+  assert.doesNotMatch(handChrome, /addWidgetToolSpecs\([^\n]*refine:/);
   assert.match(handChrome, /record\.kind === "widget"[\s\S]*?record\.expanded[\s\S]*?state\.handToolbarActiveKey !== key[\s\S]*?addObjectToolbarSpecs\(specs, \{[\s\S]*?addWidgetToolSpecs\(specs, handTarget, \{[\s\S]*?copy:true,[\s\S]*?community:true,[\s\S]*?download:true,[\s\S]*?objectToolbarKey:toolbarKey/);
   assert.match(chrome, /state\.pendingWidget[\s\S]*?addObjectToolbarSpecs\(specs, \{[\s\S]*?prefix:`pending-widget:\$\{widget\.id\}`[\s\S]*?addWidgetToolSpecs\(specs, widget, \{[\s\S]*?copy:true,[\s\S]*?download:true,[\s\S]*?objectToolbarKey:toolbarKey/);
   assert.match(request, /supersedeActiveAI\("widget-refine"\)[\s\S]*?captureCurrentViewport:true[\s\S]*?widgetEditTarget:widget/);
@@ -2625,7 +2635,7 @@ test("widget Refine discovery stays in the parent canvas and leaves iframe event
     handFrameRule = /#viewport\.widget-selection-enabled \.canvas-widget\.is-interacting \.canvas-widget-frame\s*\{[^}]*\}/.exec(css)?.[0] || "";
 
   assert.match(pointer, /state\.widgetRefinePointer = point && valid\(point\) \? point : null/);
-  assert.match(pointer, /\["pen", "hand"\]\.includes\(state\.mode\) \? widgetAtRefinePoint\(state\.widgetRefinePointer\) : null/);
+  assert.match(pointer, /state\.mode === "pen" \? widgetAtRefinePoint\(state\.widgetRefinePointer\) : null/);
   assert.match(hitTest, /visibleWidgets\(\)[\s\S]*?widgetBox\(widget\)[\s\S]*?point\.x[\s\S]*?point\.y/);
   assert.doesNotMatch(hitTest, /contentWindow|postMessage|addEventListener/);
   assert.doesNotMatch(functionSource(app, "mountWidget"), /pointerenter|pointerleave|updateHandObjectHover/);
@@ -3625,7 +3635,7 @@ test("Studio navigator groups recent Agent sessions by canvas and opens the boun
   assert.match(build, /src\/client\/app\/studio-navigator\.js/);
   assert.match(navigator, /let studioNavigatorOpenPreference = false/);
   assert.doesNotMatch(navigator, /STUDIO_NAVIGATOR_OPEN_KEY|penecho-studio-navigator-open/);
-  assert.match(functionSource(navigator, "studioNavigatorWorkGroups"), /canvasAgentStoredHistoryGroups\(\)[\s\S]*?studioNavigatorSnapshots\(\)[\s\S]*?sort\(\(a,b\)=>Number\(b\.current\)-Number\(a\.current\)\|\|b\.updatedAt-a\.updatedAt\)/);
+  assert.match(functionSource(navigator, "studioNavigatorWorkGroups"), /canvasAgentStoredHistoryGroups\(\)[\s\S]*?studioNavigatorSnapshots\(\)[\s\S]*?sort\(\(a,b\)=>Number\(b\.current\)-Number\(a\.current\)\|\|Number\(Boolean\(b\.documentId\)\)-Number\(Boolean\(a\.documentId\)\)\|\|b\.updatedAt-a\.updatedAt\)/);
   assert.match(navigator, /className="studio-navigator-group"[\s\S]*?className="studio-navigator-group-conversations"/);
   assert.match(functionSource(navigator, "studioNavigatorCanvasGroupSnapshot"), /snapshotItemsLocation===identity\.location[\s\S]*?snapshotItems\.find\(candidate=>candidate\.id===identity\.id\)[\s\S]*?studioNavigatorCanvasGroupSnapshots\.set\(key,item\)/);
   assert.match(functionSource(navigator, "studioNavigatorLoadDraftSnapshot"), /await snapshotPreviewBlob\(\)[\s\S]*?request\.canvasKey===state\.canvasAgentCanvasKey[\s\S]*?studioNavigatorDraftSnapshot\.item=\{id:request\.canvasKey,preview\}/);

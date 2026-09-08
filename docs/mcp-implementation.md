@@ -6,9 +6,9 @@
 
 ## 工作方式
 
-- 每个外部会话绑定明确的实例、已启用画布和独立 session，创建自己的进度板。空画布的第一块工作板自动聚焦；后续更新保持用户视角。设置中的会话列表可以定位进度板；同一会话的预览沿已有作品摆放，并使用稳定 artifact ID 原位更新。
+- 每个外部会话绑定明确的实例、已启用画布和独立 session。启动只建立 session 元数据，不强制创建进度板，`boardObjectId` 可以为 null。同一会话的作品使用稳定 artifact ID 原位更新。
 - 外部 AI 主动提交公开的计划、决策摘要、进展、证据和结果。MCP 不会自动读取客户端中的所有对话，也不展示隐藏推理。
-- 进度在服务端合并后推送，立即返回入队确认。普通更新不调用模型、不截图、不重建 iframe；隐藏进度板保存最新状态，在可见时同步。inspect 报告应用状态，截图才提供像素证据。
+- 有意义的进度在服务端合并后推送，并立即返回入队确认。普通更新不调用模型、不截图、不重建 iframe；没有默认进度板或周期心跳。inspect_session 报告应用状态，截图才提供像素证据。
 - HTML/SVG 流程图和交互 UI 使用现有 Widget 沙箱。MCP 预览保留代码指定的字号、背景和表单结构。连续改源码和尺寸后，截图等待当前文档加载和真实视口尺寸就绪。
 - `penecho_present_widget` 的 `capture:true` 把呈现和截图合为一次工具调用；其他呈现默认不截图。截图只包含该会话自己的预览，并沿用压缩与尺寸上限。
 - 关闭画布、切换画布或关闭开关会撤销连接并取消排队操作；画布上的已有作品保留。Codex/Claude 自动配置检查已有条目，无法安全添加时保留原配置并提供手动路径。
@@ -27,7 +27,7 @@
 | 自动配置反馈 | 状态示例 success/error/loading、连接编辑器 footer-status | 紧随动作显示持久结果、下一步与 busy 状态；保留布局与独立复制反馈 |
 | 画布 MCP 访问提示 | `.viewer-notice` 可交互页面状态示例、secondary compact 按钮 | 画布右下角持续显示开放、会话、修改中或断开状态，点击进入 MCP 设置；细边框标记画布开放范围，实际修改时短暂柔光；沿用 --pe-accent，避让 Agent/Navigator 和窄屏浮动入口，尊重减少动态效果设置 |
 
-新增 CSS 限于布局、配置文本换行和会话行，未引入新设计 token。进度板是用户画布上的内容文档，采用语义标题、工作步骤和进展两栏；长内容在板内滚动。
+新增 CSS 限于布局、配置文本换行和会话行，未引入新设计 token。Session 状态是可选的紧凑公共投影，不要求在用户 Canvas 上创建内容文档。
 
 ## 验收记录
 
@@ -57,7 +57,7 @@
 
 ### 用户画布反馈
 
-`penecho_read_feedback` 默认返回压缩截图及简洁的游标、hasFeedback/changeCount，不再公开文字/笔画/图片分类条目。内部分别在文字确认、笔画结束和图片导入完成时记录区域，最多保留 200 条，不清空内置 dirty。首个会话进度板应用后建立基线；present 返回应用后的 feedbackCursor，但不会重置会话已保留的未读反馈。客户端处理后再保存 nextCursor；失败可用同一游标重试。
+`penecho_read_feedback` 默认返回压缩截图及简洁的游标、hasFeedback/changeCount，不再公开文字/笔画/图片分类条目。内部分别在文字确认、笔画结束和图片导入完成时记录区域，最多保留 200 条，不清空内置 dirty。Session 建立时记录反馈基线，即使没有进度板；present 返回应用后的 feedbackCursor，但不会重置会话已保留的未读反馈。客户端处理后再保存 nextCursor；失败可用同一游标重试。
 
 截图包含新增 dirty 附近的当前设计和用户层，使用 120 个画布单位的边距；相距过远的标注自动分批，不受用户后来平移视野的影响。当前笔画未结束时拒绝截图，避免读取半截标注；没有反馈或 capture:false 时不截图。它不是历史快照或 OCR。后续修改前先读反馈，不自动唤醒停止工作的客户端。
 
@@ -83,15 +83,16 @@ Astra implemented and reviewed UI/integration; the backend worker was requested 
 
 ## PenEcho-owned task layout and camera
 
-New MCP sessions reserve separate work areas; previews occupy stable rows beneath their session board. Placement checks other task areas, existing objects and ink; previous objects and user positions are never repacked. Existing preview updates retain location. Exhausted space returns an actionable error instead of overlapping content. Camera batching waits for a short quiet interval and the mutation queue to finish; only new objects trigger it. Large distant batches are offered one task at a time; very small automatic fitting is deferred for explicit inspection. Pointer/wheel interaction, active editing, hidden pages and navigation lock preserve user camera ownership. The Show new content action frames pending items, and Settings Show frames the whole task. Disconnect clears the owned timer and pending targets.
+New MCP sessions reserve placement state without requiring a session board. New artifacts occupy stable rows in their task area. Placement checks other task areas, existing objects and ink; previous objects and user positions are never repacked. Existing preview updates retain location. Exhausted space returns an actionable error instead of overlapping content. Camera batching waits for a short quiet interval and the mutation queue to finish; only new objects trigger it. Large distant batches are offered one task at a time; very small automatic fitting is deferred for explicit inspection. Pointer/wheel interaction, active editing, hidden pages and navigation lock preserve user camera ownership. The Show new content action frames pending items, and Settings Show frames the whole task. Disconnect clears the owned timer and pending targets.
 
-Design-source map: pending-content control → penecho-design-language.html compact secondary button / status examples → reuse existing Canvas MCP status area and wrap at narrow widths; no new panel. Work areas reuse session boards as task headings and existing Canvas placement/framing primitives. Preplanned absolute creation avoids a duplicate global occupancy scan. No extra model calls, screenshots or MCP layout parameters are needed.
+Design-source map: pending-content control → penecho-design-language.html compact secondary button / status examples → reuse existing Canvas MCP status area and wrap at narrow widths; no new panel. Work areas use session placement metadata and existing Canvas placement/framing primitives. Preplanned absolute creation avoids a duplicate global occupancy scan. No extra model calls or automatic screenshots are needed.
 
 Root implemented and reviewed this UI work without delegation. Focused browser/runtime/compression tests pass (24 tests); isolated LAN acceptance covers three-preview placement, user camera pause, explicit resume, two sessions, narrow/zoom button usability and existing feedback capture. Existing saved canvases are not retroactively reorganized; newly started sessions use this layout. Reopen the updated Canvas and reconnect after preserving current work.
 
 ## Lightweight native MCP artifacts
 
-Added `penecho_draw` and `penecho_plot` (ten public tools total). The browser-owned
+At that stage, adding `penecho_draw` and `penecho_plot` brought the bridge to ten
+public tools. The browser-owned
 `mcp-primitives.js` prepares bounded native text/image records, lays out nodes and
 resolves connector IDs, then commits one history transaction after checking the
 current Canvas revision and execution. Shape/path images are not Widgets or user
@@ -130,3 +131,122 @@ Single-run measured update after content reuse: 16 ms (prior diagnostic run
 are not general performance guarantees. The isolated test instance was closed.
 Root handled UI, native integration and acceptance. Backend was delegated with
 requested Sol/high; actual provider/model identity was not independently verified.
+
+## Persistent multi-document MCP server v1 (2026-09-07)
+
+The public server now separates the opted-in bridge connection (`canvasId`) from
+the persistent work document (`documentId`). `penecho_open_canvas` and
+`penecho_find_canvases` are routed only through the exact active connection named
+by `instanceId` and `canvasId`; the server does not search another host.
+`penecho_open_canvas` requires an idempotency key and defaults `show` to false, so
+opening or creating a document does not steal the current view. Provider
+ambiguity, availability, and cross-storage errors can return bounded structured
+details through HTTP and stdio error results.
+
+`penecho_start_session` accepts optional `documentId` and `takeover`, and forwards
+the exact optional client and session key. The browser-issued session ID remains
+the routing authority for every later tool call. The server snapshot stores the
+actual `documentId` only when the browser returns one, preserving compatibility
+with older runtimes. Server session-key isolation remains owner-scoped; the
+browser persists reconnect bindings for the exact client/key pair.
+
+Virtual source tools never touch Node's filesystem APIs. Listing and reading are
+browser operations over public Canvas virtual files. Patch requests are limited
+to 800,000 bytes, reject traversal/backslash/NUL paths, and parse exactly one
+existing-file unified diff whose headers match the requested virtual path.
+`diff.applyPatch` runs with fuzz factor zero. The server reads browser-owned
+source through `mcp_prepare_patch`, verifies the caller's content hash, and sends
+the complete replacement plus expected hash to `mcp_apply_patch`. A bounded
+per-session request map returns completed retries before a new preparatory read;
+after an unknown apply outcome it resends the same final mutation and request ID.
+`SOURCE_CONFLICT` instructs the client to read again and use a new request ID.
+Patch preparation also carries the request ID and expected hash. A browser-held
+successful receipt can return `alreadyApplied` plus the original result before a
+source reread, recovering a response lost after the browser committed the edit.
+
+Canvas edits use strict action-specific arguments. Image replacement accepts a
+bounded PNG/JPEG/WebP data URL or `penecho-ref:objects/<encoded-id>/image`, which
+the browser resolves only inside the bound document. Source replacement and
+geometry edits are distinct operations. Move, resize, delete, erase, and replace
+also require a current base revision, preventing a stale client from overwriting
+newer user work. The inbox is pull-based:
+`penecho_read_messages` never means receipt, and `penecho_ack_messages` explicitly
+records received/working/done/error for named request IDs. There is no push wake,
+automatic polling, Git integration, history API, or playback API in this version.
+
+`penecho_capture_canvas` is the explicit bounded screenshot path for existing
+Canvas content. It supports canvas, viewport, selection, region, and object
+targets with basic/detail quality, validates the returned image MIME type,
+dimensions, encoded byte count, and revision, and reports `pixelVerified:true`
+only after an actual image result. A background document returns structured
+`CANVAS_NOT_VISIBLE` retry details and is never shown as a capture side effect.
+The stdio adapter emits the image as MCP image content.
+
+The browser's opt-in Widget choice contract uses only buttons carrying
+`data-penecho-action="choose"` plus bounded `data-penecho-prompt`. A trusted
+click queues text, `source:"widget"`, and the exact object/session/client/key in
+the pull inbox. It does not invoke a model, serialize arbitrary forms or
+passwords, or authorize an external action. Status still moves only through
+explicit received/working/done/error acknowledgements. The virtual `context.md`
+is user-editable document context and is appended to the internal PenEcho
+Agent's local user turn.
+
+The stdio server advertises four user-selected prompts through `prompts/list`
+and `prompts/get`: Visual Explorer, explain selection, revise feedback, and resume document.
+Initialization guidance states that cursors remain independent, visible document
+changes require explicit show, read-before-patch is mandatory, and the primary
+task continues when the optional bridge is unavailable.
+
+## Presentation protocol
+
+Widget, drawing, and plot calls accept an optional exact-key `presentation`
+object. The server validates and normalizes intent (`explain|deliver|compare|review|inspect`),
+role (`primary|supporting|alternative`), relative artifact placement, and attention.
+Widget/plot size presets resolve server-side to base 480×360, wide 992×360, tall
+480×752, large 992×752, or page 1200×800 before browser dispatch. Legacy explicit
+dimensions remain supported and cannot be combined with an explicitly supplied
+size. Drawings reject size and use natural scene bounds. Omitting presentation
+leaves it absent so a stable artifact source update preserves prior presentation.
+
+Widget-only inspect requires `capture:true`. The browser renders at the requested
+viewport, compresses under the existing basic/detail policies, and returns the
+capture in the same `mcp_present_widget` result with `ephemeral:true` and no
+`objectId`. The server checks MIME/bytes, quality dimensions and pixels, viewport
+metadata when supplied, revision, ephemeral state, and the absence of objectId;
+it returns `applied:true`, `pixelVerified:true`, and never issues a second capture.
+Normal presentation remains persistent and screenshot-free unless capture is
+explicitly requested. Returned presentation and optional viewport metadata make
+the result reviewable without changing built-in Agent authoring contracts.
+
+The MCP Visual Explorer prompt slices the shared built-in design prose and adds
+only external delivery guidance: meaningful intent and hierarchy, stable updates,
+the size matrix, useful interaction, no fake callback controls, and explicit
+pull-inbox read/ack behavior. It does not alter the built-in Agent contract or
+auto-select a prompt, create a progress board, poll, or wake a stopped client.
+
+
+### Lightweight spatial progress and visual guidance / 轻量空间进展与视觉指导
+
+Keep the first useful output fast: no required plan, prompt retrieval or capture
+before it. Send short public findings, decisions, blockers and completion through
+`penecho_update_session` at natural work boundaries only when useful information
+changed. There is no timer, tool-count quota or idle heartbeat. Read/ack inbox
+messages at these checkpoints when awaiting input or working interactively.
+Routine progress requires no generated diagram or screenshot. Reuse existing
+useful previews and stable artifact IDs; create spatial explanations when they
+help the task. Honor a quieter cadence requested by the user.
+
+`initialize.instructions` and Widget tool guidance include compact Visual
+Explorer principles. The optional `penecho_visual_explorer` prompt provides the
+full shared design sections with MCP-specific delivery, loaded once when needed
+for substantial visual authoring. New/reused session responses repeat only the
+short workflow reminder; ordinary updates do not repeat these instructions.
+Clients control prompt loading and tool execution. Existing clients need to
+refresh/reconnect to receive changed initialization instructions/tool metadata;
+this change does not wake stopped conversations or guarantee compliance.
+
+首个有效输出不等待计划、完整规范或截图。只在发现、决策、阻塞、完成等自然节点且确有
+新信息时发送简短进展，不设置周期、工具数量配额或空闲心跳。普通进展不
+生成图或截图。复用有用的已有成果，必要时再制作空间图解。Visual Explorer 完整设计规范
+通过可选 prompt 按需读取一次，默认仅附简短原则。客户端刷新连接后获得新指引；MCP
+无法强制客户端执行或唤醒已停止的会话。

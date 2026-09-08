@@ -1806,9 +1806,13 @@
     }
   }
   async function handleWidgetMessage(event) {
-    const widget = [...state.widgets, ...(state.pendingWidget ? [state.pendingWidget] : [])].find((item) => item.frame?.contentWindow === event.source);
+    const widget = [...state.widgets, ...(state.pendingWidget ? [state.pendingWidget] : []), ...(typeof mcpRuntime!=="undefined"?[...(mcpRuntime?.previews?.values()||[])]:[])].find((item) => item.frame?.contentWindow === event.source);
     if (!widget || event.origin !== (widget.hostOrigin || location.origin) || !event.data || typeof event.data !== "object") return;
     const message = event.data;
+    if(widget.mcpEphemeral&&!["penecho-widget-host-ready","penecho-widget-capture-ready","penecho-widget-updated","penecho-widget-snapshot","penecho-widget-snapshot-error","penecho-widget-runtime-diagnostics","penecho-visual-explainer-diagnostics"].includes(message.type))return;
+    if(message.type==="penecho-widget-user-action"&&typeof canvasDocumentsWidgetAction==="function") {
+      canvasDocumentsWidgetAction(widget,message);return;
+    }
     if (message.type === "penecho-widget-exit-interaction") {
       if (state.interactingWidgetId === widget.id) setWidgetInteraction(null);
       return;
@@ -3241,8 +3245,6 @@
       y = point ? point.y : (height / 2 - state.panY) / state.scale,
       text = `x ${Math.round(x)} · y ${Math.round(y)} · ${Math.round(state.scale * 100)}%`;
     if (coords.textContent !== text) coords.textContent = text;
-    const zoomLabel = document.querySelector('#canvasZoomReset');
-    if (zoomLabel) zoomLabel.textContent = `${Math.round(state.scale * 100)}%`;
   }
   function requestCoordinatesUpdate(point = null) {
     coordinatesUpdatePending = true;
@@ -3433,7 +3435,7 @@
   }
   function drawWidgetRefineButtonHoverOutline(context) {
     const widgetId = state.widgetRefineButtonHoverId;
-    if (!["pen", "hand"].includes(state.mode) || !widgetId || state.widgetRefineClickPulse?.widgetId === widgetId) return;
+    if (state.mode !== "pen" || !widgetId || state.widgetRefineClickPulse?.widgetId === widgetId) return;
     const widget = widgetRefineOutlineTarget(widgetId);
     if (widget) strokeWidgetRefineOutline(context, widget, 1, widgetRefineCandidateForId(widgetId)?.instructionMode === "implicit-polish");
   }
@@ -3762,11 +3764,10 @@
   }
   function widgetAtRefinePoint(point) {
     if (!point || !valid(point)) return null;
-    const widgets = visibleWidgets(),
-      padding = state.mode === "hand" ? 12 / Math.max(.03, state.scale) : 0;
+    const widgets = visibleWidgets();
     for (let index = widgets.length - 1; index >= 0; index--) {
       const widget = widgets[index], box = widgetBox(widget);
-      if (widget.shell && widget.renderActive !== false && point.x >= box.x - padding && point.x <= box.x + box.w + padding && point.y >= box.y - padding && point.y <= box.y + box.h + padding) return widget;
+      if (widget.shell && widget.renderActive !== false && point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h) return widget;
     }
     return null;
   }
@@ -3823,7 +3824,7 @@
   }
   function updateWidgetRefinePointer(point) {
     state.widgetRefinePointer = point && valid(point) ? point : null;
-    const widget = ["pen", "hand"].includes(state.mode) ? widgetAtRefinePoint(state.widgetRefinePointer) : null,
+    const widget = state.mode === "pen" ? widgetAtRefinePoint(state.widgetRefinePointer) : null,
       previousHoverId = state.widgetRefineHoveredWidgetId,
       previousCandidate = state.widgetRefineHoverCandidate;
     const hasDirty = viewportHasWidgetRefineInput();
@@ -4528,10 +4529,6 @@
       return specs;
     }
     const specs = [];
-    if (state.mode === "hand") {
-      if (persistentCandidate) addWidgetToolSpecs(specs, persistentCandidate.widget, { refine:persistentCandidate });
-      if (hoverCandidate && hoverCandidate.widget !== persistentCandidate?.widget) addWidgetToolSpecs(specs, hoverCandidate.widget, { refine:hoverCandidate });
-    }
     for (const [key, record] of state.handToolbarTargets) {
       const handTarget = handToolbarObject(record),
         shared = { handToolbar:true, handToolbarKey:key, handToolbarHiding:Boolean(record.hiding) };

@@ -10,7 +10,7 @@ function harness(){
  imageRecord:raw=>({id:raw.id||`image-${++next}`,...raw}),canvasAgentBox:o=>({x:o.item.x,y:o.item.y,w:o.item.w,h:o.item.h}),
  canvasAgentObject:id=>{for(const [key,kind]of [['textBoxes','text'],['images','image']]){const item=context.state[key].find(i=>i.id===id);if(item)return{item,kind};}return null;},
  canvasAgentMutationIdle:()=>{},canvasAgentAssertRevision:r=>assert.equal(context.state.userRevision,r),canvasAgentAssertToolExecution:()=>{},
- plotView:()=>({xMin:-5,xMax:5,yMin:-10,yMax:10}),mcpPlanPlacement:()=>({placement:{x:1000,y:1000},layout:{}}),save:()=>saved.push(true),textBoxHistoryState:()=>[],imageHistoryState:()=>[],requestRender:()=>{},canvasAgentSyncState:()=>{},mcpQueueView:()=>{},mcpRuntime:{feedbackSequence:0},
+ plotView:()=>({xMin:-5,xMax:5,yMin:-10,yMax:10}),mcpPresentation:(args,previous)=>args.presentation||previous?.presentation||{intent:"deliver",role:"primary",attention:"normal"},mcpPlanPlacement:()=>({placement:{x:1000,y:1000},layout:{}}),save:()=>saved.push(true),textBoxHistoryState:()=>[],imageHistoryState:()=>[],requestRender:()=>{},canvasAgentSyncState:()=>{},mcpQueueView:()=>{},mcpRuntime:{feedbackSequence:0},
  });
  const source=fs.readFileSync('src/client/app/ai-runtime.js','utf8'),start=source.indexOf('  function compileExpression('),end=source.indexOf('  async function plotObjectImage',start);
  vm.runInContext(source.slice(start,end)+fs.readFileSync('src/client/app/mcp-primitives.js','utf8')+';globalThis.api={mcpPrimitiveLayout,mcpPlotView,mcpPresentPrimitives};',context);

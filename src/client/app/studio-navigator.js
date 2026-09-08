@@ -12,6 +12,9 @@
       studioNavigatorScrim = document.querySelector("#studioNavigatorScrim"),
       studioNavigatorSearch = document.querySelector("#studioNavigatorSearch"),
       studioNavigatorAllTab = document.querySelector("#studioNavigatorAllTab"),
+      studioNavigatorMcpTab = document.querySelector("#studioNavigatorMcpTab"),
+      studioNavigatorMcpPanel = document.querySelector("#studioNavigatorMcpPanel"),
+      studioMcpRecentList = document.querySelector("#studioMcpRecentList"),
       studioNavigatorAgentTab = document.querySelector("#studioNavigatorAgentTab"),
       studioNavigatorCanvasTab = document.querySelector("#studioNavigatorCanvasTab"),
       studioNavigatorAllPanel = document.querySelector("#studioNavigatorAllPanel"),
@@ -37,6 +40,7 @@
       canvasWelcome = document.querySelector("#canvasWelcome"),
       studioNavigatorCompactMedia = window.matchMedia?.("(max-width: 1100px)");
     let studioNavigatorOpenPreference = false,
+      studioNavigatorMcpEnabled = false,
       studioNavigatorActiveTab = storedStudioNavigatorTab(),
       studioNavigatorWorkPreviewUrls = new Map(),
       studioNavigatorAgentPreviewUrls = new Map(),
@@ -72,6 +76,9 @@
     }
     function studioNavigatorIsOpen() {
       return studioNavigatorIsStudio() && document.body.classList.contains("studio-navigator-open");
+    }
+    function studioNavigatorIsMcpDocked() {
+      return studioNavigatorIsOpen() && studioNavigatorActiveTab === "mcp" && studioNavigatorMcpEnabled;
     }
     function studioCanvasHasContent() {
       return Boolean(tiles.size || state.images.length || state.textBoxes.length || state.preservedSnapshotAnimations.length || (pluginEnabled("animation") && state.animations.length) || visibleWidgets().length);
@@ -149,7 +156,7 @@
       }
     }
     function updateStudioNavigatorSurfaceInert() {
-      const blocked = studioNavigatorIsStudio() && studioNavigatorIsOpen() && studioNavigatorIsCompact() && !state.viewMode;
+      const blocked = studioNavigatorIsStudio() && studioNavigatorIsOpen() && studioNavigatorIsCompact() && !studioNavigatorIsMcpDocked() && !state.viewMode;
       if (blocked && !view.hasAttribute("inert")) {
         view.inert = true;
         view.dataset.studioNavigatorInert = "true";
@@ -160,6 +167,7 @@
     }
     function updateStudioNavigatorA11y({ deferSurface = false } = {}) {
       const active = studioNavigatorIsStudio(), open = active && studioNavigatorIsOpen(), unavailable = !active || !open || state.viewMode;
+      document.body.classList.toggle("studio-mcp-docked",studioNavigatorIsMcpDocked());
       studioNavigatorToggle.hidden = !active;
       studioNavigator.hidden = !active;
       if (!deferSurface) {
@@ -171,7 +179,7 @@
       const toggleKey = open ? "studioNavigatorClose" : "studioNavigatorOpen";
       studioNavigatorToggle.setAttribute("aria-label", t(toggleKey));
       studioNavigatorToggle.setAttribute("title", t(toggleKey));
-      studioNavigatorScrim.hidden = !(active && open && studioNavigatorIsCompact() && !state.viewMode);
+      studioNavigatorScrim.hidden = !(active && open && studioNavigatorIsCompact() && !studioNavigatorIsMcpDocked() && !state.viewMode);
       if (!deferSurface) updateStudioNavigatorSurfaceInert();
     }
     function suspendStudioAgentForNavigator() {
@@ -254,6 +262,10 @@
     function studioNavigatorMetaTime(value) {
       return canvasAgentHistoryTime(Number(value) || Date.now());
     }
+    function studioNavigatorCanvasMeta(current, open, location, updatedAt) {
+      return [current ? t("studioNavigatorCurrent") : open ? t("studioNavigatorOpened") : t("studioNavigatorNotOpened"),
+        location ? snapshotLocationLabel(location) : "", studioNavigatorMetaTime(updatedAt)].filter(Boolean).join(" · ");
+    }
     function syncStudioNavigatorCurrentSource() {
       const location=String(snapshotItemsLocation||"");
       if(!studioNavigatorSourceStates.has(location))return;
@@ -324,10 +336,10 @@
       return String(item?.text||"").replace(/\s+/g," ").trim().slice(0,96);
     }
     function closeStudioNavigatorAfterCompactAction() {
-      if (studioNavigatorIsCompact()) setStudioNavigatorOpen(false);
+      if (studioNavigatorIsCompact() && !studioNavigatorIsMcpDocked()) setStudioNavigatorOpen(false);
     }
     function collapseStudioNavigatorForWorkspaceFocus(event) {
-      if (!studioNavigatorIsOpen()) return false;
+      if (!studioNavigatorIsOpen() || studioNavigatorIsMcpDocked()) return false;
       const target=event?.target;
       if (target && (studioNavigator.contains(target) || studioNavigatorToggle.contains(target))) return false;
       setStudioNavigatorOpen(false);
@@ -430,7 +442,15 @@
         const identity=studioNavigatorCanvasIdentity(state.canvasAgentCanvasKey),item=studioNavigatorCanvasGroupSnapshot({canvasKey:state.canvasAgentCanvasKey});
         groups.set(state.canvasAgentCanvasKey,{canvasKey:state.canvasAgentCanvasKey,location:identity?.location||"",item,name:currentCanvasDisplayName()||t("canvasUntitledName"),updatedAt:Number(item?.updatedAt||item?.createdAt)||Date.now(),conversations:canvasAgentHistoryForCanvas(state.canvasAgentCanvasKey)});
       }
-      return [...groups.values()].map((group)=>({...group,current:group.canvasKey===state.canvasAgentCanvasKey})).sort((a,b)=>Number(b.current)-Number(a.current)||b.updatedAt-a.updatedAt);
+      if(typeof canvasDocuments!=="undefined")for(const doc of canvasDocuments.records.values()){
+        const current=doc.id===canvasDocuments.activeId,
+          canvasKey=doc.locator?`${doc.locator.location}:${doc.locator.id}`:current&&state.canvasAgentCanvasKey||`workspace:${doc.id}`,
+          previous=groups.get(canvasKey),item=previous?.item||doc.stored?.item||null;
+        groups.set(canvasKey,{...previous,canvasKey,documentId:doc.id,location:doc.locator?.location||"",item,
+          name:doc.title||t("canvasUntitledName"),updatedAt:previous?.updatedAt||Number(item?.updatedAt||item?.createdAt)||0,
+          conversations:previous?.conversations||[],current,unseen:doc.unseen>0});
+      }
+      return [...groups.values()].map((group)=>({...group,current:group.documentId?group.current:group.canvasKey===state.canvasAgentCanvasKey})).sort((a,b)=>Number(b.current)-Number(a.current)||Number(Boolean(b.documentId))-Number(Boolean(a.documentId))||b.updatedAt-a.updatedAt);
     }
     function studioNavigatorGroupMatches(group,query) {
       if(!query)return true;
@@ -473,9 +493,18 @@
       if(group.current)heading.setAttribute("aria-current","page");
       headingBody.className="studio-navigator-item-body";
       name.textContent=group.name;
-      meta.textContent=[group.location?snapshotLocationLabel(group.location):"",studioNavigatorMetaTime(group.updatedAt)].filter(Boolean).join(" · ");
+      name.title=group.name;
+      meta.textContent=studioNavigatorCanvasMeta(group.current,Boolean(group.documentId),group.location,group.updatedAt);
+      meta.title=meta.textContent;
       headingBody.append(name,meta);heading.append(canvasPreview,headingBody);
+      if(group.documentId){
+        heading.dataset.workspaceDocumentId=group.documentId;
+        const dot=document.createElement("span");dot.className="workspace-update-dot";dot.hidden=!group.unseen;
+        dot.setAttribute("role","img");dot.title=canvasDocumentsCopy("New updates","有新内容");dot.setAttribute("aria-label",dot.title);heading.append(dot);
+        heading.disabled=canvasDocuments.switching;
+      }
       heading.addEventListener("click",()=>{
+        if(group.documentId){canvasDocumentsUiAction(async()=>{await canvasDocumentsShow(group.documentId);closeStudioNavigatorAfterCompactAction();});return;}
         if(group.current){closeStudioNavigatorAfterCompactAction();return;}
         if(!identity){setStatus(t("studioNavigatorCanvasUnavailable"));return;}
         closeStudioNavigatorAfterCompactAction();
@@ -654,6 +683,9 @@
       const items=studioNavigatorSnapshots().sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)),query=studioNavigatorSearchQuery(),locale=state.language==="zh"?"zh-CN":"en",
         filtered=query?items.filter((item)=>`${snapshotName(item)} ${snapshotLocationLabel(item.location)}`.toLocaleLowerCase(locale).includes(query)):items;
       studioCanvasRecentList.replaceChildren();
+      for(const group of studioNavigatorWorkGroups().filter(group=>group.documentId&&!group.location&&studioNavigatorGroupMatches(group,query))){
+        studioCanvasRecentList.append(studioNavigatorGroupSection(group,{includeConversations:false,previewUrls:studioNavigatorCanvasPreviewUrls}));
+      }
       for (const item of filtered) {
         const row = document.createElement("button"), body = document.createElement("span"), title = document.createElement("strong"),
           meta = document.createElement("small"), current = item.id === state.currentSnapshotId && item.location === state.currentSnapshotLocation;
@@ -665,9 +697,16 @@
         if (current) row.setAttribute("aria-current", "page");
         body.className = "studio-navigator-item-body";
         title.textContent = snapshotName(item);
-        meta.textContent = [snapshotLocationLabel(item.location), studioNavigatorMetaTime(item.updatedAt || item.createdAt)].filter(Boolean).join(" · ");
+        const workspaceDoc=typeof canvasDocuments!=="undefined"?[...canvasDocuments.records.values()].find(doc=>doc.locator?.id===item.id&&doc.locator?.location===item.location):null;
+        meta.textContent = studioNavigatorCanvasMeta(current, Boolean(workspaceDoc), item.location, item.updatedAt || item.createdAt);
+        meta.title = meta.textContent;
         body.append(title, meta);
         row.append(studioNavigatorCanvasPreview(item), body);
+        if(workspaceDoc){
+          row.dataset.workspaceDocumentId=workspaceDoc.id;
+          const dot=document.createElement("span");dot.className="workspace-update-dot";dot.hidden=!workspaceDoc.unseen;
+          dot.setAttribute("role","img");dot.setAttribute("aria-label",canvasDocumentsCopy("New updates","有新内容"));row.append(dot);row.disabled=canvasDocuments.switching;
+        }
         row.addEventListener("click", () => {
           closeStudioNavigatorAfterCompactAction();
           void runSnapshotLoadAction(row, () => requestLoadSnapshot(item.id, item.location));
@@ -677,18 +716,65 @@
       renderStudioNavigatorSourceStates(studioCanvasRecentList,query);
       if(!studioCanvasRecentList.childElementCount)studioNavigatorEmpty(studioCanvasRecentList,items.length?"studioNavigatorCanvasNoMatch":"studioNavigatorCanvasEmpty");
     }
+    function studioNavigatorMcpGroups() {
+      return studioNavigatorWorkGroups().filter(group=>{
+        const doc=canvasDocuments.records.get(group.documentId);
+        return doc && (doc.bindings?.length || doc.sessions?.length || [...mcpRuntime.sessions.values()].some(session=>session.documentId===doc.id));
+      });
+    }
+    function renderStudioMcpHistory() {
+      if(!studioNavigatorIsOpen()){studioNavigatorHistoryDirty=true;return;}
+      releaseStudioNavigatorPreviewUrls(studioNavigatorCanvasPreviewUrls);
+      studioMcpRecentList.replaceChildren();
+      const query=studioNavigatorSearchQuery();
+      for(const group of studioNavigatorMcpGroups().filter(group=>studioNavigatorGroupMatches(group,query))){
+        studioMcpRecentList.append(studioNavigatorGroupSection(group,{includeConversations:false,previewUrls:studioNavigatorCanvasPreviewUrls}));
+      }
+      if(!studioMcpRecentList.childElementCount)studioNavigatorEmpty(studioMcpRecentList,query?"studioNavigatorNoMatch":"studioNavigatorMcpEmpty");
+    }
+    function syncStudioNavigatorMcp(enabled) {
+      enabled=Boolean(enabled);
+      if(enabled===studioNavigatorMcpEnabled)return;
+      studioNavigatorMcpEnabled=enabled;
+      studioNavigatorMcpTab.hidden=!enabled;
+      if(enabled){
+        studioNavigatorSuspendedAgent=false;
+        studioNavigatorRestoreAgentAfterManager=false;
+        closeCanvasAgent({focus:false});
+        studioNavigatorSearch.value="";
+        setStudioNavigatorTab("mcp",{persist:false});
+        setStudioNavigatorOpen(true);
+      }else if(studioNavigatorActiveTab==="mcp")setStudioNavigatorTab("all",{persist:false});
+    }
+    let studioWorkspaceSignature="";
+    function studioWorkspaceChanged() {
+      if(typeof canvasDocuments==="undefined")return;
+      const documents=[...canvasDocuments.records.values()],hasUpdates=documents.some(doc=>doc.unseen>0),attention=hasUpdates||Boolean(canvasDocuments.error);
+      studioNavigatorToggle.dataset.workspaceUpdates=String(attention);
+      const hint=document.getElementById("studioWorkspaceUpdateHint");
+      if(hint)hint.textContent=canvasDocuments.error?canvasDocumentsCopy("Canvas needs attention. Open Recent Work to retry.","画布操作需要处理。打开最近工作以重试。"):hasUpdates?canvasDocumentsCopy("Canvases have new updates","画布有新内容"):"";
+      const signature=JSON.stringify([canvasDocuments.activeId,...documents.map(doc=>[doc.id,doc.title,doc.locator?.location,doc.locator?.id,doc.bindings?.length,doc.sessions?.length,typeof mcpRuntime!=="undefined"&&[...mcpRuntime.sessions.values()].some(session=>session.documentId===doc.id)])]);
+      if(signature!==studioWorkspaceSignature){studioWorkspaceSignature=signature;renderActiveStudioNavigatorHistory();}
+      if(!studioNavigatorIsOpen()){studioNavigatorHistoryDirty=true;return;}
+      for(const row of studioNavigator.querySelectorAll("[data-workspace-document-id]")){
+        const doc=canvasDocuments.records.get(row.dataset.workspaceDocumentId),dot=row.querySelector(".workspace-update-dot");
+        if(dot){dot.hidden=!doc?.unseen;dot.setAttribute("aria-label",canvasDocumentsCopy("New updates","有新内容"));}
+        row.disabled=canvasDocuments.switching;
+      }
+    }
     function renderActiveStudioNavigatorHistory() {
       if (!studioNavigatorIsOpen()) {
         studioNavigatorHistoryDirty = true;
         return;
       }
-      if(studioNavigatorActiveTab==="canvas")renderStudioCanvasHistory();
+      if(studioNavigatorActiveTab==="mcp")renderStudioMcpHistory();
+      else if(studioNavigatorActiveTab==="canvas")renderStudioCanvasHistory();
       else if(studioNavigatorActiveTab==="agent")renderStudioAgentHistory();
       else renderStudioWorkHistory();
     }
     function setStudioNavigatorTab(tab, { focus = false, persist = true } = {}) {
-      studioNavigatorActiveTab=["all","canvas","agent"].includes(tab)?tab:"all";
-      const tabs={all:studioNavigatorAllTab,canvas:studioNavigatorCanvasTab,agent:studioNavigatorAgentTab},panels={all:studioNavigatorAllPanel,canvas:studioNavigatorCanvasPanel,agent:studioNavigatorAgentPanel};
+      studioNavigatorActiveTab=(tab==="mcp"&&studioNavigatorMcpEnabled)||["all","canvas","agent"].includes(tab)?tab:"all";
+      const tabs={all:studioNavigatorAllTab,mcp:studioNavigatorMcpTab,canvas:studioNavigatorCanvasTab,agent:studioNavigatorAgentTab},panels={all:studioNavigatorAllPanel,mcp:studioNavigatorMcpPanel,canvas:studioNavigatorCanvasPanel,agent:studioNavigatorAgentPanel};
       for(const [key,control] of Object.entries(tabs)){
         const active=key===studioNavigatorActiveTab;
         control.setAttribute("aria-selected",String(active));
@@ -699,6 +785,7 @@
         try { localStorage.setItem(STUDIO_NAVIGATOR_TAB_KEY, studioNavigatorActiveTab); }
         catch {}
       }
+      updateStudioNavigatorA11y();
       renderActiveStudioNavigatorHistory();
       if(focus)tabs[studioNavigatorActiveTab].focus({preventScroll:true});
     }
@@ -713,12 +800,12 @@
     function handleStudioNavigatorTabKeydown(event) {
       if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
       event.preventDefault();
-      const order=["all","canvas","agent"],current=order.indexOf(studioNavigatorActiveTab),index=event.key==="Home"?0:event.key==="End"?order.length-1:event.key==="ArrowRight"?(current+1)%order.length:(current+order.length-1)%order.length;
+      const order=studioNavigatorMcpEnabled?["all","mcp","canvas","agent"]:["all","canvas","agent"],current=order.indexOf(studioNavigatorActiveTab),index=event.key==="Home"?0:event.key==="End"?order.length-1:event.key==="ArrowRight"?(current+1)%order.length:(current+order.length-1)%order.length;
       setStudioNavigatorTab(order[index],{focus:true});
     }
     function historyManagerWillOpen() {
       studioNavigatorRestoreAgentAfterManager=false;
-      if(!studioNavigatorIsCompact())return;
+      if(!studioNavigatorIsCompact()||studioNavigatorIsMcpDocked())return;
       if(studioNavigatorIsOpen()){
         studioNavigatorRestoreAgentAfterManager=studioNavigatorSuspendedAgent;
         setStudioNavigatorOpen(false,{restoreAgent:false});
@@ -734,7 +821,7 @@
       openCanvasAgent({focus:false,connect:false,animate:false});
     }
     function studioNavigatorAgentWillOpen() {
-      if(!studioNavigatorIsCompact()||!studioNavigatorIsOpen())return;
+      if(!studioNavigatorIsCompact()||!studioNavigatorIsOpen()||studioNavigatorIsMcpDocked())return;
       studioNavigatorSuspendedAgent=false;
       setStudioNavigatorOpen(false,{restoreAgent:false});
     }
@@ -804,10 +891,19 @@
       if (studioEdgeSwipe?.pointerId === event.pointerId) studioEdgeSwipe = null;
     }
 
-    studioNavigatorToggle.addEventListener("click", () => setStudioNavigatorOpen(!studioNavigatorIsOpen()));
+    function toggleStudioWorkspaceNavigator() {
+      const opening=!studioNavigatorIsOpen();
+      if(opening&&studioNavigatorToggle.dataset.workspaceUpdates==="true"){
+        studioNavigatorSearch.value="";setStudioNavigatorTab(studioNavigatorMcpEnabled?"mcp":"all");
+      }
+      setStudioNavigatorOpen(opening);
+    }
+    studioNavigatorToggle.addEventListener("click", toggleStudioWorkspaceNavigator);
     studioNavigatorClose.addEventListener("click", () => setStudioNavigatorOpen(false));
     studioNavigatorScrim.addEventListener("click", () => setStudioNavigatorOpen(false));
-    studioNavigatorSearch.addEventListener("input", () => studioNavigatorActiveTab === "canvas" ? renderStudioCanvasHistory() : studioNavigatorActiveTab === "agent" ? renderStudioAgentHistory() : renderStudioWorkHistory());
+    studioNavigatorSearch.addEventListener("input", renderActiveStudioNavigatorHistory);
+    studioNavigatorMcpTab.addEventListener("click",()=>setStudioNavigatorTab("mcp"));
+    studioNavigatorMcpTab.addEventListener("keydown",handleStudioNavigatorTabKeydown);
     studioNavigatorAllTab.addEventListener("click", () => setStudioNavigatorTab("all"));
     studioNavigatorAgentTab.addEventListener("click", () => setStudioNavigatorTab("agent"));
     studioNavigatorCanvasTab.addEventListener("click", () => setStudioNavigatorTab("canvas"));
@@ -856,6 +952,9 @@
       renderAgent:()=>{studioNavigatorActiveTab==="agent"?renderStudioAgentHistory():studioNavigatorActiveTab==="all"&&renderStudioWorkHistory();},
       renderCanvases:renderActiveStudioNavigatorHistory,
       updateDocument:updateStudioDocumentState,
+      workspaceChanged:studioWorkspaceChanged,
+      syncMcp:syncStudioNavigatorMcp,
+      isMcpDocked:studioNavigatorIsMcpDocked,
       canvasDidLoad:studioNavigatorCanvasDidLoad,
       wantsConversationForCanvas:wantsStudioConversationForCanvas,
       cancelPendingConversation:cancelStudioPendingConversation,

@@ -1321,6 +1321,38 @@ test("shared PenEcho server canvases support authorized metadata-first CRUD", { 
   }
 });
 
+test("Canvas metadata-only lists validated document identity without content and V2 keeps its saved view region", { timeout:20000 }, async () => {
+  const stateDir=testStateDir({}),{child,origin}=await startServer(serverEnv({PENECHO_STATE_DIR:stateDir})),
+    headers={"Content-Type":"application/json",Origin:origin},legacy=validSharedCanvas(),base=validSharedCanvasBundle(),
+    documentId="document-identity-1",region={x:144,y:288,w:1200,h:800},
+    modern={...base,extensions:{...base.extensions,penechoDocument:{version:1,documentId}},manifest:{...base.manifest,view:{...base.manifest.view,region}}},
+    invalidBase=validSharedCanvasBundle(`${Date.now()}-123e4567-e89b-12d3-a456-426614174201`),
+    invalidIdentity={...invalidBase,extensions:{...invalidBase.extensions,penechoDocument:{version:99,documentId:"unknown-version-document"}}};
+  try {
+    const legacyResponse=await fetch(`${origin}/api/canvases`,{method:"POST",headers,body:JSON.stringify(legacy)}),
+      modernResponse=await fetch(`${origin}/api/canvases`,{method:"POST",headers,body:JSON.stringify(modern)}),
+      invalidResponse=await fetch(`${origin}/api/canvases`,{method:"POST",headers,body:JSON.stringify(invalidIdentity)});
+    assert.equal(legacyResponse.status,201,await legacyResponse.text());
+    assert.equal(modernResponse.status,201,await modernResponse.text());
+    assert.equal(invalidResponse.status,201,await invalidResponse.text());
+
+    const metadataResponse=await fetch(`${origin}/api/canvases?metadataOnly=1`),metadata=await metadataResponse.json();
+    assert.equal(metadataResponse.status,200);
+    const legacyEntry=metadata.canvases.find(item=>item.id===legacy.id),modernEntry=metadata.canvases.find(item=>item.id===base.id),invalidEntry=metadata.canvases.find(item=>item.id===invalidBase.id);
+    assert.deepEqual(Object.keys(legacyEntry).sort(),["createdAt","documentId","id","name","updatedAt"]);
+    assert.equal(legacyEntry.documentId,null,"legacy snapshots without document identity remain valid");
+    assert.deepEqual(Object.keys(modernEntry).sort(),["createdAt","documentId","id","name","updatedAt"]);
+    assert.equal(modernEntry.documentId,documentId);
+    assert.equal(invalidEntry.documentId,null,"unknown identity versions are not advertised");
+    assert.equal(Object.hasOwn(modernEntry,"preview"),false);
+    assert.equal(Object.hasOwn(modernEntry,"assets"),false);
+
+    const loaded=await fetch(`${origin}/api/canvases/${encodeURIComponent(base.id)}`).then(response=>response.json());
+    assert.deepEqual(loaded.canvas.manifest.view.region,region);
+    assert.equal(loaded.canvas.extensions.penechoDocument.documentId,documentId);
+  } finally { await stopServer(child); }
+});
+
 test("shared canvas v2 is one portable bundle and server projects move without rewriting it", { timeout:20000 }, async () => {
   const stateDir=testStateDir({}),{child,origin}=await startServer(serverEnv({PENECHO_STATE_DIR:stateDir})),
     headers={"Content-Type":"application/json",Origin:origin},bundle=validSharedCanvasBundle();

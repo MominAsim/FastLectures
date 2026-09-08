@@ -55,6 +55,16 @@ app.whenReady().then(async()=>{try{
  assert.equal(await js('navigationTest.state.interactingWidgetId'),'widget-2');
  await js('document.querySelector("#canvasWidgetExit").click();navigationTest.setCanvasMode("hand")');
  report.checks.push('Hand click opens toolbar without switching tools; Interact explicitly enters Widget');
+ assert.equal(await js('!!document.querySelector(".object-chrome-button.refine")'),false,'Hand toolbar never shows AI Refine');
+ await js('navigationTest.setCanvasMode("pen")');
+ r=(await rects())[1];
+ await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',x:r.x+100,y:r.y+100,button:'none'});
+ await pause(200);
+ assert.ok(await js('!!document.querySelector(".object-chrome-button.refine")'),'Pen hover over Widget shows AI Refine');
+ await js('navigationTest.setCanvasMode("hand")');
+ await pause(150);
+ assert.equal(await js('!!document.querySelector(".object-chrome-button.refine")'),false,'Leaving Pen hides AI Refine immediately');
+ report.checks.push('AI Refine appears only in Pen (hover/tap); Hand toolbar has no Refine entry');
 
  before=await camera();
  await js(`(()=>{const v=document.querySelector('#viewport'),r=v.getBoundingClientRect();v.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaX:24,deltaY:37,clientX:r.x+200,clientY:r.y+200}));})()`);
@@ -63,12 +73,13 @@ app.whenReady().then(async()=>{try{
  report.checks.push('Two-axis wheel pans; pinch-style Ctrl wheel zooms');
  assert.equal(await js('getComputedStyle(document.querySelector("#screen")).cursor'),'default','wheel uses a visible native cursor');
  const savedCamera=await camera();
- await js('navigationTest.state.scale=.5;document.querySelector("#canvasZoomIn").click()');
- assert.ok(Math.abs((await camera()).scale-.67)<1e-9);
- await js('document.querySelector("#canvasZoomIn").click()');assert.ok(Math.abs((await camera()).scale-1)<1e-9);
- await js('document.querySelector("#canvasZoomOut").click()');assert.ok(Math.abs((await camera()).scale-.67)<1e-9);
+ await js('navigationTest.state.scale=.5;navigationTest.state.panX+=500;navigationTest.render()');
+ const disturbed=await camera();
+ await js('document.querySelector("#canvasFitContents").click()');
+ const fitted=await camera();
+ assert.ok(Math.abs(fitted.scale-disturbed.scale)>1e-9||Math.abs(fitted.x-disturbed.x)>1e-9||Math.abs(fitted.y-disturbed.y)>1e-9,'fit button reframes the Canvas');
  await js(`Object.assign(navigationTest.state,{panX:${savedCamera.x},panY:${savedCamera.y},scale:${savedCamera.scale}});navigationTest.render()`);
- report.checks.push('Zoom buttons advance through 50%, 67%, 100%; wheel keeps native cursor visible');
+ report.checks.push('Fit-contents button reframes the Canvas; wheel keeps native cursor visible');
 
  await js(`navigationTest.setCanvasViewMode(true)`);await pause(250);
  assert.equal(await js('navigationTest.state.viewTool'),'hand');
@@ -121,7 +132,10 @@ app.whenReady().then(async()=>{try{
  await js('navigationTest.setCanvasViewMode(true);navigationTest.fitCanvasContents()');await pause(200);
  for(const [name,width,height,dark] of [['desktop',1200,900,false],['tablet',820,1080,false],['phone',390,844,true]]){
   nativeTheme.themeSource=dark?'dark':'light';win.setSize(width,height);await pause(250);
-  const layout=await js(`['canvasViewActions','canvasNavigationActions'].map(id=>{const e=document.getElementById(id),r=e.getBoundingClientRect();return {id,x:r.x,right:r.right,bottom:r.bottom,width:r.width,overflow:e.scrollWidth>e.clientWidth+1,viewport:innerWidth,height:innerHeight};})`);
+  // The shared button contract paints an intentional ::after hit ring outside
+  // each button, which inflates scrollWidth. For the icon-only fit control,
+  // assert the glyph itself stays inside the button instead.
+  const layout=await js(`['canvasViewActions','canvasFitContents'].map(id=>{const e=document.getElementById(id),r=e.getBoundingClientRect();let overflow=e.scrollWidth>e.clientWidth+1;if(id==='canvasFitContents'){const i=e.querySelector('svg').getBoundingClientRect();overflow=i.left<r.left-1||i.right>r.right+1||i.top<r.top-1||i.bottom>r.bottom+1;}return {id,x:r.x,right:r.right,bottom:r.bottom,width:r.width,overflow,viewport:innerWidth,height:innerHeight};})`);
   for(const l of layout){assert.ok(l.x>=0&&l.right<=l.viewport+1&&l.bottom<=l.height+1&&!l.overflow,JSON.stringify(l));}
   fs.writeFileSync(path.join(directory,name+'.png'),(await win.webContents.capturePage()).toPNG());
  }

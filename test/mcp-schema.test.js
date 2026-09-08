@@ -77,3 +77,71 @@ test("native plot schema validates dimensions, domain pairs, color, and expressi
     assert.throws(() => validateToolArguments("penecho_plot", {...input,xMin:undefined,xMax:undefined,yMin:undefined,yMax:undefined,...patch}), error => error.code === "invalid_arguments");
   }
 });
+
+test("presentation semantics normalize defaults, viewport presets, and legacy dimensions", () => {
+  const widget = {sessionId:"session-a",artifactId:"widget-a",title:"Widget",html:"<main>Hi</main>"};
+  assert.deepEqual(validateToolArguments("penecho_present_widget", widget), {...widget,width:480,height:360});
+  assert.deepEqual(validateToolArguments("penecho_present_widget", {...widget,presentation:{intent:"compare",role:"alternative",size:"large",relativeTo:"source"}}), {
+    ...widget,
+    width:992,
+    height:752,
+    presentation:{intent:"compare",role:"alternative",size:"large",relativeTo:"source",relation:"beside",attention:"quiet"},
+  });
+  assert.deepEqual(validateToolArguments("penecho_present_widget", {...widget,width:700}), {...widget,width:700,height:360});
+  assert.deepEqual(validateToolArguments("penecho_plot", {sessionId:"s",artifactId:"p",title:"P",expression:"x",presentation:{intent:"review",size:"page"}}), {
+    sessionId:"s",artifactId:"p",title:"P",expression:"x",width:1200,height:800,
+    presentation:{intent:"review",role:"primary",size:"page",attention:"request"},
+  });
+  assert.deepEqual(validateToolArguments("penecho_draw", {...baseDraw,presentation:{role:"supporting",relativeTo:"widget-a"}}).presentation, {
+    intent:"deliver",role:"supporting",relativeTo:"widget-a",relation:"below",attention:"quiet",
+  });
+  const presentationSchema = TOOLS.find(entry => entry.name === "penecho_present_widget").inputSchema.properties.presentation;
+  assert.deepEqual(presentationSchema.properties.intent.enum, ["explain","deliver","compare","review","inspect"]);
+  assert.equal(presentationSchema.additionalProperties, false);
+});
+
+test("presentation semantics reject conflicting or unsupported placement and inspect requests", () => {
+  const widget = {sessionId:"session-a",artifactId:"widget-a",title:"Widget",html:"<main>Hi</main>"};
+  for (const presentation of [
+    {intent:"unknown"},
+    {size:"wide",unexpected:true},
+    {relation:"beside"},
+    {relativeTo:"x".repeat(129)},
+  ]) assert.throws(() => validateToolArguments("penecho_present_widget", {...widget,presentation}), /presentation/);
+  assert.throws(() => validateToolArguments("penecho_present_widget", {...widget,width:640,presentation:{size:"wide"}}), /cannot be combined/);
+  assert.throws(() => validateToolArguments("penecho_draw", {...baseDraw,presentation:{size:"wide"}}), /not valid for drawings/);
+  assert.throws(() => validateToolArguments("penecho_draw", {...baseDraw,presentation:{intent:"inspect"}}), /only for widgets/);
+  assert.throws(() => validateToolArguments("penecho_present_widget", {...widget,presentation:{intent:"inspect"}}), /requires capture/);
+  assert.throws(() => validateToolArguments("penecho_present_widget", {...widget,capture:true,presentation:{intent:"inspect",attention:"normal"}}), /quiet attention/);
+  assert.throws(() => validateToolArguments("penecho_present_widget", {...widget,capture:true,presentation:{intent:"inspect",relativeTo:"source"}}), /cannot use/);
+  assert.deepEqual(validateToolArguments("penecho_present_widget", {...widget,capture:true,presentation:{intent:"inspect"}}).presentation, {
+    intent:"inspect",role:"primary",size:"base",attention:"quiet",
+  });
+});
+
+test("persistent document, virtual file, edit, and inbox schemas are strict and bounded", () => {
+  assert.deepEqual(validateToolArguments("penecho_open_canvas", {instanceId:"i",canvasId:"c",create:true,title:"New",requestId:"r"}), {instanceId:"i",canvasId:"c",requestId:"r",show:false,create:true,title:"New"});
+  assert.deepEqual(validateToolArguments("penecho_open_canvas", {instanceId:"i",canvasId:"c",locator:{location:"cloud",id:"cloud-1"},requestId:"r",show:true}), {instanceId:"i",canvasId:"c",requestId:"r",show:true,locator:{location:"cloud",id:"cloud-1"}});
+  assert.deepEqual(validateToolArguments("penecho_open_canvas", {instanceId:"i",canvasId:"c",documentId:"d",locator:{location:"device",id:"saved-1"},requestId:"r"}), {instanceId:"i",canvasId:"c",requestId:"r",show:false,documentId:"d",locator:{location:"device",id:"saved-1"}});
+  assert.throws(() => validateToolArguments("penecho_open_canvas", {instanceId:"i",canvasId:"c",requestId:"r"}), /Provide create:true/);
+  assert.throws(() => validateToolArguments("penecho_open_canvas", {instanceId:"i",canvasId:"c",create:true,documentId:"d",requestId:"r"}), /create cannot/);
+  assert.deepEqual(validateToolArguments("penecho_start_session", {instanceId:"i",canvasId:"c",documentId:"d",title:"Work"}), {instanceId:"i",canvasId:"c",documentId:"d",title:"Work"});
+  assert.deepEqual(validateToolArguments("penecho_list_files", {sessionId:"s"}), {sessionId:"s",path:"/",offset:0,limit:50});
+  assert.deepEqual(validateToolArguments("penecho_read_file", {sessionId:"s",path:"notes/a.md",startLine:2,endLine:3}), {sessionId:"s",path:"/notes/a.md",startLine:2,endLine:3});
+  for (const path of ["../secret","/a/../b","/a//b","a\\b","a\0b","/%2e%2e/secret","/a%2fb","/%5cserver"]) assert.throws(() => validateToolArguments("penecho_read_file", {sessionId:"s",path}), /path is invalid/);
+  assert.throws(() => validateToolArguments("penecho_patch_file", {sessionId:"s",path:"/a",contentHash:"h",patch:"x".repeat(800_001),requestId:"r"}), /too large/);
+  assert.deepEqual(validateToolArguments("penecho_edit_canvas", {sessionId:"s",requestId:"r",action:"move",objectId:"o",region:{x:-1,y:2,w:3,h:4},baseRevision:7}).action, "move");
+  assert.deepEqual(validateToolArguments("penecho_edit_canvas", {sessionId:"s",requestId:"r",action:"replace_image",objectId:"o",source:"penecho-ref:objects/object-1/image",baseRevision:7}).source, "penecho-ref:objects/object-1/image");
+  assert.throws(() => validateToolArguments("penecho_edit_canvas", {sessionId:"s",requestId:"r",action:"replace_image",objectId:"o",source:"https://example.com/a.png",baseRevision:7}), /authorized/);
+  assert.throws(() => validateToolArguments("penecho_edit_canvas", {sessionId:"s",requestId:"r",action:"delete",objectId:"o"}), /baseRevision is required/);
+  assert.throws(() => validateToolArguments("penecho_edit_canvas", {sessionId:"s",requestId:"r",action:"delete",objectId:"o",baseRevision:7,text:"extra"}), /not valid/);
+  assert.deepEqual(validateToolArguments("penecho_capture_canvas", {sessionId:"s"}), {sessionId:"s",target:"viewport",quality:"basic"});
+  assert.deepEqual(validateToolArguments("penecho_capture_canvas", {sessionId:"s",target:"object",objectId:"image-1",quality:"detail"}), {sessionId:"s",target:"object",objectId:"image-1",quality:"detail"});
+  assert.deepEqual(validateToolArguments("penecho_capture_canvas", {sessionId:"s",target:"region",region:{x:-1,y:2,w:3,h:4}}).region, {x:-1,y:2,w:3,h:4});
+  assert.throws(() => validateToolArguments("penecho_capture_canvas", {sessionId:"s",target:"object"}), /objectId is required/);
+  assert.throws(() => validateToolArguments("penecho_capture_canvas", {sessionId:"s",target:"region",region:{x:0,y:0,w:1,h:1},objectId:"extra"}), /only for object capture/);
+  assert.throws(() => validateToolArguments("penecho_capture_canvas", {sessionId:"s",target:"selection",region:{x:0,y:0,w:1,h:1}}), /only for region capture/);
+  assert.deepEqual(validateToolArguments("penecho_read_messages", {sessionId:"s"}), {sessionId:"s",after:0,limit:20});
+  assert.throws(() => validateToolArguments("penecho_ack_messages", {sessionId:"s",ids:["a","a"],status:"done"}), /duplicates/);
+  for (const name of ["penecho_open_canvas","penecho_find_canvases","penecho_list_files","penecho_read_file","penecho_patch_file","penecho_edit_canvas","penecho_capture_canvas","penecho_read_messages","penecho_ack_messages"]) assert.ok(TOOLS.some(tool => tool.name === name));
+});

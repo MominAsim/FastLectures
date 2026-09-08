@@ -3,22 +3,25 @@ const {test}=require("node:test"),assert=require("node:assert/strict"),fs=requir
 
 function harness(fetchImpl) {
   const nodes=new Map(),requests=[];
-  for(const id of ["mcpCanvasRing","mcpCanvasNotice","mcpCanvasNoticeButton","mcpEnabled","mcpConnectionStatus","mcpConfig","mcpConfigure","mcpCopyConfig","mcpCopyInstructions","mcpCopySkill","mcpCopyGuide","mcpClient","mcpRefresh","mcpConfigStatus","mcpConfigureStatus","mcpSetupStatus","settingsPageMcp"]){
-    nodes.set(id,{hidden:id==="settingsPageMcp"||id==="mcpConfigStatus",value:id==="mcpClient"?"codex":"",textContent:"",disabled:false,listeners:{},classList:{toggle(){}},setAttribute(){},addEventListener(type,listener){this.listeners[type]=listener;}});
+  for(const id of ["mcpToolbarToggle","mcpManual","mcpCanvasRing","mcpCanvasNotice","mcpCanvasNoticeButton","mcpEnabled","mcpConnectionStatus","mcpConfig","mcpConfigure","mcpCopyConfig","mcpCopyInstructions","mcpCopySkill","mcpCopyGuide","mcpClient","mcpRefresh","mcpConfigStatus","mcpConfigureStatus","mcpSetupStatus","settingsPageMcp"]){
+    nodes.set(id,{hidden:id==="settingsPageMcp"||id==="mcpConfigStatus",value:id==="mcpClient"?"codex":"",textContent:"",disabled:false,listeners:{},classList:{toggle(){}},attributes:{},setAttribute(key,value){this.attributes[key]=value;},addEventListener(type,listener){this.listeners[type]=listener;}});
   }
+  const ui={status:"",page:null},storage=new Map();
   const context=vm.createContext({document:{getElementById:id=>nodes.get(id)||null,querySelectorAll:()=>[]},state:{language:"en"},window:{PENECHO_CONFIG:{}},WebSocket:{OPEN:1,CONNECTING:0},AbortSignal,AbortController,setTimeout,clearTimeout,performance,addEventListener(){},
+    localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},setStatus:value=>{ui.status=value;},openSettings(){},selectSettingsPage:value=>{ui.page=value;},
+    location:{protocol:"http:",host:"localhost:3921"},canvasClientId:()=>"canvas-test",
     authenticatedApiHeaders:headers=>({...headers,"X-PenEcho-Session":"test-page-session"}),
     fetch:async(url,options)=>{requests.push({url,options});return fetchImpl(url,options);},writeClipboardText:async()=>true,t:key=>key,
   });
-  vm.runInContext(fs.readFileSync(path.join(__dirname,"../src/client/app/mcp-runtime.js"),"utf8")+"\nglobalThis.api={mcpRuntime,mcpRefreshSettings,mcpRenderSettings,mcpDisconnect,mcpHeartbeat,mcpBeginMutation,mcpEndMutation};",context);
-  return {...context.api,nodes,requests,state:context.state};
+  vm.runInContext(fs.readFileSync(path.join(__dirname,"../src/client/app/mcp-runtime.js"),"utf8")+"\nglobalThis.api={mcpRuntime,mcpRefreshSettings,mcpRenderSettings,mcpDisconnect,mcpHeartbeat,mcpBeginMutation,mcpEndMutation,mcpToolbarClick};",context);
+  return {...context.api,nodes,requests,state:context.state,context,ui,storage};
 }
 const response=(status,value)=>({ok:status>=200&&status<300,status,json:async()=>value});
 const ready=()=>response(200,{config:{command:"/node",args:["/PenEcho/src/server/mcp/stdio.js"]}});
 
 test("MCP configuration is available while canvas access is off and uses authenticated page headers",async()=>{
   const h=harness(()=>ready());await h.mcpRefreshSettings();
-  assert.match(h.nodes.get("mcpConnectionStatus").textContent,/Disconnected/);
+  assert.match(h.nodes.get("mcpConnectionStatus").textContent,/Not discoverable/);
   for(const id of ["mcpConfigure","mcpCopyConfig","mcpCopyInstructions"])assert.equal(h.nodes.get(id).disabled,false,id);
   assert.equal(h.requests[0].options.headers["X-PenEcho-Session"],"test-page-session");
   assert.equal(h.requests[0].options.credentials,"same-origin");assert.equal(h.requests[0].options.cache,"no-store");
@@ -89,4 +92,53 @@ test("a legacy ready connection does not receive unsupported JSON heartbeats",()
   const h=harness(()=>ready()),socket={readyState:1,close(){},send(){throw Error("Legacy protocol");}};
   h.mcpRuntime.socket=socket;h.mcpRuntime.ready=true;h.mcpRuntime.lastPong=Date.now()-60000;
   h.mcpHeartbeat(socket);assert.equal(h.mcpRuntime.socket,socket);assert.equal(h.mcpRuntime.connectionLost,false);h.mcpDisconnect();
+});
+
+class CanvasSocket {
+  static OPEN=1;
+  constructor(){this.readyState=0;this.listeners={};}
+  addEventListener(name,fn){this.listeners[name]=fn;}
+  send(){}
+  close(){this.readyState=3;}
+}
+test("unconfigured MCP toolbar opens setup without enabling discovery",async()=>{
+  const h=harness(()=>ready());h.context.WebSocket=CanvasSocket;
+  await h.mcpToolbarClick();assert.equal(h.ui.page,"mcp");assert.equal(h.mcpRuntime.socket,null);assert.equal(h.requests[0].url,"/api/mcp/status?inspectClients=1");
+});
+test("configured toolbar reports discoverability only after ready, and toggles off",()=>{
+  const h=harness(()=>ready());h.context.WebSocket=CanvasSocket;h.mcpRuntime.setupKnown=true;
+  try{
+    h.mcpToolbarClick();assert.match(h.ui.status,/Opening/);assert.equal(h.mcpRuntime.ready,false);
+    const socket=h.mcpRuntime.socket;socket.readyState=1;socket.listeners.message({data:JSON.stringify({type:"ready"})});
+    assert.match(h.ui.status,/Discoverable/);assert.equal(h.nodes.get("mcpToolbarToggle").attributes["aria-pressed"],"true");
+    h.mcpToolbarClick();assert.equal(h.mcpRuntime.socket,null);assert.equal(h.ui.status,"Not discoverable");
+  }finally{h.mcpDisconnect();}
+});
+test("MCP toolbar keeps retry available after a connection constructor failure",()=>{
+  const h=harness(()=>ready());h.mcpRuntime.setupKnown=true;h.context.WebSocket=class{constructor(){throw Error("Unavailable");}};
+  h.mcpToolbarClick();assert.match(h.ui.status,/retry/);assert.equal(h.mcpRuntime.toolbarPending,false);
+  h.context.WebSocket=CanvasSocket;
+  try{h.mcpToolbarClick();assert.ok(h.mcpRuntime.socket);assert.match(h.ui.status,/Opening/);}finally{h.mcpDisconnect();}
+});
+test("manual setup tools are disclosed together and the toolbar precedes Agent",()=>{
+  const html=fs.readFileSync(path.join(__dirname,"../public/index.html"),"utf8");
+  const manual=html.slice(html.indexOf('<details id="mcpManual"'),html.indexOf('</details>',html.indexOf('<details id="mcpManual"')));
+  for(const id of ["mcpCopyConfig","mcpCopyInstructions","mcpCopySkill","mcpCopyGuide"])assert.ok(manual.includes(`id="${id}"`));
+  assert.ok(html.indexOf('id="mcpToolbarToggle"')<html.indexOf('id="canvasAgentToggle"'));
+  assert.match(html,/Give your AI a spatial workspace/);
+});
+
+test("existing client setup is detected on demand without a browser setup hint",async()=>{
+  const h=harness(()=>response(200,{configuredClients:["codex"]}));h.context.WebSocket=CanvasSocket;
+  try{await h.mcpToolbarClick();assert.ok(h.mcpRuntime.socket);assert.equal(h.ui.page,null);assert.equal(h.mcpRuntime.ready,false);assert.match(h.ui.status,/Opening/);}finally{h.mcpDisconnect();}
+});
+test("a failed setup check releases the button and opens recoverable setup",async()=>{
+  const h=harness(()=>{throw Error("Offline");});
+  await h.mcpToolbarClick();assert.equal(h.mcpRuntime.socket,null);assert.equal(h.ui.page,"mcp");assert.equal(h.nodes.get("mcpToolbarToggle").disabled,false);
+});
+
+test("toolbar discovery status changes to retry when an established connection drops",()=>{
+  const h=harness(()=>ready());h.context.WebSocket=CanvasSocket;h.mcpRuntime.setupKnown=true;
+  h.mcpToolbarClick();const socket=h.mcpRuntime.socket;socket.readyState=1;socket.listeners.message({data:JSON.stringify({type:"ready"})});
+  assert.match(h.ui.status,/Discoverable/);h.mcpDisconnect(true);assert.match(h.ui.status,/retry/);
 });

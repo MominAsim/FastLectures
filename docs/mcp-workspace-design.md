@@ -1,0 +1,48 @@
+# MCP workspace, first version
+
+User task: continue one external conversation on its own Canvas, keep other work available, and recover from a failed operation without losing input or duplicating output. No Git, save-version history, branches or playback is introduced. Bundle V2 carries optional `penechoDocument` and `penechoWorkspace` extensions; V1/V2 documents without them remain readable.
+
+Design-source map (canonical `/Users/heack/workspace/penecho_design`):
+
+| Product region | Catalog source | Applied rule |
+| --- | --- | --- |
+| Open Canvas selector and New/Close | `penecho-design-language.html`, Canvas Library manager toolbar; controls/select examples | Compact intrinsic actions, one labeled selection, responsive wrapping, stable geometry |
+| Agent recipient selection | `penecho-design-language.html`, settings rows with a select and supporting copy | Explicit recipient, bounded selection rail, supporting neutral copy |
+| Connection / instruction failure | `penecho-design-language.html`, page-status and Canvas Library error state | Keep content usable, inline explanation, visible Retry next to the failed operation |
+| Instruction state | `penecho-design-language.html`, activity-status examples | Distinguish waiting, received, working, done and error; do not claim delivery without acknowledgement |
+
+Only the selected document has live Widget frames. Inactive documents retain source, assets, placement, feedback and conversation bindings. A tool must explicitly show an inactive Canvas before requesting pixel capture; the error includes its documentId and retry guidance. Source edits preserve placement; placement changes are distinct actions and reject new collisions. Existing annotation overlaps remain valid. User navigation never follows background changes implicitly.
+
+External instructions use a pull inbox, with explicit acknowledgement. Ordinary MCP cannot promise to wake a stopped client. Text and Canvas references are supported in the external composer; attachments remain in the composer with guidance to place them on Canvas or choose PenEcho Agent. Canvas Auto AI pauses while an external conversation is selected. Failed external delivery never silently starts a different model.
+
+Save records the present document and view only. Inactive workspace recovery is local IndexedDB data, distinct from the user's selected Server/Cloud save destination. Cross-storage resolution prioritizes open unsaved state and exact locations; offline/authorization failures differ from not-found and ambiguous copies require an exact locator.
+
+## 2026-09-07 第一版交付与验收
+
+已实现稳定画布 ID、多画布与对话绑定、Device / Server / 已连接 Cloud 的保存位置查找、虚拟文件和源码补丁、当前视野与选区、避免新增重叠的布局、外部文字指令收件箱、明确的处理方选择及重试提示。新会话默认避开已有内容的画布；重新连接沿用 documentId。独立另存为生成新 ID，保留原画布内容并清空副本的外部绑定。现有 V1/V2 文件仍可读，本版不包含 Git、保存历史或播放。
+
+画布切换会保留输入草稿。内置 Agent 正在运行、附件尚未发送、存储不可用或当前手势未结束时，提示具体原因和重试入口；用户可以完成或停止原操作后重试。外部任务可继续更新后台画布，但后台画布截图必须先显式显示。外部收件箱不会自动唤醒停止运行的第三方客户端，也不会悄悄改用内置模型。
+
+- 全库 `npm run check`：1,147 项，1,143 通过。4 项失败均核对了未修改 HEAD：Visual Explorer 字体文案、Widget 截图错误表达式、Widget host 超时表达式、连接名称表达式的旧断言不匹配；本次未弱化这些断言。
+- 针对 Canvas runtime、身份、源码补丁、MCP 绘图和 Agent 可用性的 61 项检查通过；新增文档集成与身份校验合计 19 项通过。
+- Cloud 文档身份测试 3 项通过；Cloud 前端通过官方同步工具同步，源码镜像检查和语法检查通过。Cloud 原有未提交修改保留。
+- 使用已运行的 3921 服务的专用浏览器标签页，查看了 1280 × 720 与 390 × 844 截图，检查中文、125% 界面缩放、多画布切换及输入草稿保留；未发现本轮运行错误，恢复了语言、缩放和视口设置。
+- 真实 MCP 启用及关闭空白测试画布被自动审批阻止，原因分别是授予外部访问权限、移除本地恢复数据。未绕过；尚未完成这两项真实 UI 验收。旧进程未重启，新服务接口需要加载新代码后才能在该进程中使用。
+
+主任务负责架构、界面和集成验收；两个非 UI 子任务分别请求 `gpt-5.6-sol / high`（协议与集成测试）和 `gpt-5.6-luna / max`（身份、输入校验及 Cloud 元数据）。工具可证明请求参数，未提供独立的实际模型运行元数据。未提交、推送或部署。
+
+## Recent Work workspace integration
+
+- Canvas navigation → `penecho-design-language.html` Workbench architecture: one left navigator and an unobstructed Canvas. Open documents merge into existing Recent Work groups by their saved locator; unsaved documents remain addressable by document ID.
+- New/Close and retry → catalog compact toolbar controls and recoverable error state: controls live in the navigator footer, with an inline error and explicit Retry.
+- Unread updates → user-requested small green trailing dot and matching navigator-toggle dot; no numeric badge. The catalog has no unread-dot example: this bounded addition uses its semantic success color (`--pe-success`) and a 7 px dot, with an accessible update label. Opening the document acknowledges its updates; merely opening the sidebar does not.
+- MCP activity → catalog semantic accent and opaque working-surface rules: a temporary one-pixel accent outline only, with no inner shadow, background wash or blur. Reduced motion disables the fade.
+- Background updates change indicator state in place; closed navigation does not rebuild lists or decode previews. Structural workspace changes mark the navigator dirty for its next opening.
+
+## MCP launcher and ten-second setup
+
+MCP Server sits immediately before the Agent launcher inside the existing responsive launcher owner. It follows the catalog Workbench toolbar and compact button patterns. Clicks explicitly toggle discovery; unknown setup opens Settings → MCP. Setup completion is only a local UI hint, never a live-connection claim. The toolbar reports discoverability only after the bridge ready handshake, with retry after failure. Settings follows the catalog settings-content and disclosure patterns: one value statement, one permission summary, client + setup action, one example prompt. Manual controls, full access scope and sessions are collapsed by default.
+
+Existing Codex/Claude entries can be inspected on demand through authenticated local status (`inspectClients=1`). This reads configuration only; it neither changes the client nor proves a live AI connection. Each client has at most two one-second CLI probes. Normal status requests do not launch a CLI.
+
+Validation: 35 frontend/runtime/navigation checks and 8 MCP service checks passed. The generated client builds and the official Cloud mirror check passes. Browser visual acceptance remains pending because the computer-use service could not start. No product process was restarted; existing-entry inspection requires loading the updated backend. UI and final review were handled by the primary agent; the backend subtask requested Sol/high (independent actual-model runtime metadata was unavailable).

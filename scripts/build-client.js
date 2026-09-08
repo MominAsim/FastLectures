@@ -16,6 +16,8 @@ const SOURCES = [
   "src/client/app/canvas-agent-runtime.js",
   "src/client/app/mcp-primitives.js",
   "src/client/app/mcp-runtime.js",
+  "src/client/app/document-identity.js",
+  "src/client/app/canvas-documents.js",
   "src/client/app/studio-navigator.js",
   "src/client/app/keyboard-shortcuts.js",
   "src/client/app/canvas-navigation.js",

@@ -220,6 +220,10 @@
       && inner.y + inner.h <= outer.y + outer.h);
   }
   async function requestAI(action, packedOverride = null, requestOptions = null) {
+    if(typeof canvasDocumentsExternal==="function"&&canvasDocumentsExternal()) {
+      if(action!=="auto") {openCanvasAgent({focus:false});canvasDocumentsReport(canvasDocumentsCopy("An external conversation is selected. Send it an instruction here, or select PenEcho Agent to use Canvas AI.","当前由外部对话处理。请在这里发送指令，或选择 PenEcho Agent 使用画布 AI。"));}
+      return;
+    }
     requestOptions = requestOptions || {};
     const automatic = action === "auto";
     if (!automatic) {

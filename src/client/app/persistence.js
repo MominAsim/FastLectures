@@ -1168,7 +1168,7 @@
               : selectedCloudSaveProjectId()
           : null,
         theme: state.theme,
-        view: { scale: state.scale, panX: state.panX, panY: state.panY, navigationLocked:state.navigationLocked },
+        view: { scale: state.scale, panX: state.panX, panY: state.panY, navigationLocked:state.navigationLocked, ...(typeof canvasDocumentsSavedView==="function"?{region:canvasDocumentsSavedView().region}:{}) },
         tileCount: tileEntries.length,
         animationCount: animations.length,
         animations,
@@ -1179,7 +1179,7 @@
         imageCount: images.length,
         images,
         preview,
-        bundleExtensions:snapshotExtensionObject(state.currentSnapshotBundleExtensions),
+        bundleExtensions:typeof canvasDocumentsSaveMetadata==="function"?canvasDocumentsSaveMetadata({copy:!overwriteId&&Boolean(state.currentSnapshotId)}):snapshotExtensionObject(state.currentSnapshotBundleExtensions),
         manifestExtensions:snapshotExtensionObject(state.currentSnapshotManifestExtensions),
         preservedAssets:snapshotPreservedAssets(state.currentSnapshotPreservedAssets),
       };
@@ -1204,6 +1204,7 @@
     state.currentSnapshotManifestExtensions = snapshotExtensionObject(item.manifestExtensions);
     state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
     state.snapshotSavedRevision = savedUserRevision;
+    if(typeof canvasDocumentsDidSave==="function")await canvasDocumentsDidSave(item,location,storedId,tileEntries);
     canvasAgentCanvasDidPersist(location, storedId);
     await refreshSnapshots();
     window.PenEchoStudioNavigator?.refreshSource?.(location, { force:true });
@@ -1315,6 +1316,16 @@
   }
   async function loadSnapshot(id, location = state.snapshotLocation) {
     if (snapshotLoadInProgress) return false;
+    if(typeof canvasDocuments!=="undefined"&&canvasDocuments.activeId) {
+      const open=[...canvasDocuments.records.values()].find(doc=>doc.locator?.id===id&&doc.locator?.location===location);
+      if(open){
+        await canvasDocumentsShow(open.id);
+        closeHistoryPanel();
+        setStatusKey("snapshotLoaded");
+        return true;
+      }
+      await canvasDocumentsPark();
+    }
     const loadGeneration=++state.snapshotLoadGeneration,
       expectedRevision=state.userRevision,
       metadata=snapshotItems.find((item) => item.id === id),
@@ -1380,7 +1391,8 @@
       applyTheme(item.theme);
       restoreImages(images);
       await restoreTextBoxes(item.textBoxes, 1);
-      if (item.view) {
+      if(typeof canvasDocumentsApplyView==="function")canvasDocumentsApplyView(item.view);
+      else if (item.view) {
         state.scale = Math.max(0.03, Math.min(2, item.view.scale));
         state.panX = item.view.panX;
         state.panY = item.view.panY;
@@ -1398,6 +1410,7 @@
       state.currentSnapshotManifestExtensions = snapshotExtensionObject(item.manifestExtensions);
       state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       state.snapshotSavedRevision = state.userRevision;
+      if(typeof canvasDocumentsAdopt==="function")await canvasDocumentsAdopt(item,location);
       const restoreStudioConversation=window.PenEchoStudioNavigator?.wantsConversationForCanvas?.({ id:item.id, location })===true;
       canvasAgentCanvasDidChange({ id:item.id, location },{clearProject:true,deferConversationStart:restoreStudioConversation});
       window.PenEchoStudioNavigator?.canvasDidLoad?.({ id:item.id, location });
@@ -1541,13 +1554,14 @@
       discard = document.querySelector("#newDiscard"),
       saveCopy = document.querySelector("#newSaveCopy"),
       loading = pendingCanvasTransition?.type === "load",
+      closing = pendingCanvasTransition?.type === "close",
       cloudBlocked = state.snapshotLocation === "cloud" && cloudHistorySignInRequired;
     if (!label || !overwrite) return;
-    if (title) title.textContent = t(loading ? "loadCanvasTitle" : "newCanvasTitle");
-    if (description) description.textContent = t(loading ? "loadCanvasDescription" : "newCanvasDescription");
-    if (discard) discard.textContent = t(loading ? "loadWithoutSave" : "newWithoutSave");
-    if (saveCopy) saveCopy.textContent = t(loading ? "saveAsNewAndLoad" : "saveAsNewAndCreate");
-    overwrite.textContent = t(loading ? "overwriteAndLoad" : "overwriteAndCreate");
+    if (title) title.textContent = t(closing ? "closeCanvasTitle" : loading ? "loadCanvasTitle" : "newCanvasTitle");
+    if (description) description.textContent = t(closing ? "closeCanvasDescription" : loading ? "loadCanvasDescription" : "newCanvasDescription");
+    if (discard) discard.textContent = t(closing ? "closeWithoutSave" : loading ? "loadWithoutSave" : "newWithoutSave");
+    if (saveCopy) saveCopy.textContent = t(closing ? "saveAsNewAndClose" : loading ? "saveAsNewAndLoad" : "saveAsNewAndCreate");
+    overwrite.textContent = t(closing ? "overwriteAndClose" : loading ? "overwriteAndLoad" : "overwriteAndCreate");
     const hasCurrentSnapshot = Boolean(state.currentSnapshotId);
     label.hidden = !hasCurrentSnapshot;
     overwrite.hidden = !hasCurrentSnapshot;
@@ -1602,6 +1616,7 @@
     state.currentSnapshotBundleExtensions = {};
     state.currentSnapshotManifestExtensions = {};
     state.currentSnapshotPreservedAssets = [];
+    if(typeof canvasDocuments!=="undefined"){canvasDocuments.activeId=null;canvasDocuments.epoch++;canvasDocumentsCurrent();mcpRuntime.feedback=[];mcpRuntime.feedbackSequence=0;canvasDocumentsRender();}
     canvasAgentCanvasDidChange(null,{clearProject:true});
     window.PenEchoStudioNavigator?.renderCanvases?.();
     window.PenEchoStudioNavigator?.updateDocument?.();
@@ -1630,6 +1645,7 @@
     const name = document.querySelector("#newSnapshotName").value;
     setNewCanvasDialogBusy(true);
     try {
+      if(pendingCanvasTransition?.type==="close"&&canvasDocumentsCurrent().id!==pendingCanvasTransition.documentId)throw canvasDocumentsError("CANVAS_CHANGED",canvasDocumentsCopy("The active Canvas changed. Close it again when ready.","当前画布已切换，请重新选择要关闭的画布。"));
       let saved = true;
       if (saveMode === "new") saved = await saveSnapshot({ name, location:state.snapshotLocation });
       else if (saveMode === "overwrite") saved = await saveSnapshot({ overwriteId:state.currentSnapshotId, name, location:state.snapshotLocation });
@@ -1638,8 +1654,9 @@
         return;
       }
       const transition = pendingCanvasTransition;
+      if(transition?.type==="close"&&canvasDocumentsCurrent().id!==transition.documentId){transition.sourceDocumentId=transition.documentId;transition.documentId=canvasDocumentsCurrent().id;}
       pendingCanvasTransition = null;
-      if (transition?.type === "load") {
+      if (transition?.type === "load" || transition?.type === "close") {
         const dialog = document.querySelector("#newCanvasDialog");
         if (dialog.open) dialog.close();
       }
@@ -1655,8 +1672,10 @@
     const hasContent = tiles.size || state.images.length || state.textBoxes.length || state.preservedSnapshotAnimations.length || (pluginEnabled("animation") && state.animations.length) || visibleWidgets().length;
     return Boolean(state.currentSnapshotId || hasContent);
   }
-  function performCanvasTransition(transition) {
+  async function performCanvasTransition(transition) {
+    if (transition?.type === "close") return canvasDocumentsClose(transition.documentId,transition.sourceDocumentId);
     if (transition?.type === "load") return loadSnapshot(transition.id, transition.location);
+    if(typeof canvasDocuments!=="undefined"&&canvasDocuments.activeId)await canvasDocumentsPark();
     startBlankCanvas();
     return true;
   }
@@ -1664,7 +1683,7 @@
     if (!canvasHasUnsavedChanges()) return performCanvasTransition(transition);
     pendingCanvasTransition = transition;
     const dialog = document.querySelector("#newCanvasDialog");
-    document.querySelector("#newSnapshotName").value = "";
+    document.querySelector("#newSnapshotName").value = transition?.type === "close" ? currentCanvasDisplayName() || "" : "";
     setNewCanvasDialogBusy(false);
     updateNewCanvasDialog();
     if (!dialog.open) dialog.showModal();
@@ -1736,6 +1755,7 @@
         state.currentSnapshotHasExplicitName = true;
         state.currentCanvasSuggestedName = "";
         canvasAgentCanvasDidPersist(location, id);
+        if(typeof canvasDocumentsSyncExtension==="function"){canvasDocumentsSyncExtension();canvasDocumentsRender();}
         window.PenEchoStudioNavigator?.updateDocument?.();
       }
       await refreshSnapshots();

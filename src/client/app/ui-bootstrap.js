@@ -735,7 +735,7 @@
     }
     state.mode = mode;
     updateAutoControl();
-    if (!["pen", "hand"].includes(mode)) updateWidgetRefinePointer(null);
+    if (mode !== "pen") updateWidgetRefinePointer(null);
     else refreshWidgetRefineHoverCandidate();
     if (mode !== "eraser") state.pointerPreview = null;
     if (mode !== "select") deselectAnimation();
@@ -1663,5 +1663,6 @@
   fit();
   setNavigating(true);
   scheduleAIOrbIdle();
+  if(window.PENECHO_CONFIG?.runtime!=="viewer")void canvasDocumentsReady().catch(error=>canvasDocumentsReport(error,()=>canvasDocumentsReady()));
   requestAnimationFrame(() => requestAnimationFrame(maybeStartOnboarding));
 })();

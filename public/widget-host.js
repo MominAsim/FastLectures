@@ -1577,6 +1577,11 @@
     }
     const bridge = parsed.createElement("script");
     bridge.textContent = `(${runtime.toString()})(${JSON.stringify(documentVersion)},${JSON.stringify(scienceMode)},${JSON.stringify(rendererUrl)},${JSON.stringify(snapshotDebugEnabled)},${JSON.stringify(snapshotDebugId)},${JSON.stringify(mcpPreview)})`;
+    if(mcpPreview) {
+      const actions=parsed.createElement("script");
+      actions.textContent=`addEventListener('click',event=>{const button=event.target.closest?.('[data-penecho-action]');if(!event.isTrusted||!button)return;const text=(button.getAttribute('data-penecho-prompt')||button.textContent||'').trim().slice(0,4000),action=(button.getAttribute('data-penecho-action')||'choice').slice(0,80);if(text)parent.postMessage({type:'penecho-widget-user-action',runtimeVersion:${JSON.stringify(documentVersion)},action,text},'*');});`;
+      parsed.body.append(actions);
+    }
     // Establish the bridge early. The end marker runs after widget-authored scripts and
     // the bundled renderer, without waiting for unrelated images or other load events.
     policy.after(bridge);
@@ -1741,6 +1746,8 @@
       parent.postMessage({ type:message.type, errors:message.errors, truncated:message.truncated }, parentOrigin);
     } else if (validVisualExplainerDiagnostics(message)) {
       parent.postMessage({ type:message.type, diagnostics:message.diagnostics }, parentOrigin);
+    } else if (message.type === "penecho-widget-user-action" && message.runtimeVersion===runtimeVersion && typeof message.text==="string" && message.text.length>0 && message.text.length<=4000 && typeof message.action==="string" && message.action.length<=80) {
+      parent.postMessage({type:message.type,text:message.text,action:message.action},parentOrigin);
     } else if (message.type === "penecho-widget-updated") {
       if(message.loaded && message.runtimeVersion !== runtimeVersion)return;
       forwardWidgetState();

@@ -37,7 +37,7 @@ function outputReader(stream) {
   return () => queue.length ? Promise.resolve(queue.shift()) : new Promise(resolve => waiters.push(resolve));
 }
 
-test("stdio MCP negotiates 2025-11-25, lists tools, emits image blocks, and keeps one owner id", async () => {
+test("stdio MCP negotiates 2025-11-25, lists tools, emits image blocks, and keeps one owner id", async t => {
   const secret = crypto.randomBytes(32).toString("hex"), instanceId = crypto.randomUUID(), owners = [];
   const httpServer = http.createServer((req, res) => {
     assert.equal(req.headers.authorization, `Bearer ${secret}`);
@@ -48,9 +48,15 @@ test("stdio MCP negotiates 2025-11-25, lists tools, emits image blocks, and keep
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
       owners.push(body.ownerId);
       if (body.name === "penecho_inspect_session") return;
+      if (body.name === "penecho_ack_messages") {
+        const bytes = Buffer.from(JSON.stringify({error:{code:"SOURCE_CONFLICT",message:"Retry after reading.",details:{retry:"read-before-patch"}}}));
+        res.writeHead(409,{"content-type":"application/json","content-length":bytes.length}).end(bytes);
+        return;
+      }
       let result = { instanceId, canvases:[{canvasId:"canvas-a",instanceId,title:"Board"}] };
-      if (body.name === "penecho_start_session") result = {sessionId:"session-a",boardObjectId:"board-object",revision:1};
+      if (body.name === "penecho_start_session") result = {sessionId:"session-a",boardObjectId:null,revision:1};
       if (body.name === "penecho_capture_widget") result = { sessionId:"session-a", artifactId:"chart", image:{mimeType:"image/png",data:"AQID",bytes:3},width:10,height:20 };
+      if (body.name === "penecho_capture_canvas") result = { sessionId:"session-a", target:"viewport", image:{mimeType:"image/webp",data:"AQIDBA==",bytes:4},pixelVerified:true,width:24,height:12,encodedBytes:4,revision:7 };
       if (body.name === "penecho_present_widget") result = { sessionId:"session-a", artifactId:"combined", objectId:"object-a", image:{mimeType:"image/png",data:"BAUG",bytes:3},width:30,height:40 };
       if (body.name === "penecho_draw") result = { sessionId:"session-a", artifactId:"drawing", objectId:"draw-a", objectIds:["draw-a"], kind:"drawing", applied:true, pixelVerified:true, image:{mimeType:"image/webp",data:"CgsM",bytes:3},width:16,height:12 };
       if (body.name === "penecho_plot") result = { sessionId:"session-a", artifactId:"plot", objectId:"plot-a", objectIds:["plot-a"], kind:"plot", applied:true, pixelVerified:false };
@@ -61,33 +67,69 @@ test("stdio MCP negotiates 2025-11-25, lists tools, emits image blocks, and keep
   });
   const address = await listen(httpServer), input = new PassThrough(), output = new PassThrough(), next = outputReader(output);
   const stdio = new PenEchoStdioServer({ input, output, record:{ instanceId, secret, port:address.port, host:"127.0.0.1" } }).start();
+  t.after(async () => {
+    stdio.close();
+    input.end();
+    if (httpServer.listening) await close(httpServer);
+  });
   const send = value => input.write(`${JSON.stringify(value)}\n`);
   send({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:PROTOCOL_VERSION,capabilities:{},clientInfo:{name:"test",version:"1"}}});
   const initialized = await next();
   assert.equal(initialized.result.protocolVersion, PROTOCOL_VERSION);
   assert.match(initialized.result.instructions, /Never send private chain-of-thought/);
   assert.match(initialized.result.instructions, /preserve the unread cursor/);
-  assert.match(initialized.result.instructions, /proactively present useful UI previews/);
-  assert.match(initialized.result.instructions, /skip decorative output and routine edits/);
+  assert.match(initialized.result.instructions, /present useful UI previews or diagrams when they help/);
+  assert.match(initialized.result.instructions, /without delaying the first useful output/);
+  assert.match(initialized.result.instructions, /when something meaningful changed/);
   assert.match(initialized.result.instructions, /capture:false for ordinary presentation/);
   assert.match(initialized.result.instructions, /image-input tokens/);
   assert.match(initialized.result.instructions, /penecho_draw for native Canvas text/);
   assert.match(initialized.result.instructions, /not iframe Widgets/);
+  assert.match(initialized.result.instructions, /penecho_capture_canvas only for an explicit bounded screenshot/);
+  assert.match(initialized.result.instructions, /data-penecho-action=choose/);
+  assert.match(initialized.result.instructions, /inspect only for an ephemeral Widget capture/);
+  assert.match(initialized.result.instructions, /do not create a progress board/);
   send({jsonrpc:"2.0",method:"notifications/initialized"});
   send({jsonrpc:"2.0",id:2,method:"tools/list",params:{}});
   const listedTools = await next();
-  assert.deepEqual(listedTools.result.tools.map(tool => tool.name), ["penecho_list_canvases","penecho_start_session","penecho_update_session","penecho_present_widget","penecho_capture_widget","penecho_draw","penecho_plot","penecho_read_feedback","penecho_inspect_session","penecho_close_session"]);
+  assert.deepEqual(listedTools.result.tools.map(tool => tool.name), ["penecho_list_canvases","penecho_open_canvas","penecho_find_canvases","penecho_start_session","penecho_list_files","penecho_read_file","penecho_patch_file","penecho_edit_canvas","penecho_capture_canvas","penecho_read_messages","penecho_ack_messages","penecho_update_session","penecho_present_widget","penecho_capture_widget","penecho_draw","penecho_plot","penecho_read_feedback","penecho_inspect_session","penecho_close_session"]);
+  const widgetPresentation = listedTools.result.tools.find(tool => tool.name === "penecho_present_widget").inputSchema.properties.presentation;
+  assert.deepEqual(widgetPresentation.properties.size.enum, ["base","wide","tall","large","page"]);
+  assert.equal(widgetPresentation.additionalProperties, false);
+  send({jsonrpc:"2.0",id:11,method:"prompts/list",params:{}});
+  const prompts = await next();
+  assert.deepEqual(prompts.result.prompts.map(prompt => prompt.name), ["penecho_visual_explorer","penecho_explain_selection","penecho_revise_feedback","penecho_resume_document"]);
+  send({jsonrpc:"2.0",id:15,method:"prompts/get",params:{name:"penecho_visual_explorer",arguments:{}}});
+  const visualPrompt = (await next()).result.messages[0].content.text;
+  const { visualExplorerPrompt } = require("../src/server/mcp/guidance.js");
+  assert.equal(visualPrompt, visualExplorerPrompt());
+  assert.match(visualPrompt, /Concise Document Mode/);
+  assert.match(visualPrompt, /penecho_present_widget/);
+  assert.match(visualPrompt, /preserve the target product UI, its page background, and real local interactions/);
+  assert.match(visualPrompt, /Inspect must faithfully render the supplied HTML at the requested viewport/);
+  assert.doesNotMatch(visualPrompt, /canvas_create|load_visual_skill|plannedWidget/);
+  assert.ok(initialized.result.instructions.length < 5000, "default instructions stay compact");
+  send({jsonrpc:"2.0",id:16,method:"prompts/get",params:{name:"penecho_visual_explorer",arguments:{unsupported:"value"}}});
+  assert.equal((await next()).error.code, -32602);
+  send({jsonrpc:"2.0",id:12,method:"prompts/get",params:{name:"penecho_resume_document",arguments:{documentId:"document-a"}}});
+  assert.match((await next()).result.messages[0].content.text, /show:false/);
   send({jsonrpc:"2.0",id:3,method:"tools/call",params:{name:"penecho_list_canvases",arguments:{}}});
   const canvases = await next();
   assert.equal(canvases.result.structuredContent.canvases[0].canvasId, "canvas-a");
   send({jsonrpc:"2.0",id:4,method:"tools/call",params:{name:"penecho_start_session",arguments:{canvasId:"canvas-a",instanceId,title:"Work"}}});
   const started = await next();
   assert.equal(started.result.structuredContent.sessionId, "session-a");
+  assert.equal(started.result.structuredContent.boardObjectId, null);
   send({jsonrpc:"2.0",id:5,method:"tools/call",params:{name:"penecho_capture_widget",arguments:{sessionId:"session-a",artifactId:"chart",quality:"detail"}}});
   const capture = await next();
   assert.deepEqual(capture.result.content[0], {type:"image",data:"AQID",mimeType:"image/png"});
   assert.deepEqual(capture.result.structuredContent.image, {mimeType:"image/png",bytes:3});
   assert.equal(capture.result.structuredContent.image.data, undefined);
+  send({jsonrpc:"2.0",id:14,method:"tools/call",params:{name:"penecho_capture_canvas",arguments:{sessionId:"session-a"}}});
+  const canvasCapture = await next();
+  assert.deepEqual(canvasCapture.result.content[0], {type:"image",data:"AQIDBA==",mimeType:"image/webp"});
+  assert.deepEqual(canvasCapture.result.structuredContent.image, {mimeType:"image/webp",bytes:4});
+  assert.equal(canvasCapture.result.structuredContent.pixelVerified, true);
   send({jsonrpc:"2.0",id:6,method:"tools/call",params:{name:"penecho_present_widget",arguments:{sessionId:"session-a",artifactId:"combined",title:"Combined",html:"<p>Combined</p>",capture:true,quality:"basic"}}});
   const combined = await next();
   assert.deepEqual(combined.result.content[0], {type:"image",data:"BAUG",mimeType:"image/png"});
@@ -112,7 +154,11 @@ test("stdio MCP negotiates 2025-11-25, lists tools, emits image blocks, and keep
   assert.equal(feedback.result.structuredContent.changeCount, 1);
   assert.equal(feedback.result.structuredContent.pixelVerified, true);
   assert.equal(feedback.result.structuredContent.image.data, undefined);
-  assert.equal(owners.length, 7);
+  send({jsonrpc:"2.0",id:13,method:"tools/call",params:{name:"penecho_ack_messages",arguments:{sessionId:"session-a",ids:["request-a"],status:"working"}}});
+  const structuredError = await next();
+  assert.equal(structuredError.result.isError,true);
+  assert.deepEqual(structuredError.result.structuredContent,{code:"SOURCE_CONFLICT",message:"Retry after reading.",details:{retry:"read-before-patch"}});
+  assert.equal(owners.length, 9);
   assert.equal(new Set(owners).size, 1);
   send({jsonrpc:"2.0",id:8,method:"tools/call",params:{name:"penecho_inspect_session",arguments:{sessionId:"session-a"}}});
   send({jsonrpc:"2.0",method:"notifications/cancelled",params:{requestId:8,reason:"test"}});

@@ -1268,6 +1268,7 @@ function sharedCanvasMetadata(snapshot, projectId = DEFAULT_CANVAS_PROJECT_ID, i
     name:logical.name,
     theme:logical.theme,
     projectId,
+    ...(snapshot.extensions?.penechoDocument?.version===1&&validCanvasDocumentId(snapshot.extensions.penechoDocument.documentId)?{documentId:snapshot.extensions.penechoDocument.documentId}:{}),
     tileCount:logical.tiles.length,
     animationCount:logical.animations.length,
     widgetCount:logical.widgets.length,
@@ -1275,6 +1276,9 @@ function sharedCanvasMetadata(snapshot, projectId = DEFAULT_CANVAS_PROJECT_ID, i
     imageCount:logical.images.length,
     preview:logical.preview,
   };
+}
+function validCanvasDocumentId(value) {
+  return typeof value==="string"&&value.length>0&&value.length<=128&&!/[\u0000-\u001f\u007f-\u009f]/.test(value);
 }
 function validSnapshotDataUrl(value, allowedTypes, maximumBytes) {
   if(typeof value!=="string")return false;
@@ -1289,7 +1293,7 @@ function canonicalSharedCanvasV1(value) {
     updatedAt=Number(value.updatedAt||createdAt),
     theme=normalizeCanvasTheme(value.theme),
     view=value.view&&[value.view.scale,value.view.panX,value.view.panY].every(Number.isFinite)
-      ?{scale:Math.max(.03,Math.min(2,value.view.scale)),panX:value.view.panX,panY:value.view.panY,navigationLocked:value.view.navigationLocked===true}:null,
+      ?{scale:Math.max(.03,Math.min(2,value.view.scale)),panX:value.view.panX,panY:value.view.panY,navigationLocked:value.view.navigationLocked===true,...(value.view.region&&[value.view.region.x,value.view.region.y,value.view.region.w,value.view.region.h].every(Number.isFinite)&&value.view.region.w>0&&value.view.region.h>0?{region:{x:value.view.region.x,y:value.view.region.y,w:value.view.region.w,h:value.view.region.h}}:{})}:null,
     animations=Array.isArray(value.animations)&&value.animations.length<=100?value.animations:null,
     widgets=Array.isArray(value.widgets)&&value.widgets.length<=100?value.widgets:null,
     textBoxes=value.textBoxes===undefined?[]:Array.isArray(value.textBoxes)&&value.textBoxes.length<=50?value.textBoxes:null,
@@ -1471,6 +1475,7 @@ function canonicalSharedCanvasMetadata(item,id) {
     version:item.version===2?2:1,id,createdAt:item.createdAt,updatedAt,
     name:typeof item.name==="string"?item.name.slice(0,48):"",theme:normalizeCanvasTheme(item.theme),
     projectId:sharedCanvasProject(item.projectId)?item.projectId:DEFAULT_CANVAS_PROJECT_ID,
+    ...(validCanvasDocumentId(item.documentId)?{documentId:item.documentId}:{}),
     tileCount:count("tileCount"),animationCount:count("animationCount"),widgetCount:count("widgetCount"),textBoxCount:count("textBoxCount"),imageCount:count("imageCount"),preview:item.preview,
   };
 }
@@ -3756,7 +3761,7 @@ const server = http.createServer(async (req, res) => {
       const mutation=req.method!=="GET",
         authorizationError=mutation?browserRequestError(req):sharedCanvasReadError(req);
       if(authorizationError)return send(res,403,{error:authorizationError});
-      if(req.method==="GET"&&url.pathname==="/api/canvases")return send(res,200,{canvases:listSharedCanvases()});
+      if(req.method==="GET"&&url.pathname==="/api/canvases")return send(res,200,{canvases:listSharedCanvases().map(item=>url.searchParams.get("metadataOnly")==="1"?{id:item.id,name:item.name,documentId:item.documentId||null,createdAt:item.createdAt,updatedAt:item.updatedAt}:item)});
       if(req.method==="GET"&&sharedCanvasMatch)return send(res,200,{canvas:readSharedCanvas(sharedCanvasMatch[1])});
       if(req.method==="POST"&&url.pathname==="/api/canvases") {
         if(!isJsonRequest(req))return send(res,415,{error:"Canvas storage requires application/json."});
