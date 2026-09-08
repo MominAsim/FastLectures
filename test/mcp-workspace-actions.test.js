@@ -38,17 +38,22 @@ function harness({documents=[],dirty=false}={}){
     clearTimeout,performance,queueMicrotask,
   });
   context.dirty=dirty;
-  const functions=["studioMcpOpenDocumentIds","syncStudioMcpActions","cancelStudioMcpCloseAll","continueStudioMcpCloseAll","closeOtherStudioCanvases","closeAllStudioMcpCanvases","noteStudioMcpContentUpdate","flushStudioMcpFollowLatest"].map(name=>extract(name,studioSource)).join("\n");
+  const functions=["studioMcpOpenDocumentIds","syncStudioMcpActions","cancelStudioMcpCloseAll","continueStudioMcpCloseAll","closeOtherStudioCanvases","closeAllStudioMcpCanvases","noteStudioMcpContentUpdate","flushStudioMcpFollowLatest","syncStudioNavigatorMcp"].map(name=>extract(name,studioSource)).join("\n");
   vm.runInContext(`
     let pendingCanvasTransition=null;
     let studioMcpFollowLatest=false,studioMcpLatestDocumentId=null,studioMcpLatestRegion=null,studioMcpPendingDocumentId=null,studioMcpPendingRegion=null,studioMcpFollowing=false,studioMcpCloseQueue=null;
+    let studioNavigatorMcpEnabled=false,studioNavigatorActiveTab="all",studioNavigatorSuspendedAgent=false,studioNavigatorRestoreAgentAfterManager=false;
+    const studioNavigatorMcpTab={hidden:true},studioNavigatorSearch={value:""};
+    function setStudioNavigatorTab(tab){studioNavigatorActiveTab=tab;}
+    function setStudioNavigatorOpen(){}
+    function closeCanvasAgent(){}
     ${extract("mcpViewBlockedBy",mcpRuntimeSource)}
     ${extract("performCanvasTransition",persistenceSource)}
     ${extract("requestCanvasTransition",persistenceSource)}
     ${functions}
     globalThis.api={
       mcpRuntime,canvasDocuments,document,state,
-      syncStudioMcpActions,cancelStudioMcpCloseAll,continueStudioMcpCloseAll,closeOtherStudioCanvases,closeAllStudioMcpCanvases,noteStudioMcpContentUpdate,flushStudioMcpFollowLatest,requestCanvasTransition,performCanvasTransition,
+      syncStudioMcpActions,cancelStudioMcpCloseAll,continueStudioMcpCloseAll,closeOtherStudioCanvases,closeAllStudioMcpCanvases,noteStudioMcpContentUpdate,flushStudioMcpFollowLatest,syncStudioNavigatorMcp,requestCanvasTransition,performCanvasTransition,
       setFollowLatest(value){studioMcpFollowLatest=Boolean(value);studioMcpPendingDocumentId=studioMcpFollowLatest?studioMcpLatestDocumentId:null;studioMcpPendingRegion=studioMcpFollowLatest?studioMcpLatestRegion:null;syncStudioMcpActions();},
       setCloseQueue(value){studioMcpCloseQueue=value;syncStudioMcpActions();},
       mcpState(){return {follow:studioMcpFollowLatest,latest:studioMcpLatestDocumentId,latestRegion:studioMcpLatestRegion,pending:studioMcpPendingDocumentId,pendingRegion:studioMcpPendingRegion,following:studioMcpFollowing,closeQueue:studioMcpCloseQueue,retainedDocumentId:studioMcpCloseQueue?.retainedDocumentId||null};},
@@ -132,6 +137,15 @@ test("Close other propagates transition errors and leaves the failed and remaini
   await assert.rejects(h.closeOtherStudioCanvases(),/close failed/);
   assert.deepEqual(h.closed,["first"]);assert.ok(!h.records.has("first"));assert.ok(h.records.has("active"));assert.ok(h.records.has("broken"));assert.ok(h.records.has("remaining"));assert.equal(h.mcpState().closeQueue,null);
   assert.ok(h.calls.some(call=>Array.isArray(call)&&call[0]==="close"&&call[1]==="broken"));
+});
+
+test("A live MCP connection turns Follow latest on so the next content update switches canvases",async()=>{
+  const h=harness({documents:[mcpDoc("active"),mcpDoc("latest")]});
+  h.syncStudioNavigatorMcp(true);
+  assert.equal(h.mcpState().follow,true);assert.equal(h.follow.attrs["aria-pressed"],"true");assert.equal(h.mcpState().pending,null);
+  h.noteStudioMcpContentUpdate("latest");await h.flushStudioMcpFollowLatest();
+  assert.deepEqual(h.calls.filter(call=>Array.isArray(call)&&call[0]==="show"),[["show","latest"]]);assert.equal(h.canvasDocuments.activeId,"latest");
+  h.syncStudioNavigatorMcp(false);assert.equal(h.mcpState().follow,false);
 });
 
 test("Follow latest keeps the newest update, waits for real idle state, and switches once unblocked",async()=>{

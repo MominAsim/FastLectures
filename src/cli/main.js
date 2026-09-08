@@ -14,8 +14,8 @@ const { callClaudeCli, resolveClaudeLaunch } = require("../providers/claude-cli.
 const { callKimiCli, resolveKimiLaunch } = require("../providers/kimi-cli.js");
 const { cliCandidates, cliDefinition } = require("../providers/cli-discovery.js");
 const { CODEX_CLI_PINNED_VERSION, codexCliVersion, installCli, managedCliPath } = require("../providers/cli-installer.js");
-const { isPromptExit, runConfigureMenu } = require("./configure-ui.js");
 const { MINIMUM_NODE_VERSION, isSupportedNodeVersion, unsupportedNodeMessage } = require("./node-version.js");
+const { CONNECTION_STORE_VERSION, connectionEnvironment, readConnectionStore } = require("../server/connection-store.js");
 const { maybeUpdateOnStart } = require("./update.js");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "../..");
@@ -160,6 +160,18 @@ function resolveConfiguration(args, options = {}) {
     configuredStateDir = sourceEnv.PENECHO_STATE_DIR || fileEnv.PENECHO_STATE_DIR,
     stateDir = configuredStateDir ? path.resolve(cwd, configuredStateDir) : defaultStateDir;
   const env = { ...fileEnv, ...sourceEnv };
+  // Only consume migrated stores here; the server owns the one-time import.
+  const connectionFile = path.join(stateDir, "connections.json");
+  try {
+    const store = JSON.parse(fs.readFileSync(connectionFile, "utf8"));
+    if (store.version !== undefined && store.version !== CONNECTION_STORE_VERSION) throw new Error("unsupported version");
+    if (store.version === CONNECTION_STORE_VERSION) {
+      Object.assign(env, connectionEnvironment(readConnectionStore(connectionFile).connections[0]));
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw new Error("Cannot read connections.json. Restore or repair the connection store before starting PenEcho; the existing file has been preserved.");
+  }
+  const providerBaseline = Object.fromEntries(Object.keys(connectionEnvironment(null)).map(key => [key, env[key] ?? ""]));
   if (args.provider) env.AI_PROVIDER = args.provider;
   if (args.port !== null) env.PORT = String(args.port);
   const provider = normalizeProvider(env.AI_PROVIDER);
@@ -175,6 +187,12 @@ function resolveConfiguration(args, options = {}) {
     }
     if (args.effort !== null) env.AI_EFFORT = args.effort;
   }
+  // Explicit command-line choices survive the server's canonical hydration.
+  const connectionOverride = {};
+  if (args.provider) connectionOverride.AI_PROVIDER = args.provider;
+  if (args.model !== null) connectionOverride[{ "kimi-cli":"KIMI_CLI_MODEL", "codex-cli":"CODEX_CLI_MODEL", "claude-cli":"CLAUDE_CLI_MODEL" }[provider]] = args.model;
+  if (args.effort !== null) connectionOverride.AI_EFFORT = args.effort;
+  env.PENECHO_CONNECTION_OVERRIDE = JSON.stringify(connectionOverride);
   if (args.uat) {
     env.PENECHO_CLOUD_ENV = "uat";
     env.PENECHO_CLOUD_ORIGIN = UAT_CLOUD_ORIGIN;
@@ -183,6 +201,7 @@ function resolveConfiguration(args, options = {}) {
   env.PENECHO_STATE_DIR = stateDir;
   return {
     env,
+    serverEnv:{ ...env, ...providerBaseline },
     cwd,
     home,
     packageRoot,
@@ -756,7 +775,7 @@ function schedulePostStartCliPreflight(server, configuration, options, output, e
 
 
 function helpText() {
-  return `PenEcho ${PACKAGE_JSON.version}\n\nUsage:\n  penecho [--config FILE] [--port 3888]\n  penecho mcp [--state-directory DIR]\n  penecho configure [--config FILE]\n  penecho doctor [--api|--kimi|--codex|--claude] [--config FILE]\n  penecho --kimi [--model MODEL] [--effort LEVEL]\n  penecho --codex [--model MODEL] [--effort LEVEL]\n  penecho --claude [--model MODEL] [--effort LEVEL]\n\nOptions:\n  --config <file>   Use this configuration file instead of ~/.penecho/config.env\n  --api             Use an OpenAI-compatible or Anthropic-compatible API\n  --kimi            Use the authenticated Kimi Code CLI\n  --codex           Use the authenticated Codex CLI\n  --claude          Use the authenticated Claude CLI\n  --model <model>   Override the model for a CLI mode\n  --effort <level>  Override reasoning effort with a known or CLI-supported value\n  --port <port>     Override the configured listening port\n  -h, --help        Show help\n  -v, --version     Show version\n\nRun \`penecho configure\` for the interactive configuration center. Known effort values include none, low, medium, high, xhigh, and max; other strings are passed through.\n\nKimi Code CLI installation (run these yourself):\n  macOS/Linux: curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash\n  Windows PowerShell: irm https://code.kimi.com/kimi-code/install.ps1 | iex\n  Then: kimi --version && kimi login\n  Official guide: https://github.com/MoonshotAI/kimi-code\n\nExamples:\n  penecho configure\n  penecho\n  penecho --config ./team.env\n  penecho --kimi\n  penecho --codex --model gpt-5.6-sol --effort xhigh\n`;
+  return `PenEcho ${PACKAGE_JSON.version}\n\nUsage:\n  penecho [--config FILE] [--port 3888]\n  penecho mcp [--state-directory DIR]\n  penecho configure [--config FILE]\n  penecho doctor [--api|--kimi|--codex|--claude] [--config FILE]\n  penecho --kimi [--model MODEL] [--effort LEVEL]\n  penecho --codex [--model MODEL] [--effort LEVEL]\n  penecho --claude [--model MODEL] [--effort LEVEL]\n\nOptions:\n  --config <file>   Use this configuration file instead of ~/.penecho/config.env\n  --api             Use an OpenAI-compatible or Anthropic-compatible API\n  --kimi            Use the authenticated Kimi Code CLI\n  --codex           Use the authenticated Codex CLI\n  --claude          Use the authenticated Claude CLI\n  --model <model>   Override the model for a CLI mode\n  --effort <level>  Override reasoning effort with a known or CLI-supported value\n  --port <port>     Override the configured listening port\n  -h, --help        Show help\n  -v, --version     Show version\n\nRun \`penecho configure\` to open Settings → Connections in the Canvas UI. Known effort values include none, low, medium, high, xhigh, and max; other strings are passed through.\n\nKimi Code CLI installation (run these yourself):\n  macOS/Linux: curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash\n  Windows PowerShell: irm https://code.kimi.com/kimi-code/install.ps1 | iex\n  Then: kimi --version && kimi login\n  Official guide: https://github.com/MoonshotAI/kimi-code\n\nExamples:\n  penecho configure\n  penecho\n  penecho --config ./team.env\n  penecho --kimi\n  penecho --codex --model gpt-5.6-sol --effort xhigh\n`;
 }
 
 async function main(argv = process.argv.slice(2), options = {}) {
@@ -779,57 +798,19 @@ async function main(argv = process.argv.slice(2), options = {}) {
   try { configuration = resolveConfiguration(args, options); }
   catch (error) { errorOutput.write(`PenEcho configuration error: ${error.message}\n`); return 1; }
 
-  const configure = async directProvider => {
-    try {
-      await runConfigureMenu(configuration, {
-        ui:options.ui,
-        input:options.input,
-        output,
-        allowNonInteractive:options.allowNonInteractive,
-        directProvider,
-        save:async updates => saveConfiguration(configuration, updates),
-        test:async () => testConfiguredProvider(configuration, options),
-      });
-      return true;
-    } catch (error) {
-      if (isPromptExit(error)) return true;
-      errorOutput.write(`PenEcho configuration failed: ${error.message}\n`);
-      return false;
-    }
-  };
-
-  if (args.command === "configure") {
-    return await configure(args.provider || "") ? 0 : 1;
-  }
   if (args.command === "doctor") return (await runDoctor(args, configuration, options)) ? 0 : 1;
 
-  const sourceEnv = options.env || process.env, sourceConfigured = Boolean(args.provider || String(sourceEnv.AI_PROVIDER || "").trim());
-  if (!configuration.configExists && !sourceConfigured) {
-    const input = options.input || process.stdin,
-      interactive = Boolean(options.ui?.interactive || options.allowNonInteractive || input.isTTY && output.isTTY);
-    if (!interactive) {
-      errorOutput.write(`PenEcho is not configured. Run \`penecho configure${args.config ? ` --config ${args.config}` : ""}\` in a terminal first.\n`);
-      return 1;
-    }
-    output.write(`PenEcho has no saved configuration. Opening the configuration center at ${configuration.configFile}.\n`);
-    if (!await configure("")) return 1;
-  }
-  if (!configuration.provider) {
-    errorOutput.write(`PenEcho has no LLM source. Run \`penecho configure\` and select Kimi CLI, Claude CLI, Codex CLI, or API.\n`);
-    return 1;
-  }
-  if (configuration.provider === "api") {
-    const issues = apiConfigurationIssues(configuration.env);
-    if (issues.length) {
-      errorOutput.write(`PenEcho API configuration is incomplete: ${issues.join(", ")}.\nRun \`penecho configure\` to correct it.\n`);
-      return 1;
-    }
-  }
+  // Connection setup belongs to the Canvas UI and must never gate startup.
+  if (args.command === "configure") configuration.env.PENECHO_OPEN_CONNECTIONS = "true";
   configuration.env.PENECHO_CONFIG_FILE = configuration.configFile;
-  applyConfiguration(configuration.env);
+  Object.assign(configuration.serverEnv, {
+    PENECHO_CONFIG_FILE:configuration.configFile,
+    PENECHO_OPEN_CONNECTIONS:configuration.env.PENECHO_OPEN_CONNECTIONS || "",
+  });
+  applyConfiguration(configuration.serverEnv);
   let startedServer;
   if (options.startServer) {
-    startedServer = await options.startServer(configuration);
+    startedServer = await options.startServer({ ...configuration, env:configuration.serverEnv });
     await schedulePostStartCliPreflight(startedServer, configuration, options, output, errorOutput);
     const update = await schedulePostStartUpdate(startedServer, argv, options, output, errorOutput);
     if (update?.exitCode) return update.exitCode;

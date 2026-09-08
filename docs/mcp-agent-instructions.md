@@ -38,7 +38,7 @@ Tool contract:
 - `penecho_list_canvases`: discover connected, explicitly enabled Canvases.
 - `penecho_open_canvas`: `{instanceId,canvasId,requestId}` plus exclusive `create:true`, or `documentId`, `locator`, or both for exact saved-copy verification; `show` defaults false. `documentId` is independent from the bridge `canvasId`; only explicit `show:true` changes the current view.
 - `penecho_find_canvases`: `{instanceId,canvasId,documentId?}` returns only authorized candidates and per-provider statuses from that exact connection. Do not guess across hosts.
-- `penecho_start_session`: `{instanceId,canvasId,title,documentId?,takeover?,client?,sessionKey?}`. Retain its `sessionId`; the browser session mapping owns every later document route. Server session keys remain owner-scoped, while browser reconnect bindings use the exact client plus key.
+- `penecho_start_session`: `{instanceId,canvasId,title,target?,documentId?,takeover?,client?,sessionKey?}`. Retain its `sessionId`; the browser session mapping owns every later document route. Server session keys remain owner-scoped, while browser reconnect bindings use the exact client plus key.
 - `penecho_list_files` and `penecho_read_file` expose bounded virtual public source, never physical filesystem paths. `context.md` is user-editable document context and PenEcho appends it to the internal Agent's local user turn. `penecho_patch_file` requires a prior read hash, one exact `--- a/<path>` / `+++ b/<path>` unified diff, and requestId; on `SOURCE_CONFLICT` re-read and use a new requestId, while an unknown outcome is retried with the same ID.
 - `penecho_edit_canvas` uses strict action-specific fields. Move, resize, delete, erase, and replace require the current `baseRevision` so newer user work is not overwritten; create_text and show do not. Image replacement accepts only a bounded data URL or a same-document `penecho-ref:objects/<encoded-id>/image`; arbitrary fetches are unavailable. Source and geometry edits are separate.
 - `penecho_capture_canvas`: `{sessionId,target?,objectId?,region?,quality?}` explicitly captures bounded existing visible Canvas content. Target defaults to `viewport`; `object` requires `objectId`, `region` requires `{x,y,w,h}`, and quality is `basic|detail`. A background document returns `CANVAS_NOT_VISIBLE` with document/retry details and is never shown implicitly.
@@ -105,7 +105,7 @@ Report only:
 - `penecho_list_canvases`：发现已连接且显式启用的 Canvas。
 - `penecho_open_canvas`：`{instanceId,canvasId,requestId}` 加独占的 `create:true`，或 `documentId`、`locator`、二者组合以验证准确保存副本；`show` 默认 false。`documentId` 与桥接 `canvasId` 独立，只有显式 `show:true` 才切换当前视图。
 - `penecho_find_canvases`：`{instanceId,canvasId,documentId?}` 只返回准确连接授权的候选及各提供方状态，不跨主机猜测。
-- `penecho_start_session`：`{instanceId,canvasId,title,documentId?,takeover?,client?,sessionKey?}`。保留返回的 `sessionId`；浏览器 session 映射负责所有后续文档路由。server 的 sessionKey 仍按 owner 隔离，浏览器重连绑定使用准确的 client + key。
+- `penecho_start_session`：`{instanceId,canvasId,title,target?,documentId?,takeover?,client?,sessionKey?}`。保留返回的 `sessionId`；浏览器 session 映射负责所有后续文档路由。server 的 sessionKey 仍按 owner 隔离，浏览器重连绑定使用准确的 client + key。
 - `penecho_list_files`、`penecho_read_file` 只暴露有界虚拟公开源码，不暴露物理文件路径。`context.md` 是用户可编辑的文档上下文，PenEcho 会把它附加到内部 Agent 的本地 user turn。`penecho_patch_file` 要求先读取 hash、准确的单文件 unified diff 和 requestId；`SOURCE_CONFLICT` 时重读并换新 requestId，结果未知时用同一 ID 重试。
 - `penecho_edit_canvas` 严格按 action 校验字段；移动、缩放、删除、擦除和替换必须携带当前 `baseRevision`，避免覆盖较新的用户内容；create_text 和 show 不需要。替换图片只接受有界 data URL 或同文档 `penecho-ref:objects/<encoded-id>/image`，不允许任意抓取。源码和几何分开编辑。
 - `penecho_capture_canvas`：`{sessionId,target?,objectId?,region?,quality?}`，显式捕获有界的现有可见 Canvas 内容。target 默认 `viewport`；`object` 需要 `objectId`，`region` 需要 `{x,y,w,h}`，quality 为 `basic|detail`。后台文档返回带文档/重试 details 的 `CANVAS_NOT_VISIBLE`，不会隐式显示。
@@ -195,7 +195,7 @@ expression use `penecho_plot`. Both optionally combine presentation with bounded
 capture. Read the portable skill for full-snapshot replacement and native-object
 limits; retain stable artifact/element IDs and leave Canvas placement to PenEcho.
 
-Existing artifact updates preserve the user’s position and size. `width` / `height` apply when creating a Widget; use `penecho_edit_canvas` with the current revision for explicit resizing. A new conversation key gets its own Canvas when the visible Canvas already contains work; retain the returned `documentId` and reopen it on reconnect.
+Existing artifact updates preserve the user’s position and size. `width` / `height` apply when creating a Widget; use `penecho_edit_canvas` with the current revision for explicit resizing. Only a new, unbound conversation gets its own Canvas by default, even when the visible Canvas is empty. Give the Canvas a concise descriptive name through `title`. Retain the returned `sessionId` and `documentId` across turns and reconnects; already bound conversations continue on that Canvas. Explicit requests to continue on the current Canvas use `target:"current"`.
 
 
 ### Lightweight spatial progress and visual guidance / 轻量空间进展与视觉指导
@@ -223,3 +223,21 @@ this change does not wake stopped conversations or guarantee compliance.
 生成图或截图。复用有用的已有成果，必要时再制作空间图解。Visual Explorer 完整设计规范
 通过可选 prompt 按需读取一次，默认仅附简短原则。客户端刷新连接后获得新指引；MCP
 无法强制客户端执行或唤醒已停止的会话。
+
+### Editing the currently visible Canvas / 修改当前画布
+
+For “current canvas”, “this canvas”, “当前画布”, “这个画布”, or the current
+selection, call `penecho_start_session` with `target:"current"` on the exact
+opted-in connection, without `documentId`. Do not create/open a Canvas first.
+Read existing files and revision, then edit using the returned sessionId. The
+session stays bound to that document after navigation. If an existing conversation
+key is bound elsewhere, use a distinct stable attachment sessionKey and retain
+both handles; never silently redirect an old session. Ordinary new work keeps
+its per-conversation document behavior. Ask only if the intended connection is
+ambiguous.
+
+用户要求整理或修改“当前画布”时，直接以 `target:"current"` 绑定用户正在查看的画布，
+先读取已有内容再修改，不创建或打开新画布。绑定后保持文档不变；如果同一对话原本绑定了
+别的文档，使用独立且稳定的附加 sessionKey，并保留原会话句柄。
+
+For freehand annotation use penecho_edit_canvas action:"draw_ink" with the current baseRevision and strokes:[{color:"#E63946",width:6,points:[{x:120,y:140},{x:220,y:140}]}]. Coordinates and width are Canvas world units. Choose any explicit #RRGGBB color; each stroke is an open round brush polyline (repeat the first point to close a circle; add separate strokes for arrowheads; use a wider stroke for an underline/highlight). Ink may overlap existing content intentionally. Limits: 1–16 strokes, 1–256 points per stroke, 1024 points total, width 1–64; all points fit a 2048 × 2048 region and the brush radius stays inside the Canvas. The operation preserves the user’s brush selection and creates one undoable edit. Background documents reject before mutation: use show only when making that document visible is intended, reread its revision, then draw. Retry the same requestId only with identical arguments.

@@ -7,6 +7,31 @@ does not repeat the general PenEcho startup guide.
 本文说明如何配置 MCP 客户端，让它连接到当前桌面用户运行的 PenEcho 实例，以及如何
 按规则选择 Canvas。这里只介绍本地 stdio 桥接，不重复 PenEcho 的常规启动说明。
 
+## Browser connections: local, LAN and Cloud
+
+AI clients still run the local stdio bridge on the PenEcho host. An editable
+browser on that host, on the LAN, or in Cloud can explicitly enable MCP and
+register with the same host service. Existing Canvas access rules apply:
+password-protected pages must be unlocked; open-access pages need no password.
+Cloud uses the account-owned selected Linked Device and its authenticated relay.
+Both Cloud and host must support the MCP relay capability.
+
+Local AI discovers these live browser connections with `penecho_list_canvases`
+and selects the exact instanceId/canvasId. Calls travel through local RPC and
+the registered browser connection. This does not expose an HTTP MCP endpoint
+for AI clients on other computers. Automatic AI-client configuration remains
+available only on the host computer.
+
+Heartbeat and relay leases remove disconnected browsers from discovery and fail
+pending work. The browser shows a connection problem and allows retry. Turning
+MCP off revokes that connection; it does not delete saved Canvas content.
+
+本机、局域网和 Cloud 的可编辑浏览器都可以显式开放 MCP。AI 客户端仍通过
+PenEcho 主机的本地 stdio 发现这些浏览器。访问授权沿用密码或开放访问规则；
+Cloud 固定到当前账号选中的 Linked Device，通过现有中继传送消息。主机和
+Cloud 均须更新到支持 MCP 中继的版本。断线后退出发现列表并显示连接问题，
+关闭开关不会删除已保存的画布。其他电脑上的 AI 直接接入不在此功能范围内。
+
 ## Status and scope / 状态与范围
 
 The bridge entry point is:
@@ -37,15 +62,15 @@ per-user instance records in the same state directory, and keeps each instance's
 dynamic HTTP/WebSocket port and secret internal. `penecho_list_canvases` combines
 the canvases exposed by those records; it may return canvases from more than one
 instance. Do not put a port, local URL, session token, or credential in an MCP
-configuration. A remote MCP client cannot reach this local bridge; Cloud
-transport is not implemented here. No MCP registry entry or npm publication is
+configuration. A remote AI client cannot reach this local stdio bridge; Cloud browsers register
+through the Linked Device relay described above. No MCP registry entry or npm publication is
 needed for local use.
 
 进程使用 stdio 通信。它可以先于 PenEcho 应用启动，会发现同一 state directory 下当前
 用户的所有存活实例记录，并将每个实例的动态 HTTP/WebSocket 端口和 secret 保持在内部。
 `penecho_list_canvases` 会合并这些记录暴露的 Canvas，因此可能返回多个实例的 Canvas。
 MCP 配置中不要填写端口、本地 URL、session token 或任何凭据。远程 MCP 客户端无法连接
-这个本地桥接；当前尚未实现 Cloud transport。本地使用无需 MCP registry 条目，也无需
+这个本地桥接；Cloud 浏览器通过上述 Linked Device 中继注册。本地使用无需 MCP registry 条目，也无需
 发布 npm 包。
 
 The default direct or generated entry scans every live record in its state
@@ -252,14 +277,19 @@ Canvas enablement and the live instance record are both required.
 For multiple conversations using one MCP connection, give each logical
 conversation its own `sessionKey` when calling `penecho_start_session`. Never
 reuse a key across independent conversations or canvases; the returned
-`sessionId` remains the handle for all later calls.
+`sessionId` remains the handle for all later calls. Only a new, unbound conversation
+gets a new Canvas by default, even if the visible Canvas is empty. Give it a concise
+descriptive name through `title`. Existing bindings continue across turns and
+reconnects; explicit requests to continue on the current Canvas use `target:"current"`.
 
 桥接不会把“浏览器里可见”当成授权。显式启用 Canvas 和实例保持连接两个条件都必须
 满足。
 
 同一个 MCP 连接承载多个对话时，每个逻辑对话调用 `penecho_start_session` 都应使用
 独立的 `sessionKey`。不要在独立对话或不同 Canvas 之间复用 key；后续调用始终使用返回
-的 `sessionId`。
+的 `sessionId`。仅新的未绑定会话默认新建画布，即使当前画布为空；通过 `title` 为新画布
+设置简洁明确的名称。已绑定会话在后续轮次及重连时继续原画布；用户明确要求在当前画布
+继续时使用 `target:"current"`。
 
 ## Tool contract / 工具契约
 
@@ -275,7 +305,7 @@ the current bridge contract for adapters and documentation.
 | penecho_list_canvases | `{}` | List connected, MCP-enabled canvases and their exact IDs across live same-state-directory instances. |
 | penecho_open_canvas | `instanceId`, `canvasId`, required `requestId`; either exclusive `create:true`, or `documentId`, `locator`, or both; optional `title` for create and `show` (default false) | Create or open a persistent document through that exact opted-in connection. Supplying ID plus locator verifies an exact saved copy. It does not change the visible document unless `show:true`. |
 | penecho_find_canvases | `instanceId`, `canvasId`; optional `documentId` | Return authorized document candidates and per-provider statuses from that connection, without cross-host guessing. |
-| penecho_start_session | `instanceId`, `canvasId`, `title`; optional `documentId`, `takeover` (default false), `client`, `sessionKey` | Start session metadata bound to the browser-selected document. No progress board is created automatically; `boardObjectId` may be null. The returned session ID owns all later document routing. |
+| penecho_start_session | `instanceId`, `canvasId`, `title`; optional `target:"current"` (exclusive with `documentId`), `documentId`, `takeover` (default false), `client`, `sessionKey` | Start session metadata bound to the browser-selected document. No progress board is created automatically; `boardObjectId` may be null. The returned session ID owns all later document routing. |
 | penecho_list_files / penecho_read_file | `sessionId`; virtual path and bounded pagination/line range | List or read public virtual Canvas sources. These tools never access the host filesystem. `context.md` is user-editable document context appended to the internal Agent's local user turn. |
 | penecho_patch_file | `sessionId`, virtual `path`, `contentHash`, one-file unified `patch`, `requestId` | Apply a zero-fuzz source-only edit after a read. SOURCE_CONFLICT requires a reread and new request; retry unknown outcomes with the same request ID. |
 | penecho_edit_canvas | `sessionId`, `requestId`, action-specific edit fields; `baseRevision` for move/resize/delete/erase/replace | Create/move/resize/delete/show Canvas objects, erase ink, or replace an image without overwriting a newer user revision. Geometry is separate from source; image input is a bounded data URL or same-document `penecho-ref:objects/<encoded-id>/image`. |
@@ -293,7 +323,7 @@ the current bridge contract for adapters and documentation.
 | penecho_list_canvases | `{}` | 列出同一 state directory 下存活实例的已连接、已启用 MCP Canvas 及准确 ID。 |
 | penecho_open_canvas | `instanceId`、`canvasId`、必填 `requestId`；使用独占的 `create:true`，或 `documentId`、`locator`、二者组合；创建时可选 `title`，`show` 默认 false | 通过准确的已授权连接创建或打开持久文档；ID 与 locator 同时提供时验证准确保存副本；仅 `show:true` 会切换当前视图。 |
 | penecho_find_canvases | `instanceId`、`canvasId`；可选 `documentId` | 返回该连接授权的文档候选和各存储提供方状态，不跨主机猜测。 |
-| penecho_start_session | `instanceId`、`canvasId`、`title`；可选 `documentId`、`takeover`（默认 false）、`client`、`sessionKey` | 为浏览器选定文档建立 session 元数据；不会自动创建进度板，`boardObjectId` 可以是 null；后续文档路由完全由返回的 sessionId 负责。 |
+| penecho_start_session | `instanceId`、`canvasId`、`title`；可选 `target:"current"`（与 `documentId` 互斥）、`documentId`、`takeover`（默认 false）、`client`、`sessionKey` | 为浏览器选定文档建立 session 元数据；不会自动创建进度板，`boardObjectId` 可以是 null；后续文档路由完全由返回的 sessionId 负责。 |
 | penecho_list_files / penecho_read_file | `sessionId`、虚拟路径及有界分页/行范围 | 列出或读取公开的 Canvas 虚拟源文件，不访问主机文件系统；`context.md` 是用户可编辑的文档上下文，会附加到内部 Agent 的本地 user turn。 |
 | penecho_patch_file | `sessionId`、虚拟 `path`、`contentHash`、单文件 unified diff、`requestId` | 在先读后写基础上执行 fuzz=0 的源码编辑；SOURCE_CONFLICT 要重新读取并换 requestId，结果未知时用相同 requestId 重试。 |
 | penecho_edit_canvas | `sessionId`、`requestId` 和 action 对应字段；move/resize/delete/erase/replace 还需要 `baseRevision` | 创建、移动、缩放、删除或定位对象，擦除墨迹或替换图片，并避免覆盖较新的用户版本。几何与源码分离；图片只接受有界 data URL 或同文档 `penecho-ref:objects/<encoded-id>/image`。 |
@@ -775,3 +805,19 @@ this change does not wake stopped conversations or guarantee compliance.
 生成图或截图。复用有用的已有成果，必要时再制作空间图解。Visual Explorer 完整设计规范
 通过可选 prompt 按需读取一次，默认仅附简短原则。客户端刷新连接后获得新指引；MCP
 无法强制客户端执行或唤醒已停止的会话。
+
+### Editing the currently visible Canvas / 修改当前画布
+
+For “current canvas”, “this canvas”, “当前画布”, “这个画布”, or the current
+selection, call `penecho_start_session` with `target:"current"` on the exact
+opted-in connection, without `documentId`. Do not create/open a Canvas first.
+Read existing files and revision, then edit using the returned sessionId. The
+session stays bound to that document after navigation. If an existing conversation
+key is bound elsewhere, use a distinct stable attachment sessionKey and retain
+both handles; never silently redirect an old session. Ordinary new work keeps
+its per-conversation document behavior. Ask only if the intended connection is
+ambiguous.
+
+用户要求整理或修改“当前画布”时，直接以 `target:"current"` 绑定用户正在查看的画布，
+先读取已有内容再修改，不创建或打开新画布。绑定后保持文档不变；如果同一对话原本绑定了
+别的文档，使用独立且稳定的附加 sessionKey，并保留原会话句柄。

@@ -1,8 +1,8 @@
 # MCP workspace actions and compact Recent work footer
 
-The MCP tab now has a compact action row: Follow latest (off by default) and Close all. Follow responds only to content-producing MCP operations, coalesces to the latest document and updated content region, and defers during editing, active navigation, navigation lock, modal UI and queued work. It frames same-document updates as well as updates after switching documents; source patches resolve their object bounds and multi-object artifacts use combined bounds. Close all snapshots open MCP documents, uses the existing unsaved transition, stops on cancel/error, and preserves saved library entries.
+The MCP tab now has a compact action row: Follow latest (on by default while an MCP connection is live, off after the user turns it off or the connection drops) and Close all. Follow responds only to content-producing MCP operations, coalesces to the latest document and updated content region, and defers during editing, active navigation, navigation lock, modal UI and queued work. It frames same-document updates as well as updates after switching documents; source patches resolve their object bounds and multi-object artifacts use combined bounds. Close all snapshots open MCP documents, uses the existing unsaved transition, stops on cancel/error, and preserves saved library entries.
 
-The footer becomes one action rail: New / Close on the left, Library on the right. Full meanings remain in accessible names and tooltips; Chinese uses 新建 / 关闭 / 画布库. Opening/error status expands only when required.
+The footer becomes one action rail: Close / Close all on the left, Library on the right. Full meanings remain in accessible names and tooltips; Chinese uses 关闭 / 关闭其他 / 画布库. Opening/error status expands only when required.
 
 ## Design source map
 
@@ -32,3 +32,15 @@ Source changes are in 071 and public/app.js is generated with scripts/build-clie
 Verification for the extension: MCP/document/navigation/follow-region suites pass; the navigation cooldown test also passes. Generated bundle syntax and generator freshness checks pass. The broader ui-controls suite reports 105 passes and 8 failures in existing source/CSS expectation checks (save signature, connection presets, lock styling, save feedback, Studio layout, launcher styling, title bar and navigator metadata); those unrelated contracts were not rewritten for this change. A fresh localhost test page successfully loads the generated client. Live MCP follow verification remains incomplete: automatic approval review rejected enabling the temporary test page's MCP connection as an additional settings change; user authorization was requested and the unconnected test tab was closed.
 
 The primary task implemented and reviewed the behavior. Tests were delegated with requested gpt-5.6-luna / max; the tool exposed the requested configuration, not independent backend model metadata.
+
+## Close all loading footprint
+
+Both Close all controls now overlay the existing busy spinner at the button center while transparent label text preserves intrinsic width and its accessible name. Source map: penecho-design-language.html button state matrix / compact Ghost busy state; explicit user refinement requires loading to occupy the original button rather than append width. The 071 style override retains the existing spinner size and animation, with a text-color fallback when semantic variables are unavailable.
+
+A temporary browser fixture loaded actual public/style.css and the two real button IDs. English wide-state widths stayed 68.703125 px; Chinese at a 390 px viewport and 200% CSS zoom stayed 136 px. Busy transitions preserved button vertical positions; the bounded narrow fixture had scrollWidth = clientWidth = 390. The centered spinner was visually inspected. The fixture and tab were removed. Main task handled this small UI fix directly; no subagent or Cloud deployment.
+
+## Follow-up: remove footer New, quiet reconnect notice, surface the open limit
+
+User refinement after the rail shipped: the footer New is redundant with the top-right New Canvas action, so the shared rail keeps only Close and Close all; the reconnect report ("External connection lost…") no longer injects a footer error and Retry, leaving the existing MCP connection notice as the status surface; and the 32-document workspace limit now shows a close-first hint instead of silently failing or growing past the cap.
+
+The hint (`canvasDocumentsLimitMessage`, English and Chinese) renders in the footer status whenever 32 documents are open, and the same message is thrown for MCP create/open. Creating from the top-right New Canvas is now blocked at the cap in `requestCanvasTransition`, which previously bypassed the check. Tests cover the localized limit message in `canvas-documents.test.js` and the blocked transition in `canvas-close-transition.test.js`; the footer markup contract in `studio-workspace.test.js` now asserts New is absent. `npm run build:client` regenerated `public/app.js`. Not deployed.

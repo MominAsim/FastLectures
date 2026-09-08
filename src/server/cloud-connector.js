@@ -173,15 +173,17 @@ function accountSessionExpired(configuration, now = Date.now()) {
 }
 
 class CloudConnector {
-  constructor({ stateDir, executeRequest, executeHttpRequest = null, executeCanvasAgentRequest = null, logger = null, defaultOrigin = "https://penecho.ai", capabilities = null, heartbeatTimeoutMs = null }) {
+  constructor({ stateDir, executeRequest, executeHttpRequest = null, executeCanvasAgentRequest = null, executeMcpRequest = null, closeMcpChannels = null, logger = null, defaultOrigin = "https://penecho.ai", capabilities = null, heartbeatTimeoutMs = null }) {
     this.stateDir = stateDir;
     this.file = path.join(stateDir, "cloud-device.json");
     this.executeRequest = executeRequest;
     this.executeHttpRequest = executeHttpRequest;
     this.executeCanvasAgentRequest = executeCanvasAgentRequest;
+    this.executeMcpRequest = executeMcpRequest;
+    this.closeMcpChannels = typeof closeMcpChannels === "function" ? closeMcpChannels : () => {};
     this.logger = logger;
     this.defaultOrigin = normalizedOrigin(defaultOrigin);
-    this.capabilities = Object.freeze({ modelConfigured:Boolean(capabilities?.modelConfigured), ...(typeof executeCanvasAgentRequest === "function" ? { canvasAgent:true } : {}) });
+    this.capabilities = Object.freeze({ modelConfigured:Boolean(capabilities?.modelConfigured), ...(typeof executeMcpRequest === "function" ? { mcp:true } : {}), ...(typeof executeCanvasAgentRequest === "function" ? { canvasAgent:true } : {}) });
     this.configuration = this.readConfiguration();
     this.socket = null;
     this.heartbeatTimer = null;
@@ -974,6 +976,7 @@ class CloudConnector {
     // Detach its socket before connect() checks readyState, otherwise an open
     // old relay can prevent the newly paired credential from ever connecting.
     const previousSocket = this.socket;
+    this.closeMcpChannels();
     this.socket = null;
     this.clearTimers();
     this.connectionState = "disconnected";
@@ -1004,6 +1007,7 @@ class CloudConnector {
   }
 
   stop() {
+    this.closeMcpChannels();
     this.stopped = true;
     this.modelEvaluationQueue.length = 0;
     this.clearTimers();
@@ -1136,6 +1140,7 @@ class CloudConnector {
 
     socket.on("close", (code, reason) => {
       if (this.socket !== socket) return;
+      this.closeMcpChannels();
       this.socket = null;
       this.clearTimers();
       const credentialInvalid = code === 4003;
@@ -1200,8 +1205,9 @@ class CloudConnector {
       const operation = message.payload?.operation,
         remoteCanvas = operation === "canvas.http",
         canvasAgent = typeof operation === "string" && operation.startsWith("canvas.agent."),
+        canvasMcp = typeof operation === "string" && operation.startsWith("canvas.mcp."),
         canvasAi = operation === undefined,
-        executor = canvasAgent ? this.executeCanvasAgentRequest : remoteCanvas ? this.executeHttpRequest : this.executeRequest,
+        executor = canvasMcp ? this.executeMcpRequest : canvasAgent ? this.executeCanvasAgentRequest : remoteCanvas ? this.executeHttpRequest : this.executeRequest,
         timeoutMs = Number(message.timeoutMs) || 210_000;
       if (typeof executor !== "function") throw Object.assign(new Error("This PenEcho version does not support Remote Canvas."), { code:"remote_canvas_unsupported" });
       const relayRequest = canvasAi ? cloudAiRelayRequest(message.payload) : null,

@@ -11,6 +11,7 @@
   const objectChromeButtons = new Map();
   const widgetRefineTouchCandidates = new Map();
   let widgetRefineConfirmationElement = null;
+  let widgetInteractionStatusElement = null;
   let canvasWidgetGestureResetTap = null;
   let viewerAutoFitWidgetId = null;
   let viewerAutoFitCanvas = false;
@@ -623,7 +624,8 @@
     return true;
   }
   function ensureHandToolbarRecord(kind, object) {
-    if (!(state.mode === "select" || state.mode === "hand" && kind === "widget") || !object?.id || !["widget", "image", "animation", "text-box"].includes(kind)) return null;
+    const allowed = state.mode === "select" || (kind === "widget" && ["hand", "pen"].includes(state.mode));
+    if (!allowed || !object?.id || !["widget", "image", "animation", "text-box"].includes(kind)) return null;
     const key = handToolbarKey(kind, object.id);
     let record = state.handToolbarTargets.get(key);
     if (!record) {
@@ -1157,7 +1159,7 @@
     return { x: widget.x, y: widget.y, w: widget.w, h: widget.h };
   }
   function widgetLayout(widget) {
-    return { ...widgetBox(widget), contentW:widget.contentW, contentH:widget.contentH };
+    return { ...widgetBox(widget), contentW:widget.contentW, contentH:widget.contentH, fitContent:widget.fitContent === true };
   }
   function visibleWidgets(region = null) {
     if (!widgetRuntimeEnabled()) return [];
@@ -1217,6 +1219,7 @@
       h: widget.h,
       contentW: widget.contentW,
       contentH: widget.contentH,
+      ...(widget.fitContent ? { fitContent:true } : {}),
       title: widget.title,
       refreshSeconds: widget.refreshSeconds,
       favoriteSourceId: widget.favoriteSourceId,
@@ -1278,6 +1281,7 @@
       h: Math.round(item.h),
       contentW: Math.round(contentW),
       contentH: Math.round(contentH),
+      fitContent: item.fitContent === true,
       title: item.title.trim(),
       refreshSeconds: Math.round(item.refreshSeconds),
       html,
@@ -1514,14 +1518,10 @@
     shell.addEventListener("pointerdown", (event) => {
       if (event.target === shell) handleCanvasPointerDown(event);
     });
-    shell.addEventListener("dblclick", (event) => {
-      if (!state.viewMode && state.mode === "select" && event.target === shell) setWidgetInteraction(widget);
-    });
     shell.addEventListener("keydown", (event) => {
       if (event.target === shell && event.key === "Enter") {
         event.preventDefault();
-        if (state.viewMode && state.viewTool !== "select") return;
-        setWidgetInteraction(widget);
+        enterWidgetInteraction(widget);
       }
     });
     frame.className = "canvas-widget-frame";
@@ -1695,11 +1695,11 @@
     }
     if (!widget.frame?.contentWindow || !widget.hostReady || !Number.isFinite(scaleX) || scaleX <= 0 || !Number.isFinite(scaleY) || scaleY <= 0) return;
     const active = widget.renderActive !== false,
-      key = `${interactive ? 1 : 0}:${selected ? 1 : 0}:${active ? 1 : 0}:${state.navigationLocked ? 1 : 0}:${scaleX.toFixed(6)}:${scaleY.toFixed(6)}`;
+      key = `${interactive ? 1 : 0}:${selected ? 1 : 0}:${active ? 1 : 0}:${state.navigationLocked ? 1 : 0}:${scaleX.toFixed(6)}:${scaleY.toFixed(6)}:${widget.fitContent ? 1 : 0}`;
     syncMcpWidgetProgress(widget);
     if (!force && widget.hostStateKey === key) return;
     widget.hostStateKey = key;
-    widget.frame.contentWindow.postMessage({ type:"penecho-widget-state", selected, interactive, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
+    widget.frame.contentWindow.postMessage({ type:"penecho-widget-state", fitContent:widget.fitContent === true, selected, interactive, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
   }
   function markWidgetHostReady(widget) {
     widget.hostReady = true;
@@ -3972,8 +3972,55 @@
     });
     return true;
   }
+  async function fitWidgetToContent(widget) {
+    if (widget.fitContentBusy || !widget.frame?.contentWindow) return;
+    let before = widgetLayout(widget);
+    const html = widget.html;
+    widget.fitContentBusy = true;
+    requestInteractionLayerRender();
+    try {
+      for (let pass = 0; pass < 4; pass++) {
+        const size = await new Promise((resolve, reject) => {
+          const requestId = crypto.randomUUID();
+          const finish = (error, value) => {
+            clearTimeout(timer);
+            window.removeEventListener("message", receive);
+            error ? reject(error) : resolve(value);
+          };
+          const receive = (event) => {
+            const data = event.data;
+            if (event.source !== widget.frame?.contentWindow || event.origin !== (widget.hostOrigin || location.origin)
+              || data?.type !== "penecho-widget-content-size" || data.requestId !== requestId) return;
+            if (![data.width, data.height].every(value => Number.isFinite(value) && value > 0)) return;
+            finish(null, data);
+          };
+          const timer = setTimeout(() => finish(Error("Content measurement timed out")), 3000);
+          window.addEventListener("message", receive);
+          widget.frame.contentWindow.postMessage({ type:"penecho-widget-measure-content", requestId, width:widget.contentW, height:widget.contentH }, widget.hostOrigin || location.origin);
+        });
+        if (!state.widgets.includes(widget) || widget.html !== html || state.widgetGesture
+          || Object.keys(before).some(key => widgetLayout(widget)[key] !== before[key])) return;
+        const scaleX = widget.w / widget.contentW, scaleY = widget.h / widget.contentH;
+        const width = Math.max(300, 300 / scaleX, Math.min(size.width, MAX_WIDGET_CONTENT_DIMENSION, (SIZE - widget.x) / scaleX));
+        const height = Math.max(200, 200 / scaleY, Math.min(size.height, MAX_WIDGET_CONTENT_DIMENSION, (SIZE - widget.y) / scaleY));
+        if (width === widget.contentW && height === widget.contentH && widget.fitContent) return;
+        beginWidgetEdit(widget);
+        Object.assign(widget, { fitContent:true, contentW:width, contentH:height, w:width * scaleX, h:height * scaleY });
+        state.widgetEdit.changed = true;
+        positionWidget(widget);
+        before = widgetLayout(widget);
+      }
+    } catch {
+      setStatusKey("widgetFitContentFailed");
+    } finally {
+      widget.fitContentBusy = false;
+      sendWidgetHostState(widget, undefined, undefined, true);
+      requestInteractionLayerRender();
+    }
+  }
   const WIDGET_COPY_ICON_FEEDBACK_MS = 2000;
   const OBJECT_CHROME_ICONS = Object.freeze({
+    fitContent:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>',
     interact:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 14 9-7 1-3 7z"/></svg>',
     move:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9V3M9 6l3-3 3 3M12 15v6M9 18l3 3 3-3M9 12H3M6 9l-3 3 3 3M15 12h6M18 9l3 3-3 3"/></svg>',
     accept:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7"/></svg>',
@@ -4013,12 +4060,18 @@
     const box = widgetBox(widget),
       items = [],
       copyLabel = widgetCopySourceLabel(widget);
-    if (["select", "hand"].includes(state.mode) && !widget.pending && options.objectToolbarKey) items.push({
+    if (["select", "hand", "pen"].includes(state.mode) && !widget.pending && options.objectToolbarKey) items.push({
       key:`widget:${widget.id}:interact`, kind:"interact", label:t("widgetInteract"),
-      baseWidth:28, iconOnly:true, activate:() => {
-        if (state.mode === "hand") setCanvasMode("select");
-        setWidgetInteraction(widget);
-      },
+      baseWidth:84, iconOnly:false, activate:() => { enterWidgetInteraction(widget); },
+    });
+    if (options.objectToolbarKey && !widget.pending && widget.widgetType !== "diagram_source") items.push({
+      key:`widget:${widget.id}:fit-content`,
+      kind:"fitContent",
+      label:t("widgetFitContent"),
+      baseWidth:28,
+      iconOnly:true,
+      busy:widget.fitContentBusy === true,
+      activate:() => void fitWidgetToContent(widget),
     });
     if (options.copy && copyLabel) items.push({
       key:`widget:${widget.id}:tool-copy`,
@@ -4094,9 +4147,10 @@
         widgetTool:true,
         objectToolbarItem:Boolean(options.objectToolbarKey),
         objectToolbarKey:options.objectToolbarKey || "",
+        toolbarHasDecisions:options.decisions !== false,
         toolbarSlot:"tool",
-        toolbarOrder:index,
-        toolbarItemCount:items.length,
+        toolbarOrder:items[0]?.kind === "interact" ? index - 1 : index,
+        toolbarItemCount:items.length - (items[0]?.kind === "interact" ? 1 : 0),
         widgetToolGroup,
         groupRefineCandidate:options.refine || null,
         groupItemCount:items.length,
@@ -4115,28 +4169,52 @@
       horizontalOffset += item.baseWidth + gap;
     }
   }
-  function objectToolbarMinimumWidth(toolCount = 0) {
+  function objectToolbarMinimumWidth(toolCount = 0, decisions = true) {
     const itemSize = 28,
       itemGap = 4,
       inset = 4,
-      itemCount = 2 + Math.max(0, Math.floor(Number(toolCount) || 0));
+      itemCount = (decisions ? 2 : 0) + Math.max(0, Math.floor(Number(toolCount) || 0));
+    if (itemCount <= 0) return inset * 2;
     return itemCount * itemSize + (itemCount - 1) * itemGap + inset * 2;
   }
   function finalizeObjectToolbarWidths(specs) {
-    const toolCounts = new Map();
+    const toolCounts = new Map(), centeredToolbars = new Map(), trailingTools = new Map();
     for (const spec of specs) {
       if (!spec.objectToolbarItem || spec.toolbarSlot !== "tool") continue;
       toolCounts.set(spec.objectToolbarKey, (toolCounts.get(spec.objectToolbarKey) || 0) + 1);
+      if (spec.kind === "interact") centeredToolbars.set(spec.objectToolbarKey, spec);
+      else {
+        const items = trailingTools.get(spec.objectToolbarKey) || [];
+        items.push(spec);
+        trailingTools.set(spec.objectToolbarKey, items);
+      }
     }
     for (const spec of specs) {
       if (!spec.objectToolbar) continue;
-      spec.minimumWidth = objectToolbarMinimumWidth(toolCounts.get(spec.key) || 0);
+      const decisions = spec.toolbarHasDecisions !== false;
+      spec.minimumWidth = objectToolbarMinimumWidth(toolCounts.get(spec.key) || 0, decisions);
+      if (centeredToolbars.has(spec.key)) {
+        // Keep the labeled action at screen size even when its Widget is tiny.
+        // Reserve actual trailing widths, mirrored on the left for true centering.
+        const center = centeredToolbars.get(spec.key),
+          items = trailingTools.get(spec.key) || [],
+          groupWidth = items.reduce((sum, item) => sum + item.baseWidth + 4, 0),
+          sideWidth = (decisions ? 4 + 28 : 0) + 4 + groupWidth;
+        spec.minimumWidth = center.baseWidth + 2 * sideWidth;
+        let offset = 0;
+        for (const item of items) {
+          item.toolbarGroupWidth = Math.max(0, groupWidth - 4);
+          item.toolbarGroupOffset = offset;
+          offset += item.baseWidth + 4;
+        }
+      }
     }
     return specs;
   }
   function addObjectToolbarSpecs(specs, options) {
     const toolbarKey = `${options.prefix}:toolbar`,
       shared = options.shared || {},
+      decisions = options.decisions !== false,
       priority = Number(options.priority) || 4;
     specs.push({
       key:toolbarKey,
@@ -4146,11 +4224,13 @@
       target:options.target,
       object:options.object,
       objectToolbar:true,
-      minimumWidth:objectToolbarMinimumWidth(),
+      toolbarHasDecisions:decisions,
+      minimumWidth:objectToolbarMinimumWidth(0, decisions),
       baseHeight:34,
       ...shared,
       priority,
     });
+    if (!decisions) return toolbarKey;
     specs.push({
       key:`${options.prefix}:cancel`,
       kind:"cancel",
@@ -4204,22 +4284,26 @@
     if (spec?.objectToolbarItem) {
       const toolbar = knownPositions?.get?.(spec.objectToolbarKey);
       if (!toolbar) return null;
-      const toolbarWidth = toolbar.baseWidth * (toolbar.scale || 1),
+      const hasDecisions = spec.toolbarHasDecisions !== false,
+        toolbarWidth = toolbar.baseWidth * (toolbar.scale || 1),
         toolbarHeight = toolbar.baseHeight * (toolbar.scale || 1),
         itemGap = 4,
         inset = 4,
         itemY = toolbar.y + (toolbarHeight - height) / 2,
         leadingX = toolbar.x + inset,
-        trailingX = toolbar.x + toolbarWidth - inset - width;
+        leadingInset = hasDecisions ? 28 + itemGap : 0,
+        trailingInset = hasDecisions ? (spec.toolbarSlot === "trailing" ? width : 28) : 0,
+        trailingX = toolbar.x + toolbarWidth - inset - trailingInset;
       let itemX;
       if (spec.toolbarSlot === "leading") itemX = leadingX;
       else if (spec.toolbarSlot === "trailing") itemX = trailingX;
+      else if (spec.kind === "interact") itemX = toolbar.x + (toolbarWidth - width) / 2;
       else {
         const itemCount = Math.max(1, Number(spec.toolbarItemCount) || 1),
           itemOrder = Math.max(0, Math.min(itemCount - 1, Number(spec.toolbarOrder) || 0)),
-          groupWidth = itemCount * width + (itemCount - 1) * itemGap,
-          groupLeft = Math.max(leadingX + width + itemGap, trailingX - itemGap - groupWidth);
-        itemX = groupLeft + itemOrder * (width + itemGap);
+          groupWidth = spec.toolbarGroupWidth ?? (itemCount * width + (itemCount - 1) * itemGap),
+          groupLeft = Math.max(leadingX + leadingInset, trailingX - itemGap - groupWidth);
+        itemX = groupLeft + (spec.toolbarGroupOffset ?? itemOrder * (width + itemGap));
         if (itemX + width > trailingX - itemGap) return null;
       }
       return { x:itemX, y:itemY, scale:controlScale, baseWidth, baseHeight };
@@ -4373,6 +4457,11 @@
     button.className = kind === "toolbar" ? "object-chrome-button" : `object-chrome-button ${kind}`;
     button.dataset.objectChromeKey = key;
     button.innerHTML = OBJECT_CHROME_ICONS[kind] || "";
+    if (kind === "interact") {
+      const label = document.createElement("span");
+      label.className = "widget-interact-label";
+      button.append(label);
+    }
     if (kind === "refine") {
       const label = document.createElement("span"),
         hint = document.createElement("span");
@@ -4522,14 +4611,20 @@
   function objectChromeSpecs() {
     const persistentCandidate = currentWidgetRefineCandidate(),
       hoverCandidate = currentWidgetRefineHoverCandidate();
-    if (state.viewMode || state.interactingWidgetId || !["select", "hand"].includes(state.mode)) {
+    if (state.viewMode || state.interactingWidgetId || !["select", "hand", "pen"].includes(state.mode)) {
       const specs = [];
       if (!state.viewMode && !state.interactingWidgetId && persistentCandidate) addWidgetToolSpecs(specs, persistentCandidate.widget, { refine:persistentCandidate });
       if (!state.viewMode && !state.interactingWidgetId && hoverCandidate && hoverCandidate.widget !== persistentCandidate?.widget) addWidgetToolSpecs(specs, hoverCandidate.widget, { refine:hoverCandidate });
       return specs;
     }
     const specs = [];
+    // Pen keeps its hover Refine action; Hand and Select own object toolbars.
+    if (state.mode === "pen") {
+      if (persistentCandidate) addWidgetToolSpecs(specs, persistentCandidate.widget, { refine:persistentCandidate });
+      if (hoverCandidate && hoverCandidate.widget !== persistentCandidate?.widget) addWidgetToolSpecs(specs, hoverCandidate.widget, { refine:hoverCandidate });
+    }
     for (const [key, record] of state.handToolbarTargets) {
+      if (state.mode === "pen" && record.kind !== "widget") continue;
       const handTarget = handToolbarObject(record),
         shared = { handToolbar:true, handToolbarKey:key, handToolbarHiding:Boolean(record.hiding) };
       if (!handTarget) continue;
@@ -4604,13 +4699,9 @@
             box,
             target:"widget",
             object:handTarget,
-            cancelLabel:t("widgetDelete"),
-            acceptLabel:t("widgetAccept"),
-            cancel:() => deleteWidget(handTarget),
-            accept:() => {
-              if (state.widgetEdit?.id !== handTarget.id) beginWidgetEdit(handTarget);
-              return acceptWidgetEdit({ showHint:true });
-            },
+            // An existing Widget keeps its tools but never offers draft-style
+            // accept/cancel decisions; Delete and Escape still apply.
+            decisions:false,
             shared,
             priority:2,
           });
@@ -4618,6 +4709,7 @@
           copy:true,
           community:true,
           download:true,
+          decisions:false,
           handToolbar:true,
           handToolbarKey:key,
           handToolbarHiding:Boolean(record.hiding),
@@ -4625,8 +4717,8 @@
         });
       }
     }
-    pendingChromeSpecs(specs, state.pending);
-    if (state.pendingWidget) {
+    if (state.mode !== "pen") pendingChromeSpecs(specs, state.pending);
+    if (state.mode !== "pen" && state.pendingWidget) {
       const widget = state.pendingWidget,
         box = widgetBox(widget),
         toolbarKey = addObjectToolbarSpecs(specs, {
@@ -4680,7 +4772,7 @@
       button.classList.toggle("object-toolbar-shell", Boolean(spec.objectToolbar));
       button.classList.toggle("widget-object-toolbar", Boolean(spec.objectToolbar && ["widget", "pending-widget"].includes(spec.target)));
       button.classList.toggle("object-toolbar-item", Boolean(spec.objectToolbarItem));
-      button.classList.toggle("icon-only", Boolean(spec.iconOnly || spec.objectToolbarItem));
+      button.classList.toggle("icon-only", Boolean(spec.iconOnly || (spec.objectToolbarItem && spec.kind !== "interact")));
       button.classList.toggle("solo-widget-tool", Boolean(spec.widgetTool && spec.groupItemCount === 1));
       button.classList.toggle("hand-toolbar-control", Boolean(spec.handToolbar));
       button.classList.toggle("hand-toolbar-hiding", Boolean(spec.handToolbar && spec.handToolbarHiding));
@@ -4698,6 +4790,7 @@
       else button.removeAttribute("aria-busy");
       if (spec.kind === "refine" || spec.objectToolbar) button.removeAttribute("title");
       else button.title = spec.tooltip || label;
+      if (spec.kind === "interact") button.querySelector(".widget-interact-label").textContent = t("widgetInteractShort");
       if (spec.kind === "refine") {
         const buttonLabel = button.querySelector(".widget-refine-button-label"),
           hint = button.querySelector(".widget-refine-hint"),
@@ -4766,6 +4859,40 @@
     declaration?.setProperty("--selected-widget-toolbar-height", `${toolbarHeight.toFixed(1)}px`);
     declaration?.setProperty("z-index", String(widgetStackIndex));
   }
+  function syncWidgetInteractionStatus() {
+    const widget = state.interactingWidgetId
+      ? state.widgets.find(item => item.id === state.interactingWidgetId && item.shell)
+      : null;
+    if (!widget || !widgetRuntimeEnabled() || widget.renderActive === false) {
+      if (widgetInteractionStatusElement) widgetInteractionStatusElement.hidden = true;
+      return;
+    }
+    if (!widgetInteractionStatusElement) {
+      const element = document.createElement("div"),
+        label = document.createElement("span");
+      element.className = "widget-interaction-status";
+      element.setAttribute("role", "status");
+      element.setAttribute("aria-live", "polite");
+      label.className = "widget-interaction-status-label";
+      element.append(label);
+      view.append(element);
+      widgetInteractionStatusElement = element;
+    }
+    const element = widgetInteractionStatusElement,
+      label = element.querySelector(".widget-interaction-status-label"),
+      screenBox = screenObjectBox(widgetBox(widget)),
+      viewportWidth = Math.max(0, view.clientWidth),
+      height = 30,
+      width = Math.max(180, Math.min(Math.max(180, viewportWidth - 12), screenBox.width)),
+      x = Math.max(6, Math.min(Math.max(6, viewportWidth - width - 6), screenBox.left + (screenBox.width - width) / 2)),
+      y = Math.max(6, screenBox.top - height - 6),
+      declaration = runtimeElementStyle(element, "widget-interaction-status");
+    label.textContent = t("widgetInteracting");
+    declaration?.setProperty("--widget-interaction-status-x", `${x.toFixed(1)}px`);
+    declaration?.setProperty("--widget-interaction-status-y", `${y.toFixed(1)}px`);
+    declaration?.setProperty("--widget-interaction-status-width", `${width.toFixed(1)}px`);
+    element.hidden = false;
+  }
   objectChromeLayer?.addEventListener("pointermove", (event) => {
     if (finishReleasedWidgetGesture(event)) return;
     const overChromeControl = event.target?.closest?.(".object-chrome-button, .widget-refine-confirmation");
@@ -4825,6 +4952,7 @@
         interactionCtx.restore();
       }
       interactionCtx.restore();
+      syncWidgetInteractionStatus();
       return;
     }
     if (state.drawing?.preview) drawPreview(state.drawing.preview, interactionCtx);
@@ -4849,6 +4977,7 @@
     positionAnimationControls();
     positionImageSelectionMaterial();
     syncObjectChrome();
+    syncWidgetInteractionStatus();
   }
   function clientPoint(e) {
     const point = canvasClientPosition(e.clientX, e.clientY);

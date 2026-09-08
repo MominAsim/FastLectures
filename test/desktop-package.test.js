@@ -243,14 +243,17 @@ test("desktop secret store compresses credentials into a user-only local file", 
 test("desktop shell and Forge config keep the renderer isolated and package native assets", () => {
   const main = fs.readFileSync(path.join(ROOT, "desktop", "main.js"), "utf8"),
     serverMain = fs.readFileSync(path.join(ROOT, "src", "server", "main.js"), "utf8"),
-    preload = fs.readFileSync(path.join(ROOT, "desktop", "preload.js"), "utf8"),
     canvasPreload = fs.readFileSync(path.join(ROOT, "desktop", "canvas-preload.js"), "utf8"),
     updateCss = fs.readFileSync(path.join(ROOT, "public", "desktop-update.css"), "utf8"),
     forge = fs.readFileSync(path.join(ROOT, "forge.config.js"), "utf8"),
-    html = fs.readFileSync(path.join(ROOT, "desktop", "settings", "index.html"), "utf8"),
-    settings = fs.readFileSync(path.join(ROOT, "desktop", "settings", "settings.js"), "utf8"),
-    settingsCss = fs.readFileSync(path.join(ROOT, "desktop", "settings", "settings.css"), "utf8"),
     rootPackage = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+  assert.doesNotMatch(main, /settingsWindow|configurationIsReady|save-and-test|SETTINGS_FILE/);
+  assert.match(main, /mainWindow.webContents.send\("penecho:show-connections"\)/);
+  assert.match(canvasPreload, /onShowConnections:listener/);
+  assert.match(main, /if \(!unified\) Object.assign\(configuration.env, kimiPresetUpdates\(configuration\)\)/);
+  for (const obsolete of ["preload.js", "settings/index.html", "settings/settings.js", "settings/settings.css"]) {
+    assert.equal(fs.existsSync(path.join(ROOT, "desktop", obsolete)), false);
+  }
   assert.match(main, /contextIsolation:true/);
   assert.match(main, /nodeIntegration:false/);
   assert.match(main, /sandbox:true/);
@@ -262,11 +265,8 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(serverMain, /const CONNECTIONS_FILE = STATE_DIRECTORY\s*\? path\.join\(STATE_DIRECTORY, "connections\.json"\)/);
   assert.match(serverMain, /\/api\/settings\/connections\/inspect-cli/);
   assert.match(serverMain, /status:await inspectConnectionCli\(provider\)/);
-  assert.match(serverMain, /if \(error\?\.code === "ENOENT"\) return \{ defaultName:"Default connection", connections:\[\] \}/);
-  assert.match(serverMain, /fs\.mkdirSync\(path\.dirname\(CONNECTIONS_FILE\), \{ recursive:true, mode:0o700 \}\);[\s\S]*?fs\.renameSync\(temporary, CONNECTIONS_FILE\)/);
   assert.match(main, /configuration\.env\.HOST\) configuration\.env\.HOST = "0\.0\.0\.0"/);
   assert.match(main, /const DESKTOP_VERSION = pkg\.config\?\.desktopVersion \|\| pkg\.version/);
-  assert.match(main, /publicSettings\(loaded\.configuration, \{ version:DESKTOP_VERSION/);
   assert.match(main, /createUpdateManager/);
   assert.match(main, /createUpdateManager\(\{[\s\S]*?currentVersion:DESKTOP_VERSION/);
   assert.match(main, /updateManager\.start\(\)/);
@@ -275,10 +275,6 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(main, /--squirrel-\(\?:install\|updated\|uninstall\|obsolete\)/);
   assert.doesNotMatch(main, /setProgressBar/);
   assert.doesNotMatch(main, /\bautoUpdater\b/);
-  assert.match(preload, /contextBridge\.exposeInMainWorld/);
-  assert.match(preload, /installCli/);
-  assert.doesNotMatch(preload, /loginCli/);
-  assert.match(preload, /copyText/);
   assert.match(canvasPreload, /penechoDesktopUpdate/);
   assert.match(canvasPreload, /installCli:provider => ipcRenderer\.invoke\("penecho:install-cli", provider\)/);
   assert.doesNotMatch(canvasPreload, /inspectCli|get-cli-statuses/);
@@ -308,29 +304,7 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(updateCss, /\.desktop-update-prompt\s*\{[\s\S]*?position: static;[\s\S]*?grid-column: 4;/);
   assert.match(updateCss, /main > footer\.penecho-desktop-update-visible/);
   assert.match(updateCss, /\.desktop-update-prompt\.is-available \.desktop-update-primary\s*\{[^}]*min-height: 28px;/);
-  assert.match(main, /\["api", "kimi"\]\.includes\(normalized\.provider\)/);
-  assert.match(main, /if \(!configurationIsReady\(loaded\)\) \{\s*showSettings\(\);\s*return;/);
   assert.match(main, /label:"Settings…"[\s\S]*?click:showSettings/);
-  assert.match(main, /function showSettings\(\) \{\s*const parent = mainWindow && !mainWindow\.isDestroyed\(\) \? mainWindow : null;[\s\S]*?getParentWindow\(\) !== parent[\s\S]*?setParentWindow\(parent\)[\s\S]*?new BrowserWindow\(secureWindowOptions\(\{\s*\.\.\.\(parent \? \{ parent \} : \{\}\),/);
-  assert.match(main, /if \(!fromCanvas\(event\) && !fromSetup\) return \{ ok:false/);
-  assert.match(main, /window\.loadFile\(SETTINGS_FILE\)\.then\(reveal\)/);
-  assert.match(main, /settingsReadyToLaunch = true;[\s\S]*?ok:false,[\s\S]*?saved:true/);
-  assert.match(main, /SETTINGS_TEST_TIMEOUT_MS = 30_000/);
-  assert.match(main, /testDesktopConnection.*require\("\.\/settings-test\.js"\)/);
-  assert.match(main, /testDesktopConnection\(loaded\.configuration, \{ timeoutMs:SETTINGS_TEST_TIMEOUT_MS \}\)/);
-  assert.match(main, /timedOut:\["PENECHO_SETTINGS_TEST_TIMEOUT", "PENECHO_CONNECTION_TEST_TIMEOUT"\]\.includes\(error\.code\)/);
-  assert.match(settings, /Launch anyway/);
-  assert.match(settings, /setStatus\("success"[\s\S]*?const launched = await desktop\.launch\(\)/);
-  assert.match(settings, /result\.timedOut[\s\S]*?Connection test timed out[\s\S]*?still launch PenEcho and enter the canvas/);
-  assert.match(settings, /连接测试超过 30 秒，你仍然可以启动 PenEcho 进入画布/);
-  assert.match(settings, /KIMI_MODELS = Object\.freeze\(\{ code:"k3", platform:"kimi-k3" \}\)/);
-  assert.match(settings, /kimiProduct\.addEventListener\("change", \(\) => updateKimiEndpoint\(true, true\)\)/);
-  assert.match(settings, /if \(activeProvider === "kimi"\) repairKimiPreset\(\)/);
-  assert.match(settings, /activeProvider = provider\(\);[\s\S]*?repairKimiPreset\(\);[\s\S]*?captureApiDraft\(activeProvider\)/);
-  assert.match(settings, /provider\(\) === "kimi" && value\("kimiProduct"\) === "platform"/);
-  assert.match(settings, /anthropicOption\.disabled = kimiPlatform/);
-  assert.match(html, /name="canvasAgentAutoOpen"[^>]*checked/);
-  assert.match(settings, /canvasAgentAutoOpen:form\.elements\.canvasAgentAutoOpen\.checked/);
   assert.match(serverMain, /canvasAgentAutoOpen:CANVAS_AGENT_AUTO_OPEN/);
   assert.match(forge, /node_modules\/\{sharp,@img,@vscode\}/);
   assert.match(forge, /readPackageJson/);
@@ -396,50 +370,14 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(desktopReleaseWorkflow, /TimeStamperCertificate/);
   assert.match(main, /credentialProtector = process\.platform === "darwin" \? null : safeStorage/);
   assert.match(main, /readSecret\(paths\.secretFile, credentialProtector\)/);
-  assert.match(html, /Test, save &amp; launch/);
-  assert.match(html, />Install<\/button>/);
-  assert.doesNotMatch(html, /Sign in|data-login-cli/);
-  assert.match(html, /PenEcho is a Kimi 2026 Open Source Partner/);
-  assert.match(settings, /PenEcho 是 Kimi 2026 开源合作伙伴/);
-  const providerSelect = html.match(/<select id="providerSelect" name="provider"[\s\S]*?<\/select>/)?.[0] || "";
-  for (const provider of ["kimi", "kimi-cli", "api", "codex-cli", "claude-cli"]) assert.match(providerSelect, new RegExp(`value="${provider}"`));
-  assert.match(providerSelect, /value="api" selected/);
-  assert.match(html, /data-provider-context="kimi kimi-cli" hidden/);
-  assert.doesNotMatch(html, /welcome-panel|class="steps"|page-glow/);
-  assert.match(html, /data-pe-surface="form"[^>]*data-pe-size="l"[^>]*data-pe-layout="single"[^>]*data-pe-presentation="modal"/);
-  assert.match(settingsCss, /body\s*\{[^}]*overflow:\s*hidden/);
-  assert.match(settingsCss, /\.settings-body\s*\{[^}]*overflow-y:\s*auto/);
-  assert.match(settingsCss, /\.settings-body\s*\{[^}]*background:\s*transparent/);
-  assert.match(settingsCss, /\.setup-stage\s*\{[^}]*place-items:\s*stretch/);
-  assert.match(settingsCss, /\.setup-stage\s*\{[^}]*backdrop-filter:\s*blur\(14px\) saturate\(1\.12\)/);
-  assert.match(settingsCss, /--panel-material:\s*rgba\(255, 255, 255, \.88\)/);
-  assert.match(settingsCss, /\.settings-group\s*\{[^}]*background:\s*var\(--panel-material\)/);
-  assert.doesNotMatch(settingsCss, /\.settings-(?:body|group)\s*\{[^}]*backdrop-filter/);
-  assert.match(settingsCss, /label:not\(\.trace-limit\)\s*>\s*span:first-child/);
-  assert.match(settingsCss, /\.trace-limit\s*>\s*span\s*\{[^}]*margin:\s*0[^}]*font:\s*inherit[^}]*line-height:\s*1/);
-  assert.match(settingsCss, /\.settings-dialog\s*\{[^}]*width:\s*100%[^}]*height:\s*100%[^}]*max-height:\s*none[^}]*border:\s*0[^}]*border-radius:\s*0[^}]*box-shadow:\s*none/);
-  assert.match(main, /width:820,[\s\S]*?height:680,[\s\S]*?minWidth:660,[\s\S]*?minHeight:540/);
-  assert.match(main, /minHeight:540,[\s\S]*?useContentSize:true/);
-  assert.match(main, /vibrancy:"under-window"[\s\S]*?backgroundMaterial:"mica"/);
-  assert.equal(rootPackage.version, "1.2.0");
-  assert.equal(rootPackage.config.desktopVersion, "1.2.0");
-  assert.match(html, /data-install-cli="kimi-cli"/);
-  assert.match(html, /github\.com\/MoonshotAI\/kimi-code/);
-  assert.match(html, /data-i18n="installGuide">Guide<\/a>/);
-  assert.match(settingsCss, /\.inline-primary,[\s\S]*?\.inline-secondary,[\s\S]*?\{[^}]*display:\s*inline-flex[^}]*text-decoration:\s*none/);
-  assert.match(settings, /\["kimi-cli", "codex-cli", "claude-cli"\]\.includes\(selected\)/);
-  assert.match(settings, /"kimi-cli":"kimiCliPath"/);
+  assert.equal(rootPackage.version, "1.3.0");
+  assert.equal(rootPackage.config.desktopVersion, "1.3.0");
   assert.ok(rootPackage.files.includes("src/"));
   for (const asset of ["public/access.html", "public/access.css", "public/access.js"]) {
     assert.ok(rootPackage.files.includes(asset), asset);
   }
   assert.ok(rootPackage.files.includes("public/desktop-update.css"));
   assert.ok(rootPackage.files.includes("public/penecho-mark.png"));
-  assert.match(html, /<img src="\.\.\/\.\.\/public\/penecho-mark\.png" alt="" width="32" height="32">/);
-  assert.match(html, /value="0\.0\.0\.0" selected/);
-  assert.match(html, /platform\.kimi\.com\?aff=penecho/);
-  assert.match(html, /platform\.kimi\.ai\?aff=penecho/);
-  assert.match(html, /Content-Security-Policy/);
 });
 
 test("Windows installer splash keeps a font-independent PenEcho wordmark", async () => {

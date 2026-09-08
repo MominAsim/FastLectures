@@ -438,7 +438,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       boardTools: "Board tools",
       canvasViewHand: "Move canvas",
       canvasViewSelect: "Select a widget to interact",
+      widgetFitContent: "Fit to content",
+      widgetFitContentFailed: "Could not measure content. Try again once the widget has loaded.",
       widgetInteract: "Interact with widget",
+      widgetInteractShort: "Interact",
+      widgetInteracting: "Interacting",
       widgetExitInteraction: "Exit interaction",
       canvasNavigationActions: "Canvas navigation",
       canvasFitContents: "Fit all content",
@@ -532,6 +536,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       effortHigh: "High",
       effortMaximum: "Max",
       inkColor: "Ink color",
+      customColor: "Custom…",
       fontRounded: "Rounded",
       fontHand: "Handwritten",
       fontSerif: "Classic serif",
@@ -694,6 +699,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsKimiCodingRecommendationReason: "Kimi CLI may not reliably reuse the Harness context cache, which can increase latency and usage.",
       settingsConfiguration: "Configuration",
       settingsConnections: "AI connections",
+      settingsCloudSetupHelp: "No API key, or unsure how to set up a connection? Create a free PenEcho account to use PenEcho Cloud directly—no API or CLI setup needed.",
+      settingsCloudSetupLink: "Open PenEcho Cloud ↗",
       settingsHostedModels: "PenEcho models",
       settingsHostedRefresh: "Refresh",
       settingsHostedPricing: "How credits are calculated",
@@ -1769,7 +1776,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     AI_CLIENT_ID = canvasClientId();
   function selectedAiConnectionId() {
     const id = String(localStorage.getItem(AI_CONNECTION_STORAGE_KEY) || "default").trim();
-    return id === "default" || /^(?:hosted:)?[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id) ? id : "default";
+    return id === "default" || id === "cli-override" || /^(?:hosted:)?[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id) ? id : "default";
   }
   function authenticatedApiHeaders(headers = {}) {
     const csrf = window.PENECHO_CONFIG?.runtime === "cloud"
@@ -1820,6 +1827,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       viewMode: false,
       viewTool: "hand",
       interactingWidgetId: null,
+      widgetInteractionReturnTool: null,
       widgetActivationTap: null,
       handToolbarTap: null,
       spacePan: false,
@@ -1976,7 +1984,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   const AI_SUPERSEDED = "AI_SUPERSEDED";
   const FEATURE_TOUR_STORAGE_KEY = "penecho-tour-progress";
   const CHANGELOG_STORAGE_KEY = "penecho-changelog-seen";
-  const CHANGELOG_VERSION = "1.2.0";
+  const CHANGELOG_VERSION = "1.3.0";
   // Keep seen IDs stable. Add a new ID (or bump its -vN suffix) to show only that feature to returning users.
   const FEATURE_TOUR_STEPS = Object.freeze([
     { id: "core-effort-v1", targets: ["#aiEffortButton"], titleKey: "tourEffortTitle", bodyKey: "tourEffortBody", placement: "bottom", radius: 8 },
@@ -2572,7 +2580,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return true;
   }
   if (configurationBody && canvasSettingsForm) configurationBody.append(canvasSettingsForm);
-  const settings = { open:false, activePage:"appearance", restoreFocus:null, requestTrace:false, cli:{}, cliStatuses:{}, cliInspectionGeneration:0, currentProvider:"api", configurationMode:"", configurationRestoreFocus:null, connections:[], activeConnectionId:"default", connectionLimit:10, editingConnectionId:null, deepSeekSearchProvider:"deepseek-official", hasDeepSeekSearchApiKey:false, hasTavilyApiKey:false, searchTestResults:null, searchTestGeneration:0, searchTestBusy:false, fetchedApiModels:[], fetchingApiModels:false, connectionActionBusy:false };
+  const settings = { open:false, activePage:"appearance", restoreFocus:null, requestTrace:false, cli:{}, cliStatuses:{}, cliInspectionGeneration:0, currentProvider:"api", configurationMode:"", startupConnectionsChecked:false, configurationLoad:null, configurationRestoreFocus:null, connections:[], activeConnectionId:"default", connectionLimit:10, editingConnectionId:null, deepSeekSearchProvider:"deepseek-official", hasDeepSeekSearchApiKey:false, hasTavilyApiKey:false, searchTestResults:null, searchTestGeneration:0, searchTestBusy:false, fetchedApiModels:[], fetchingApiModels:false, connectionActionBusy:false };
   const hostedSettings = { models:[], credits:null, loading:false, generation:0, signedIn:false, error:false };
   function hostedMultiplierLabel(value) {
     return `${Number(value).toLocaleString(undefined, { maximumFractionDigits:1 })}×`;
@@ -2583,6 +2591,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function renderHostedModels() {
     const section = document.getElementById("settingsHostedSection"), list = document.getElementById("settingsHostedList"), status = document.getElementById("settingsHostedStatus"), rates = document.getElementById("settingsHostedRates");
     if (!section || !list) return;
+    const cloudSetupLink = document.getElementById("settingsCloudSetupLink");
+    if (cloudSetupLink) cloudSetupLink.href = `${String(window.PENECHO_CONFIG?.cloudOrigin || (window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : "https://penecho.ai")).replace(/\/$/, "")}/dashboard.html`;
     const browserEditing = window.PENECHO_CONFIG?.browserCanvasEditing === true;
     for (const id of ["settingsHostedBrowserNotice", "settingsHostedLinkDevice"]) document.getElementById(id).hidden = !browserEditing;
     for (const control of [settingsOpenApi, settingsOpenSearch, settingsOpenSystem]) {
@@ -2637,7 +2647,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     finally { if (generation === hostedSettings.generation) { hostedSettings.loading = false; renderHostedModels(); } }
   }
   function syncLocalConnectionSelection() {
-    const selected = selectedAiConnectionId(), activeId = selected.startsWith("hosted:") || settings.connections.some(connection => connection.id === selected) ? selected : "default";
+    const selected = selectedAiConnectionId(), activeId = selected.startsWith("hosted:") || settings.connections.some(connection => connection.id === selected) ? selected : settings.connections[0]?.id || "default";
     if (activeId !== selected) localStorage.setItem(AI_CONNECTION_STORAGE_KEY, activeId);
     settings.activeConnectionId = activeId;
     settings.connections = settings.connections.map(connection => ({ ...connection, active:connection.id === activeId }));
@@ -3279,7 +3289,21 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function updateDeepSeekSearchProviderNotice() {
     if (settingsOpenCodeGoSearchSetup) settingsOpenCodeGoSearchSetup.hidden = settingsDeepSeekSearchProvider?.value !== "opencode-go";
   }
-  async function loadCanvasSettings() {
+  function loadCanvasSettings() {
+    if (settings.configurationLoad) return settings.configurationLoad;
+    settings.configurationLoad = performCanvasSettingsLoad().finally(() => { settings.configurationLoad = null; });
+    return settings.configurationLoad;
+  }
+  function routeStartupConnections(body) {
+    if (settings.startupConnectionsChecked) return;
+    settings.startupConnectionsChecked = true;
+    if (window.PENECHO_CONFIG?.runtime === "cloud" || window.PENECHO_CONFIG?.runtime === "viewer") return;
+    if (body.openConnections === true || body.hasUsableConnection === false) {
+      selectSettingsPage("connections");
+      openSettings();
+    }
+  }
+  async function performCanvasSettingsLoad() {
     if (!canvasSettingsForm) return;
     void loadHostedModels();
     setSettingsStatus(t("settingsLoading"));
@@ -3316,6 +3340,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       updateSettingsProviderFields();
       renderConnectionLists();
       setSettingsStatus();
+      routeStartupConnections(body);
     } catch (error) { setSettingsStatus(error?.message || t("settingsLoadFailed"), "error"); }
   }
   async function saveCanvasSettings(event) {
@@ -3449,10 +3474,6 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     void loadCanvasSettings();
   }
   function openSettings() {
-    if (window.penechoDesktop?.openSettings) {
-      void window.penechoDesktop.openSettings();
-      return true;
-    }
     if (settings.open || !settingsLayer) return false;
     hideAutoDelayControl();
     hideEffortControl();
@@ -3504,7 +3525,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     requestRender();
   }
   function maybeStartOnboarding() {
-    if (window.PENECHO_CONFIG?.runtime === "viewer") return false;
+    if (window.PENECHO_CONFIG?.runtime === "viewer" || settings.open) return false;
     if (!maybeStartFeatureTour()) maybeShowChangelog();
   }
   function autoDelayText() {
@@ -4797,6 +4818,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   const objectChromeButtons = new Map();
   const widgetRefineTouchCandidates = new Map();
   let widgetRefineConfirmationElement = null;
+  let widgetInteractionStatusElement = null;
   let canvasWidgetGestureResetTap = null;
   let viewerAutoFitWidgetId = null;
   let viewerAutoFitCanvas = false;
@@ -5409,7 +5431,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return true;
   }
   function ensureHandToolbarRecord(kind, object) {
-    if (!(state.mode === "select" || state.mode === "hand" && kind === "widget") || !object?.id || !["widget", "image", "animation", "text-box"].includes(kind)) return null;
+    const allowed = state.mode === "select" || (kind === "widget" && ["hand", "pen"].includes(state.mode));
+    if (!allowed || !object?.id || !["widget", "image", "animation", "text-box"].includes(kind)) return null;
     const key = handToolbarKey(kind, object.id);
     let record = state.handToolbarTargets.get(key);
     if (!record) {
@@ -5943,7 +5966,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return { x: widget.x, y: widget.y, w: widget.w, h: widget.h };
   }
   function widgetLayout(widget) {
-    return { ...widgetBox(widget), contentW:widget.contentW, contentH:widget.contentH };
+    return { ...widgetBox(widget), contentW:widget.contentW, contentH:widget.contentH, fitContent:widget.fitContent === true };
   }
   function visibleWidgets(region = null) {
     if (!widgetRuntimeEnabled()) return [];
@@ -6003,6 +6026,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       h: widget.h,
       contentW: widget.contentW,
       contentH: widget.contentH,
+      ...(widget.fitContent ? { fitContent:true } : {}),
       title: widget.title,
       refreshSeconds: widget.refreshSeconds,
       favoriteSourceId: widget.favoriteSourceId,
@@ -6064,6 +6088,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       h: Math.round(item.h),
       contentW: Math.round(contentW),
       contentH: Math.round(contentH),
+      fitContent: item.fitContent === true,
       title: item.title.trim(),
       refreshSeconds: Math.round(item.refreshSeconds),
       html,
@@ -6300,14 +6325,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     shell.addEventListener("pointerdown", (event) => {
       if (event.target === shell) handleCanvasPointerDown(event);
     });
-    shell.addEventListener("dblclick", (event) => {
-      if (!state.viewMode && state.mode === "select" && event.target === shell) setWidgetInteraction(widget);
-    });
     shell.addEventListener("keydown", (event) => {
       if (event.target === shell && event.key === "Enter") {
         event.preventDefault();
-        if (state.viewMode && state.viewTool !== "select") return;
-        setWidgetInteraction(widget);
+        enterWidgetInteraction(widget);
       }
     });
     frame.className = "canvas-widget-frame";
@@ -6481,11 +6502,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     }
     if (!widget.frame?.contentWindow || !widget.hostReady || !Number.isFinite(scaleX) || scaleX <= 0 || !Number.isFinite(scaleY) || scaleY <= 0) return;
     const active = widget.renderActive !== false,
-      key = `${interactive ? 1 : 0}:${selected ? 1 : 0}:${active ? 1 : 0}:${state.navigationLocked ? 1 : 0}:${scaleX.toFixed(6)}:${scaleY.toFixed(6)}`;
+      key = `${interactive ? 1 : 0}:${selected ? 1 : 0}:${active ? 1 : 0}:${state.navigationLocked ? 1 : 0}:${scaleX.toFixed(6)}:${scaleY.toFixed(6)}:${widget.fitContent ? 1 : 0}`;
     syncMcpWidgetProgress(widget);
     if (!force && widget.hostStateKey === key) return;
     widget.hostStateKey = key;
-    widget.frame.contentWindow.postMessage({ type:"penecho-widget-state", selected, interactive, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
+    widget.frame.contentWindow.postMessage({ type:"penecho-widget-state", fitContent:widget.fitContent === true, selected, interactive, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
   }
   function markWidgetHostReady(widget) {
     widget.hostReady = true;
@@ -8758,8 +8779,55 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     });
     return true;
   }
+  async function fitWidgetToContent(widget) {
+    if (widget.fitContentBusy || !widget.frame?.contentWindow) return;
+    let before = widgetLayout(widget);
+    const html = widget.html;
+    widget.fitContentBusy = true;
+    requestInteractionLayerRender();
+    try {
+      for (let pass = 0; pass < 4; pass++) {
+        const size = await new Promise((resolve, reject) => {
+          const requestId = crypto.randomUUID();
+          const finish = (error, value) => {
+            clearTimeout(timer);
+            window.removeEventListener("message", receive);
+            error ? reject(error) : resolve(value);
+          };
+          const receive = (event) => {
+            const data = event.data;
+            if (event.source !== widget.frame?.contentWindow || event.origin !== (widget.hostOrigin || location.origin)
+              || data?.type !== "penecho-widget-content-size" || data.requestId !== requestId) return;
+            if (![data.width, data.height].every(value => Number.isFinite(value) && value > 0)) return;
+            finish(null, data);
+          };
+          const timer = setTimeout(() => finish(Error("Content measurement timed out")), 3000);
+          window.addEventListener("message", receive);
+          widget.frame.contentWindow.postMessage({ type:"penecho-widget-measure-content", requestId, width:widget.contentW, height:widget.contentH }, widget.hostOrigin || location.origin);
+        });
+        if (!state.widgets.includes(widget) || widget.html !== html || state.widgetGesture
+          || Object.keys(before).some(key => widgetLayout(widget)[key] !== before[key])) return;
+        const scaleX = widget.w / widget.contentW, scaleY = widget.h / widget.contentH;
+        const width = Math.max(300, 300 / scaleX, Math.min(size.width, MAX_WIDGET_CONTENT_DIMENSION, (SIZE - widget.x) / scaleX));
+        const height = Math.max(200, 200 / scaleY, Math.min(size.height, MAX_WIDGET_CONTENT_DIMENSION, (SIZE - widget.y) / scaleY));
+        if (width === widget.contentW && height === widget.contentH && widget.fitContent) return;
+        beginWidgetEdit(widget);
+        Object.assign(widget, { fitContent:true, contentW:width, contentH:height, w:width * scaleX, h:height * scaleY });
+        state.widgetEdit.changed = true;
+        positionWidget(widget);
+        before = widgetLayout(widget);
+      }
+    } catch {
+      setStatusKey("widgetFitContentFailed");
+    } finally {
+      widget.fitContentBusy = false;
+      sendWidgetHostState(widget, undefined, undefined, true);
+      requestInteractionLayerRender();
+    }
+  }
   const WIDGET_COPY_ICON_FEEDBACK_MS = 2000;
   const OBJECT_CHROME_ICONS = Object.freeze({
+    fitContent:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>',
     interact:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 14 9-7 1-3 7z"/></svg>',
     move:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9V3M9 6l3-3 3 3M12 15v6M9 18l3 3 3-3M9 12H3M6 9l-3 3 3 3M15 12h6M18 9l3 3-3 3"/></svg>',
     accept:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7"/></svg>',
@@ -8799,12 +8867,18 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const box = widgetBox(widget),
       items = [],
       copyLabel = widgetCopySourceLabel(widget);
-    if (["select", "hand"].includes(state.mode) && !widget.pending && options.objectToolbarKey) items.push({
+    if (["select", "hand", "pen"].includes(state.mode) && !widget.pending && options.objectToolbarKey) items.push({
       key:`widget:${widget.id}:interact`, kind:"interact", label:t("widgetInteract"),
-      baseWidth:28, iconOnly:true, activate:() => {
-        if (state.mode === "hand") setCanvasMode("select");
-        setWidgetInteraction(widget);
-      },
+      baseWidth:84, iconOnly:false, activate:() => { enterWidgetInteraction(widget); },
+    });
+    if (options.objectToolbarKey && !widget.pending && widget.widgetType !== "diagram_source") items.push({
+      key:`widget:${widget.id}:fit-content`,
+      kind:"fitContent",
+      label:t("widgetFitContent"),
+      baseWidth:28,
+      iconOnly:true,
+      busy:widget.fitContentBusy === true,
+      activate:() => void fitWidgetToContent(widget),
     });
     if (options.copy && copyLabel) items.push({
       key:`widget:${widget.id}:tool-copy`,
@@ -8880,9 +8954,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         widgetTool:true,
         objectToolbarItem:Boolean(options.objectToolbarKey),
         objectToolbarKey:options.objectToolbarKey || "",
+        toolbarHasDecisions:options.decisions !== false,
         toolbarSlot:"tool",
-        toolbarOrder:index,
-        toolbarItemCount:items.length,
+        toolbarOrder:items[0]?.kind === "interact" ? index - 1 : index,
+        toolbarItemCount:items.length - (items[0]?.kind === "interact" ? 1 : 0),
         widgetToolGroup,
         groupRefineCandidate:options.refine || null,
         groupItemCount:items.length,
@@ -8901,28 +8976,52 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       horizontalOffset += item.baseWidth + gap;
     }
   }
-  function objectToolbarMinimumWidth(toolCount = 0) {
+  function objectToolbarMinimumWidth(toolCount = 0, decisions = true) {
     const itemSize = 28,
       itemGap = 4,
       inset = 4,
-      itemCount = 2 + Math.max(0, Math.floor(Number(toolCount) || 0));
+      itemCount = (decisions ? 2 : 0) + Math.max(0, Math.floor(Number(toolCount) || 0));
+    if (itemCount <= 0) return inset * 2;
     return itemCount * itemSize + (itemCount - 1) * itemGap + inset * 2;
   }
   function finalizeObjectToolbarWidths(specs) {
-    const toolCounts = new Map();
+    const toolCounts = new Map(), centeredToolbars = new Map(), trailingTools = new Map();
     for (const spec of specs) {
       if (!spec.objectToolbarItem || spec.toolbarSlot !== "tool") continue;
       toolCounts.set(spec.objectToolbarKey, (toolCounts.get(spec.objectToolbarKey) || 0) + 1);
+      if (spec.kind === "interact") centeredToolbars.set(spec.objectToolbarKey, spec);
+      else {
+        const items = trailingTools.get(spec.objectToolbarKey) || [];
+        items.push(spec);
+        trailingTools.set(spec.objectToolbarKey, items);
+      }
     }
     for (const spec of specs) {
       if (!spec.objectToolbar) continue;
-      spec.minimumWidth = objectToolbarMinimumWidth(toolCounts.get(spec.key) || 0);
+      const decisions = spec.toolbarHasDecisions !== false;
+      spec.minimumWidth = objectToolbarMinimumWidth(toolCounts.get(spec.key) || 0, decisions);
+      if (centeredToolbars.has(spec.key)) {
+        // Keep the labeled action at screen size even when its Widget is tiny.
+        // Reserve actual trailing widths, mirrored on the left for true centering.
+        const center = centeredToolbars.get(spec.key),
+          items = trailingTools.get(spec.key) || [],
+          groupWidth = items.reduce((sum, item) => sum + item.baseWidth + 4, 0),
+          sideWidth = (decisions ? 4 + 28 : 0) + 4 + groupWidth;
+        spec.minimumWidth = center.baseWidth + 2 * sideWidth;
+        let offset = 0;
+        for (const item of items) {
+          item.toolbarGroupWidth = Math.max(0, groupWidth - 4);
+          item.toolbarGroupOffset = offset;
+          offset += item.baseWidth + 4;
+        }
+      }
     }
     return specs;
   }
   function addObjectToolbarSpecs(specs, options) {
     const toolbarKey = `${options.prefix}:toolbar`,
       shared = options.shared || {},
+      decisions = options.decisions !== false,
       priority = Number(options.priority) || 4;
     specs.push({
       key:toolbarKey,
@@ -8932,11 +9031,13 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       target:options.target,
       object:options.object,
       objectToolbar:true,
-      minimumWidth:objectToolbarMinimumWidth(),
+      toolbarHasDecisions:decisions,
+      minimumWidth:objectToolbarMinimumWidth(0, decisions),
       baseHeight:34,
       ...shared,
       priority,
     });
+    if (!decisions) return toolbarKey;
     specs.push({
       key:`${options.prefix}:cancel`,
       kind:"cancel",
@@ -8990,22 +9091,26 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (spec?.objectToolbarItem) {
       const toolbar = knownPositions?.get?.(spec.objectToolbarKey);
       if (!toolbar) return null;
-      const toolbarWidth = toolbar.baseWidth * (toolbar.scale || 1),
+      const hasDecisions = spec.toolbarHasDecisions !== false,
+        toolbarWidth = toolbar.baseWidth * (toolbar.scale || 1),
         toolbarHeight = toolbar.baseHeight * (toolbar.scale || 1),
         itemGap = 4,
         inset = 4,
         itemY = toolbar.y + (toolbarHeight - height) / 2,
         leadingX = toolbar.x + inset,
-        trailingX = toolbar.x + toolbarWidth - inset - width;
+        leadingInset = hasDecisions ? 28 + itemGap : 0,
+        trailingInset = hasDecisions ? (spec.toolbarSlot === "trailing" ? width : 28) : 0,
+        trailingX = toolbar.x + toolbarWidth - inset - trailingInset;
       let itemX;
       if (spec.toolbarSlot === "leading") itemX = leadingX;
       else if (spec.toolbarSlot === "trailing") itemX = trailingX;
+      else if (spec.kind === "interact") itemX = toolbar.x + (toolbarWidth - width) / 2;
       else {
         const itemCount = Math.max(1, Number(spec.toolbarItemCount) || 1),
           itemOrder = Math.max(0, Math.min(itemCount - 1, Number(spec.toolbarOrder) || 0)),
-          groupWidth = itemCount * width + (itemCount - 1) * itemGap,
-          groupLeft = Math.max(leadingX + width + itemGap, trailingX - itemGap - groupWidth);
-        itemX = groupLeft + itemOrder * (width + itemGap);
+          groupWidth = spec.toolbarGroupWidth ?? (itemCount * width + (itemCount - 1) * itemGap),
+          groupLeft = Math.max(leadingX + leadingInset, trailingX - itemGap - groupWidth);
+        itemX = groupLeft + (spec.toolbarGroupOffset ?? itemOrder * (width + itemGap));
         if (itemX + width > trailingX - itemGap) return null;
       }
       return { x:itemX, y:itemY, scale:controlScale, baseWidth, baseHeight };
@@ -9159,6 +9264,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     button.className = kind === "toolbar" ? "object-chrome-button" : `object-chrome-button ${kind}`;
     button.dataset.objectChromeKey = key;
     button.innerHTML = OBJECT_CHROME_ICONS[kind] || "";
+    if (kind === "interact") {
+      const label = document.createElement("span");
+      label.className = "widget-interact-label";
+      button.append(label);
+    }
     if (kind === "refine") {
       const label = document.createElement("span"),
         hint = document.createElement("span");
@@ -9308,14 +9418,20 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function objectChromeSpecs() {
     const persistentCandidate = currentWidgetRefineCandidate(),
       hoverCandidate = currentWidgetRefineHoverCandidate();
-    if (state.viewMode || state.interactingWidgetId || !["select", "hand"].includes(state.mode)) {
+    if (state.viewMode || state.interactingWidgetId || !["select", "hand", "pen"].includes(state.mode)) {
       const specs = [];
       if (!state.viewMode && !state.interactingWidgetId && persistentCandidate) addWidgetToolSpecs(specs, persistentCandidate.widget, { refine:persistentCandidate });
       if (!state.viewMode && !state.interactingWidgetId && hoverCandidate && hoverCandidate.widget !== persistentCandidate?.widget) addWidgetToolSpecs(specs, hoverCandidate.widget, { refine:hoverCandidate });
       return specs;
     }
     const specs = [];
+    // Pen keeps its hover Refine action; Hand and Select own object toolbars.
+    if (state.mode === "pen") {
+      if (persistentCandidate) addWidgetToolSpecs(specs, persistentCandidate.widget, { refine:persistentCandidate });
+      if (hoverCandidate && hoverCandidate.widget !== persistentCandidate?.widget) addWidgetToolSpecs(specs, hoverCandidate.widget, { refine:hoverCandidate });
+    }
     for (const [key, record] of state.handToolbarTargets) {
+      if (state.mode === "pen" && record.kind !== "widget") continue;
       const handTarget = handToolbarObject(record),
         shared = { handToolbar:true, handToolbarKey:key, handToolbarHiding:Boolean(record.hiding) };
       if (!handTarget) continue;
@@ -9390,13 +9506,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
             box,
             target:"widget",
             object:handTarget,
-            cancelLabel:t("widgetDelete"),
-            acceptLabel:t("widgetAccept"),
-            cancel:() => deleteWidget(handTarget),
-            accept:() => {
-              if (state.widgetEdit?.id !== handTarget.id) beginWidgetEdit(handTarget);
-              return acceptWidgetEdit({ showHint:true });
-            },
+            // An existing Widget keeps its tools but never offers draft-style
+            // accept/cancel decisions; Delete and Escape still apply.
+            decisions:false,
             shared,
             priority:2,
           });
@@ -9404,6 +9516,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
           copy:true,
           community:true,
           download:true,
+          decisions:false,
           handToolbar:true,
           handToolbarKey:key,
           handToolbarHiding:Boolean(record.hiding),
@@ -9411,8 +9524,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         });
       }
     }
-    pendingChromeSpecs(specs, state.pending);
-    if (state.pendingWidget) {
+    if (state.mode !== "pen") pendingChromeSpecs(specs, state.pending);
+    if (state.mode !== "pen" && state.pendingWidget) {
       const widget = state.pendingWidget,
         box = widgetBox(widget),
         toolbarKey = addObjectToolbarSpecs(specs, {
@@ -9466,7 +9579,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       button.classList.toggle("object-toolbar-shell", Boolean(spec.objectToolbar));
       button.classList.toggle("widget-object-toolbar", Boolean(spec.objectToolbar && ["widget", "pending-widget"].includes(spec.target)));
       button.classList.toggle("object-toolbar-item", Boolean(spec.objectToolbarItem));
-      button.classList.toggle("icon-only", Boolean(spec.iconOnly || spec.objectToolbarItem));
+      button.classList.toggle("icon-only", Boolean(spec.iconOnly || (spec.objectToolbarItem && spec.kind !== "interact")));
       button.classList.toggle("solo-widget-tool", Boolean(spec.widgetTool && spec.groupItemCount === 1));
       button.classList.toggle("hand-toolbar-control", Boolean(spec.handToolbar));
       button.classList.toggle("hand-toolbar-hiding", Boolean(spec.handToolbar && spec.handToolbarHiding));
@@ -9484,6 +9597,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       else button.removeAttribute("aria-busy");
       if (spec.kind === "refine" || spec.objectToolbar) button.removeAttribute("title");
       else button.title = spec.tooltip || label;
+      if (spec.kind === "interact") button.querySelector(".widget-interact-label").textContent = t("widgetInteractShort");
       if (spec.kind === "refine") {
         const buttonLabel = button.querySelector(".widget-refine-button-label"),
           hint = button.querySelector(".widget-refine-hint"),
@@ -9552,6 +9666,40 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     declaration?.setProperty("--selected-widget-toolbar-height", `${toolbarHeight.toFixed(1)}px`);
     declaration?.setProperty("z-index", String(widgetStackIndex));
   }
+  function syncWidgetInteractionStatus() {
+    const widget = state.interactingWidgetId
+      ? state.widgets.find(item => item.id === state.interactingWidgetId && item.shell)
+      : null;
+    if (!widget || !widgetRuntimeEnabled() || widget.renderActive === false) {
+      if (widgetInteractionStatusElement) widgetInteractionStatusElement.hidden = true;
+      return;
+    }
+    if (!widgetInteractionStatusElement) {
+      const element = document.createElement("div"),
+        label = document.createElement("span");
+      element.className = "widget-interaction-status";
+      element.setAttribute("role", "status");
+      element.setAttribute("aria-live", "polite");
+      label.className = "widget-interaction-status-label";
+      element.append(label);
+      view.append(element);
+      widgetInteractionStatusElement = element;
+    }
+    const element = widgetInteractionStatusElement,
+      label = element.querySelector(".widget-interaction-status-label"),
+      screenBox = screenObjectBox(widgetBox(widget)),
+      viewportWidth = Math.max(0, view.clientWidth),
+      height = 30,
+      width = Math.max(180, Math.min(Math.max(180, viewportWidth - 12), screenBox.width)),
+      x = Math.max(6, Math.min(Math.max(6, viewportWidth - width - 6), screenBox.left + (screenBox.width - width) / 2)),
+      y = Math.max(6, screenBox.top - height - 6),
+      declaration = runtimeElementStyle(element, "widget-interaction-status");
+    label.textContent = t("widgetInteracting");
+    declaration?.setProperty("--widget-interaction-status-x", `${x.toFixed(1)}px`);
+    declaration?.setProperty("--widget-interaction-status-y", `${y.toFixed(1)}px`);
+    declaration?.setProperty("--widget-interaction-status-width", `${width.toFixed(1)}px`);
+    element.hidden = false;
+  }
   objectChromeLayer?.addEventListener("pointermove", (event) => {
     if (finishReleasedWidgetGesture(event)) return;
     const overChromeControl = event.target?.closest?.(".object-chrome-button, .widget-refine-confirmation");
@@ -9611,6 +9759,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         interactionCtx.restore();
       }
       interactionCtx.restore();
+      syncWidgetInteractionStatus();
       return;
     }
     if (state.drawing?.preview) drawPreview(state.drawing.preview, interactionCtx);
@@ -9635,6 +9784,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     positionAnimationControls();
     positionImageSelectionMaterial();
     syncObjectChrome();
+    syncWidgetInteractionStatus();
   }
   function clientPoint(e) {
     const point = canvasClientPosition(e.clientX, e.clientY);
@@ -12492,6 +12642,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return true;
   }
   function requestCanvasTransition(transition) {
+    if (transition?.type === "new" && typeof canvasDocuments !== "undefined" && canvasDocuments.records.size >= (typeof CANVAS_DOCUMENT_LIMIT === "number" ? CANVAS_DOCUMENT_LIMIT : 32)) {
+      setStatus(typeof canvasDocumentsLimitMessage === "function" ? canvasDocumentsLimitMessage() : "32 Canvases are already open. Close an unused Canvas before opening another.");
+      return Promise.resolve(false);
+    }
     if (!canvasHasUnsavedChanges()) return performCanvasTransition(transition);
     pendingCanvasTransition = transition;
     const dialog = document.querySelector("#newCanvasDialog");
@@ -22288,15 +22442,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return {artifactId:args.artifactId,objectId:objectIds[0],objectIds,kind,revision:state.userRevision,feedbackCursor:mcpRuntime.feedbackSequence};
   }
   // External MCP sessions share Canvas primitives, but never an Agent conversation.
-  var mcpRuntime = { socket:null, generation:0, sessions:new Map(), previews:new Map(), controllers:new Map(), queue:Promise.resolve(), queued:0, status:null, loading:null, loadError:null, configuring:false, configureResult:null, feedbackSequence:0, feedback:[], ready:false, connectionLost:false, heartbeatTimer:0, heartbeatSupported:false, lastPong:0, activeMutation:null, mutationDocumentId:null, glowTimer:0, glowing:false, pendingView:new Map(), layoutTimer:0, layoutSince:0, viewPaused:false };
+  var mcpRuntime = { socket:null, generation:0, sessions:new Map(), previews:new Map(), controllers:new Map(), queue:Promise.resolve(), queued:0, status:null, loading:null, loadError:null, configuring:false, configureResult:null, feedbackSequence:0, feedback:[], ready:false, connectionLost:false, heartbeatTimer:0, heartbeatSupported:false, lastPong:0, activeMutation:null, mutationDocumentId:null, glowTimer:0, glowing:false, pendingView:new Map(), layoutTimer:0, layoutSince:0, viewPaused:false, exampleStatusTimer:0 };
   const mcpCopy = {
     checkingSetup:["Checking MCP setup…","正在检查 MCP 配置…"],
-    accessBrief:["Connected AI can read and edit your canvases.","连接的 AI 可读取和编辑你的画布。"],
     toolbarSetup:["Set up MCP Server","配置 MCP Server"],
     toolbarOpen:["Make canvases discoverable to external AI","允许外部 AI 发现并编辑画布"],
     toolbarClose:["Turn off MCP discovery","关闭 MCP 开放"],
     toolbarRetry:["Connection failed. Click MCP Server to retry.","连接失败。点击 MCP Server 重试。"],
-    nav:["MCP service","MCP 服务"], heading:["Give your AI a spatial workspace", "给你的 AI 一个空间工作区"],
+    nav:["MCP service","MCP 服务"], eyebrow:["MCP Service","MCP 服务"], heading:["Give your AI a spatial workspace", "给你的 AI 一个空间工作区"],
     canvasNotice:["MCP connected · AI can update this canvas","MCP 已连接 · AI 可更新此画布"],
     canvasWaiting:["MCP open · Waiting for AI","MCP 已开放 · 等待 AI"],
     canvasLost:["MCP connection lost","MCP 连接已断开"],
@@ -22309,16 +22462,42 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     description:["Connect Codex or Claude. Show, annotate and iterate on Canvas.", "连接 Codex、Claude，在画布上展示、批注、迭代。"],
     enable:["Make workspace discoverable", "开放空间工作区"],
     accessHelp:["Connected clients can find and open your Device, Server and connected Cloud canvases, read their content, and edit the Canvas bound to a conversation. Images are captured on request. Turn this off to disconnect all external sessions.","外部客户端可查找并打开本设备、Server 和已连接 Cloud 中的画布，读取内容，并编辑对话绑定的画布。截图按需获取。关闭后会断开全部外部会话。"],
-    setup:["Connect your AI", "连接你的 AI"],refresh:["Check / Retry", "检查 / 重试"],client:["AI client","AI 客户端"],
-    configure:["Set up", "配置连接"],copyConfig:["Copy config", "复制配置"],copyInstructions:["Copy setup prompt", "复制配置指引"],
-    setupHelp:["Reload your AI client, then ask: “Show this in PenEcho.”", "重载 AI 客户端，然后说：“把这个展示在 PenEcho。”"],
-    manual:["Manual setup & details", "手动配置与详情"],
+    stepOpen:["Open your workspace","开放你的工作区"],
+    stepOpenHint:["Connected AI can read and edit your canvases, and open Device, Server and Cloud documents.","连接的 AI 可以读取和编辑你的画布，也能打开本设备、Server 与 Cloud 中的文档。"],
+    stepOpenNote:["Turning this off disconnects all external sessions.","关闭后会断开全部外部会话。"],
+    setup:["Connect your AI client", "连接你的 AI 客户端"],refresh:["Check again", "重新检查"],
+    setupHint:["PenEcho writes the MCP entry on this computer. Other browsers can open MCP here; client setup stays on the PenEcho host.","PenEcho 会在这台电脑上写入 MCP 配置。其他浏览器可在此开放 MCP；AI 客户端配置仍在 PenEcho 主机上完成。"],
+    clientCodexHint:["Terminal AI client","终端 AI 客户端"],
+    clientClaudeHint:["Terminal AI client","终端 AI 客户端"],
+    clientOtherHint:["Kimi / ZCode / any MCP client","Kimi / ZCode 等 MCP 客户端"],
+    configure:["Auto configure", "自动配置"],copyConfig:["Copy config", "复制配置"],copyInstructions:["Copy setup prompt", "复制配置指引"],
+    session:["Start a session","开始一个会话"],
+    sessionHint:["Reload your AI client, then paste one of these prompts.","重载 AI 客户端，然后粘贴其中一条提示词。"],
+    copyPrompt:["Copy prompt","复制提示词"],exampleCopied:["Prompt copied","提示词已复制"],
+    exampleDesignTitle:["Three design options","三个设计方案"],
+    exampleDesignPrompt:["Echo this UI idea in PenEcho with three design options, then let me choose.", "帮我 echo 一下这个界面想法，在 PenEcho 上展示三个方案，让我选择。"],
+    exampleArchTitle:["Compare architectures","新旧架构对比"],
+    exampleArchPrompt:["Compare the old and new architecture as a diagram on canvas.", "把新旧架构的对比放到 canvas 上，用图形展示差异。"],
+    exampleWidgetTitle:["Handwriting to Widget","手写内容转 Widget"],
+    exampleWidgetPrompt:["Turn the handwriting on this canvas into an interactive Widget.", "把当前画布上的手写内容整理成一个可交互的 Widget。"],
+    exampleFolderTitle:["Show a folder","展示文件夹内容"],
+    exampleFolderPrompt:["PenEcho the current folder’s architecture as a diagram.", "帮我 penecho 一下当前文件夹的架构。"],
+    exampleCodeTitle:["Echo code changes","改代码并回显重点"],
+    exampleCodePrompt:["Put your proposed code changes on canvas for review, then echo the implemented changes.", "把你要做的代码修改放到 canvas 上供我确认，完成后 echo 一下重点改动。"],
+    exampleFeedbackTitle:["Revise from feedback","根据界面反馈修改"],
+    exampleFeedbackPrompt:["Read my latest feedback and annotations on the current PenEcho canvas, then revise the existing UI in place.","读取我在当前 PenEcho 画布上的最新反馈和批注，根据这些反馈修改现有界面。"],
+    manualSteps:["On the computer running PenEcho, select Codex or Claude Code and choose Auto configure. For another client, copy the setup prompt or add the JSON below to its MCP settings, then reload the client.","在运行 PenEcho 的电脑上，选择 Codex 或 Claude Code 并点击自动配置。其他客户端可复制配置指引，或将下方 JSON 添加到其 MCP 设置，然后重载客户端。"],
+    remoteManualSteps:["On the computer running PenEcho, open Settings → MCP service. Select Codex or Claude Code and choose Auto configure; for another client, expand Manual setup and copy its configuration into the client’s MCP settings. Reload the client, then return here and open your workspace.","在运行 PenEcho 的电脑上打开 Settings → MCP 服务。选择 Codex 或 Claude Code 并点击自动配置；其他客户端展开手动配置，将配置复制到客户端的 MCP 设置中。重载客户端后，回到此页面开放工作区。"],
+    capDrawTitle:["Draw & annotate","绘图与批注"],capDrawHint:["Diagrams, notes and sketches","关系图、笔记与草图"],
+    capPlotTitle:["Plots & Widgets","函数图与 Widget"],capPlotHint:["Curves and interactive UI","曲线与交互界面"],
+    capCaptureTitle:["Capture on request","按需截图"],capCaptureHint:["Screenshots only when asked","仅在你要求时截图"],
+    manual:["Manual setup & details", "手动配置与详情"],manualHint:["Config JSON · Skill · Guide","配置 JSON · 技能 · 指南"],
     copySkill:["Copy skill", "复制技能"],copyGuide:["Copy guide", "复制指南"],
     how:["How to use it","如何使用"],
     howHelp:["Ask your AI to show useful work and revise it from your feedback. Use lightweight drawings for text and diagrams, function plots for curves, and Widgets for interactive UI. Request a screenshot when checking a design. Progress updates do not call another model or take screenshots.","让 AI 展示有用的成果，并结合你的反馈继续修改。文字和关系图使用轻量绘图，曲线使用函数图，交互 UI 使用 Widget。检查设计时再获取截图。进度更新不调用额外模型，也不生成截图。"],
     thoughtHelp:["Shows the AI’s shared plans, decisions and results. Session updates are supplied by the external AI client.","展示 AI 分享的计划、决策和结果。会话更新由外部 AI 客户端主动提供。"],
     connected:["Discoverable · AI can connect", "已可被发现 · AI 可连接"], disconnected:["Not discoverable", "未开放"],connecting:["Opening MCP Server…", "正在开放 MCP Server…"],
-    localOnly:["Open this canvas on the local PenEcho host to enable MCP. Cloud MCP routing is not available yet.","请在本机 PenEcho 中打开画布以启用 MCP。当前版本尚不支持 Cloud MCP 路由。"],
+    localOnly:["Open an editable Canvas to enable MCP. Read-only viewers cannot register.","请打开可编辑画布以启用 MCP。只读查看页不能注册。"],
     copied:["Copied","已复制"],configured:["Reload your AI client to finish.", "重载 AI 客户端即可完成。"],
     loadingConfig:["Loading connection configuration…","正在加载连接配置…"],
     configuring:["Configuring…","正在配置…"],
@@ -22330,15 +22509,21 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     configureFailedHelp:["Retry, or open Manual setup & details and copy the setup prompt.","请重试，或展开“手动配置与详情”，复制配置指引。"],
     configureUncertain:["Configuration result not confirmed","配置结果尚未确认"],
     configureUncertainHelp:["The request did not finish. Check the AI client's PenEcho entry before retrying; it may already have been saved.","请求未完成。重试前请检查 AI 客户端中的 PenEcho 条目，配置可能已经保存。"],
-    loadFailed:["Could not load configuration. Select Check / Retry.","未能加载配置。请点击“检查 / 重试”。"],
+    loadFailed:["Could not load configuration. Select Check again.","未能加载配置。请点击“重新检查”。"],
     serviceOutdated:["This running PenEcho service has no usable MCP configuration. Restart PenEcho to load the updated service, then check again.","当前运行的 PenEcho 服务未提供有效的 MCP 配置。请重启 PenEcho 以加载更新后的服务，然后重新检查。"],
     hostRequired:["Configure MCP on the computer running PenEcho. Other devices can view the canvas but cannot configure its local AI clients.","请在运行 PenEcho 的电脑上配置 MCP。其他设备可以查看画布，但不能配置这台电脑的 AI 客户端。"],
+    remoteSetup:["Open this workspace here. Configure the AI client on the computer running PenEcho; it can discover this browser through its existing MCP connection.","在此开放工作区。在运行 PenEcho 的电脑上配置 AI 客户端，即可通过已有 MCP 连接发现此浏览器。"],
+    deviceOffline:["The linked PenEcho host is unavailable. Reconnect it, then retry MCP.","已连接的 PenEcho 主机不可用。恢复设备连接后重试 MCP。"],
+    deviceUpdate:["Update PenEcho on the linked computer to enable MCP, then retry.","请更新已连接电脑上的 PenEcho，再重试 MCP。"],
     accessDenied:["MCP access was refused. On the PenEcho computer, try its localhost address, or refresh and unlock this page before checking again.","MCP 访问被拒绝。请在 PenEcho 所在电脑尝试 localhost 地址，或刷新并解锁页面后重新检查。"],
     focus:["Show","定位"],working:["Working","进行中"],waiting:["Waiting","等待中"],done:["Done","已完成"],error:["Needs attention","需要处理"],
   };
   function mcpText(key) { return mcpCopy[key]?.[state.language === "zh" ? 1 : 0] || key; }
   function mcpEl(id) { return document.getElementById(id); }
-  function mcpLocal() { return !["cloud","viewer"].includes(window.PENECHO_CONFIG?.runtime); }
+  const mcpClientInputs = [...document.querySelectorAll('input[name="mcpClient"]')];
+  function mcpSelectedClient() { return mcpClientInputs.find(input=>input.checked)?.value || "codex"; }
+  function mcpLocal() { return window.PENECHO_CONFIG?.runtime !== "viewer"; }
+  function mcpRemoteBrowser() { return window.PENECHO_CONFIG?.runtime === "cloud" || mcpRuntime.status?.canConfigureLocalClients === false; }
   function mcpExecutionCurrent(execution) {
     return execution.socket === mcpRuntime.socket && execution.socket?.readyState === WebSocket.OPEN
       && execution.generation === mcpRuntime.generation && !execution.controller.signal.aborted
@@ -22364,7 +22549,6 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     mcpRuntime.feedback=[];
     mcpRenderSettings();
     if(mcpRuntime.toolbarManaged&&(!mcpRuntime.toolbarPending||lost))setStatus(mcpText(lost?"toolbarRetry":"disconnected"));
-    if(lost&&typeof canvasDocumentsReport==="function")canvasDocumentsReport(canvasDocumentsCopy("External connection lost. Your canvases and instructions are kept. Reconnect, then resume the same document ID.","外部连接已断开。画布和指令都已保留。请重连后继续同一个画布。"),async()=>{mcpConnect();});
   }
   function mcpRenderCanvasStatus() {
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,
@@ -22526,19 +22710,36 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function mcpRenderSettings() {
     if(!mcpRuntime)return;
-    document.querySelectorAll("[data-mcp-label]").forEach(node=>{node.textContent=mcpText(node.dataset.mcpLabel);});
+    document.querySelectorAll("[data-mcp-label]").forEach(node=>{const key=node.dataset.mcpLabel,text=mcpText(key);
+      node.textContent=text;
+      if(/^example.*Prompt$/.test(key)){
+        node.replaceChildren(...text.split(/(penecho|echo|canvas|画布)/gi).filter(Boolean).map(part=>{
+          if(!/^(penecho|echo|canvas|画布)$/i.test(part))return document.createTextNode(part);
+          const strong=document.createElement("b");strong.textContent=part;return strong;
+        }));
+      }});
+    document.querySelectorAll("[data-mcp-aria]").forEach(node=>{node.setAttribute("aria-label",mcpText(node.dataset.mcpAria));});
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN, connecting=!!mcpRuntime.socket&&!connected;
     mcpRenderCanvasStatus();mcpRenderToolbar();
     if(mcpEl("mcpEnabled")){mcpEl("mcpEnabled").setAttribute("aria-checked",String(connected||connecting));mcpEl("mcpEnabled").classList.toggle("on",connected||connecting);mcpEl("mcpEnabled").disabled=!mcpLocal();}
-    if(mcpEl("mcpConnectionStatus"))mcpEl("mcpConnectionStatus").textContent=mcpText(!mcpLocal()?"localOnly":connected?"connected":connecting?"connecting":"disconnected");
-    const config=mcpRuntime.status?.config;
+    const connection=mcpEl("mcpConnectionStatus");
+    if(connection){
+      connection.textContent=mcpText(!mcpLocal()?"localOnly":connected?"connected":connecting?"connecting":mcpRuntime.connectionLost?"toolbarRetry":"disconnected");
+      connection.dataset.state=!mcpLocal()?"off":connected?"on":connecting?"pending":mcpRuntime.connectionLost?"error":"off";
+    }
+    const remote=mcpRemoteBrowser(),config=remote?null:mcpRuntime.status?.config;
+    for(const id of ["mcpClients","mcpManual"])if(mcpEl(id))mcpEl(id).hidden=false;
+    if(mcpEl("mcpConfig"))mcpEl("mcpConfig").hidden=remote;
+    if(mcpEl("mcpManualSteps"))mcpEl("mcpManualSteps").textContent=mcpText(remote?"remoteManualSteps":"manualSteps");
+    const setupHint=document.querySelectorAll('[data-mcp-label="setupHint"]');
+    for(const node of setupHint)node.textContent=mcpText(remote?"remoteSetup":"setupHint");
     const configStatus=mcpEl("mcpConfigStatus");
     if(configStatus){configStatus.hidden=!mcpRuntime.loading&&!mcpRuntime.loadError;configStatus.textContent=mcpRuntime.loading?mcpText("loadingConfig"):mcpRuntime.loadError?mcpConfigurationErrorText(mcpRuntime.loadError):"";}
     if(mcpEl("mcpConfig"))mcpEl("mcpConfig").textContent=config?JSON.stringify({mcpServers:{penecho:config}},null,2):"";
     for(const id of ["mcpCopyConfig","mcpCopyInstructions","mcpConfigure"])if(mcpEl(id))mcpEl(id).disabled=!config;
     if(mcpEl("mcpConfigure")&&mcpRuntime.configuring)mcpEl("mcpConfigure").disabled=true;
     if(mcpEl("mcpConfigure")){mcpEl("mcpConfigure").textContent=mcpText(mcpRuntime.configuring?"configuring":"configure");mcpEl("mcpConfigure").setAttribute("aria-busy",String(mcpRuntime.configuring));}
-    if(mcpEl("mcpClient"))mcpEl("mcpClient").disabled=mcpRuntime.configuring;
+    for(const input of mcpClientInputs)input.disabled=remote||mcpRuntime.configuring;
     const configureNotice=mcpEl("mcpConfigureStatus"),outcome=mcpRuntime.configureResult;
     if(configureNotice){
       configureNotice.hidden=!mcpRuntime.configuring&&!outcome;
@@ -22546,7 +22747,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       configureNotice.classList.toggle("error",!mcpRuntime.configuring&&outcome?.kind==="failed");
       configureNotice.textContent=mcpRuntime.configuring?mcpText("configurePending"):outcome?`${outcome.client} · ${mcpText({saved:"configureSaved",existing:"configureExisting",failed:"configureFailed",uncertain:"configureUncertain"}[outcome.kind])}\n${mcpText({saved:"configured",existing:"configureExistingHelp",failed:"configureFailedHelp",uncertain:"configureUncertainHelp"}[outcome.kind])}${outcome.detail?`\n${outcome.detail}`:""}`:"";
     }
-    if(mcpEl("mcpConfigure"))mcpEl("mcpConfigure").hidden=mcpEl("mcpClient")?.value==="other";
+    if(mcpEl("mcpConfigure"))mcpEl("mcpConfigure").hidden=mcpSelectedClient()==="other";
   }
   function mcpRememberSetup() {
     mcpRuntime.setupKnown=true;
@@ -22563,26 +22764,27 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       mcpRuntime.toolbarManaged=false;mcpRuntime.toolbarPending=false;mcpDisconnect();setStatus(mcpText("disconnected"));return;
     }
     if(!mcpLocal()){openSettings();selectSettingsPage("mcp");return;}
-    if(!mcpSetupKnown()) {
+    if(!mcpSetupKnown()&&!mcpRemoteBrowser()) {
       const generation=mcpRuntime.generation;
       mcpRuntime.toolbarChecking=true;setStatus(mcpText("checkingSetup"));mcpRenderToolbar();
       try{
         const result=await mcpApi("status?inspectClients=1");
         if(generation!==mcpRuntime.generation)return;
+        mcpRuntime.status=result;mcpRuntime.loadError=null;
         if(Array.isArray(result.configuredClients)&&result.configuredClients.some(client=>["codex","claude"].includes(client)))mcpRememberSetup();
-      }catch{}finally{mcpRuntime.toolbarChecking=false;mcpRenderToolbar();}
+      }catch(error){mcpRuntime.loadError=error;mcpRuntime.connectionLost=true;setStatus(mcpText("toolbarRetry"));return;}finally{mcpRuntime.toolbarChecking=false;mcpRenderSettings();}
       if(generation!==mcpRuntime.generation)return;
-      if(!mcpSetupKnown()){openSettings();selectSettingsPage("mcp");return;}
+      if(!mcpSetupKnown()&&!mcpRemoteBrowser()){openSettings();selectSettingsPage("mcp");return;}
     }
     mcpRuntime.toolbarManaged=true;mcpRuntime.toolbarPending=true;setStatus(mcpText("connecting"));
-    try{mcpConnect();}catch{mcpRuntime.toolbarPending=false;setStatus(mcpText("toolbarRetry"));mcpRenderToolbar();}
+    try{mcpConnect();}catch{mcpDisconnect(true);setStatus(mcpText("toolbarRetry"));mcpRenderSettings();}
   }
   function mcpRenderToolbar() {
     window.PenEchoStudioNavigator?.syncMcp?.(Boolean(mcpRuntime.socket));
     const button=mcpEl("mcpToolbarToggle");if(!button)return;
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,opening=Boolean(mcpRuntime.socket)&&!connected;
     button.setAttribute("aria-pressed",String(connected||opening));button.setAttribute("aria-busy",String(opening||Boolean(mcpRuntime.toolbarChecking)));button.disabled=Boolean(mcpRuntime.toolbarChecking);
-    const title=mcpText(connected||opening?"toolbarClose":mcpRuntime.connectionLost?"toolbarRetry":mcpSetupKnown()?"toolbarOpen":"toolbarSetup");
+    const title=mcpText(connected||opening?"toolbarClose":mcpRuntime.connectionLost?"toolbarRetry":(mcpSetupKnown()||mcpRemoteBrowser())?"toolbarOpen":"toolbarSetup");
     button.title=title;button.setAttribute("aria-label",`MCP Server · ${title}`);
     button.setAttribute("data-state",connected?"connected":opening||mcpRuntime.toolbarChecking?"connecting":mcpRuntime.connectionLost?"failed":"off");
     if(mcpRuntime.toolbarPending&&(connected||mcpRuntime.connectionLost)){
@@ -22590,6 +22792,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     }
   }
   function mcpConfigurationErrorText(error) {
+    if(["device_offline","linked_device_required","device_timeout"].includes(error.code))return mcpText("deviceOffline");
+    if(["mcp_update_required","remote_mcp_unsupported","device_mcp_unsupported","linked_device_update_required"].includes(error.code))return mcpText("deviceUpdate");
     if(error.code==="local_host_required")return mcpText("hostRequired");
     if([404,405].includes(error.status)||error.code==="mcp_configuration_unavailable")return mcpText("serviceOutdated");
     if([401,403].includes(error.status))return mcpText("accessDenied");
@@ -22598,7 +22802,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   async function mcpApi(path,body={}) {
     const response=await fetch(`/api/mcp/${path}`,{method:"POST",headers:authenticatedApiHeaders({"Content-Type":"application/json"}),credentials:"same-origin",cache:"no-store",body:JSON.stringify(body),signal:AbortSignal.timeout(path==="configure"?20000:5000)});
     const result=await response.json().catch(()=>null);
-    if(!response.ok||!result||typeof result!=="object")throw Object.assign(Error(typeof result?.error==="string"?result.error:result?.error?.message||"MCP request failed."),{status:response.status,code:result?.error?.code,existing:result?.existing===true});
+    if(!response.ok||!result||typeof result!=="object")throw Object.assign(Error(typeof result?.error==="string"?result.error:result?.error?.message||"MCP request failed."),{status:response.status,code:result?.error?.code||result?.code||(typeof result?.error==="string"?result.error:undefined),existing:result?.existing===true});
     return result;
   }
   async function mcpRefreshSettings() {
@@ -22607,7 +22811,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     mcpRuntime.loading=(async()=>{
       try{
         const status=await mcpApi("status"),config=status.config;
-        if(!config||typeof config.command!=="string"||!config.command.trim()||!Array.isArray(config.args)||config.args.some(arg=>typeof arg!=="string"))throw Object.assign(Error("MCP configuration is unavailable."),{code:"mcp_configuration_unavailable"});
+        if(status.canConfigureLocalClients!==false&&(!config||typeof config.command!=="string"||!config.command.trim()||!Array.isArray(config.args)||config.args.some(arg=>typeof arg!=="string")))throw Object.assign(Error("MCP configuration is unavailable."),{code:"mcp_configuration_unavailable"});
         mcpRuntime.status=status;
       }catch(error){mcpRuntime.status=null;mcpRuntime.loadError=error;}
       finally{mcpRuntime.loading=null;mcpRenderSettings();}
@@ -22615,13 +22819,13 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     mcpRenderSettings();return mcpRuntime.loading;
   }
   function mcpInstructions() {
-    return `Configure PenEcho MCP for the AI client I am using. Read its installed MCP help or official documentation. Preserve unrelated servers and settings; do not invent client commands. Use this exact stdio launch configuration (absolute paths and env matter):\n${JSON.stringify({mcpServers:{penecho:mcpRuntime.status?.config}},null,2)}\nNo server URL, port, API key or npm download is needed. This bridge discovers local PenEcho instances. Reload the client and verify penecho_list_canvases appears. If no canvas is listed, ask me to open PenEcho Settings → MCP service and allow this canvas. Select the intended instanceId and canvasId explicitly, then penecho_start_session with a descriptive title, client name and a unique sessionKey for this conversation. Each conversation must use its own sessionId. Retain the returned documentId across reconnects. New conversation keys get a separate Canvas when the current one already contains work; pass documentId explicitly only to attach an existing Canvas. Use penecho_find_canvases to resolve saved IDs across Device, Server and connected Cloud; an unavailable store is not a missing document. Use an exact locator if copies are ambiguous. Open uses show:false by default, so background work never steals the viewport. List/read virtual files before patching: use the returned contentHash, one unified patch and a stable requestId; retry the same requestId after an uncertain result. Keep context.md concise with the goal, decisions and next step. Use runtime/viewport.json and runtime/selection.json only as current context. Read penecho_read_messages at natural task boundaries, acknowledge received/working/done/error explicitly and deduplicate instruction IDs across retries. Reading does not acknowledge; queued instructions cannot wake this client. The external processor pauses local Auto AI and never silently falls back to another model. Widget controls may opt in with data-penecho-action and data-penecho-prompt; only a trusted click queues a text instruction for the owning conversation. Width and height apply on creation; later HTML updates preserve geometry. Use penecho_edit_canvas for explicit geometry changes.\nWith an already selected live connection, proactively show useful UI previews, a small set of alternatives for user choice, or a diagram when it clarifies the task. Avoid decorative output for routine edits. Update stable artifacts and keep ordinary presentation capture:false: generating a screenshot does not call a model, but a model reading that image may incur image-input tokens. While doing my real work, use concise session status only when useful information changes; keep a stable main artifact, use presentation intent and standard sizes, and use inspect with capture:true for temporary render checks. Never publish private chain of thought, secrets or full transcripts. Do not update per token or every tool call. Keep the primary task moving if visualization is offline. Use penecho_draw for lightweight native text, shapes, connectors or paths, and penecho_plot for function expressions. Nodes can omit local positions; PenEcho handles placement. Draw items are a complete artifact replacement, so retain all desired element IDs. Shapes and paths are native image objects, not editable vector handles or eraser-layer strokes. Both tools support capture:true for bounded visual verification. Use penecho_present_widget with a stable artifactId for interactive HTML UI previews. When presenting code that needs immediate visual validation, use penecho_present_widget with capture:true in one call. Otherwise use penecho_capture_widget only when visual validation is needed; read the image and timing/diagnostics. It is an embedded Widget preview, not full browser navigation or end-to-end automation. Before revising a design, call penecho_read_feedback for your session. Keep an independent after cursor, page with nextCursor while hasMore, and advance only after processing. Feedback defaults to one compressed screenshot with nearby design context, including text-only feedback. Read the image; use capture:false only for a lightweight availability check. Never discard unread feedback by replacing your cursor with a newer presentation feedbackCursor. Reads do not clear Canvas dirty state or other sessions. Handle truncated history explicitly. Only committed user input after the session was established is available; no automatic wake-up or tight polling. Finish with status done or error and a short verified result. Do not claim a tool succeeded without its result.\n${mcpRuntime.status?.instructions||""}`;
+    return `Configure PenEcho MCP for the AI client I am using. Read its installed MCP help or official documentation. Preserve unrelated servers and settings; do not invent client commands. Use this exact stdio launch configuration (absolute paths and env matter):\n${JSON.stringify({mcpServers:{penecho:mcpRuntime.status?.config}},null,2)}\nNo server URL, port, API key or npm download is needed. This bridge discovers local PenEcho instances. Reload the client and verify penecho_list_canvases appears. If no canvas is listed, ask me to open PenEcho Settings → MCP service and allow this canvas. Select the intended instanceId and canvasId explicitly, then penecho_start_session with a descriptive title, client name and a unique sessionKey for this conversation. Each conversation must use its own sessionId. Retain the returned documentId across reconnects. Only a new, unbound conversation gets a new Canvas by default, even if the visible Canvas is empty. Give the new Canvas a concise descriptive name through title. Continue an already bound conversation on its retained documentId/sessionId across turns and reconnects; do not create another Canvas. Pass documentId explicitly only to resume known existing work or when the user requests that Canvas. When I say current canvas, this canvas, 当前画布 or 这个画布, use penecho_start_session target:"current" without documentId to attach the visible Canvas directly; do not create or open a Canvas first. Keep its returned sessionId and documentId pinned. If this conversation is already bound elsewhere, use a distinct stable attachment sessionKey and keep the original handle. Read existing content before editing. For native brush annotations, use penecho_edit_canvas action:"draw_ink" with current baseRevision and strokes containing world-coordinate points, arbitrary explicit #RRGGBB color, and width 1–64. It preserves the selected user brush and supports the active document only; never switch a background document into view without intent. Limits: 16 strokes, 256 points each, 1024 total points within 2048 × 2048; brush radius must stay inside the Canvas. Use penecho_find_canvases to resolve saved IDs across Device, Server and connected Cloud; an unavailable store is not a missing document. Use an exact locator if copies are ambiguous. Open uses show:false by default, so background work never steals the viewport. List/read virtual files before patching: use the returned contentHash, one unified patch and a stable requestId; retry the same requestId after an uncertain result. Keep context.md concise with the goal, decisions and next step. Use runtime/viewport.json and runtime/selection.json only as current context. Read penecho_read_messages at natural task boundaries, acknowledge received/working/done/error explicitly and deduplicate instruction IDs across retries. Reading does not acknowledge; queued instructions cannot wake this client. The external processor pauses local Auto AI and never silently falls back to another model. Widget controls may opt in with data-penecho-action and data-penecho-prompt; only a trusted click queues a text instruction for the owning conversation. Width and height apply on creation; later HTML updates preserve geometry. Use penecho_edit_canvas for explicit geometry changes.\nWith an already selected live connection, proactively show useful UI previews, a small set of alternatives for user choice, or a diagram when it clarifies the task. Avoid decorative output for routine edits. Update stable artifacts and keep ordinary presentation capture:false: generating a screenshot does not call a model, but a model reading that image may incur image-input tokens. While doing my real work, use concise session status only when useful information changes; keep a stable main artifact, use presentation intent and standard sizes, and use inspect with capture:true for temporary render checks. Never publish private chain of thought, secrets or full transcripts. Do not update per token or every tool call. Keep the primary task moving if visualization is offline. Use penecho_draw for lightweight native text, shapes, connectors or paths, and penecho_plot for function expressions. Nodes can omit local positions; PenEcho handles placement. Draw items are a complete artifact replacement, so retain all desired element IDs. Shapes and paths are native image objects, not editable vector handles or eraser-layer strokes. Both tools support capture:true for bounded visual verification. Use penecho_present_widget with a stable artifactId for interactive HTML UI previews. When presenting code that needs immediate visual validation, use penecho_present_widget with capture:true in one call. Otherwise use penecho_capture_widget only when visual validation is needed; read the image and timing/diagnostics. It is an embedded Widget preview, not full browser navigation or end-to-end automation. Before revising a design, call penecho_read_feedback for your session. Keep an independent after cursor, page with nextCursor while hasMore, and advance only after processing. Feedback defaults to one compressed screenshot with nearby design context, including text-only feedback. Read the image; use capture:false only for a lightweight availability check. Never discard unread feedback by replacing your cursor with a newer presentation feedbackCursor. Reads do not clear Canvas dirty state or other sessions. Handle truncated history explicitly. Only committed user input after the session was established is available; no automatic wake-up or tight polling. Finish with status done or error and a short verified result. Do not claim a tool succeeded without its result.\n${mcpRuntime.status?.instructions||""}`;
   }
   function mcpConnect() {
     if(!mcpLocal())return;
     mcpDisconnect();
     if(typeof canvasDocumentsReady==="function")void canvasDocumentsReady().then(()=>{const doc=canvasDocumentsCurrent();mcpRuntime.feedback=doc.feedback;mcpRuntime.feedbackSequence=doc.feedbackSequence;canvasDocumentsRender();}).catch(error=>canvasDocumentsReport(error,()=>canvasDocumentsReady()));
-    const socket=new WebSocket(`${location.protocol==="https:"?"wss:":"ws:"}//${location.host}/api/mcp/canvas`),generation=mcpRuntime.generation;
+    const socket=new WebSocket(`${location.protocol==="https:"?"wss:":"ws:"}//${location.host}${window.PENECHO_CONFIG?.runtime==="cloud"?"/api/v1/remote-canvas/mcp":"/api/mcp/canvas"}`),generation=mcpRuntime.generation;
     mcpRuntime.socket=socket;mcpRuntime.lastPong=Date.now();mcpHeartbeat(socket);
     socket.addEventListener("open",()=>{if(socket!==mcpRuntime.socket)return;socket.send(JSON.stringify({type:"hello",canvasId:canvasClientId(),title:state.currentSnapshotName||"PenEcho Canvas"}));mcpRenderSettings();});
     socket.addEventListener("message",event=>{
@@ -22819,7 +23023,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     throw Error(`Unsupported MCP Canvas operation: ${name}`);
   }
   mcpEl("mcpToolbarToggle")?.addEventListener("click",mcpToolbarClick);
-  mcpEl("mcpEnabled")?.addEventListener("click",event=>event.currentTarget.getAttribute("aria-checked")==="true"?mcpDisconnect():mcpConnect());
+  mcpEl("mcpEnabled")?.addEventListener("click",event=>{
+    if(event.currentTarget.getAttribute("aria-checked")==="true")return mcpDisconnect();
+    try{mcpConnect();}catch{mcpDisconnect(true);setStatus(mcpText("toolbarRetry"));}
+  });
   mcpEl("mcpCanvasNoticeButton")?.addEventListener("pointerdown",event=>event.stopPropagation());
   mcpEl("mcpCanvasNoticeButton")?.addEventListener("click",event=>{event.stopPropagation();openSettings();selectSettingsPage("mcp");});
   mcpEl("mcpShowNewContent")?.addEventListener("pointerdown",event=>event.stopPropagation());
@@ -22828,17 +23035,26 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   mcpEl("viewport")?.addEventListener("wheel",mcpPauseView,{passive:true});
   mcpEl("viewport")?.addEventListener("keydown",event=>{if([" ","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","+","-","="].includes(event.key))mcpPauseView();});
   mcpEl("mcpRefresh")?.addEventListener("click",()=>void mcpRefreshSettings());
-  mcpEl("mcpClient")?.addEventListener("change",()=>{mcpRuntime.configureResult=null;if(mcpEl("mcpManual"))mcpEl("mcpManual").open=mcpEl("mcpClient").value==="other";mcpRenderSettings();});
+  mcpEl("mcpClients")?.addEventListener("change",()=>{mcpRuntime.configureResult=null;if(mcpEl("mcpManual"))mcpEl("mcpManual").open=mcpSelectedClient()==="other";mcpRenderSettings();});
   for(const [id,instructions] of [["mcpCopyConfig",false],["mcpCopyInstructions",true]])mcpEl(id)?.addEventListener("click",async()=>{
+    if(mcpRemoteBrowser()||!mcpRuntime.status?.config)return;
     const copied=await writeClipboardText(instructions?mcpInstructions():JSON.stringify({mcpServers:{penecho:mcpRuntime.status?.config}},null,2));mcpEl("mcpSetupStatus").textContent=copied?mcpText("copied"):t("copyFailed");
+  });
+  mcpEl("mcpExamples")?.addEventListener("click",async event=>{
+    const button=event.target?.closest?.("[data-mcp-example]");
+    if(!button)return;
+    const copied=await writeClipboardText(mcpText(button.dataset.mcpExample));
+    const status=mcpEl("mcpExampleStatus");
+    if(status){status.textContent=copied?mcpText("exampleCopied"):t("copyFailed");clearTimeout(mcpRuntime.exampleStatusTimer);mcpRuntime.exampleStatusTimer=setTimeout(()=>{if(status.textContent===mcpText("exampleCopied"))status.textContent="";},2400);}
+    if(copied){button.classList.add("done");setTimeout(()=>button.classList.remove("done"),1600);}
   });
   for(const [id,route] of [["mcpCopySkill","skill"],["mcpCopyGuide","guide"]])mcpEl(id)?.addEventListener("click",async()=>{
     try{const result=await mcpApi(route),copied=await writeClipboardText(result.text);mcpEl("mcpSetupStatus").textContent=copied?mcpText("copied"):t("copyFailed");}
     catch(error){mcpEl("mcpSetupStatus").textContent=String(error.message);}
   });
   mcpEl("mcpConfigure")?.addEventListener("click",async()=>{
-    if(mcpRuntime.configuring)return;
-    const client=mcpEl("mcpClient").value,clientName=client==="codex"?"Codex":"Claude Code";
+    if(mcpRuntime.configuring||mcpRemoteBrowser())return;
+    const client=mcpSelectedClient(),clientName=client==="codex"?"Codex":client==="claude"?"Claude Code":"Other";
     mcpRuntime.configuring=true;mcpRuntime.configureResult=null;mcpRenderSettings();mcpEl("mcpConfigureStatus")?.scrollIntoView?.({block:"nearest"});
     try{
       const result=await mcpApi("configure",{client});
@@ -22850,6 +23066,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     }finally{mcpRuntime.configuring=false;mcpRenderSettings();if(mcpEl("settingsPageMcp")?.hidden===false)mcpEl("mcpConfigureStatus")?.scrollIntoView?.({block:"nearest"});}
   });
   addEventListener("visibilitychange",()=>{if(!document.hidden&&mcpRuntime.socket){mcpRuntime.lastPong=Date.now();clearTimeout(mcpRuntime.heartbeatTimer);mcpHeartbeat(mcpRuntime.socket);}});
+  addEventListener("offline",()=>{if(mcpRuntime.socket)mcpDisconnect(true);});
   addEventListener("pagehide",()=>mcpDisconnect());
 var canvasDocumentIdentity = (() => {
   const LOCATIONS = new Set(["device", "server", "cloud"]);
@@ -23731,8 +23948,9 @@ var canvasDocumentIdentity = (() => {
   // One visible Canvas; inactive documents contain data, never hidden iframe trees.
   // Ordinary saves carry this extension in bundle V2. This is not version history.
   var canvasDocuments = { records:new Map(), activeId:null, ready:null, db:null, switching:false, epoch:0, error:null, retry:null, receipts:new Map(), write:Promise.resolve() };
-  const CANVAS_DOCUMENT_EXTENSION = "penechoDocument", CANVAS_WORKSPACE_EXTENSION = "penechoWorkspace";
+  const CANVAS_DOCUMENT_EXTENSION = "penechoDocument", CANVAS_WORKSPACE_EXTENSION = "penechoWorkspace", CANVAS_DOCUMENT_LIMIT = 32;
   function canvasDocumentsCopy(en,zh) { return state.language === "zh" ? zh : en; }
+  function canvasDocumentsLimitMessage() { return canvasDocumentsCopy(`${CANVAS_DOCUMENT_LIMIT} Canvases are already open. Close an unused Canvas before opening another.`,`已打开 ${CANVAS_DOCUMENT_LIMIT} 个画布，请先关闭不用的画布，再打开新的画布。`); }
   function canvasDocumentsError(code,message,details=null) { return Object.assign(Error(message),{code,details}); }
   async function canvasDocumentsBound(promise,ms=15000) {
     let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(canvasDocumentsError("STORAGE_TIMEOUT","This save location did not respond. Your Canvas is unchanged; reconnect and retry.",{retryable:true})),ms);})]);}finally{clearTimeout(timer);}
@@ -23953,7 +24171,7 @@ var canvasDocumentIdentity = (() => {
     if(path==="runtime/changes.json")return json({latestCursor:doc.changeSequence,earliestCursor:doc.changes[0]?.cursor||0,entries:doc.changes});
     if(path==="runtime/messages.json")return json({latestCursor:doc.messageSequence,entries:doc.messages});
     if(path==="objects/index.json")return json(canvasDocumentsObjects(doc).map(o=>({id:o.item.id,kind:o.kind,title:o.item.title||"",bounds:canvasDocumentsBounds(o),path:`objects/${encodeURIComponent(o.item.id)}/`})));
-    if(path==="ink/index.json")return json({format:"raster-tiles",editableAsText:false,operations:["erase_ink"],tiles:active?[...tiles.keys()]: (doc.stored?.tileEntries||[]).map(t=>t.k)});
+    if(path==="ink/index.json")return json({format:"raster-tiles",editableAsText:false,operations:active?["erase_ink","draw_ink"]:["erase_ink"],activeOnlyOperations:["draw_ink"],tiles:active?[...tiles.keys()]: (doc.stored?.tileEntries||[]).map(t=>t.k)});
     const parts=canvasDocumentIdentity.parsePath(path);if(parts.length!==3||parts[0]!=="objects")throw canvasDocumentsError("FILE_NOT_FOUND","List the Canvas files and retry with an exact returned path.");
     const object=canvasDocumentsObject(doc,decodeURIComponent(parts[1]));if(!object)throw canvasDocumentsError("OBJECT_NOT_FOUND","This object was removed. List the Canvas files again.");
     const item=object.item,name=parts[2];
@@ -24104,7 +24322,7 @@ var canvasDocumentIdentity = (() => {
     let doc;
     if(args.create) {
       const id=`doc-${await canvasAgentHash(args.requestId)}`;
-      if(canvasDocuments.records.size>=32&&!canvasDocuments.records.has(id))throw canvasDocumentsError("DOCUMENT_LIMIT","32 Canvases are already open. Save and close an unused Canvas, then retry.");
+      if(canvasDocuments.records.size>=CANVAS_DOCUMENT_LIMIT&&!canvasDocuments.records.has(id))throw canvasDocumentsError("DOCUMENT_LIMIT",canvasDocumentsLimitMessage());
       doc=canvasDocuments.records.get(id)||canvasDocumentsRecord({documentId:id,title:args.title||"Untitled Canvas"},{item:{version:2,name:args.title||"Untitled Canvas",theme:state.theme,widgets:[],textBoxes:[],images:[],animations:[],bundleExtensions:{},manifestExtensions:{},preservedAssets:[]},tileEntries:[]});
       canvasDocuments.records.set(id,doc);
     } else {
@@ -24122,6 +24340,7 @@ var canvasDocumentIdentity = (() => {
         const meta=canvasDocumentIdentity.normalizeMetadata(stored.item.bundleExtensions?.[CANVAS_DOCUMENT_EXTENSION])||{version:1,documentId:await canvasDocumentIdentity.legacyId(locator),title:stored.item.name||""};
         if(args.documentId&&meta.documentId!==args.documentId)throw canvasDocumentsError("DOCUMENT_CONFLICT","The saved location contains a different Canvas. Check its ID and retry.");
         if(canvasDocuments.records.has(meta.documentId))throw canvasDocumentsError("DOCUMENT_AMBIGUOUS","This Canvas is already open from another location. Use the open document or save an independent copy first.");
+        if(canvasDocuments.records.size>=CANVAS_DOCUMENT_LIMIT)throw canvasDocumentsError("DOCUMENT_LIMIT",canvasDocumentsLimitMessage());
         doc=canvasDocumentsRecord(meta,stored);doc.locator=locator;canvasDocumentsRestoreWorkspace(doc,stored.item.bundleExtensions?.[CANVAS_WORKSPACE_EXTENSION]);canvasDocuments.records.set(doc.id,doc);
       }
     }
@@ -24257,6 +24476,25 @@ var canvasDocumentIdentity = (() => {
       if(canvasDocumentsIsActive(doc))state.textBoxes.push(record);else {const {image,...stored}=record;doc.stored.item.textBoxes.push(stored);}
       canvasDocumentsEndEdit(doc,"create_text",record.id);return {applied:true,objectId:record.id,revision:doc.revision};
     }
+    if(args.action==="draw_ink") {
+      // Validate the browser boundary too: linked clients must not bypass resource limits.
+      if(!canvasDocumentsIsActive(doc))throw canvasDocumentsError("ACTIVE_CANVAS_REQUIRED","draw_ink requires this Canvas to be visible. Use show explicitly, then read the revision and retry.");
+      let count=0,minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+      if(!Array.isArray(args.strokes)||args.strokes.length<1||args.strokes.length>16)throw canvasDocumentsError("INVALID_INK","Use 1–16 strokes.");
+      for(const entry of args.strokes){
+        if(!entry||!/^#[0-9a-fA-F]{6}$/.test(entry.color)||!Number.isFinite(entry.width)||entry.width<1||entry.width>64||!Array.isArray(entry.points)||entry.points.length<1||entry.points.length>256)throw canvasDocumentsError("INVALID_INK","Each stroke needs #RRGGBB color, width 1–64, and 1–256 points.");
+        count+=entry.points.length;
+        for(const point of entry.points){if(!point||!Number.isFinite(point.x)||!Number.isFinite(point.y)||point.x<entry.width/2||point.y<entry.width/2||point.x+entry.width/2>SIZE||point.y+entry.width/2>SIZE)throw canvasDocumentsError("INVALID_INK","Stroke points and brush radius must remain inside the Canvas.");minX=Math.min(minX,point.x);minY=Math.min(minY,point.y);maxX=Math.max(maxX,point.x);maxY=Math.max(maxY,point.y);}
+      }
+      if(count>1024||maxX-minX>2048||maxY-minY>2048)throw canvasDocumentsError("INVALID_INK","Use at most 1024 total points inside a 2048 × 2048 region.");
+      canvasAgentAssertToolExecution(execution);save();
+      for(const entry of args.strokes){
+        if(entry.points.length===1)dot(entry.points[0],false,entry.width,false,entry.color);
+        else for(let index=1;index<entry.points.length;index++)stroke(entry.points[index-1],entry.points[index],false,entry.width,false,entry.color);
+      }
+      canvasDocumentsEndEdit(doc,"draw_ink");
+      return {applied:true,revision:doc.revision,strokeCount:args.strokes.length};
+    }
     if(args.action==="erase_ink") {
       if(canvasDocumentsIsActive(doc))return canvasAgentEdit({baseRevision:state.userRevision,operations:[{type:"erase_ink",region:{x:args.region.x,y:args.region.y,width:args.region.w,height:args.region.h}}],_changeId:args.requestId},execution);
       const changed=[],tileEntries=[];
@@ -24304,16 +24542,19 @@ var canvasDocumentIdentity = (() => {
     let session=mcpRuntime.sessions.get(args.sessionId),doc;
     if(name==="mcp_start_session") {
       await canvasDocumentsReady();
-      doc=args.documentId?canvasDocuments.records.get(args.documentId):args.sessionKey?[...canvasDocuments.records.values()].find(d=>d.bindings.some(b=>b.key===args.sessionKey&&b.client===(args.client||""))):null;
-      if(!doc&&!args.documentId){
-        const visible=canvasDocumentsCurrent();
-        if(args.sessionKey&&(visible.bindings.length||visible.locator||canvasDocumentsObjects(visible).length||tiles.size)){
-          const created=await canvasDocumentsOpen({create:true,requestId:`conversation:${args.client||""}:${args.sessionKey}`,title:args.title,show:false},execution);doc=canvasDocuments.records.get(created.documentId);
-        }else doc=visible;
+      if(args.target==="current"&&(canvasDocuments.switching||snapshotLoadInProgress))throw canvasDocumentsError("CANVAS_BUSY","A Canvas is opening. Retry after it finishes.");
+      doc=args.target==="current"?canvasDocuments.records.get(canvasDocuments.activeId):args.documentId?canvasDocuments.records.get(args.documentId):args.sessionKey?[...canvasDocuments.records.values()].find(d=>d.bindings.some(b=>b.key===args.sessionKey&&b.client===(args.client||""))):null;
+      if(!doc&&!args.documentId&&args.target!=="current"){
+        if(session&&!session.closed&&session.client===args.client)doc=canvasDocuments.records.get(session.documentId);
+        if(!doc){
+          const created=await canvasDocumentsOpen({create:true,requestId:`conversation:${args.client||""}:${args.sessionKey||args.sessionId}`,title:args.title,show:false},execution);doc=canvasDocuments.records.get(created.documentId);
+        }
       }
-      if(!doc)throw canvasDocumentsError("DOCUMENT_NOT_FOUND","Open the documentId first, then retry starting the session.");
-      session=canvasDocumentsSession(doc,args);
-      canvasDocumentsApplySessionTitle(doc,session.title);
+      if(!doc)throw canvasDocumentsError("DOCUMENT_NOT_FOUND",args.target==="current"?"No active Canvas is ready. Wait for the user’s Canvas to finish opening, then retry target:current.":"Open the documentId first, then retry starting the session.");
+      if(args.target==="current"&&session&&!session.closed&&session.documentId!==doc.id)throw canvasDocumentsError("BINDING_CONFLICT","This session is bound to another Canvas. Use a distinct attachment sessionKey.",{documentId:session.documentId});
+      if(args.target==="current"&&session&&!session.closed&&session.client!==args.client)throw canvasDocumentsError("BINDING_CONFLICT","This session belongs to a different client. Use that client or a distinct attachment sessionKey.");
+      session=args.target==="current"&&session&&!session.closed?session:canvasDocumentsSession(doc,args);
+      if(args.target!=="current")canvasDocumentsApplySessionTitle(doc,session.title);
       execution.documentId=doc.id;execution.activeDocumentId=canvasDocumentsIsActive(doc)?doc.id:null;execution.documentEpoch=canvasDocuments.epoch;
       session.boardObjectId=session.boardObjectId||null;
       mcpRuntime.sessions.set(session.sessionId,session);
@@ -24422,11 +24663,10 @@ var canvasDocumentIdentity = (() => {
     window.PenEchoStudioNavigator?.workspaceChanged?.();
     if(!root||!doc)return;
     root.hidden=false;
-    const create=document.getElementById("canvasWorkspaceNew"),close=document.getElementById("canvasWorkspaceClose");
-    create.textContent=canvasDocumentsCopy("New","新建");create.title=canvasDocumentsCopy("New Canvas","新建画布");create.setAttribute("aria-label",create.title);create.disabled=canvasDocuments.switching;
+    const close=document.getElementById("canvasWorkspaceClose");
     close.textContent=canvasDocumentsCopy("Close","关闭");close.title=canvasDocumentsCopy("Close Canvas","关闭画布");close.setAttribute("aria-label",close.title);close.disabled=canvasDocuments.switching;
     const status=document.getElementById("canvasWorkspaceStatus"),retry=document.getElementById("canvasWorkspaceRetry");
-    status.textContent=canvasDocuments.error||(canvasDocuments.switching?canvasDocumentsCopy("Opening…","正在打开…"):"");
+    status.textContent=canvasDocuments.error||(canvasDocuments.switching?canvasDocumentsCopy("Opening…","正在打开…"):canvasDocuments.records.size>=CANVAS_DOCUMENT_LIMIT?canvasDocumentsLimitMessage():"");
     retry.hidden=!canvasDocuments.retry;retry.textContent=canvasDocumentsCopy("Retry","重试");
     const processorRow=document.getElementById("canvasProcessorRow"),processor=document.getElementById("canvasProcessorSelect");
     processorRow.hidden=!doc.bindings.length&&doc.processor.kind!=="external";
@@ -24444,9 +24684,6 @@ var canvasDocumentIdentity = (() => {
     canvasDocuments.error=null;canvasDocuments.retry=null;
     void work().catch(error=>canvasDocumentsReport(error,work));
   }
-  document.getElementById("canvasWorkspaceNew")?.addEventListener("click",()=>{const id=canvasDocumentsId();canvasDocumentsUiAction(async()=>{
-    if(!canvasDocuments.records.has(id)){if(canvasDocuments.records.size>=32)throw canvasDocumentsError("DOCUMENT_LIMIT",canvasDocumentsCopy("Save and close an unused Canvas, then retry.","请先保存并关闭不用的画布，再重试。"));const doc=canvasDocumentsRecord({documentId:id,title:canvasDocumentsCopy("Untitled Canvas","未命名画布")},{item:{widgets:[],textBoxes:[],images:[],animations:[],theme:state.theme},tileEntries:[]});canvasDocuments.records.set(id,doc);}await canvasDocumentsShow(id);
-  });});
   async function canvasDocumentsClose(id,sourceDocumentId=null) {
     const doc=canvasDocuments.records.get(id);
     if(!doc)return false;
@@ -24927,7 +25164,7 @@ var canvasDocumentIdentity = (() => {
           canvasKey=doc.locator?`${doc.locator.location}:${doc.locator.id}`:current&&state.canvasAgentCanvasKey||`workspace:${doc.id}`,
           previous=groups.get(canvasKey),item=previous?.item||doc.stored?.item||null;
         groups.set(canvasKey,{...previous,canvasKey,documentId:doc.id,location:doc.locator?.location||"",item,
-          name:doc.title||t("canvasUntitledName"),updatedAt:previous?.updatedAt||Number(item?.updatedAt||item?.createdAt)||0,
+          name:doc.title||t("canvasUntitledName"),updatedAt:Math.max(Number(previous?.updatedAt)||0,Number(item?.updatedAt||item?.createdAt)||0,...(doc.changes||[]).map(change=>Number(change.at)||0)),
           conversations:previous?.conversations||[],current,unseen:doc.unseen>0});
       }
       return [...groups.values()].map((group)=>({...group,current:group.documentId?group.current:group.canvasKey===state.canvasAgentCanvasKey})).sort((a,b)=>Number(b.current)-Number(a.current)||Number(Boolean(b.documentId))-Number(Boolean(a.documentId))||b.updatedAt-a.updatedAt);
@@ -25297,7 +25534,7 @@ var canvasDocumentIdentity = (() => {
       return studioNavigatorWorkGroups().filter(group=>{
         const doc=canvasDocuments.records.get(group.documentId);
         return doc && (doc.bindings?.length || doc.sessions?.length || [...mcpRuntime.sessions.values()].some(session=>session.documentId===doc.id));
-      });
+      }).sort((a,b)=>b.updatedAt-a.updatedAt);
     }
     function renderStudioMcpHistory() {
       syncStudioMcpActions();
@@ -25323,6 +25560,10 @@ var canvasDocumentIdentity = (() => {
         studioNavigatorSearch.value="";
         setStudioNavigatorTab("mcp",{persist:false});
         setStudioNavigatorOpen(true);
+        // Each live MCP connection starts with Follow latest on; a later
+        // manual off stays off for the rest of that connection.
+        studioMcpFollowLatest=true;studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;
+        syncStudioMcpActions();
       }else if(studioNavigatorActiveTab==="mcp")setStudioNavigatorTab("all",{persist:false});
     }
     let studioWorkspaceSignature="";
@@ -25340,6 +25581,21 @@ var canvasDocumentIdentity = (() => {
         const doc=canvasDocuments.records.get(row.dataset.workspaceDocumentId),dot=row.querySelector(".workspace-update-dot");
         if(dot){dot.hidden=!doc?.unseen;dot.setAttribute("aria-label",canvasDocumentsCopy("New updates","有新内容"));}
         row.disabled=canvasDocuments.switching;
+      }
+      if(typeof studioNavigatorActiveTab!=="undefined"&&studioNavigatorActiveTab==="mcp"){
+        const rows=new Map([...studioMcpRecentList.querySelectorAll("[data-workspace-document-id]")].map(row=>[row.dataset.workspaceDocumentId,row]));
+        let index=0;
+        for(const group of studioNavigatorMcpGroups()){
+          const row=rows.get(group.documentId);if(!row)continue;
+          const section=row.parentElement;
+          if(studioMcpRecentList.children[index]!==section)studioMcpRecentList.insertBefore(section,studioMcpRecentList.children[index]||null);
+          const meta=row.querySelector("small");
+          if(meta&&meta.dataset.updatedAt!==String(group.updatedAt)){
+            studioNavigatorRenderCanvasMeta(meta,group.current,true,group.location,group.updatedAt);
+            meta.dataset.updatedAt=String(group.updatedAt);
+          }
+          index++;
+        }
       }
     }
     function renderActiveStudioNavigatorHistory() {
@@ -25890,21 +26146,54 @@ var canvasDocumentIdentity = (() => {
     syncWidgetHostStates();
     resetCanvasCursor();
   }
-  function setWidgetInteraction(widget) {
+  function setWidgetInteraction(widget, options = {}) {
     if (widget && (!canvasWidgetSelectionEnabled() || !visibleWidgets().includes(widget))) return false;
     const next = widget?.id || null;
     if (state.interactingWidgetId === next) return true;
     const previous = state.widgets.find(item => item.id === state.interactingWidgetId);
     if (previous?.frame && document.activeElement === previous.frame) document.activeElement.blur();
     state.interactingWidgetId = next;
+    if (!next) {
+      const returnTool = state.widgetInteractionReturnTool;
+      state.widgetInteractionReturnTool = null;
+      if (options.restoreTool !== false && returnTool && returnTool.viewMode === state.viewMode) {
+        if (state.viewMode) setCanvasViewTool(returnTool.mode);
+        else setCanvasMode(returnTool.mode);
+      }
+    }
     syncCanvasNavigation();
     if (widget?.frame) widget.frame.focus({ preventScroll:true });
     requestInteractionLayerRender();
     return true;
   }
+  // One entry point for every explicit activation gesture (toolbar, double-click,
+  // context menu): it selects the tool that can own Widget interaction first.
+  function enterWidgetInteraction(widget) {
+    if (!widget || widget.pending || !visibleWidgets().includes(widget)) return false;
+    const returnTool = state.widgetInteractionReturnTool || { viewMode:state.viewMode, mode:state.viewMode ? state.viewTool : state.mode };
+    if (state.viewMode) {
+      if (state.viewTool !== "select") setCanvasViewTool("select");
+    } else if (state.mode !== "select") {
+      setCanvasMode("select");
+    }
+    state.widgetInteractionReturnTool = returnTool;
+    return setWidgetInteraction(widget);
+  }
+  function canvasWidgetInteractionChromeTarget(target) {
+    return Boolean(target?.closest?.("#canvasViewActions, #canvasNavigationActions, .canvas-fit-contents, .canvas-navigation-lock, .object-chrome-button, .widget-interaction-status"));
+  }
+  function showWidgetContextToolbar(event) {
+    event.preventDefault();
+    if (state.viewMode || state.spacePan || state.interactingWidgetId) return false;
+    if (!["pen", "hand", "select"].includes(state.mode)) return false;
+    if (canvasWidgetInteractionChromeTarget(event.target)) return false;
+    const widget = canvasWidgetAtEvent(event);
+    if (!widget || widget.pending || !state.widgets.includes(widget)) return false;
+    return showHandObjectToolbar("widget", widget);
+  }
   function setCanvasViewTool(tool) {
     if (!state.viewMode || !['hand', 'select'].includes(tool)) return;
-    setWidgetInteraction(null);
+    setWidgetInteraction(null, { restoreTool:false });
     state.widgetActivationTap = null;
     state.viewTool = tool;
     syncCanvasNavigation();
@@ -26028,6 +26317,15 @@ var canvasDocumentIdentity = (() => {
     setWidgetInteraction(null);
     (state.viewMode ? document.querySelector('#canvasViewSelect') : document.querySelector('#lassoToolBtn'))?.focus({ preventScroll:true });
   });
+  view.addEventListener('dblclick', (event) => {
+    if (state.spacePan || state.interactingWidgetId) return;
+    const tool = state.viewMode ? state.viewTool : state.mode;
+    if (tool !== 'hand' && tool !== 'select') return;
+    if (canvasWidgetInteractionChromeTarget(event.target)) return;
+    const widget = canvasWidgetAtEvent(event);
+    if (widget) enterWidgetInteraction(widget);
+  });
+  view.addEventListener('contextmenu', (event) => { showWidgetContextToolbar(event); });
   document.querySelector('#canvasFitContents')?.addEventListener('click', fitCanvasContents);
   const wheelZoomSetting = document.querySelector('#settingsWheelZoom');
   if (wheelZoomSetting) {
@@ -26673,7 +26971,8 @@ var canvasDocumentIdentity = (() => {
     updateHandObjectHover(null);
     updateWidgetRefinePointer(null);
   });
-  screen.addEventListener("contextmenu", (e) => e.preventDefault());
+  // The viewport context menu is owned by canvas-navigation.js: it suppresses
+  // the native menu and opens the Widget toolbar when one is under the pointer.
   view.addEventListener("wheel", handleCanvasWheel, { passive:false });
   view.addEventListener("gesturestart", beginCanvasTrackpadGesture, { passive:false });
   view.addEventListener("gesturechange", updateCanvasTrackpadGesture, { passive:false });
@@ -26768,7 +27067,7 @@ var canvasDocumentIdentity = (() => {
   }
   function setCanvasMode(mode, options) {
     options ||= {};
-    if (mode !== state.mode) setWidgetInteraction(null);
+    if (mode !== state.mode || state.interactingWidgetId) setWidgetInteraction(null, { restoreTool:false });
     const eraserMode = ["eraser", "area-eraser"].includes(mode),
       button = eraserMode ? eraserToolButton : document.querySelector(`[data-mode="${mode}"]`);
     if (!button) return;
@@ -27114,7 +27413,7 @@ var canvasDocumentIdentity = (() => {
       if (orbit) {
         orbit.hidden = true;
         orbit.setAttribute("aria-hidden", "true");
-        orbit.querySelectorAll(".orbit-swatch").forEach((button) => button.setAttribute("tabindex", "-1"));
+        orbit.querySelectorAll(".orbit-swatch, [data-custom-color]").forEach((button) => button.setAttribute("tabindex", "-1"));
       }
       if (focusedInside) trigger.focus();
     });
@@ -27131,38 +27430,53 @@ var canvasDocumentIdentity = (() => {
       trigger.setAttribute("aria-expanded", String(open));
       orbit.hidden = !open;
       orbit.setAttribute("aria-hidden", String(!open));
-      orbit.querySelectorAll(".orbit-swatch").forEach((button) => button.setAttribute("tabindex", open ? "0" : "-1"));
+      orbit.querySelectorAll(".orbit-swatch, [data-custom-color]").forEach((button) => button.setAttribute("tabindex", open ? "0" : "-1"));
       if (open) {
         positionToolbarPopover(`[data-color-control="${type}"]`, `#${orbit.id}`, { align:"center", gap:6 });
         requestAnimationFrame(positionOpenToolbarPopovers);
       }
     };
+    const customInput = orbit.querySelector("[data-custom-color]");
+    function selectColor(color) {
+      if (!/^#[0-9a-f]{6}$/i.test(color)) return;
+      color = color.toLowerCase();
+      if (type === "ink") {
+        state.inkColor = color;
+        applySelectionColor(color);
+        positionTextEditors();
+        for (const editor of state.textEditors.values()) if (editor.mixedMode) scheduleTextEditorPreview(editor, 0);
+      } else state.aiColor = color;
+      trigger.classList.remove(...Object.values(COLOR_CLASS));
+      if (COLOR_CLASS[color]) trigger.classList.add(COLOR_CLASS[color]);
+      trigger.style.setProperty("--selected-color", color);
+      if (customInput) customInput.value = color;
+      orbit.querySelectorAll(".orbit-swatch").forEach((item) => {
+        const active = (type === "ink" ? item.dataset.inkColor : item.dataset.aiColor) === color;
+        item.classList.toggle("active", active);
+        item.setAttribute("aria-pressed", String(active));
+      });
+    }
+    orbit.onclick = (event) => event.stopPropagation();
+    orbit.onkeydown = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeColorOrbs();
+    };
+    if (customInput) {
+      // Commit once when the native picker accepts a color; do not recolor a
+      // selected object or regenerate text previews for every slider event.
+      customInput.onchange = () => selectColor(customInput.value);
+    }
     orbit.querySelectorAll(".orbit-swatch").forEach((button) => {
+      button.setAttribute("tabindex", "-1");
+      button.setAttribute("aria-pressed", String(button.classList.contains("active")));
       button.onclick = (event) => {
         event.stopPropagation();
-        const color = type === "ink" ? button.dataset.inkColor : button.dataset.aiColor;
-        if (type === "ink") {
-          state.inkColor = color;
-          applySelectionColor(color);
-          positionTextEditors();
-          for (const editor of state.textEditors.values()) if (editor.mixedMode) scheduleTextEditorPreview(editor, 0);
-        }
-        else state.aiColor = color;
-        trigger.classList.remove(...Object.values(COLOR_CLASS));
-        trigger.classList.add(COLOR_CLASS[color]);
-        orbit.querySelectorAll(".orbit-swatch").forEach((item) => {
-          const active = item === button;
-          item.classList.toggle("active", active);
-          item.setAttribute("aria-checked", String(active));
-        });
+        selectColor(type === "ink" ? button.dataset.inkColor : button.dataset.aiColor);
         closeColorOrbs();
       };
     });
-  });
-  document.querySelectorAll(".orbit-swatch").forEach((button) => {
-    button.setAttribute("role", "menuitemradio");
-    button.setAttribute("tabindex", "-1");
-    button.setAttribute("aria-checked", String(button.classList.contains("active")));
   });
   document.addEventListener("click", () => closeColorOrbs());
   document.querySelector("#rejectBatch").onclick = rejectPending;
@@ -27751,6 +28065,10 @@ var canvasDocumentIdentity = (() => {
     openCanvas:openCloudCanvas,
     confirmExternalOpen:confirmExternalCanvasOpen,
   });
+  window.penechoDesktop?.onShowConnections?.(() => {
+    selectSettingsPage("connections");
+    openSettings();
+  });
   setPluginTemplate("simple");
   applyLanguage();
   setWidgetShadowEnabled(state.widgetShadowEnabled);
@@ -27766,5 +28084,7 @@ var canvasDocumentIdentity = (() => {
   setNavigating(true);
   scheduleAIOrbIdle();
   if(window.PENECHO_CONFIG?.runtime!=="viewer")void canvasDocumentsReady().catch(error=>canvasDocumentsReport(error,()=>canvasDocumentsReady()));
-  requestAnimationFrame(() => requestAnimationFrame(maybeStartOnboarding));
+  requestAnimationFrame(() => {
+    if (window.PENECHO_CONFIG?.runtime !== "viewer") void loadCanvasSettings().finally(maybeStartOnboarding);
+  });
 })();

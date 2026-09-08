@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { createRemoteMcpChannels } = require("./remote.js");
 const net = require("node:net");
 const path = require("node:path");
 const { applyPatch, parsePatch } = require("diff");
@@ -447,7 +448,6 @@ function createMcpService(options) {
     try { pathname = new URL(req.url, "http://localhost").pathname; } catch { return; }
     if (pathname !== "/api/mcp/canvas") return;
     if (closed) return rejectUpgrade(socket, bridgeError("service_closed", "The PenEcho MCP service is closed.", 503));
-    if (!browserAddressAllowed(req.socket.remoteAddress)) return rejectUpgrade(socket, localHostRequired());
     if (await browserAuthorization(req)) return rejectUpgrade(socket);
     wss.handleUpgrade(req, socket, head, ws => wss.emit("connection", ws, req));
   };
@@ -521,7 +521,7 @@ function createMcpService(options) {
         clearTimeout(connection.helloTimer);
         const previous = canvases.get(connection.canvasId);
         canvases.set(connection.canvasId, connection);
-        if (previous && previous !== connection) previous.ws.close(4001, "Canvas connection replaced");
+        if (previous && previous !== connection) { markDisconnected(previous); previous.ws.close(4001, "Canvas connection replaced"); }
         ws.send(JSON.stringify({ type:"ready", heartbeat:true, canvasId:connection.canvasId, instanceId }));
         return;
       }
@@ -726,18 +726,23 @@ function createMcpService(options) {
             sessionKeys.delete(`${ownerId}\0${args.sessionKey}`);
           } else {
             if (existing.canvasId !== args.canvasId || existing.connection !== connection || args.documentId !== undefined && existing.documentId !== args.documentId) throw bridgeError("session_key_conflict", "That session key is already bound to another canvas document.", 409);
+            if (args.target === "current") {
+              const {result} = await canvasCall(connection, "mcp_start_session", {sessionId:existing.id, slotIndex:existing.slotIndex, title:existing.title, target:"current", ...(args.client ? {client:args.client} : {}), sessionKey:args.sessionKey}, callOptions);
+              browserObject(result, "session result");
+              if (result.sessionId !== existing.id || !existing.documentId || result.documentId !== existing.documentId) throw bridgeError("session_key_conflict", "That session key is bound to another Canvas. Use a distinct attachment sessionKey.", 409);
+            }
             return { ...sessionSnapshot(existing), instructions:SESSION_INSTRUCTIONS, reused:true };
           }
         }
       }
       if (sessions.size >= MAX_SESSIONS || [...sessions.values()].filter(item => item.ownerId === ownerId).length >= MAX_OWNER_SESSIONS) throw bridgeError("session_limit", "Too many PenEcho MCP sessions are open.", 429);
       const sessionId = crypto.randomUUID(), slotIndex = connection.nextSlot++;
-      const { result, timing } = await canvasCall(connection, "mcp_start_session", { sessionId, slotIndex, title:args.title, ...(args.documentId ? {documentId:args.documentId} : {}), ...(args.takeover === undefined ? {} : {takeover:args.takeover}), ...(args.client ? {client:args.client} : {}), ...(args.sessionKey ? {sessionKey:args.sessionKey} : {}) }, callOptions);
+      const { result, timing } = await canvasCall(connection, "mcp_start_session", { sessionId, slotIndex, title:args.title, ...(args.target ? {target:args.target} : {}), ...(args.documentId ? {documentId:args.documentId} : {}), ...(args.takeover === undefined ? {} : {takeover:args.takeover}), ...(args.client ? {client:args.client} : {}), ...(args.sessionKey ? {sessionKey:args.sessionKey} : {}) }, callOptions);
       browserObject(result, "session result");
       if (result.sessionId !== sessionId) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned a mismatched session.", 502);
       const boardObjectId = result.boardObjectId == null ? null : safeString(result.boardObjectId, 128, "boardObjectId"), revision = browserRevision(result.revision);
       const feedbackCursor = result.feedbackCursor === undefined ? undefined : browserCursor(result.feedbackCursor);
-      const documentId = result.documentId === undefined ? undefined : safeString(result.documentId, 256, "documentId");
+      const documentId = result.documentId === undefined && args.target !== "current" ? undefined : safeString(result.documentId, 256, "documentId");
       const progress = result.progress === undefined ? {} : browserSessionProgress(result.progress);
       const now = Date.now(), session = {
         id:sessionId, ownerId, connection, canvasId:args.canvasId, documentId, slotIndex, sessionKey:args.sessionKey,
@@ -1022,12 +1027,15 @@ function createMcpService(options) {
     return { mimeType:result?.mediaType && result.mediaType === match[1] ? result.mediaType : match[1], data:match[2], bytes:data.length };
   }
 
-  function statusPayload() {
+  const remoteChannels = createRemoteMcpChannels({ attach:ws => wss.emit("connection", ws) });
+
+  function statusPayload(canConfigureLocalClients = true) {
     return {
       enabled:Boolean(record),
       connectedCanvases:[...canvases.values()].filter(item => item.canvasId && !item.closed).length,
       instanceId,
-      config:launch,
+      canConfigureLocalClients,
+      config:canConfigureLocalClients ? launch : null,
       instructions:"Add this stdio command to an MCP client. Open a local PenEcho canvas and explicitly enable its MCP connection before listing canvases.",
     };
   }
@@ -1048,11 +1056,12 @@ function createMcpService(options) {
         return sendJson(res, 200, { result:await callTool(ownerId, body.name, body.arguments, { signal:requestSignal(req, res) }) }), true;
       }
       if (!["GET", "POST"].includes(req.method) || url.pathname === "/api/mcp/configure" && req.method !== "POST") throw bridgeError("method_not_allowed", "Method Not Allowed", 405);
-      if (!browserAddressAllowed(req.socket.remoteAddress)) throw localHostRequired();
+      const canConfigureLocalClients = browserAddressAllowed(req.socket.remoteAddress);
+      if (url.pathname === "/api/mcp/configure" && !canConfigureLocalClients) throw localHostRequired();
       if (await browserAuthorization(req)) throw bridgeError("forbidden", "Forbidden", 403);
       if (url.pathname === "/api/mcp/status") {
-        const payload = statusPayload();
-        if (url.searchParams.get("inspectClients") === "1") payload.configuredClients = await inspectConfiguredClients({ rootDirectory, stateDirectory });
+        const payload = statusPayload(canConfigureLocalClients);
+        if (canConfigureLocalClients && url.searchParams.get("inspectClients") === "1") payload.configuredClients = await inspectConfiguredClients({ rootDirectory, stateDirectory });
         return sendJson(res, 200, payload), true;
       }
       if (!String(req.headers["content-type"] || "").toLowerCase().startsWith("application/json")) throw bridgeError("unsupported_media_type", "Use application/json.", 415);
@@ -1090,6 +1099,7 @@ function createMcpService(options) {
   async function close() {
     if (closed) return;
     closed = true;
+    remoteChannels.close();
     clearInterval(heartbeatTimer);
     server.off("upgrade", upgrade);
     if (record) { try { removeRecord(directory, record); } catch (error) { log({ type:"mcp-record-cleanup-error", errorCode:String(error?.code || "cleanup_failed").slice(0, 80) }); } }
@@ -1111,7 +1121,7 @@ function createMcpService(options) {
     await new Promise(resolve => wss.close(resolve));
   }
 
-  return { callTool, close, handleHttp, instanceId, listCanvases:() => [...canvases.values()].filter(item => item.canvasId && !item.closed).map(item => publicCanvas(item, instanceId)), register, status:statusPayload };
+  return { callTool, close, executeRemote:remoteChannels.execute, closeRemoteChannels:remoteChannels.disconnect, handleHttp, instanceId, listCanvases:() => [...canvases.values()].filter(item => item.canvasId && !item.closed).map(item => publicCanvas(item, instanceId)), register, status:statusPayload };
 }
 
 module.exports = { CALL_TIMEOUT_MS, MAX_CAPTURE_BYTES, MAX_HTTP_BODY_BYTES, createMcpService, isLoopback, normalizedAddress };

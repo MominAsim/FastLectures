@@ -281,6 +281,28 @@ test("two documents route hidden sessions without changing or mounting the visib
   assert.equal(h.control.frames, 0);
 });
 
+test("creating another Canvas stops at the open limit with a localized close-first hint", async () => {
+  const h = harness();
+  for (let index = 0; index < 32; index++) h.canvasDocuments.records.set(`limit-${index}`, { id: `limit-${index}` });
+  await assert.rejects(createHidden(h, "limit-create", "One too many"), error => {
+    assert.equal(error.code, "DOCUMENT_LIMIT");
+    assert.match(error.message, /32 Canvases are already open/);
+    assert.match(error.message, /Close an unused Canvas before opening another/);
+    return true;
+  });
+  h.state.language = "zh";
+  await assert.rejects(createHidden(h, "limit-create-zh", "One too many"), error => {
+    assert.match(error.message, /已打开 32 个画布/);
+    assert.match(error.message, /请先关闭不用的画布/);
+    return true;
+  });
+  h.state.language = "en";
+  h.canvasDocuments.records.delete("limit-0");h.canvasDocuments.records.delete("limit-1");
+  const before = h.canvasDocuments.records.size, created = await createHidden(h, "limit-create-ok", "Fits");
+  assert.equal(created.created, true);
+  assert.equal(h.canvasDocuments.records.size, before + 1);
+});
+
 test("virtual source edits preserve geometry, reject stale hashes, and recover mutation retries after persistence failure", async () => {
   const h = harness(), opened = await createHidden(h, "create-files", "Files");
   await startHidden(h, opened.documentId, "files-session");
@@ -456,22 +478,44 @@ test("invalid persisted unseen values reset to zero", async () => {
   assert.equal(oversized.canvasDocuments.records.get(opened.documentId).unseen, 0);
 });
 
-test("blank Canvas defaults to the first conversation, separates a new key, and reconnects each key to its document", async () => {
+test("new unbound sessions create canvases even when the visible Canvas is empty and reconnect to their binding", async () => {
   const h = harness(), visibleId = h.canvasDocumentsCurrent().id;
-  const first = await h.canvasDocumentsExecute("mcp_start_session", { sessionId: "first", sessionKey: "key-one", client: "Codex", title: "First", slotIndex: 0, takeover: false }, {});
-  assert.equal(first.documentId, visibleId);
-  assert.equal(first.active, true);
+  const keylessArgs = { sessionId: "keyless", client: "Codex", title: "Keyless", slotIndex: 0, takeover: false };
+  const keyless = await h.canvasDocumentsExecute("mcp_start_session", keylessArgs, {});
+  assert.notEqual(keyless.documentId, visibleId);
+  assert.equal(keyless.active, false);
+  assert.equal(h.canvasDocuments.records.size, 2);
+  const keylessAgain = await h.canvasDocumentsExecute("mcp_start_session", keylessArgs, {});
+  assert.equal(keylessAgain.documentId, keyless.documentId, "repeating a keyless session must retain its live session Canvas");
+  assert.equal(h.canvasDocuments.records.size, 2, "repeating a keyless session must not create another Canvas");
+
+  const firstArgs = { sessionId: "first", sessionKey: "key-one", client: "Codex", title: "First", slotIndex: 0, takeover: false };
+  const first = await h.canvasDocumentsExecute("mcp_start_session", firstArgs, {});
+  assert.notEqual(first.documentId, visibleId);
+  assert.equal(first.active, false);
+  assert.equal(h.canvasDocuments.activeId, visibleId);
+  assert.equal(h.canvasDocuments.records.size, 3);
+
+  const firstAgain = await h.canvasDocumentsExecute("mcp_start_session", firstArgs, {});
+  assert.equal(firstAgain.documentId, first.documentId, "repeating a session start must keep its Canvas");
+  assert.equal(h.canvasDocuments.records.size, 3, "repeating a session start must not create another Canvas");
 
   const second = await h.canvasDocumentsExecute("mcp_start_session", { sessionId: "second", sessionKey: "key-two", client: "Codex", title: "Second", slotIndex: 1, takeover: false }, {});
   assert.notEqual(second.documentId, visibleId);
+  assert.notEqual(second.documentId, first.documentId);
   assert.equal(second.active, false);
-  assert.equal(h.canvasDocuments.activeId, visibleId);
+  assert.equal(h.canvasDocuments.records.size, 4);
 
   const secondReconnect = await h.canvasDocumentsExecute("mcp_start_session", { sessionId: "second-reconnect", sessionKey: "key-two", client: "Codex", title: "Second again", slotIndex: 2, takeover: false }, {});
   const firstReconnect = await h.canvasDocumentsExecute("mcp_start_session", { sessionId: "first-reconnect", sessionKey: "key-one", client: "Codex", title: "First again", slotIndex: 3, takeover: false }, {});
   assert.equal(secondReconnect.documentId, second.documentId);
   assert.equal(firstReconnect.documentId, first.documentId);
-  assert.equal(h.canvasDocuments.records.size, 2);
+  assert.equal(h.canvasDocuments.records.size, 4, "reconnecting bound sessions must not create another Canvas");
+
+  const explicit = await createHidden(h, "explicit-session-document", "Explicit");
+  const explicitStart = await h.canvasDocumentsExecute("mcp_start_session", { sessionId: "explicit", documentId: explicit.documentId, client: "Codex", title: "Explicit start", slotIndex: 0, takeover: false }, {});
+  assert.equal(explicitStart.documentId, explicit.documentId, "an explicit documentId must reuse the requested Canvas");
+  assert.equal(h.canvasDocuments.records.size, 5);
 });
 
 test("Save as creates independent identity while retaining source and separating conversation bindings", async () => {
@@ -603,7 +647,7 @@ test("failed close preserves the original Canvas and its session", async () => {
 test("session titles name only untitled unsaved documents and survive reconnect", async () => {
   const h=harness();const doc=h.canvasDocumentsCurrent();doc.title="Untitled Canvas";
   h.state.currentSnapshotName="";h.state.currentSnapshotHasExplicitName=false;
-  await h.canvasDocumentsExecute("mcp_start_session",{sessionId:"named",sessionKey:"name-key",client:"Codex",title:"  Research   map  ",slotIndex:0},{});
+  await h.canvasDocumentsExecute("mcp_start_session",{sessionId:"named",documentId:doc.id,sessionKey:"name-key",client:"Codex",title:"  Research   map  ",slotIndex:0},{});
   assert.equal(doc.title,"Research map");assert.equal(h.state.currentCanvasSuggestedName,"Research map");
   await h.canvasDocumentsExecute("mcp_start_session",{sessionId:"renamed",sessionKey:"name-key",client:"Codex",title:"Other title",slotIndex:0},{});
   assert.equal(doc.title,"Research map");
@@ -661,4 +705,71 @@ test("background Widgets survive real record validation, persistence and restore
   assert.equal(reloaded.state.widgets[0].id, created.objectId);
   assert.equal(reloaded.state.widgets[0].html, "<p>Retained</p>");
   assert.equal(reloaded.control.mounts, 1);
+});
+
+test("explicit current attaches populated Canvas, preserves title, and stays pinned", async () => {
+  const h=harness();
+  await h.canvasDocumentsReady();
+  const visible=h.canvasDocumentsCurrent();
+  visible.title="Untitled Canvas";
+  h.state.currentSnapshotName="Untitled Canvas";
+  h.state.textBoxes.push({id:"existing-text",text:"Existing work",x:0,y:0,w:100,h:30});
+  const args={sessionId:"attached",target:"current",sessionKey:"attach-key",client:"Codex",title:"New title"};
+  const result=await h.canvasDocumentsExecute("mcp_start_session",args,{});
+  assert.equal(result.documentId,visible.id);
+  assert.equal(h.canvasDocuments.records.size,1);
+  assert.equal(visible.title,"Untitled Canvas");
+  assert.equal(visible.processor.kind,"penecho");
+  const live=h.mcpRuntime.sessions.get("attached");
+  live.summary="retain progress";
+  await h.canvasDocumentsExecute("mcp_start_session",args,{});
+  assert.equal(h.mcpRuntime.sessions.get("attached"),live);
+  const other=await createHidden(h,"other","Other");
+  await h.canvasDocumentsExecute("mcp_open_canvas",{documentId:other.documentId,show:true,requestId:"show-other"},{});
+  assert.equal(h.mcpRuntime.sessions.get("attached").documentId,visible.id);
+  const read=await h.canvasDocumentsExecute("mcp_read_file",{sessionId:"attached",path:"canvas.json"},{});
+  assert.equal(read.documentId,visible.id);
+  const textPath="objects/existing-text/content.txt";
+  const textRead=await h.canvasDocumentsExecute("mcp_read_file",{sessionId:"attached",path:textPath},{});
+  await h.canvasDocumentsExecute("mcp_apply_patch",{sessionId:"attached",path:textPath,expectedHash:textRead.contentHash,content:"Updated original work",requestId:"pinned-edit"},{});
+  assert.equal(visible.stored.item.textBoxes[0].text,"Updated original work");
+  assert.equal(h.state.textBoxes.length,0);
+  await assert.rejects(()=>h.canvasDocumentsExecute("mcp_start_session",{...args,client:"Other"},{}),e=>e.code==="BINDING_CONFLICT");
+  await assert.rejects(()=>h.canvasDocumentsExecute("mcp_start_session",args,{}),e=>e.code==="BINDING_CONFLICT");
+  await assert.rejects(()=>h.canvasDocumentsExecute("mcp_start_session",{...args,sessionId:"new-id"},{}),e=>e.code==="BINDING_CONFLICT");
+  assert.equal(h.canvasDocuments.records.size,2);
+});
+
+ test("current attach rejects an in-progress navigation", async()=>{
+  const h=harness();await h.canvasDocumentsReady();h.canvasDocuments.switching=true;
+  await assert.rejects(()=>h.canvasDocumentsExecute("mcp_start_session",{sessionId:"busy",target:"current",title:"Attach"},{}),e=>e.code==="CANVAS_BUSY");
+  assert.equal(h.mcpRuntime.sessions.size,0);
+});
+
+test("draw_ink validates before mutation, preserves brush selection, and seals one undo edit", async () => {
+  const calls=[],state={userRevision:4,inkColor:"#ff0000",pen:19},doc={revision:4},active={value:true};
+  const context=vm.createContext({state,SIZE:20000,canvasDocumentsIsActive:()=>active.value,canvasAgentMutationIdle:()=>{},canvasDocumentsError:(code,message)=>Object.assign(Error(message),{code}),canvasAgentAssertToolExecution:()=>{},save:()=>calls.push("save-before"),stroke:(...args)=>calls.push(args),dot:(...args)=>calls.push(args),canvasDocumentsEndEdit:(target,kind)=>{calls.push(kind);target.revision=++state.userRevision;}});
+  vm.runInContext(`async ${clientFunction("canvas-documents.js","canvasDocumentsEdit")};globalThis.edit=canvasDocumentsEdit;`,context);
+  const args={action:"draw_ink",baseRevision:4,strokes:[{color:"#123abc",width:8,points:[{x:10,y:10},{x:30,y:30}]}]};
+  await assert.rejects(context.edit(doc,{...args,baseRevision:3},{}),{code:"REVISION_CONFLICT"});
+  active.value=false;await assert.rejects(context.edit(doc,args,{}),{code:"ACTIVE_CANVAS_REQUIRED"});active.value=true;
+  await assert.rejects(context.edit(doc,{...args,strokes:[...args.strokes,{color:"bad",width:2,points:[{x:5,y:5}]}]},{}),{code:"INVALID_INK"});
+  assert.equal(calls.length,0);
+  const result=await context.edit(doc,args,{});
+  assert.equal(result.revision,5);assert.equal(calls[0],"save-before");assert.equal(calls.at(-1),"draw_ink");
+  assert.deepEqual(calls[1],[args.strokes[0].points[0],args.strokes[0].points[1],false,8,false,"#123abc"]);
+  assert.equal(state.inkColor,"#ff0000");assert.equal(state.pen,19);
+});
+
+test("draw_ink canonical raster tiles round trip through real save undo and redo", async () => {
+  const state={userRevision:0,historyBefore:new Map(),history:[],future:[],inkBounds:new Map()},tiles=new Map(),doc={revision:0};
+  const canvas=()=>({marks:[],getContext(){const owner=this;return {save(){},restore(){},beginPath(){},moveTo(){},lineTo(){},stroke(){owner.marks.push({color:this.strokeStyle,width:this.lineWidth});}};}});
+  const cloneCanvas=value=>{if(!value)return null;const next=canvas();next.marks=structuredClone(value.marks);return next;};
+  const context=vm.createContext({state,tiles,SIZE:20000,TILE:512,MAX_HISTORY:50,window:{},key:(x,y)=>`${x},${y}`,cloneCanvas,tile:(x,y,create=true)=>{const key=`${x},${y}`;if(create&&!tiles.has(key))tiles.set(key,canvas());return tiles.get(key);},valid:p=>p.x>=0&&p.y>=0&&p.x<=20000&&p.y<=20000,invalidateSharpOverlays(){},canvasDocumentsIsActive:()=>true,canvasAgentMutationIdle(){},canvasAgentAssertToolExecution(){},canvasDocumentsError:(code,message)=>Object.assign(Error(message),{code}),invalidateRecognition(){},restorePendingHistoryState(){},clearSharpOverlays(){},requestAnimationLayerRender(){},render(){}});
+  for(const name of ["recordBefore","unionLocalBounds","extendInkBounds","lineIntersectsRect","stroke","dot","save","applyHistory","undo","redo"])vm.runInContext(clientFunction("persistence.js",name),context);
+  vm.runInContext(`function canvasDocumentsEndEdit(doc){state.userRevision++;save();doc.revision=state.userRevision;} async ${clientFunction("canvas-documents.js","canvasDocumentsEdit")}`,context);
+  await context.canvasDocumentsEdit(doc,{action:"draw_ink",baseRevision:0,strokes:[{color:"#42b983",width:5,points:[{x:100,y:100},{x:200,y:200}]},{color:"#abc123",width:9,points:[{x:110,y:100}]}]},{});
+  assert.equal(state.history.length,1);assert.equal(tiles.get("0,0").marks.length,2);
+  context.undo();assert.equal(tiles.size,0);assert.equal(state.future.length,1);
+  context.redo();assert.equal(tiles.get("0,0").marks.length,2);assert.equal(tiles.get("0,0").marks[0].color,"#42b983");
 });

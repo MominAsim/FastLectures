@@ -320,7 +320,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       boardTools: "Board tools",
       canvasViewHand: "Move canvas",
       canvasViewSelect: "Select a widget to interact",
+      widgetFitContent: "Fit to content",
+      widgetFitContentFailed: "Could not measure content. Try again once the widget has loaded.",
       widgetInteract: "Interact with widget",
+      widgetInteractShort: "Interact",
+      widgetInteracting: "Interacting",
       widgetExitInteraction: "Exit interaction",
       canvasNavigationActions: "Canvas navigation",
       canvasFitContents: "Fit all content",
@@ -414,6 +418,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       effortHigh: "High",
       effortMaximum: "Max",
       inkColor: "Ink color",
+      customColor: "Custom…",
       fontRounded: "Rounded",
       fontHand: "Handwritten",
       fontSerif: "Classic serif",
@@ -576,6 +581,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsKimiCodingRecommendationReason: "Kimi CLI may not reliably reuse the Harness context cache, which can increase latency and usage.",
       settingsConfiguration: "Configuration",
       settingsConnections: "AI connections",
+      settingsCloudSetupHelp: "No API key, or unsure how to set up a connection? Create a free PenEcho account to use PenEcho Cloud directly—no API or CLI setup needed.",
+      settingsCloudSetupLink: "Open PenEcho Cloud ↗",
       settingsHostedModels: "PenEcho models",
       settingsHostedRefresh: "Refresh",
       settingsHostedPricing: "How credits are calculated",
@@ -1651,7 +1658,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     AI_CLIENT_ID = canvasClientId();
   function selectedAiConnectionId() {
     const id = String(localStorage.getItem(AI_CONNECTION_STORAGE_KEY) || "default").trim();
-    return id === "default" || /^(?:hosted:)?[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id) ? id : "default";
+    return id === "default" || id === "cli-override" || /^(?:hosted:)?[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id) ? id : "default";
   }
   function authenticatedApiHeaders(headers = {}) {
     const csrf = window.PENECHO_CONFIG?.runtime === "cloud"
@@ -1702,6 +1709,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       viewMode: false,
       viewTool: "hand",
       interactingWidgetId: null,
+      widgetInteractionReturnTool: null,
       widgetActivationTap: null,
       handToolbarTap: null,
       spacePan: false,
@@ -1858,7 +1866,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   const AI_SUPERSEDED = "AI_SUPERSEDED";
   const FEATURE_TOUR_STORAGE_KEY = "penecho-tour-progress";
   const CHANGELOG_STORAGE_KEY = "penecho-changelog-seen";
-  const CHANGELOG_VERSION = "1.2.0";
+  const CHANGELOG_VERSION = "1.3.0";
   // Keep seen IDs stable. Add a new ID (or bump its -vN suffix) to show only that feature to returning users.
   const FEATURE_TOUR_STEPS = Object.freeze([
     { id: "core-effort-v1", targets: ["#aiEffortButton"], titleKey: "tourEffortTitle", bodyKey: "tourEffortBody", placement: "bottom", radius: 8 },
@@ -2454,7 +2462,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return true;
   }
   if (configurationBody && canvasSettingsForm) configurationBody.append(canvasSettingsForm);
-  const settings = { open:false, activePage:"appearance", restoreFocus:null, requestTrace:false, cli:{}, cliStatuses:{}, cliInspectionGeneration:0, currentProvider:"api", configurationMode:"", configurationRestoreFocus:null, connections:[], activeConnectionId:"default", connectionLimit:10, editingConnectionId:null, deepSeekSearchProvider:"deepseek-official", hasDeepSeekSearchApiKey:false, hasTavilyApiKey:false, searchTestResults:null, searchTestGeneration:0, searchTestBusy:false, fetchedApiModels:[], fetchingApiModels:false, connectionActionBusy:false };
+  const settings = { open:false, activePage:"appearance", restoreFocus:null, requestTrace:false, cli:{}, cliStatuses:{}, cliInspectionGeneration:0, currentProvider:"api", configurationMode:"", startupConnectionsChecked:false, configurationLoad:null, configurationRestoreFocus:null, connections:[], activeConnectionId:"default", connectionLimit:10, editingConnectionId:null, deepSeekSearchProvider:"deepseek-official", hasDeepSeekSearchApiKey:false, hasTavilyApiKey:false, searchTestResults:null, searchTestGeneration:0, searchTestBusy:false, fetchedApiModels:[], fetchingApiModels:false, connectionActionBusy:false };
   const hostedSettings = { models:[], credits:null, loading:false, generation:0, signedIn:false, error:false };
   function hostedMultiplierLabel(value) {
     return `${Number(value).toLocaleString(undefined, { maximumFractionDigits:1 })}×`;
@@ -2465,6 +2473,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function renderHostedModels() {
     const section = document.getElementById("settingsHostedSection"), list = document.getElementById("settingsHostedList"), status = document.getElementById("settingsHostedStatus"), rates = document.getElementById("settingsHostedRates");
     if (!section || !list) return;
+    const cloudSetupLink = document.getElementById("settingsCloudSetupLink");
+    if (cloudSetupLink) cloudSetupLink.href = `${String(window.PENECHO_CONFIG?.cloudOrigin || (window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : "https://penecho.ai")).replace(/\/$/, "")}/dashboard.html`;
     const browserEditing = window.PENECHO_CONFIG?.browserCanvasEditing === true;
     for (const id of ["settingsHostedBrowserNotice", "settingsHostedLinkDevice"]) document.getElementById(id).hidden = !browserEditing;
     for (const control of [settingsOpenApi, settingsOpenSearch, settingsOpenSystem]) {
@@ -2519,7 +2529,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     finally { if (generation === hostedSettings.generation) { hostedSettings.loading = false; renderHostedModels(); } }
   }
   function syncLocalConnectionSelection() {
-    const selected = selectedAiConnectionId(), activeId = selected.startsWith("hosted:") || settings.connections.some(connection => connection.id === selected) ? selected : "default";
+    const selected = selectedAiConnectionId(), activeId = selected.startsWith("hosted:") || settings.connections.some(connection => connection.id === selected) ? selected : settings.connections[0]?.id || "default";
     if (activeId !== selected) localStorage.setItem(AI_CONNECTION_STORAGE_KEY, activeId);
     settings.activeConnectionId = activeId;
     settings.connections = settings.connections.map(connection => ({ ...connection, active:connection.id === activeId }));
@@ -3161,7 +3171,21 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function updateDeepSeekSearchProviderNotice() {
     if (settingsOpenCodeGoSearchSetup) settingsOpenCodeGoSearchSetup.hidden = settingsDeepSeekSearchProvider?.value !== "opencode-go";
   }
-  async function loadCanvasSettings() {
+  function loadCanvasSettings() {
+    if (settings.configurationLoad) return settings.configurationLoad;
+    settings.configurationLoad = performCanvasSettingsLoad().finally(() => { settings.configurationLoad = null; });
+    return settings.configurationLoad;
+  }
+  function routeStartupConnections(body) {
+    if (settings.startupConnectionsChecked) return;
+    settings.startupConnectionsChecked = true;
+    if (window.PENECHO_CONFIG?.runtime === "cloud" || window.PENECHO_CONFIG?.runtime === "viewer") return;
+    if (body.openConnections === true || body.hasUsableConnection === false) {
+      selectSettingsPage("connections");
+      openSettings();
+    }
+  }
+  async function performCanvasSettingsLoad() {
     if (!canvasSettingsForm) return;
     void loadHostedModels();
     setSettingsStatus(t("settingsLoading"));
@@ -3198,6 +3222,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       updateSettingsProviderFields();
       renderConnectionLists();
       setSettingsStatus();
+      routeStartupConnections(body);
     } catch (error) { setSettingsStatus(error?.message || t("settingsLoadFailed"), "error"); }
   }
   async function saveCanvasSettings(event) {
@@ -3331,10 +3356,6 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     void loadCanvasSettings();
   }
   function openSettings() {
-    if (window.penechoDesktop?.openSettings) {
-      void window.penechoDesktop.openSettings();
-      return true;
-    }
     if (settings.open || !settingsLayer) return false;
     hideAutoDelayControl();
     hideEffortControl();
@@ -3386,7 +3407,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     requestRender();
   }
   function maybeStartOnboarding() {
-    if (window.PENECHO_CONFIG?.runtime === "viewer") return false;
+    if (window.PENECHO_CONFIG?.runtime === "viewer" || settings.open) return false;
     if (!maybeStartFeatureTour()) maybeShowChangelog();
   }
   function autoDelayText() {

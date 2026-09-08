@@ -24,6 +24,12 @@ const updateApi = Object.freeze({
 
 contextBridge.exposeInMainWorld("penechoDesktopUpdate", updateApi);
 contextBridge.exposeInMainWorld("penechoDesktop", Object.freeze({
+  onShowConnections:listener => {
+    if (typeof listener !== "function") return () => {};
+    const handler = () => listener();
+    ipcRenderer.on("penecho:show-connections", handler);
+    return () => ipcRenderer.removeListener("penecho:show-connections", handler);
+  },
   installCli:provider => ipcRenderer.invoke("penecho:install-cli", provider),
   pickProjectFile:() => ipcRenderer.invoke("penecho:pick-project-file"),
   hasClipboardFile:() => ipcRenderer.sendSync("penecho:has-clipboard-file"),

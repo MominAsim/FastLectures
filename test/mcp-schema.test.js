@@ -157,3 +157,32 @@ test("persistent document, virtual file, edit, and inbox schemas are strict and 
   assert.throws(() => validateToolArguments("penecho_ack_messages", {sessionId:"s",ids:["a","a"],status:"done"}), /duplicates/);
   for (const name of ["penecho_open_canvas","penecho_find_canvases","penecho_list_files","penecho_read_file","penecho_patch_file","penecho_edit_canvas","penecho_capture_canvas","penecho_read_messages","penecho_ack_messages"]) assert.ok(TOOLS.some(tool => tool.name === name));
 });
+
+test("current session target is explicit and exclusive with documentId", () => {
+  const args = {canvasId:"canvas",instanceId:"instance",title:"Attach",target:"current"};
+  assert.equal(validateToolArguments("penecho_start_session",args).target,"current");
+  assert.throws(()=>validateToolArguments("penecho_start_session",{...args,target:"active"}));
+  assert.throws(()=>validateToolArguments("penecho_start_session",{...args,documentId:"saved"}));
+});
+
+test("draw_ink accepts explicit arbitrary brush colors and enforces action and resource bounds", () => {
+  const args={sessionId:"s",requestId:"ink",action:"draw_ink",baseRevision:3,strokes:[{color:"#13aBcD",width:7,points:[{x:100,y:200},{x:300,y:400}]}]};
+  assert.deepEqual(validateToolArguments("penecho_edit_canvas",args),args);
+  for(const patch of [{baseRevision:undefined},{strokes:[]},{strokes:Array(17).fill(args.strokes[0])},{strokes:[{...args.strokes[0],color:"red"}]},{strokes:[{...args.strokes[0],width:65}]},{strokes:[{...args.strokes[0],points:Array(257).fill({x:100,y:100})}]},{strokes:Array(5).fill({...args.strokes[0],points:Array(256).fill({x:100,y:100})})},{strokes:[{...args.strokes[0],points:[{x:100,y:100},{x:2200,y:100}]}]},{strokes:[{...args.strokes[0],points:[{x:0,y:100}]}]},{objectId:"unexpected"}])assert.throws(()=>validateToolArguments("penecho_edit_canvas",{...args,...patch}));
+  const schema=TOOLS.find(tool=>tool.name==="penecho_edit_canvas").inputSchema;
+  assert.equal(schema.properties.strokes.maxItems,16);
+  assert.ok(schema.properties.action.enum.includes("draw_ink"));
+});
+
+
+test("discovery advertises bounded natural-language workspace requests through canonical tools", () => {
+  const description = TOOLS.find(tool => tool.name === "penecho_list_canvases").description;
+  for (const phrase of ["penecho", "echo", "canvas", "画布", "echo一下这个想法", "penecho一下文件夹的架构", "把你要做的修改放到canvas"]) {
+    assert.ok(description.includes(phrase), `discovery includes ${phrase}`);
+  }
+  assert.match(description, /explicit visual-workspace requests/);
+  assert.match(description, /exact opted-in connection/);
+  assert.match(description, /Ordinary shell echo commands and unrelated canvas mentions are not triggers/);
+  assert.equal(new Set(TOOLS.map(tool => tool.name)).size, TOOLS.length);
+  assert.ok(TOOLS.every(tool => tool.name.startsWith("penecho_")), "invocation phrases do not introduce alias tools");
+});

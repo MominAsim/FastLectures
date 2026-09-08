@@ -1,6 +1,7 @@
 "use strict";
 
 const http = require("http");
+const { readConnectionStore, writeConnectionStore, isUsableConnection, connectionEnvironment, withConnectionOverride } = require("./connection-store.js");
 const fs = require("fs");
 const fsp = require("fs/promises");
 const path = require("path");
@@ -373,7 +374,6 @@ function applyCliResolution(provider, executable) {
     const cli = provider === "kimi-cli" ? KIMI_CLI : provider === "codex-cli" ? CODEX_CLI : CLAUDE_CLI;
     LOCAL_CLI = { ...cli, label:provider === "kimi-cli" ? "Kimi CLI" : provider === "codex-cli" ? "Codex CLI" : "Claude CLI", doctor:provider.replace("-cli", "") };
   }
-  if (DEFAULT_CONNECTION?.provider === provider) DEFAULT_CONNECTION.cliPath = selected;
 }
 
 function setCliResolutionTask(provider, task) {
@@ -551,26 +551,12 @@ function serializeConfigValue(value) {
 }
 
 function readConnectionsFile() {
-  if (!CONNECTIONS_FILE) return { defaultName:"Default connection", connections:[] };
-  try {
-    const parsed = JSON.parse(fs.readFileSync(CONNECTIONS_FILE, "utf8"));
-    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.connections)) return { defaultName:"Default connection", connections:[] };
-    // Legacy files can contain activeId. It is intentionally ignored because
-    // each browser now owns its current connection choice.
-    return { defaultName:typeof parsed.defaultName === "string" && parsed.defaultName.trim() ? parsed.defaultName.trim().slice(0, 80) : "Default connection", connections:parsed.connections.filter(item => item && typeof item === "object").slice(0, MAX_AI_CONNECTIONS - 1) };
-  } catch (error) {
-    if (error?.code === "ENOENT") return { defaultName:"Default connection", connections:[] };
-    return { defaultName:"Default connection", connections:[] };
-  }
+  return readConnectionStore(CONNECTIONS_FILE, { legacyConnection:LEGACY_CONNECTION });
 }
 
 function writeConnectionsFile(store) {
-  if (!CONNECTIONS_FILE) throw new Error("This PenEcho process does not have writable connection storage.");
-  const temporary = `${CONNECTIONS_FILE}.${process.pid}.tmp`;
-  fs.mkdirSync(path.dirname(CONNECTIONS_FILE), { recursive:true, mode:0o700 });
-  fs.writeFileSync(temporary, `${JSON.stringify(store, null, 2)}\n`, { encoding:"utf8", mode:0o600 });
-  fs.renameSync(temporary, CONNECTIONS_FILE);
-  try { fs.chmodSync(CONNECTIONS_FILE, 0o600); } catch (error) { if (process.platform !== "win32") throw error; }
+  writeConnectionStore(CONNECTIONS_FILE, store);
+  refreshPrimaryConnection(store);
 }
 
 function inferredApiPreset(format, url) {
@@ -603,7 +589,7 @@ function connectionPublicValue(connection) {
     id:connection.id,
     name:connectionTitle(connection),
     provider:connection.provider,
-    removable:connection.id !== "default",
+    removable:connection.id !== "cli-override",
     effort:connection.effort || DEFAULT_REASONING_EFFORT,
     ...(api ? { apiFormat:connection.apiFormat, apiPreset:connection.apiPreset || inferredApiPreset(connection.apiFormat, connection.apiUrl), apiUrl:connection.apiUrl, apiModel:connection.apiModel, hasApiKey:Boolean(connection.apiKey) } : { cliModel:connection.cliModel || "", cliPath:connection.cliPath || connection.provider.replace("-cli", "") }),
   };
@@ -633,7 +619,7 @@ function normalizeConnection(input, existing = null) {
   if (!provider) throw new Error("Choose an AI provider.");
   const id = existing?.id || crypto.randomUUID(), connection = { id, provider, effort };
   if (provider === "api") {
-    const apiFormat = String(input.apiFormat || "").trim().toLowerCase(), apiUrl = String(input.apiUrl || "").trim().replace(/\/+$/, ""), apiModel = String(input.apiModel || "").trim(), enteredKey = String(input.apiKey || "").trim(), apiKey = enteredKey || existing?.apiKey || (id === "default" ? API_KEY : ""), requestedPreset = String(input.apiPreset || "").trim();
+    const apiFormat = String(input.apiFormat || "").trim().toLowerCase(), apiUrl = String(input.apiUrl || "").trim().replace(/\/+$/, ""), apiModel = String(input.apiModel || "").trim(), enteredKey = String(input.apiKey || "").trim(), apiKey = enteredKey || existing?.apiKey, requestedPreset = String(input.apiPreset || "").trim();
     if (!new Set(["openai", "anthropic"]).has(apiFormat)) throw new Error("Choose an API format.");
     if (requestedPreset && !API_PRESET_IDS.has(requestedPreset)) throw new Error("Choose a supported API preset.");
     let url;
@@ -770,18 +756,29 @@ async function discoverConnectionModels(request) {
   }
 }
 
-function connectionStore() {
-  const store = readConnectionsFile(), base = { ...DEFAULT_CONNECTION, name:connectionTitle(DEFAULT_CONNECTION) };
-  const saved = store.connections.filter(item => item.id && item.id !== "default");
-  return { defaultConnection:base, connections:saved };
+// Capture the legacy configuration exactly once, before applying the unified store.
+const LEGACY_CONNECTION = AI_PROVIDER || API_BASE_URL || MODEL || API_KEY ? connectionFromEnvironment() : null;
+let primaryConnectionId = "";
+const CONNECTION_OVERRIDE = (() => { try { return JSON.parse(process.env.PENECHO_CONNECTION_OVERRIDE || "{}"); } catch { return {}; } })();
+function connectionStore() { return withConnectionOverride(readConnectionsFile(), CONNECTION_OVERRIDE); }
+function refreshPrimaryConnection(store) {
+  const first = withConnectionOverride(store, CONNECTION_OVERRIDE).connections[0];
+  primaryConnectionId = first?.id || "";
+  Object.assign(process.env, connectionEnvironment(first));
+  API_FORMAT = "openai"; API_BASE_URL = ""; API_KEY = ""; MODEL = ""; API_PRESET = ""; AI_EFFORT = null;
+  KIMI_CLI = { ...KIMI_CLI, model:null, executable:"kimi" };
+  CODEX_CLI = { ...CODEX_CLI, model:null, executable:"codex" };
+  CLAUDE_CLI = { ...CLAUDE_CLI, model:null, executable:"claude" };
+  applyHotProviderConfiguration(first ? connectionUpdates(first) : { AI_PROVIDER:"" });
 }
-
-const DEFAULT_CONNECTION = connectionFromEnvironment();
+try { refreshPrimaryConnection(connectionStore()); } catch {
+  refreshPrimaryConnection({ connections:[] });
+  console.warn("PenEcho: AI connection storage could not be read. Repair connections.json to configure AI connections.");
+}
 
 function writeCanvasConfiguration(updates) {
   if (!CONFIG_FILE) throw new Error("This PenEcho process does not have a writable configuration file.");
   const values = parseConfigFile(CONFIG_FILE);
-  if (updates.AI_PROVIDER === "api" && !Object.hasOwn(updates, "AI_API_KEY") && values.AI_API_KEY === undefined && DEFAULT_CONNECTION?.apiKey) values.AI_API_KEY = DEFAULT_CONNECTION.apiKey;
   for (const [name, value] of Object.entries(updates)) values[name] = String(value);
   const temporary = `${CONFIG_FILE}.${process.pid}.tmp`;
   fs.mkdirSync(path.dirname(CONFIG_FILE), { recursive:true, mode:0o700 });
@@ -791,13 +788,15 @@ function writeCanvasConfiguration(updates) {
 }
 
 function canvasSettings() {
-  const store = connectionStore(), connections = [store.defaultConnection, ...store.connections];
+  const store = connectionStore(), connections = store.connections;
   return {
     connections:connections.map(connectionPublicValue),
+    hasUsableConnection:connections.some(isUsableConnection),
+    openConnections:process.env.PENECHO_OPEN_CONNECTIONS === "true",
     connectionLimit:MAX_AI_CONNECTIONS,
     provider:AI_PROVIDER || "api",
     apiFormat:API?.format || API_FORMAT || "openai",
-    apiPreset:store.defaultConnection.provider === "api" ? store.defaultConnection.apiPreset || inferredApiPreset(store.defaultConnection.apiFormat, store.defaultConnection.apiUrl) : "",
+    apiPreset:API_PRESET || "",
     apiUrl:API_BASE_URL || "https://api.openai.com/v1",
     apiModel:MODEL || "",
     hasApiKey:Boolean(API_KEY),
@@ -821,11 +820,11 @@ function canvasSettings() {
 
 function findConnection(store, id) {
   if (String(id).startsWith("hosted:")) return cloudConnector?.hostedConnection(id) || null;
-  return id === "default" ? store.defaultConnection : store.connections.find(connection => connection.id === id) || null;
+  return store.connections.find(connection => connection.id === id) || null;
 }
 
 function updateConnectionStore(input) {
-  const action = String(input?.action || "").trim(), store = connectionStore();
+  const action = String(input?.action || "").trim(), store = readConnectionsFile();
   if (action === "activate") {
     // Older clients used a server-wide activation action. Selection is now
     // device-local, so keep this endpoint compatible without changing state.
@@ -834,28 +833,22 @@ function updateConnectionStore(input) {
   }
   if (action === "delete") {
     const id = String(input.id || "");
-    if (!id || id === "default") throw new Error("The default connection cannot be deleted.");
+    if (!id) throw new Error("Connection was not found.");
     if (!store.connections.some(connection => connection.id === id)) throw new Error("Connection was not found.");
     const connections = store.connections.filter(connection => connection.id !== id);
-    writeConnectionsFile({ defaultName:store.defaultConnection.name, connections });
+    writeConnectionsFile({ ...store, connections });
     return canvasSettings();
   }
   if (action === "save") {
     const requestedId = String(input.id || "").trim(), existing = requestedId ? findConnection(store, requestedId) : null;
-    if (requestedId && !existing) throw new Error("Connection was not found.");
-    if (!existing && store.connections.length + 1 >= MAX_AI_CONNECTIONS) throw new Error(`You can save up to ${MAX_AI_CONNECTIONS} connections.`);
+    if (requestedId && !existing && !(requestedId === "cli-override" && connectionStore().connections[0]?.id === "cli-override")) throw new Error("Connection was not found.");
+    if (!existing && store.connections.length >= MAX_AI_CONNECTIONS) throw new Error(`You can save up to ${MAX_AI_CONNECTIONS} connections.`);
     const connection = normalizeConnection(input.connection, existing);
-    if (existing?.id === "default") {
-      connection.id = "default";
-      writeCanvasConfiguration(connectionUpdates(connection));
-      Object.assign(DEFAULT_CONNECTION, connection);
-      store.defaultConnection = connection;
-      applyHotProviderConfiguration(connectionUpdates(connection));
-    } else if (existing) {
+    if (existing) {
       const index = store.connections.findIndex(item => item.id === existing.id);
       store.connections[index] = connection;
     } else store.connections.push(connection);
-    writeConnectionsFile({ defaultName:store.defaultConnection.name, connections:store.connections });
+    writeConnectionsFile(store);
     return { ...canvasSettings(), savedId:connection.id };
   }
   throw new Error("Choose a connection action.");
@@ -873,9 +866,9 @@ function normalizeCanvasSettings(input) {
     return { PENECHO_SETTINGS_SCOPE:scope, DEEPSEEK_SEARCH_PROVIDER:deepSeekSearchProvider, ...(deepseekSearchApiKey ? { DEEPSEEK_SEARCH_API_KEY:deepseekSearchApiKey } : {}), ...(tavilyApiKey ? { TAVILY_API_KEY:tavilyApiKey } : {}) };
   }
   const provider = normalizeAiProvider(input.provider), format = String(input.apiFormat || "").trim().toLowerCase(), preset = String(input.apiPreset || "").trim(), urlText = String(input.apiUrl || "").trim(), model = String(input.apiModel || "").trim(), key = String(input.apiKey || "").trim(), effort = connectionEffort(input.effort), imageFormat = String(input.imageFormat || "").trim().toLowerCase(), timeout = Number(input.timeoutSeconds), maxTokens = configuredMaxTokens(input.maxTokens), agentTurnLimit = input.canvasAgentTurnLimit === undefined ? CANVAS_AGENT_TURN_LIMIT : Number(input.canvasAgentTurnLimit), autoDelay = Number(input.autoDelaySeconds), traceLimit = Number(input.requestTraceLimit);
-  if (!provider) throw new Error("Choose an AI provider.");
+  if (scope === "api" && !provider) throw new Error("Choose an AI provider.");
   let url;
-  if (provider === "api") {
+  if (scope === "api" && provider === "api") {
     if (!new Set(["openai", "anthropic"]).has(format)) throw new Error("Choose an API format.");
     if (preset && !API_PRESET_IDS.has(preset)) throw new Error("Choose a supported API preset.");
     try { url = new URL(urlText); } catch { throw new Error("Enter a valid API base URL."); }
@@ -934,7 +927,7 @@ function providerConfigurationError(provider = activeProviderSnapshot()) {
 
 function activeProviderSnapshot() {
   return {
-    connectionId:"default",
+    connectionId:primaryConnectionId,
     connectionName:AI_PROVIDER === "api" ? MODEL : AI_PROVIDER,
     provider:AI_PROVIDER,
     aiEffort:AI_EFFORT,
@@ -1024,7 +1017,7 @@ function cliConnectionIssue(error) {
 
 function requestProviderSnapshot(req) {
   const requestedId = String(req.headers["x-penecho-connection"] || "default").trim(), store = connectionStore(),
-    connection = findConnection(store, requestedId) || (requestedId.startsWith("hosted:") ? null : store.defaultConnection);
+    connection = findConnection(store, requestedId) || (requestedId.startsWith("hosted:") ? null : store.connections[0]);
   if (!connection) throw Object.assign(new Error("The selected PenEcho model is unavailable. Refresh AI connections."), { status:409 });
   return connectionProviderSnapshot(connection);
 }
@@ -3615,11 +3608,15 @@ const server = http.createServer(async (req, res) => {
         systemNames = new Set(["AI_TIMEOUT_SECONDS", "MAX_TOKENS", "PENECHO_CANVAS_AGENT_TURN_LIMIT", "AUTO_AI_DELAY_SECONDS", "PENECHO_AI_IMAGE_FORMAT", "PENECHO_REQUEST_TRACE", "PENECHO_REQUEST_TRACE_LIMIT"]),
         scopeNames = scope === "api" ? providerNames : scope === "search" ? new Set(["DEEPSEEK_SEARCH_PROVIDER", "DEEPSEEK_SEARCH_API_KEY", "TAVILY_API_KEY"]) : systemNames,
         selected = Object.fromEntries(Object.entries(updates).filter(([name]) => scopeNames.has(name)));
-      writeCanvasConfiguration(selected);
       if (scope === "api") {
-        applyHotProviderConfiguration(selected);
-        Object.assign(DEFAULT_CONNECTION, connectionFromEnvironment("default"));
-      }
+        const store = readConnectionsFile(), existing = store.connections[0];
+        const prefix = { "kimi-cli":"KIMI_CLI", "codex-cli":"CODEX_CLI", "claude-cli":"CLAUDE_CLI" }[selected.AI_PROVIDER];
+        const connection = normalizeConnection({ provider:selected.AI_PROVIDER, effort:selected.AI_EFFORT,
+          apiFormat:selected.AI_API_FORMAT, apiUrl:selected.AI_API_URL, apiModel:selected.AI_API_MODEL, apiKey:selected.AI_API_KEY, apiPreset:selected.PENECHO_API_PRESET,
+          cliModel:prefix ? selected[`${prefix}_MODEL`] : "", cliPath:prefix ? selected[`${prefix}_PATH`] : "" }, existing);
+        if (existing) store.connections[0] = connection; else store.connections.push(connection);
+        writeConnectionsFile(store);
+      } else writeCanvasConfiguration(selected);
       if (scope === "search") applyHotSearchConfiguration(selected);
       return send(res, 200, { ok:true, providerApplied:scope === "api", searchApplied:scope === "search", restartRequired:scope === "system", deepSeekSearchProvider:DEEPSEEK_SEARCH_PROVIDER, hasDeepSeekSearchApiKey:Boolean(DEEPSEEK_SEARCH_API_KEY), hasTavilyApiKey:Boolean(TAVILY_API_KEY), webSearchAvailable:true });
     } catch (error) { return send(res, 400, { error:error?.message || "Could not save settings." }); }
@@ -3678,7 +3675,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
   if (req.method === "GET" && url.pathname === "/api/config.js") {
-    const desktopApp=process.env.PENECHO_DESKTOP_APP==="true",config={autoAiDelayMs:AUTO_AI_DELAY_MS,aiRequestTimeoutMs:AI_REQUEST_TIMEOUT_MS,aiProvider:AI_PROVIDER||"invalid",aiEffort:configuredUiEffort(),cloudEnvironment:PENECHO_CLOUD_ENV,cloudOrigin:DEFAULT_CLOUD_ORIGIN,desktopApp,clientPlatform:process.platform,clientVersion:desktopApp?(APP_PACKAGE.config?.desktopVersion||APP_PACKAGE.version):APP_PACKAGE.version,canvasAgent:true,canvasAgentAutoOpen:CANVAS_AGENT_AUTO_OPEN,canvasAgentSearchConfigured:true};
+    const desktopApp=process.env.PENECHO_DESKTOP_APP==="true",config={autoAiDelayMs:AUTO_AI_DELAY_MS,aiRequestTimeoutMs:AI_REQUEST_TIMEOUT_MS,aiProvider:AI_PROVIDER||"invalid",aiEffort:configuredUiEffort(),cloudEnvironment:PENECHO_CLOUD_ENV,cloudOrigin:DEFAULT_CLOUD_ORIGIN,desktopApp,clientPlatform:process.platform,clientVersion:desktopApp?(APP_PACKAGE.config?.desktopVersion||APP_PACKAGE.version):APP_PACKAGE.version,canvasAgent:true,canvasAgentAutoOpen:CANVAS_AGENT_AUTO_OPEN,canvasAgentSearchConfigured:true,openConnections:process.env.PENECHO_OPEN_CONNECTIONS === "true"};
     if(localAccessMode==="open"||hasAiSession(req))config.accessSessionToken=AI_SESSION_TOKEN;
     return send(res,200,`window.PENECHO_CONFIG=${JSON.stringify(config)};`,"application/javascript; charset=utf-8");
   }
@@ -4178,8 +4175,8 @@ const canvasAgentRequestTracer = REQUEST_TRACE_ENABLED ? createCanvasAgentReques
 const canvasAgent = attachCanvasAgent({
   server,
   authorize:browserRequestError,
-  resolveConnection:id=>findConnection(connectionStore(),String(id||"default")),
-  listConnections:()=>{const store=connectionStore();return[store.defaultConnection,...store.connections,...(cloudConnector?.hostedConnections() || [])]},
+  resolveConnection:id=>{const store=connectionStore(),requested=String(id||"default");return findConnection(store,requested)||(requested==="default"?store.connections[0]||null:null)},
+  listConnections:()=>{const store=connectionStore();return[...store.connections,...(cloudConnector?.hostedConnections() || [])]},
   resolveWebSearch:()=>({ provider:DEEPSEEK_SEARCH_API_KEY?DEEPSEEK_SEARCH_PROVIDER:TAVILY_API_KEY?"tavily":"built-in", deepseekProvider:DEEPSEEK_SEARCH_PROVIDER, deepseekApiKey:DEEPSEEK_SEARCH_API_KEY||"", tavilyApiKey:TAVILY_API_KEY||"", apiKey:TAVILY_API_KEY||"" }),
   resolveWidgetCapabilities:resolveCanvasAgentWidgetCapabilities,
   resolveProject:id=>CANVAS_AGENT_PROJECT_STORE.resolve(id, { touch:true }),
@@ -4225,7 +4222,7 @@ if (startupConfigurationError) {
   server.listen(PORT, HOST, () => {
     const address = server.address(), listeningPort = typeof address === "object" && address ? address.port : PORT;
     try { mcpService.register(address); } catch(error) { log({type:"mcp-register-error",errorCode:String(error?.code||"register_failed")}); }
-    cloudConnector = new CloudConnector({ stateDir:CLOUD_STATE_DIRECTORY, executeRequest:executeCloudCommand, executeHttpRequest:remoteCanvasHttpExecutor(), executeCanvasAgentRequest:canvasAgent.executeRemote, logger:log, defaultOrigin:DEFAULT_CLOUD_ORIGIN, capabilities:{ modelConfigured:!providerConfigurationError() } });
+    cloudConnector = new CloudConnector({ stateDir:CLOUD_STATE_DIRECTORY, executeRequest:executeCloudCommand, executeHttpRequest:remoteCanvasHttpExecutor(), executeCanvasAgentRequest:canvasAgent.executeRemote, executeMcpRequest:mcpService.executeRemote, closeMcpChannels:mcpService.closeRemoteChannels, logger:log, defaultOrigin:DEFAULT_CLOUD_ORIGIN, capabilities:{ modelConfigured:!providerConfigurationError() } });
     cloudConnector.start();
     console.log(`PenEcho: http://${HOST}:${listeningPort} (${AI_PROVIDER || "invalid provider"})`);
     if (HOST.trim() === "0.0.0.0") {

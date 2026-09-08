@@ -5,8 +5,8 @@ function harness(overrides={}) {
  const changes=[],widgets=[{id:'rear'},{id:'front'}];
  const state={mode:'pen',viewMode:false,viewTool:'hand',spacePan:false,interactingWidgetId:null,navigationLocked:false,scale:1,panX:0,panY:0,widgets,...overrides};
  const classList={toggle(name,value){changes.push([name,value]);}},view={classList},screen={};
- const ctx={state,view,screen,Math,Number,Boolean,document:{querySelector:()=>null,activeElement:null},window:{PenEchoStudioNavigator:{flushMcpFollow(){changes.push(['flush']);}}},syncWidgetHostStates(){},resetCanvasCursor(){},requestInteractionLayerRender(){},visibleWidgets:()=>widgets,clientPoint:e=>({x:e.clientX,y:e.clientY}),handObjectToolbarTargetAtPoint:()=>({kind:'widget',object:widgets[1]}),canvasViewportMetrics:()=>({width:1000,height:800}),moveCanvas:(dx,dy)=>{state.panX+=dx;state.panY+=dy;},zoomCanvasAt:(x,y,delta)=>{changes.push(['zoom',x,y,delta]);},requestCoordinatesUpdate(){},wheelNavigating(){}};
- const api=vm.runInNewContext(`${source.slice(0,source.indexOf("\n  document.querySelector('#canvasViewHand')"))};({canvasWidgetSelectionEnabled,canvasWidgetInteractive,canvasWidgetAtEvent,setWidgetInteraction,setCanvasViewTool,setSpacePan,handleCanvasWheel,beginCanvasTrackpadGesture,updateCanvasTrackpadGesture,endCanvasTrackpadGesture})`,ctx);
+ const ctx={setCanvasMode(mode){state.mode=mode;},state,view,screen,Math,Number,Boolean,document:{querySelector:()=>null,activeElement:null},window:{PenEchoStudioNavigator:{flushMcpFollow(){changes.push(['flush']);}}},syncWidgetHostStates(){},resetCanvasCursor(){},requestInteractionLayerRender(){},visibleWidgets:()=>widgets,clientPoint:e=>({x:e.clientX,y:e.clientY}),handObjectToolbarTargetAtPoint:()=>({kind:'widget',object:widgets[1]}),canvasViewportMetrics:()=>({width:1000,height:800}),moveCanvas:(dx,dy)=>{state.panX+=dx;state.panY+=dy;},zoomCanvasAt:(x,y,delta)=>{changes.push(['zoom',x,y,delta]);},requestCoordinatesUpdate(){},wheelNavigating(){}};
+ const api=vm.runInNewContext(`${source.slice(0,source.indexOf("\n  document.querySelector('#canvasViewHand')"))};({enterWidgetInteraction,canvasWidgetSelectionEnabled,canvasWidgetInteractive,canvasWidgetAtEvent,setWidgetInteraction,setCanvasViewTool,setSpacePan,handleCanvasWheel,beginCanvasTrackpadGesture,updateCanvasTrackpadGesture,endCanvasTrackpadGesture})`,ctx);
  const wheel=(values={})=>{let prevented=false;const event={target:view,deltaX:0,deltaY:0,deltaMode:0,clientX:200,clientY:300,preventDefault(){prevented=true;},...values};api.handleCanvasWheel(event);return prevented;};
  return {api,state,changes,widgets,wheel,view};
 }
@@ -68,4 +68,80 @@ test('interactive Widget shell retains wheel and pinch while blank Canvas still 
  let prevented=false;h.api.beginCanvasTrackpadGesture({target,scale:1,preventDefault(){prevented=true;}});
  assert.equal(prevented,false);assert.equal(h.state.trackpadGesture,undefined);assert.equal(h.changes.some(c=>c[0]==='zoom'),false);
  h.wheel({deltaY:20});assert.equal(h.state.panY,-20);
+});
+
+function gestureHarness(overrides={}) {
+ const calls=[],listeners={},widgets=overrides.widgets||[{id:'rear'},{id:'front'}];
+ const state={mode:'pen',viewMode:false,viewTool:'hand',spacePan:false,interactingWidgetId:null,navigationLocked:false,scale:1,panX:0,panY:0,handToolbarTargets:new Map(),...overrides,widgets};
+ const view={classList:{toggle(){}},clientWidth:1000,clientHeight:800,addEventListener(type,listener){(listeners[type]||(listeners[type]=[])).push(listener);}};
+ const ctx={state,view,screen:{},Math,Number,Boolean,String,JSON,
+  document:{querySelector:()=>null,activeElement:null},
+  window:{addEventListener(){},PenEchoStudioNavigator:{flushMcpFollow(){}}},
+  localStorage:{setItem(){},getItem:()=>null},
+  syncWidgetHostStates(){},resetCanvasCursor(){},requestInteractionLayerRender(){},requestCoordinatesUpdate(){},wheelNavigating(){},
+  visibleWidgets:()=>widgets,clientPoint:e=>({x:e.clientX,y:e.clientY}),
+  handObjectToolbarTargetAtPoint:()=>({kind:'widget',object:widgets[1]}),
+  canvasViewportMetrics:()=>({width:1000,height:800}),
+  showHandObjectToolbar:(kind,object)=>{calls.push(['toolbar',kind,object?.id]);return true;},
+  setCanvasMode:(mode)=>{calls.push(['mode',mode]);state.mode=mode;}};
+ vm.runInNewContext(source,ctx);
+ const fire=(type,values={})=>{const event={target:{},clientX:400,clientY:300,preventDefault(){event.prevented=true;},...values};for(const listener of listeners[type]||[])listener(event);return event;};
+ return {state,calls,widgets,fire};
+}
+test('right-click lists the Widget toolbar and double-click enters interaction from Hand or View',()=>{
+ const hand=gestureHarness({mode:'hand'});
+ const menu=hand.fire('contextmenu');
+ assert.equal(menu.prevented,true);assert.deepEqual(hand.calls,[['toolbar','widget','front']]);
+ hand.fire('dblclick');
+ assert.deepEqual(hand.calls.at(-1),['mode','select']);
+ assert.equal(hand.state.mode,'select');assert.equal(hand.state.interactingWidgetId,'front');
+
+ const view=gestureHarness({viewMode:true,viewTool:'hand'});
+ view.fire('dblclick');
+ assert.equal(view.state.viewTool,'select');assert.equal(view.state.interactingWidgetId,'front');
+
+ const pen=gestureHarness({mode:'pen'});
+ pen.fire('dblclick');
+ assert.equal(pen.state.interactingWidgetId,null);assert.deepEqual(pen.calls,[]);
+
+ const chrome=gestureHarness({mode:'hand'});
+ chrome.fire('contextmenu',{target:{closest:()=>({})}});
+ assert.deepEqual(chrome.calls,[]);
+
+ const pending=gestureHarness({mode:'hand',widgets:[{id:'rear'},{id:'front',pending:true}]});
+ pending.fire('contextmenu');
+ assert.deepEqual(pending.calls,[]);
+
+ const active=gestureHarness({mode:'hand',interactingWidgetId:'front'});
+ active.fire('contextmenu');
+ active.fire('dblclick');
+ assert.deepEqual(active.calls,[]);assert.equal(active.state.interactingWidgetId,'front');
+});
+
+test('explicit widget interaction restores the originating Hand or Pen tool on exit',()=>{
+ for(const mode of ['hand','pen','select']){
+  const h=harness({mode});
+  assert.equal(h.api.enterWidgetInteraction(h.widgets[0]),true);
+  assert.equal(h.state.mode,'select');
+  h.api.enterWidgetInteraction(h.widgets[1]);
+  h.api.setWidgetInteraction(null);
+  assert.equal(h.state.mode,mode);
+  assert.equal(h.state.interactingWidgetId,null);
+  assert.equal(h.state.widgetInteractionReturnTool,null);
+ }
+});
+test('explicit tool changes discard the interaction return tool',()=>{
+ const h=harness({mode:'hand'});
+ h.api.enterWidgetInteraction(h.widgets[0]);
+ h.api.setWidgetInteraction(null,{restoreTool:false});
+ assert.equal(h.state.mode,'select');
+ assert.equal(h.state.widgetInteractionReturnTool,null);
+});
+test('view interaction restores its own Hand tool independently of the editing tool',()=>{
+ const h=harness({viewMode:true,viewTool:'hand',mode:'pen'});
+ h.api.enterWidgetInteraction(h.widgets[0]);
+ assert.equal(h.state.viewTool,'select');
+ h.api.setWidgetInteraction(null);
+ assert.equal(h.state.viewTool,'hand');
+ assert.equal(h.state.mode,'pen');
 });

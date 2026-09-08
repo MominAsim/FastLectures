@@ -46,3 +46,19 @@ MCP Server sits immediately before the Agent launcher inside the existing respon
 Existing Codex/Claude entries can be inspected on demand through authenticated local status (`inspectClients=1`). This reads configuration only; it neither changes the client nor proves a live AI connection. Each client has at most two one-second CLI probes. Normal status requests do not launch a CLI.
 
 Validation: 35 frontend/runtime/navigation checks and 8 MCP service checks passed. The generated client builds and the official Cloud mirror check passes. Browser visual acceptance remains pending because the computer-use service could not start. No product process was restarted; existing-entry inspection requires loading the updated backend. UI and final review were handled by the primary agent; the backend subtask requested Sol/high (independent actual-model runtime metadata was unavailable).
+
+## MCP settings panel: three-step setup card (2026-09-08)
+
+The settings page is one card instead of two loose groups: a header with live status pill and Check again, three numbered steps, a collapsed manual section and a capability footer. The approved visual source is the Canvas design "MCP 设置面板重设计" (documentId `bd323150-3646-4a54-9439-149c68b29d0c`, widget `widget-2`).
+
+| Product region | Catalog source | Applied rule |
+| --- | --- | --- |
+| Header + status | Workbench page-status examples | One identity block, one semantic status pill (`data-state` on/off/pending) and one quiet refresh action |
+| Steps 1–3 | Settings rows with numbered steps | Badge + title + hint; the permission switch stays on step 1, client selection on step 2 |
+| Client selection | Catalog radiogroup cards | Three cards replace the select; `:has(input:checked)` tint, keyboard focus ring, Other opens manual details |
+| Example prompts | Catalog list rows with trailing icon action | Six full-width rows: icon, title, prompt text, per-row copy with transient done state |
+| Manual + footer | Catalog disclosure and quiet footer | Manual follows step 2 and stays collapsed; Config JSON / Skill / Guide hint; three capability notes |
+
+Step 3 examples (EN / ZH), each copied verbatim from its row: Three design options 三个设计方案, Compare architectures 新旧架构对比, Handwriting to Widget 手写内容转 Widget, Show a folder 展示文件夹内容, Echo code changes 改代码并回显重点, Revise from feedback 根据界面反馈修改. Prompt trigger words (PenEcho, echo, canvas, 画布) use bold primary text while copied prompts remain plain text. Remote browsers retain disabled host-only automatic configuration controls and readable manual host instructions; they do not receive local launch paths. Copy feedback uses the shared `mcpExampleStatus` live region and reverts after 2.4 s; the button shows a check for 1.6 s.
+
+Verification: `test/mcp-settings.test.js` covers the radio-card configure request, Other → manual disclosure, localized example copy and the existing configure/status contracts (20/20). Full `node --test` keeps the same 21 pre-existing failures as before the change. Browser acceptance on the running 3921 service covered EN/ZH, 1280 × 800 and 700 × 900 (stacked cards), client-card selection, Other auto-opening manual details, and a real clipboard copy of the Chinese prompt; the test tab's language and viewport were restored. No commit or push was made.

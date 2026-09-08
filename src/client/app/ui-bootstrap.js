@@ -611,7 +611,8 @@
     updateHandObjectHover(null);
     updateWidgetRefinePointer(null);
   });
-  screen.addEventListener("contextmenu", (e) => e.preventDefault());
+  // The viewport context menu is owned by canvas-navigation.js: it suppresses
+  // the native menu and opens the Widget toolbar when one is under the pointer.
   view.addEventListener("wheel", handleCanvasWheel, { passive:false });
   view.addEventListener("gesturestart", beginCanvasTrackpadGesture, { passive:false });
   view.addEventListener("gesturechange", updateCanvasTrackpadGesture, { passive:false });
@@ -706,7 +707,7 @@
   }
   function setCanvasMode(mode, options) {
     options ||= {};
-    if (mode !== state.mode) setWidgetInteraction(null);
+    if (mode !== state.mode || state.interactingWidgetId) setWidgetInteraction(null, { restoreTool:false });
     const eraserMode = ["eraser", "area-eraser"].includes(mode),
       button = eraserMode ? eraserToolButton : document.querySelector(`[data-mode="${mode}"]`);
     if (!button) return;
@@ -1052,7 +1053,7 @@
       if (orbit) {
         orbit.hidden = true;
         orbit.setAttribute("aria-hidden", "true");
-        orbit.querySelectorAll(".orbit-swatch").forEach((button) => button.setAttribute("tabindex", "-1"));
+        orbit.querySelectorAll(".orbit-swatch, [data-custom-color]").forEach((button) => button.setAttribute("tabindex", "-1"));
       }
       if (focusedInside) trigger.focus();
     });
@@ -1069,38 +1070,53 @@
       trigger.setAttribute("aria-expanded", String(open));
       orbit.hidden = !open;
       orbit.setAttribute("aria-hidden", String(!open));
-      orbit.querySelectorAll(".orbit-swatch").forEach((button) => button.setAttribute("tabindex", open ? "0" : "-1"));
+      orbit.querySelectorAll(".orbit-swatch, [data-custom-color]").forEach((button) => button.setAttribute("tabindex", open ? "0" : "-1"));
       if (open) {
         positionToolbarPopover(`[data-color-control="${type}"]`, `#${orbit.id}`, { align:"center", gap:6 });
         requestAnimationFrame(positionOpenToolbarPopovers);
       }
     };
+    const customInput = orbit.querySelector("[data-custom-color]");
+    function selectColor(color) {
+      if (!/^#[0-9a-f]{6}$/i.test(color)) return;
+      color = color.toLowerCase();
+      if (type === "ink") {
+        state.inkColor = color;
+        applySelectionColor(color);
+        positionTextEditors();
+        for (const editor of state.textEditors.values()) if (editor.mixedMode) scheduleTextEditorPreview(editor, 0);
+      } else state.aiColor = color;
+      trigger.classList.remove(...Object.values(COLOR_CLASS));
+      if (COLOR_CLASS[color]) trigger.classList.add(COLOR_CLASS[color]);
+      trigger.style.setProperty("--selected-color", color);
+      if (customInput) customInput.value = color;
+      orbit.querySelectorAll(".orbit-swatch").forEach((item) => {
+        const active = (type === "ink" ? item.dataset.inkColor : item.dataset.aiColor) === color;
+        item.classList.toggle("active", active);
+        item.setAttribute("aria-pressed", String(active));
+      });
+    }
+    orbit.onclick = (event) => event.stopPropagation();
+    orbit.onkeydown = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeColorOrbs();
+    };
+    if (customInput) {
+      // Commit once when the native picker accepts a color; do not recolor a
+      // selected object or regenerate text previews for every slider event.
+      customInput.onchange = () => selectColor(customInput.value);
+    }
     orbit.querySelectorAll(".orbit-swatch").forEach((button) => {
+      button.setAttribute("tabindex", "-1");
+      button.setAttribute("aria-pressed", String(button.classList.contains("active")));
       button.onclick = (event) => {
         event.stopPropagation();
-        const color = type === "ink" ? button.dataset.inkColor : button.dataset.aiColor;
-        if (type === "ink") {
-          state.inkColor = color;
-          applySelectionColor(color);
-          positionTextEditors();
-          for (const editor of state.textEditors.values()) if (editor.mixedMode) scheduleTextEditorPreview(editor, 0);
-        }
-        else state.aiColor = color;
-        trigger.classList.remove(...Object.values(COLOR_CLASS));
-        trigger.classList.add(COLOR_CLASS[color]);
-        orbit.querySelectorAll(".orbit-swatch").forEach((item) => {
-          const active = item === button;
-          item.classList.toggle("active", active);
-          item.setAttribute("aria-checked", String(active));
-        });
+        selectColor(type === "ink" ? button.dataset.inkColor : button.dataset.aiColor);
         closeColorOrbs();
       };
     });
-  });
-  document.querySelectorAll(".orbit-swatch").forEach((button) => {
-    button.setAttribute("role", "menuitemradio");
-    button.setAttribute("tabindex", "-1");
-    button.setAttribute("aria-checked", String(button.classList.contains("active")));
   });
   document.addEventListener("click", () => closeColorOrbs());
   document.querySelector("#rejectBatch").onclick = rejectPending;
@@ -1689,6 +1705,10 @@
     openCanvas:openCloudCanvas,
     confirmExternalOpen:confirmExternalCanvasOpen,
   });
+  window.penechoDesktop?.onShowConnections?.(() => {
+    selectSettingsPage("connections");
+    openSettings();
+  });
   setPluginTemplate("simple");
   applyLanguage();
   setWidgetShadowEnabled(state.widgetShadowEnabled);
@@ -1704,5 +1724,7 @@
   setNavigating(true);
   scheduleAIOrbIdle();
   if(window.PENECHO_CONFIG?.runtime!=="viewer")void canvasDocumentsReady().catch(error=>canvasDocumentsReport(error,()=>canvasDocumentsReady()));
-  requestAnimationFrame(() => requestAnimationFrame(maybeStartOnboarding));
+  requestAnimationFrame(() => {
+    if (window.PENECHO_CONFIG?.runtime !== "viewer") void loadCanvasSettings().finally(maybeStartOnboarding);
+  });
 })();

@@ -1,6 +1,6 @@
 ---
 name: penecho-mcp
-description: Use PenEcho's local MCP bridge for persistent Canvas documents, useful UI previews, diagrams, plots, virtual source edits, and bounded user feedback. For PenEcho engineering, also apply the project's engineering guidance.
+description: Use PenEcho's local MCP bridge for persistent Canvas documents, useful UI previews, diagrams, plots, virtual source edits, and bounded user feedback. Use for explicit visual-workspace requests naming penecho, echo, canvas or 画布. For PenEcho engineering, also apply the project's engineering guidance.
 metadata:
   short-description: Useful Canvas interaction with economical MCP calls
 ---
@@ -10,6 +10,16 @@ metadata:
 PenEcho is an optional shared work surface for an external AI client. It does
 not grant general browser automation, remote MCP transport, host filesystem
 access, or access to another Canvas. Continue the primary task during outages.
+
+Use this bridge when the user explicitly asks for a visual workspace with
+“penecho”, “echo”, “canvas” or “画布”, including “echo一下这个想法”,
+“penecho一下文件夹的架构” and “把你要做的修改放到canvas”. Discover the
+exact opted-in connection, then present or edit the requested material through
+the existing penecho_* tools. Ordinary shell echo commands and unrelated canvas
+mentions are not triggers. These phrases guide an active client; they do not
+wake a stopped client or install/configure the bridge. For folder architecture,
+read only files authorized through the client’s existing tools; MCP virtual
+files do not grant host filesystem access.
 
 ## Setup and exact routing
 
@@ -25,9 +35,18 @@ explicit opt-in through Settings → MCP service.
    `instanceId` and `canvasId`; never select by title, recency or guessed host.
    Ask only when the target cannot be resolved from the authorized context.
 2. Start with a concise title, client and a unique `sessionKey` per conversation.
-   Retain the returned `sessionId` and persistent `documentId`. A new key may
-   receive a separate document when the visible Canvas already contains work.
-   Supply documentId explicitly to attach existing work; takeover defaults false.
+   Retain the returned `sessionId` and persistent `documentId`. Only a new, unbound
+   conversation gets a new Canvas by default, even when the visible Canvas is empty.
+   Give that Canvas a concise descriptive name through `title`. Continue an already
+   bound conversation across turns and reconnects without creating another Canvas.
+   Supply documentId explicitly to attach known existing work; takeover defaults false.
+   When the user says “current canvas”, “this canvas”, “当前画布”, “这个画布”,
+   or refers to the current selection, use `target:"current"` without documentId.
+   This attaches the visible document at call time without creating/opening another
+   Canvas. Read its existing files and revision before editing. Retain the returned
+   documentId/sessionId: later navigation never retargets this session. If this
+   conversation is already bound elsewhere, use a distinct stable attachment
+   sessionKey and keep both handles. Resolve ambiguous connections with the user.
 3. Reconnect with fresh connection discovery and the same documentId/client/key.
    A new sessionId is normal after connection loss. Never switch to a replacement
    Canvas silently. Same-key recovery does not grant unrelated document access.
@@ -37,6 +56,17 @@ explicit opt-in through Settings → MCP service.
 5. `penecho_open_canvas` requires a stable requestId and either create:true or
    documentId/locator. `show:false` keeps background work from stealing the view;
    use show:true only when the user requests a visible document change.
+
+## LAN and Linked Device browsers
+
+The stdio client runs on the PenEcho host. Local and LAN browsers can explicitly
+opt in through existing Canvas access authorization. Cloud browsers use the
+account-owned selected Linked Device with MCP relay support on both ends.
+The host registry includes live opted-in browsers; exact instanceId/canvasId
+selection and session ownership still apply. Heartbeat, relay disconnect and
+opt-out revoke live discovery; retry after reconnecting without guessing a
+replacement canvas. Remote browsers do not configure the host's AI clients,
+and this does not expose a remote HTTP MCP endpoint for other AI machines.
 
 ## Concurrent clients and connection failures
 
@@ -180,9 +210,11 @@ user-editable and also informs the internal Agent. runtime/viewport.json and
 runtime/selection.json are current context, not source to rewrite.
 
 edit_canvas supplies bounded idempotent text creation, move, resize, delete,
-erase_ink, image replacement and explicit show. Move/resize/delete/erase/replace
+erase_ink, draw_ink, image replacement and explicit show. Move/resize/delete/erase/draw_ink/replace
 require current baseRevision to protect newer user work. Source edits do not
 change geometry. Image replacement accepts bounded data URLs or authorized
 same-document penecho-ref references, never arbitrary network fetching. Preserve
 user edits, artifact identities and unread feedback. A removed artifact must not
 be silently recreated under its old ID.
+
+For freehand annotation use penecho_edit_canvas action:"draw_ink" with the current baseRevision and strokes:[{color:"#E63946",width:6,points:[{x:120,y:140},{x:220,y:140}]}]. Coordinates and width are Canvas world units. Choose any explicit #RRGGBB color; each stroke is an open round brush polyline (repeat the first point to close a circle; add separate strokes for arrowheads; use a wider stroke for an underline/highlight). Ink may overlap existing content intentionally. Limits: 1–16 strokes, 1–256 points per stroke, 1024 points total, width 1–64; all points fit a 2048 × 2048 region and the brush radius stays inside the Canvas. The operation preserves the user’s brush selection and creates one undoable edit. Background documents reject before mutation: use show only when making that document visible is intended, reread its revision, then draw. Retry the same requestId only with identical arguments.

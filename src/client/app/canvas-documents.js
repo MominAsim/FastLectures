@@ -1,8 +1,9 @@
   // One visible Canvas; inactive documents contain data, never hidden iframe trees.
   // Ordinary saves carry this extension in bundle V2. This is not version history.
   var canvasDocuments = { records:new Map(), activeId:null, ready:null, db:null, switching:false, epoch:0, error:null, retry:null, receipts:new Map(), write:Promise.resolve() };
-  const CANVAS_DOCUMENT_EXTENSION = "penechoDocument", CANVAS_WORKSPACE_EXTENSION = "penechoWorkspace";
+  const CANVAS_DOCUMENT_EXTENSION = "penechoDocument", CANVAS_WORKSPACE_EXTENSION = "penechoWorkspace", CANVAS_DOCUMENT_LIMIT = 32;
   function canvasDocumentsCopy(en,zh) { return state.language === "zh" ? zh : en; }
+  function canvasDocumentsLimitMessage() { return canvasDocumentsCopy(`${CANVAS_DOCUMENT_LIMIT} Canvases are already open. Close an unused Canvas before opening another.`,`已打开 ${CANVAS_DOCUMENT_LIMIT} 个画布，请先关闭不用的画布，再打开新的画布。`); }
   function canvasDocumentsError(code,message,details=null) { return Object.assign(Error(message),{code,details}); }
   async function canvasDocumentsBound(promise,ms=15000) {
     let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(canvasDocumentsError("STORAGE_TIMEOUT","This save location did not respond. Your Canvas is unchanged; reconnect and retry.",{retryable:true})),ms);})]);}finally{clearTimeout(timer);}
@@ -223,7 +224,7 @@
     if(path==="runtime/changes.json")return json({latestCursor:doc.changeSequence,earliestCursor:doc.changes[0]?.cursor||0,entries:doc.changes});
     if(path==="runtime/messages.json")return json({latestCursor:doc.messageSequence,entries:doc.messages});
     if(path==="objects/index.json")return json(canvasDocumentsObjects(doc).map(o=>({id:o.item.id,kind:o.kind,title:o.item.title||"",bounds:canvasDocumentsBounds(o),path:`objects/${encodeURIComponent(o.item.id)}/`})));
-    if(path==="ink/index.json")return json({format:"raster-tiles",editableAsText:false,operations:["erase_ink"],tiles:active?[...tiles.keys()]: (doc.stored?.tileEntries||[]).map(t=>t.k)});
+    if(path==="ink/index.json")return json({format:"raster-tiles",editableAsText:false,operations:active?["erase_ink","draw_ink"]:["erase_ink"],activeOnlyOperations:["draw_ink"],tiles:active?[...tiles.keys()]: (doc.stored?.tileEntries||[]).map(t=>t.k)});
     const parts=canvasDocumentIdentity.parsePath(path);if(parts.length!==3||parts[0]!=="objects")throw canvasDocumentsError("FILE_NOT_FOUND","List the Canvas files and retry with an exact returned path.");
     const object=canvasDocumentsObject(doc,decodeURIComponent(parts[1]));if(!object)throw canvasDocumentsError("OBJECT_NOT_FOUND","This object was removed. List the Canvas files again.");
     const item=object.item,name=parts[2];
@@ -374,7 +375,7 @@
     let doc;
     if(args.create) {
       const id=`doc-${await canvasAgentHash(args.requestId)}`;
-      if(canvasDocuments.records.size>=32&&!canvasDocuments.records.has(id))throw canvasDocumentsError("DOCUMENT_LIMIT","32 Canvases are already open. Save and close an unused Canvas, then retry.");
+      if(canvasDocuments.records.size>=CANVAS_DOCUMENT_LIMIT&&!canvasDocuments.records.has(id))throw canvasDocumentsError("DOCUMENT_LIMIT",canvasDocumentsLimitMessage());
       doc=canvasDocuments.records.get(id)||canvasDocumentsRecord({documentId:id,title:args.title||"Untitled Canvas"},{item:{version:2,name:args.title||"Untitled Canvas",theme:state.theme,widgets:[],textBoxes:[],images:[],animations:[],bundleExtensions:{},manifestExtensions:{},preservedAssets:[]},tileEntries:[]});
       canvasDocuments.records.set(id,doc);
     } else {
@@ -392,6 +393,7 @@
         const meta=canvasDocumentIdentity.normalizeMetadata(stored.item.bundleExtensions?.[CANVAS_DOCUMENT_EXTENSION])||{version:1,documentId:await canvasDocumentIdentity.legacyId(locator),title:stored.item.name||""};
         if(args.documentId&&meta.documentId!==args.documentId)throw canvasDocumentsError("DOCUMENT_CONFLICT","The saved location contains a different Canvas. Check its ID and retry.");
         if(canvasDocuments.records.has(meta.documentId))throw canvasDocumentsError("DOCUMENT_AMBIGUOUS","This Canvas is already open from another location. Use the open document or save an independent copy first.");
+        if(canvasDocuments.records.size>=CANVAS_DOCUMENT_LIMIT)throw canvasDocumentsError("DOCUMENT_LIMIT",canvasDocumentsLimitMessage());
         doc=canvasDocumentsRecord(meta,stored);doc.locator=locator;canvasDocumentsRestoreWorkspace(doc,stored.item.bundleExtensions?.[CANVAS_WORKSPACE_EXTENSION]);canvasDocuments.records.set(doc.id,doc);
       }
     }
@@ -527,6 +529,25 @@
       if(canvasDocumentsIsActive(doc))state.textBoxes.push(record);else {const {image,...stored}=record;doc.stored.item.textBoxes.push(stored);}
       canvasDocumentsEndEdit(doc,"create_text",record.id);return {applied:true,objectId:record.id,revision:doc.revision};
     }
+    if(args.action==="draw_ink") {
+      // Validate the browser boundary too: linked clients must not bypass resource limits.
+      if(!canvasDocumentsIsActive(doc))throw canvasDocumentsError("ACTIVE_CANVAS_REQUIRED","draw_ink requires this Canvas to be visible. Use show explicitly, then read the revision and retry.");
+      let count=0,minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+      if(!Array.isArray(args.strokes)||args.strokes.length<1||args.strokes.length>16)throw canvasDocumentsError("INVALID_INK","Use 1–16 strokes.");
+      for(const entry of args.strokes){
+        if(!entry||!/^#[0-9a-fA-F]{6}$/.test(entry.color)||!Number.isFinite(entry.width)||entry.width<1||entry.width>64||!Array.isArray(entry.points)||entry.points.length<1||entry.points.length>256)throw canvasDocumentsError("INVALID_INK","Each stroke needs #RRGGBB color, width 1–64, and 1–256 points.");
+        count+=entry.points.length;
+        for(const point of entry.points){if(!point||!Number.isFinite(point.x)||!Number.isFinite(point.y)||point.x<entry.width/2||point.y<entry.width/2||point.x+entry.width/2>SIZE||point.y+entry.width/2>SIZE)throw canvasDocumentsError("INVALID_INK","Stroke points and brush radius must remain inside the Canvas.");minX=Math.min(minX,point.x);minY=Math.min(minY,point.y);maxX=Math.max(maxX,point.x);maxY=Math.max(maxY,point.y);}
+      }
+      if(count>1024||maxX-minX>2048||maxY-minY>2048)throw canvasDocumentsError("INVALID_INK","Use at most 1024 total points inside a 2048 × 2048 region.");
+      canvasAgentAssertToolExecution(execution);save();
+      for(const entry of args.strokes){
+        if(entry.points.length===1)dot(entry.points[0],false,entry.width,false,entry.color);
+        else for(let index=1;index<entry.points.length;index++)stroke(entry.points[index-1],entry.points[index],false,entry.width,false,entry.color);
+      }
+      canvasDocumentsEndEdit(doc,"draw_ink");
+      return {applied:true,revision:doc.revision,strokeCount:args.strokes.length};
+    }
     if(args.action==="erase_ink") {
       if(canvasDocumentsIsActive(doc))return canvasAgentEdit({baseRevision:state.userRevision,operations:[{type:"erase_ink",region:{x:args.region.x,y:args.region.y,width:args.region.w,height:args.region.h}}],_changeId:args.requestId},execution);
       const changed=[],tileEntries=[];
@@ -574,16 +595,19 @@
     let session=mcpRuntime.sessions.get(args.sessionId),doc;
     if(name==="mcp_start_session") {
       await canvasDocumentsReady();
-      doc=args.documentId?canvasDocuments.records.get(args.documentId):args.sessionKey?[...canvasDocuments.records.values()].find(d=>d.bindings.some(b=>b.key===args.sessionKey&&b.client===(args.client||""))):null;
-      if(!doc&&!args.documentId){
-        const visible=canvasDocumentsCurrent();
-        if(args.sessionKey&&(visible.bindings.length||visible.locator||canvasDocumentsObjects(visible).length||tiles.size)){
-          const created=await canvasDocumentsOpen({create:true,requestId:`conversation:${args.client||""}:${args.sessionKey}`,title:args.title,show:false},execution);doc=canvasDocuments.records.get(created.documentId);
-        }else doc=visible;
+      if(args.target==="current"&&(canvasDocuments.switching||snapshotLoadInProgress))throw canvasDocumentsError("CANVAS_BUSY","A Canvas is opening. Retry after it finishes.");
+      doc=args.target==="current"?canvasDocuments.records.get(canvasDocuments.activeId):args.documentId?canvasDocuments.records.get(args.documentId):args.sessionKey?[...canvasDocuments.records.values()].find(d=>d.bindings.some(b=>b.key===args.sessionKey&&b.client===(args.client||""))):null;
+      if(!doc&&!args.documentId&&args.target!=="current"){
+        if(session&&!session.closed&&session.client===args.client)doc=canvasDocuments.records.get(session.documentId);
+        if(!doc){
+          const created=await canvasDocumentsOpen({create:true,requestId:`conversation:${args.client||""}:${args.sessionKey||args.sessionId}`,title:args.title,show:false},execution);doc=canvasDocuments.records.get(created.documentId);
+        }
       }
-      if(!doc)throw canvasDocumentsError("DOCUMENT_NOT_FOUND","Open the documentId first, then retry starting the session.");
-      session=canvasDocumentsSession(doc,args);
-      canvasDocumentsApplySessionTitle(doc,session.title);
+      if(!doc)throw canvasDocumentsError("DOCUMENT_NOT_FOUND",args.target==="current"?"No active Canvas is ready. Wait for the user’s Canvas to finish opening, then retry target:current.":"Open the documentId first, then retry starting the session.");
+      if(args.target==="current"&&session&&!session.closed&&session.documentId!==doc.id)throw canvasDocumentsError("BINDING_CONFLICT","This session is bound to another Canvas. Use a distinct attachment sessionKey.",{documentId:session.documentId});
+      if(args.target==="current"&&session&&!session.closed&&session.client!==args.client)throw canvasDocumentsError("BINDING_CONFLICT","This session belongs to a different client. Use that client or a distinct attachment sessionKey.");
+      session=args.target==="current"&&session&&!session.closed?session:canvasDocumentsSession(doc,args);
+      if(args.target!=="current")canvasDocumentsApplySessionTitle(doc,session.title);
       execution.documentId=doc.id;execution.activeDocumentId=canvasDocumentsIsActive(doc)?doc.id:null;execution.documentEpoch=canvasDocuments.epoch;
       session.boardObjectId=session.boardObjectId||null;
       mcpRuntime.sessions.set(session.sessionId,session);
@@ -692,11 +716,10 @@
     window.PenEchoStudioNavigator?.workspaceChanged?.();
     if(!root||!doc)return;
     root.hidden=false;
-    const create=document.getElementById("canvasWorkspaceNew"),close=document.getElementById("canvasWorkspaceClose");
-    create.textContent=canvasDocumentsCopy("New","新建");create.title=canvasDocumentsCopy("New Canvas","新建画布");create.setAttribute("aria-label",create.title);create.disabled=canvasDocuments.switching;
+    const close=document.getElementById("canvasWorkspaceClose");
     close.textContent=canvasDocumentsCopy("Close","关闭");close.title=canvasDocumentsCopy("Close Canvas","关闭画布");close.setAttribute("aria-label",close.title);close.disabled=canvasDocuments.switching;
     const status=document.getElementById("canvasWorkspaceStatus"),retry=document.getElementById("canvasWorkspaceRetry");
-    status.textContent=canvasDocuments.error||(canvasDocuments.switching?canvasDocumentsCopy("Opening…","正在打开…"):"");
+    status.textContent=canvasDocuments.error||(canvasDocuments.switching?canvasDocumentsCopy("Opening…","正在打开…"):canvasDocuments.records.size>=CANVAS_DOCUMENT_LIMIT?canvasDocumentsLimitMessage():"");
     retry.hidden=!canvasDocuments.retry;retry.textContent=canvasDocumentsCopy("Retry","重试");
     const processorRow=document.getElementById("canvasProcessorRow"),processor=document.getElementById("canvasProcessorSelect");
     processorRow.hidden=!doc.bindings.length&&doc.processor.kind!=="external";
@@ -714,9 +737,6 @@
     canvasDocuments.error=null;canvasDocuments.retry=null;
     void work().catch(error=>canvasDocumentsReport(error,work));
   }
-  document.getElementById("canvasWorkspaceNew")?.addEventListener("click",()=>{const id=canvasDocumentsId();canvasDocumentsUiAction(async()=>{
-    if(!canvasDocuments.records.has(id)){if(canvasDocuments.records.size>=32)throw canvasDocumentsError("DOCUMENT_LIMIT",canvasDocumentsCopy("Save and close an unused Canvas, then retry.","请先保存并关闭不用的画布，再重试。"));const doc=canvasDocumentsRecord({documentId:id,title:canvasDocumentsCopy("Untitled Canvas","未命名画布")},{item:{widgets:[],textBoxes:[],images:[],animations:[],theme:state.theme},tileEntries:[]});canvasDocuments.records.set(id,doc);}await canvasDocumentsShow(id);
-  });});
   async function canvasDocumentsClose(id,sourceDocumentId=null) {
     const doc=canvasDocuments.records.get(id);
     if(!doc)return false;

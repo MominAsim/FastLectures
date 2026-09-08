@@ -32,7 +32,18 @@ const {
   testConfiguredProvider,
 } = require("../cli.js");
 
+const { runConfigureMenu } = require("../src/cli/configure-ui.js");
 const ROOT = path.resolve(__dirname, "..");
+
+async function runLegacyConfigure(argv, options) {
+  const args = parseArgs(argv), configuration = resolveConfiguration(args, options);
+  await runConfigureMenu(configuration, {
+    ui:options.ui, output:options.output, directProvider:args.provider,
+    save:async updates => saveConfiguration(configuration, updates),
+    test:async () => testConfiguredProvider(configuration, options),
+  });
+  return 0;
+}
 
 function temporaryDirectory() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cli-test-"));
@@ -147,6 +158,70 @@ test("CLI model and effort override saved configuration", () => {
   assert.throws(() => isolatedConfiguration(parseArgs(["--api", "--effort", "low"]), { AI_PROVIDER:"api" }), /only supported with Kimi, Codex, or Claude/);
 });
 
+test("migrated connections supply provider settings and an empty store ignores legacy defaults", () => {
+  const home = temporaryDirectory(), stateDir = path.join(home, ".penecho");
+  fs.mkdirSync(stateDir);
+  fs.writeFileSync(path.join(stateDir, "config.env"), "AI_PROVIDER=api\nAI_API_KEY=legacy-key\nOPENAI_API_KEY=legacy-alias\nPORT=4555\n");
+  const file = path.join(stateDir, "connections.json");
+  fs.writeFileSync(file, JSON.stringify({ version:1, connections:[{ id:"saved", provider:"codex-cli", cliModel:"saved-model", effort:"high" }] }));
+  const configuration = resolveConfiguration(parseArgs([]), { env:{}, home });
+  assert.equal(configuration.provider, "codex-cli");
+  assert.equal(configuration.env.CODEX_CLI_MODEL, "saved-model");
+  assert.equal(configuration.env.AI_API_KEY, "");
+  assert.equal(configuration.env.OPENAI_API_KEY, "");
+  assert.equal(configuration.port, 4555);
+  fs.writeFileSync(file, JSON.stringify({ version:1, connections:[] }));
+  assert.equal(resolveConfiguration(parseArgs([]), { env:{}, home }).provider, null);
+});
+
+test("explicit CLI overrides are passed separately without rewriting migrated connections", () => {
+  const home = temporaryDirectory(), stateDir = path.join(home, ".penecho");
+  fs.mkdirSync(stateDir);
+  const file = path.join(stateDir, "connections.json"), saved = JSON.stringify({ version:1, connections:[{ id:"saved", provider:"claude-cli", cliModel:"opus", effort:"high" }] });
+  fs.writeFileSync(file, saved);
+  const config = resolveConfiguration(parseArgs(["--codex", "--model", "custom-model", "--effort", "low"]), { env:{}, home });
+  assert.deepEqual(JSON.parse(config.env.PENECHO_CONNECTION_OVERRIDE), { AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"custom-model", AI_EFFORT:"low" });
+  assert.equal(config.provider, "codex-cli");
+  assert.equal(fs.readFileSync(file, "utf8"), saved);
+  const normal = resolveConfiguration(parseArgs([]), { env:{ PENECHO_CONNECTION_OVERRIDE:config.env.PENECHO_CONNECTION_OVERRIDE }, home });
+  assert.equal(normal.provider, "claude-cli");
+  assert.deepEqual(JSON.parse(normal.env.PENECHO_CONNECTION_OVERRIDE), {});
+});
+
+test("first launch sends legacy baseline separately from transient CLI flags", async () => {
+  const home = temporaryDirectory(), stateDir = path.join(home, ".penecho");
+  fs.mkdirSync(stateDir);
+  fs.writeFileSync(path.join(stateDir, "config.env"), "AI_PROVIDER=claude-cli\nCLAUDE_CLI_MODEL=opus\nAI_EFFORT=high\n");
+  let launched;
+  const code = await main(["--codex", "--model", "transient", "--effort", "low", "--port", "4444"], {
+    env:{}, home, output:capture().stream, errorOutput:capture().stream,
+    updateScheduler:() => {}, runner:async () => ({ code:1, stdout:"", stderr:"missing" }), candidates:[], awaitCliPreflight:true,
+    startServer:async config => { launched = config; },
+  });
+  assert.equal(code, 0);
+  assert.equal(launched.env.AI_PROVIDER, "claude-cli");
+  assert.equal(launched.env.CLAUDE_CLI_MODEL, "opus");
+  assert.equal(launched.env.AI_EFFORT, "high");
+  assert.equal(launched.env.CODEX_CLI_MODEL, "");
+  assert.equal(launched.env.PORT, "4444");
+  assert.deepEqual(JSON.parse(launched.env.PENECHO_CONNECTION_OVERRIDE), { AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"transient", AI_EFFORT:"low" });
+  assert.equal(fs.existsSync(path.join(stateDir, "connections.json")), false);
+});
+
+test("damaged connection stores fail clearly and preserve the original file", async () => {
+  for (const saved of ["{broken", '{"version":1,"connections":null}', '{"version":99,"connections":[]}']) {
+    const home = temporaryDirectory(), stateDir = path.join(home, ".penecho");
+    fs.mkdirSync(stateDir);
+    const file = path.join(stateDir, "connections.json"), errors = capture();
+    fs.writeFileSync(file, saved);
+    const code = await main([], { env:{}, home, output:capture().stream, errorOutput:errors.stream,
+      startServer:async () => assert.fail("must not start with corrupted storage") });
+    assert.equal(code, 1);
+    assert.match(errors.text(), /Restore or repair the connection store/);
+    assert.equal(fs.readFileSync(file, "utf8"), saved);
+  }
+});
+
 test("canonical save creates global defaults and removes legacy names", () => {
   const configuration = isolatedConfiguration(parseArgs([]), { PORT:"4000" });
   fs.mkdirSync(path.dirname(configuration.configFile), { recursive:true });
@@ -170,27 +245,39 @@ test("unified timeout accepts 10 to 600 seconds and defaults to 180", () => {
   assert.throws(() => configuredTimeoutSeconds({ AI_TIMEOUT_SECONDS:"601" }), /10 to 600/);
 });
 
-test("first noninteractive startup points to the full configure command", async () => {
-  const errors = capture(); let started = false;
-  const code = await main([], {
-    env:{}, home:temporaryDirectory(), cwd:temporaryDirectory(), packageRoot:ROOT,
-    output:capture().stream, errorOutput:errors.stream,
-    startServer:async () => { started = true; },
+for (const interactive of [false, true]) {
+  test(`first ${interactive ? "interactive" : "noninteractive"} startup serves the UI without terminal configuration`, async () => {
+    const errors = capture(); let started = false;
+    const code = await main([], {
+      env:{}, home:temporaryDirectory(), cwd:temporaryDirectory(), packageRoot:ROOT,
+      ui:interactive ? scriptedUi() : undefined,
+      output:capture().stream, errorOutput:errors.stream, updateScheduler:() => {},
+      startServer:async () => { started = true; },
+    });
+    assert.equal(code, 0);
+    assert.equal(started, true);
+    assert.equal(errors.text(), "");
   });
-  assert.equal(code, 1);
-  assert.equal(started, false);
-  assert.match(errors.text(), /penecho configure/);
+}
+
+test("incomplete API configuration starts the UI but doctor remains strict", async () => {
+  const options = { env:{ AI_PROVIDER:"api" }, home:temporaryDirectory(), cwd:temporaryDirectory(), packageRoot:ROOT,
+    output:capture().stream, errorOutput:capture().stream, updateScheduler:() => {} };
+  let started = false;
+  assert.equal(await main([], { ...options, startServer:async () => { started = true; } }), 0);
+  assert.equal(started, true);
+  assert.equal(await main(["doctor"], { ...options, portChecker:async () => ({ ok:true }) }), 1);
 });
 
-test("first interactive startup opens the configuration center automatically", async () => {
-  const output = capture(), errors = capture(), ui = scriptedUi({ selections:["exit"] });
-  const code = await main([], {
-    env:{}, home:temporaryDirectory(), cwd:temporaryDirectory(), packageRoot:ROOT,
-    ui, output:output.stream, errorOutput:errors.stream,
-  });
-  assert.equal(code, 1);
-  assert.match(output.text(), /Opening the configuration center/);
-  assert.match(errors.text(), /no LLM source/);
+test("configure opens the UI connections manager without terminal prompts or saving legacy config", async () => {
+  const home = temporaryDirectory(); let started;
+  assert.equal(await main(["configure"], {
+    env:{}, home, cwd:temporaryDirectory(), packageRoot:ROOT, ui:scriptedUi(),
+    output:capture().stream, errorOutput:capture().stream, updateScheduler:() => {},
+    startServer:async configuration => { started = configuration; },
+  }), 0);
+  assert.equal(started.env.PENECHO_OPEN_CONNECTIONS, "true");
+  assert.equal(fs.existsSync(path.join(home, ".penecho", "config.env")), false);
 });
 
 test("normal startup serves first, then checks, installs, stops, and waits for a manual start", async () => {
@@ -225,7 +312,7 @@ test("API configure saves before testing, keeps an existing key, and returns suc
     inputs:["https://new.test/v1", "gpt-5.6-sol"],
     passwords:[""],
   });
-  const code = await main(["configure", "--api"], {
+  const code = await runLegacyConfigure(["configure", "--api"], {
     env:{}, home, cwd, packageRoot:ROOT, ui, output:capture().stream, errorOutput:capture().stream,
     apiTester:async () => { throw new Error("endpoint unavailable"); },
   });
@@ -246,7 +333,7 @@ test("Anthropic API configure saves none as an explicit thinking-disabled effort
     inputs:["https://anthropic.test", "claude-opus-4-8"],
     passwords:["test-key"],
   });
-  const code = await main(["configure", "--api"], {
+  const code = await runLegacyConfigure(["configure", "--api"], {
     env:{}, home, cwd, packageRoot:ROOT, ui, output:capture().stream, errorOutput:capture().stream,
     apiTester:async () => ({ format:"anthropic", status:200 }),
   });
@@ -272,7 +359,7 @@ test("Kimi, Codex, and Claude are supported by configure and save their model ch
       codexCaller:async () => "OK",
       claudeCaller:async () => "OK",
     };
-    const code = await main(["configure", scenario.flag], options), saved = fs.readFileSync(path.join(home, ".penecho", "config.env"), "utf8");
+    const code = await runLegacyConfigure(["configure", scenario.flag], options), saved = fs.readFileSync(path.join(home, ".penecho", "config.env"), "utf8");
     assert.equal(code, 0);
     assert.match(saved, new RegExp(`^${scenario.field}=${scenario.model.replaceAll(".", "\\.")}$`, "m"));
   }

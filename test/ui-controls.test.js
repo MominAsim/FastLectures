@@ -2413,7 +2413,7 @@ test("widget AI refinement is discoverable near ink and replaces only its locked
   assert.match(app, /const WIDGET_REFINE_HINT_MS = 10000/);
   assert.match(strokeProximity, /drawing\.trail[\s\S]*?drawing\.last[\s\S]*?next <= WIDGET_REFINE_PROXIMITY_PX[\s\S]*?distance <= WIDGET_REFINE_PROXIMITY_PX/);
   const nonHandChrome = chrome.slice(0, chrome.indexOf("return specs;"));
-  assert.match(nonHandChrome, /persistentCandidate = currentWidgetRefineCandidate\(\)[\s\S]*?hoverCandidate = currentWidgetRefineHoverCandidate\(\)[\s\S]*?!\["select", "hand"\]\.includes\(state\.mode\)/);
+  assert.match(nonHandChrome, /persistentCandidate = currentWidgetRefineCandidate\(\)[\s\S]*?hoverCandidate = currentWidgetRefineHoverCandidate\(\)[\s\S]*?!\["select", "hand", "pen"\]\.includes\(state\.mode\)/);
   assert.doesNotMatch(nonHandChrome, /copy:true/);
   assert.doesNotMatch(chrome, /target:"text-box"/);
   assert.match(chrome, /if \(!state\.viewMode && !state\.interactingWidgetId && persistentCandidate\) addWidgetToolSpecs\(specs, persistentCandidate\.widget, \{ refine:persistentCandidate \}\)/);
@@ -2452,7 +2452,8 @@ test("widget AI refinement is discoverable near ink and replaces only its locked
   assert.deepEqual({ ...confirmationPosition({ x:930, y:220, width:64, height:34 }, 360, 50, 1000, 700) }, { x:632, y:212 });
   assert.deepEqual({ ...confirmationPosition({ x:300, y:670, width:112, height:34 }, 360, 50, 1000, 700) }, { x:176, y:642 });
   const handChrome = chrome.slice(chrome.indexOf("const specs = [];", chrome.indexOf("return specs;") + 1));
-  assert.doesNotMatch(handChrome, /addWidgetToolSpecs\([^\n]*refine:/);
+  assert.match(handChrome, /if \(state\.mode === "pen"\) \{[\s\S]*?refine:persistentCandidate[\s\S]*?refine:hoverCandidate[\s\S]*?\}/);
+  assert.doesNotMatch(handChrome.slice(handChrome.indexOf("for (const [key, record] of state.handToolbarTargets)")), /addWidgetToolSpecs\([^\n]*refine:/);
   assert.match(handChrome, /record\.kind === "widget"[\s\S]*?record\.expanded[\s\S]*?state\.handToolbarActiveKey !== key[\s\S]*?addObjectToolbarSpecs\(specs, \{[\s\S]*?addWidgetToolSpecs\(specs, handTarget, \{[\s\S]*?copy:true,[\s\S]*?community:true,[\s\S]*?download:true,[\s\S]*?objectToolbarKey:toolbarKey/);
   assert.match(chrome, /state\.pendingWidget[\s\S]*?addObjectToolbarSpecs\(specs, \{[\s\S]*?prefix:`pending-widget:\$\{widget\.id\}`[\s\S]*?addWidgetToolSpecs\(specs, widget, \{[\s\S]*?copy:true,[\s\S]*?download:true,[\s\S]*?objectToolbarKey:toolbarKey/);
   assert.match(request, /supersedeActiveAI\("widget-refine"\)[\s\S]*?captureCurrentViewport:true[\s\S]*?widgetEditTarget:widget/);
@@ -2541,26 +2542,31 @@ test("widget AI refinement is discoverable near ink and replaces only its locked
   assert.match(chromePositionSource, /if \(spec\?\.objectToolbar\)[\s\S]*?Math\.max\(spec\.minimumWidth \|\| 100, screenBox\.width\)[\s\S]*?x:screenBox\.left, y:screenBox\.top - baseHeight/);
   assert.match(chromePositionSource, /if \(spec\?\.objectToolbarItem\)[\s\S]*?knownPositions\?\.get\?\.\(spec\.objectToolbarKey\)[\s\S]*?toolbarSlot === "leading"[\s\S]*?toolbarSlot === "trailing"/);
   assert.doesNotMatch(chromePositionSource, /querySelectorAll|overlapsObstacle|fallbackPosition/);
-  assert.match(functionSource(app, "objectToolbarMinimumWidth"), /itemCount = 2 \+ Math\.max[\s\S]*?itemCount \* itemSize \+ \(itemCount - 1\) \* itemGap \+ inset \* 2/);
+  assert.match(functionSource(app, "objectToolbarMinimumWidth"), /itemCount = \(decisions \? 2 : 0\) \+ Math\.max[\s\S]*?itemCount \* itemSize \+ \(itemCount - 1\) \* itemGap \+ inset \* 2/);
   const toolbarMinimumWidth = vm.runInNewContext(`(${functionSource(app, "objectToolbarMinimumWidth")})`),
     finalizeToolbarWidths = vm.runInNewContext(`(${functionSource(app, "finalizeObjectToolbarWidths")})`, {
       objectToolbarMinimumWidth:toolbarMinimumWidth,
     }),
-    toolbarSpecs = (width) => [{
+    toolbarSpecs = (width, options = {}) => [{
       key:"widget:compact:toolbar", objectToolbar:true, box:{w:width}, target:"widget", object:{id:"compact"}, priority:2,
+      toolbarHasDecisions:options.decisions !== false,
     }, ...Array.from({length:4}, (_, index) => ({
       key:`widget:compact:tool-${index}`, objectToolbarItem:true, objectToolbarKey:"widget:compact:toolbar", toolbarSlot:"tool",
     }))],
     narrowToolbarSpecs = finalizeToolbarWidths(toolbarSpecs(180)),
-    wideToolbarSpecs = finalizeToolbarWidths(toolbarSpecs(300));
+    wideToolbarSpecs = finalizeToolbarWidths(toolbarSpecs(300)),
+    decisionlessToolbarSpecs = finalizeToolbarWidths(toolbarSpecs(180, { decisions:false }));
   assert.equal(toolbarMinimumWidth(4), 196);
   assert.equal(toolbarMinimumWidth(5), 228);
+  assert.equal(toolbarMinimumWidth(4, false), 132);
+  assert.equal(toolbarMinimumWidth(0, false), 8);
   assert.equal(narrowToolbarSpecs[0].minimumWidth, 196);
   assert.equal(wideToolbarSpecs[0].minimumWidth, 196);
+  assert.equal(decisionlessToolbarSpecs[0].minimumWidth, 132);
   assert.equal(narrowToolbarSpecs.some((spec) => spec.toolbarSlot === "move"), false);
   assert.equal(wideToolbarSpecs.some((spec) => spec.toolbarSlot === "move"), false);
   assert.doesNotMatch(app, /function objectToolbarNeedsMove|toolbarSlot:"move"/);
-  assert.match(functionSource(app, "finalizeObjectToolbarWidths"), /objectToolbarItem \|\| spec\.toolbarSlot !== "tool"[\s\S]*?toolCounts\.set[\s\S]*?spec\.minimumWidth = objectToolbarMinimumWidth\(toolCounts\.get\(spec\.key\) \|\| 0\)/);
+  assert.match(functionSource(app, "finalizeObjectToolbarWidths"), /objectToolbarItem \|\| spec\.toolbarSlot !== "tool"[\s\S]*?toolCounts\.set[\s\S]*?const decisions = spec\.toolbarHasDecisions !== false[\s\S]*?spec\.minimumWidth = objectToolbarMinimumWidth\(toolCounts\.get\(spec\.key\) \|\| 0, decisions\)/);
   assert.match(functionSource(app, "objectChromeSpecs"), /prefix:`widget:\$\{handTarget\.id\}`[\s\S]*?objectToolbarKey:toolbarKey[\s\S]*?return finalizeObjectToolbarWidths\(specs\)/);
   assert.match(functionSource(app, "objectChromeSpecs"), /prefix:`image:\$\{handTarget\.id\}`[\s\S]*?kind:"merge"[\s\S]*?objectToolbarKey:toolbarKey/);
   const syncChrome = functionSource(app, "syncObjectChrome");
@@ -2581,7 +2587,7 @@ test("widget AI refinement is discoverable near ink and replaces only its locked
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.object-chrome-button\.refine\.solo-widget-tool[^}]*\{[^}]*animation:\s*none[^}]*translate:\s*none/);
   assert.match(app, /kind:"favorite"[\s\S]*?baseWidth:28,[\s\S]*?iconOnly:true/);
   assert.match(app, /kind:"share"[\s\S]*?baseWidth:28,[\s\S]*?iconOnly:true/);
-  assert.match(syncChrome, /classList\.toggle\("icon-only", Boolean\(spec\.iconOnly \|\| spec\.objectToolbarItem\)\)/);
+  assert.match(syncChrome, /classList\.toggle\("icon-only", Boolean\(spec\.iconOnly \|\| \(spec\.objectToolbarItem && spec\.kind !== "interact"\)\)\)/);
   assert.match(syncChrome, /classList\.toggle\("widget-chrome-control", Boolean\(spec\.widgetTool \|\| spec\.objectToolbar \|\| spec\.objectToolbarItem\)\)/);
   assert.match(syncChrome, /classList\.toggle\("widget-object-toolbar", Boolean\(spec\.objectToolbar && \["widget", "pending-widget"\]\.includes\(spec\.target\)\)\)/);
   assert.match(syncChrome, /attachedWidgetShells = new Set\(\)[\s\S]*?spec\.objectToolbar && spec\.object\?\.shell[\s\S]*?classList\.toggle\("object-toolbar-attached", attachedWidgetShells\.has\(widget\.shell\)\)/);
@@ -3943,7 +3949,7 @@ test("toolbar exposes reasoning presets and an editable provider-native value be
   assert.match(css, /@supports not \(\(-webkit-backdrop-filter:[\s\S]*?\.effort-popover,[\s\S]*?background:\s*var\(--panel-raised\)/);
   assert.doesNotMatch(css, /effort-slider-shell|effort-thumb|effort-dots/);
   for (const [type, popover] of [["ink", "inkColorPopover"], ["ai", "aiColorPopover"]]) {
-    assert.match(html, new RegExp(`data-color-control="${type}"[\\s\\S]*?aria-haspopup="menu"[^>]*aria-controls="${popover}"[\\s\\S]*?id="${popover}"[^>]*role="menu"[^>]*hidden`));
+    assert.match(html, new RegExp(`data-color-control="${type}"[\\s\\S]*?aria-haspopup="dialog"[^>]*aria-controls="${popover}"[\\s\\S]*?id="${popover}"[^>]*role="dialog"[^>]*hidden`));
     assert.match(app, new RegExp(`positionToolbarPopover\\('\\[data-color-control="${type}"\\]', "#${popover}", \\{ align:"center", gap:6 \\}\\)`));
   }
   assert.match(functionSource(app, "colorOrbitFor"), /getAttribute\("aria-controls"\)[\s\S]*?document\.getElementById\(id\)/);
@@ -3954,6 +3960,45 @@ test("toolbar exposes reasoning presets and an editable provider-native value be
     assert.match(app, new RegExp(`${key}:`));
     assert.match(zh, new RegExp(`${key}:`));
   }
+});
+
+test("custom ink and AI colors preserve presets and selection behavior", () => {
+  const html = read("public/index.html"), app = read("public/app.js");
+  for (const type of ["ink", "ai"]) {
+    assert.equal((html.match(new RegExp(`data-${type}-color=`, "g")) || []).length, 8);
+    assert.match(html, new RegExp(`type="color" data-custom-color="${type}"[^>]*data-i18n-aria="customColor"[^>]*tabindex="-1"`));
+    const swatches = ["#1f2937", "#2563eb"].map((color) => ({
+      dataset: { inkColor: color, aiColor: color },
+      classList: { toggle(name, value) { this[name] = value; } },
+      setAttribute(name, value) { this[name] = value; },
+    }));
+    const selected = [], previews = [], style = {}, classes = new Set();
+    const context = {
+      type, state: { inkColor: "#1f2937", aiColor: "#2563eb", textEditors: new Map([["mixed", { mixedMode: true }]]) },
+      COLOR_CLASS: { "#1f2937": "color-black", "#2563eb": "color-blue" },
+      trigger: { classList: { remove(...names) { names.forEach((name) => classes.delete(name)); }, add(name) { assert.ok(name); classes.add(name); } }, style: { setProperty(name, value) { style[name] = value; } } },
+      customInput: { value: "" }, orbit: { querySelectorAll() { return swatches; } },
+      applySelectionColor(color) { selected.push(color); }, positionTextEditors() {},
+      scheduleTextEditorPreview(editor) { previews.push(editor); },
+    };
+    const selectColor = vm.runInNewContext(`(${functionSource(app, "selectColor")})`, context);
+    selectColor("#AA12EF");
+    assert.equal(context.state[`${type}Color`], "#aa12ef");
+    assert.equal(context.state[type === "ink" ? "aiColor" : "inkColor"], type === "ink" ? "#2563eb" : "#1f2937");
+    assert.equal(context.customInput.value, "#aa12ef");
+    assert.equal(style["--selected-color"], "#aa12ef");
+    assert.ok(swatches.every((swatch) => swatch["aria-pressed"] === "false"));
+    assert.equal(selected.length, type === "ink" ? 1 : 0);
+    assert.equal(previews.length, type === "ink" ? 1 : 0);
+    selectColor("#2563eb");
+    assert.equal(swatches[1]["aria-pressed"], "true");
+    assert.ok(classes.has("color-blue"));
+    selectColor("invalid");
+    assert.equal(context.state[`${type}Color`], "#2563eb");
+    assert.equal(selected.length, type === "ink" ? 2 : 0);
+  }
+  assert.match(app, /customInput\.onchange = \(\) => selectColor\(customInput\.value\)/);
+  assert.match(read("public/locales/zh.js"), /customColor:/);
 });
 
 test("text editor corner scales its box and font while edge handles remain single-axis", () => {
@@ -4889,4 +4934,132 @@ test("PenEcho Agent internet search is configured in Settings and toggled beside
   assert.match(css,/content: attr\(data-tooltip\)/);
   assert.match(css,/\.settings-search-test-results output\[data-state="available"\]/);
   for(const text of ["互联网搜索","Flash 密钥来源","OpenCode Go","中国托管的 DeepSeek 模型","复制 Go API 密钥","Flash 搜索 API 密钥","Tavily API 密钥","DuckDuckGo 后备已就绪","当前搜索状态","测试搜索","尚未测试","未配置","可用 · 已返回结果","内置搜索已就绪","查询股票数据"]) assert.match(zh,new RegExp(text));
+});
+
+test("Widget interaction stays centered with separated trailing actions at every toolbar width", () => {
+  const app = read("public/app.js"),
+    minimum = vm.runInNewContext(`(${functionSource(app, "objectToolbarMinimumWidth")})`),
+    finalize = vm.runInNewContext(`(${functionSource(app, "finalizeObjectToolbarWidths")})`, {
+      objectToolbarMinimumWidth:minimum,
+    }),
+    state = { panX:0, panY:0, scale:1 },
+    position = vm.runInNewContext(`(${functionSource(app, "objectChromePosition")})`, {
+      state,
+      view:{clientWidth:1200,clientHeight:800,getBoundingClientRect:()=>({left:0,top:0})},
+      screenObjectBox: (box) => ({
+        left:box.x * state.scale,
+        top:box.y * state.scale,
+        width:box.w * state.scale,
+        height:box.h * state.scale,
+      }),
+    }),
+    box = {x:100,y:300,w:900,h:200},
+    epsilon = 1e-9;
+
+  const makeSpecs = (interactWidth, toolWidths, decisions = true) => {
+    const toolbar = {key:"toolbar",objectToolbar:true,baseHeight:34,toolbarHasDecisions:decisions},
+      leading = {
+        kind:"cancel", objectToolbarItem:true, objectToolbarKey:"toolbar",
+        toolbarSlot:"leading", baseWidth:28, baseHeight:28, toolbarHasDecisions:decisions,
+      },
+      interact = {
+        kind:"interact", objectToolbarItem:true, objectToolbarKey:"toolbar",
+        toolbarSlot:"tool", toolbarOrder:-1, toolbarItemCount:toolWidths.length,
+        baseWidth:interactWidth, baseHeight:28, toolbarHasDecisions:decisions,
+      },
+      tools = toolWidths.map((baseWidth, index) => ({
+        kind:index === 1 && baseWidth === 92 ? "refine" : "copy",
+        objectToolbarItem:true, objectToolbarKey:"toolbar", toolbarSlot:"tool",
+        toolbarOrder:index, toolbarItemCount:toolWidths.length,
+        baseWidth, baseHeight:28, toolbarHasDecisions:decisions,
+      })),
+      trailing = {
+        kind:"accept", objectToolbarItem:true, objectToolbarKey:"toolbar",
+        toolbarSlot:"trailing", baseWidth:28, baseHeight:28, toolbarHasDecisions:decisions,
+      };
+    return { toolbar, specs:decisions ? [toolbar, leading, interact, ...tools, trailing] : [toolbar, interact, ...tools] };
+  };
+
+  const assertToolbarLayout = ({toolbar, specs}, zoom, label) => {
+    state.scale = zoom;
+    finalize(specs);
+    const toolbarPosition = position(box, "toolbar", "", toolbar);
+    assert.ok(toolbarPosition, `${label}: toolbar should be positioned at scale ${zoom}`);
+    const expectedWidth = Math.max(toolbar.minimumWidth, box.w * zoom);
+    assert.ok(Math.abs(toolbarPosition.baseWidth - expectedWidth) < epsilon, `${label}: toolbar width`);
+    assert.equal(toolbarPosition.scale, 1, `${label}: toolbar stays screen-sized`);
+    const known = new Map([["toolbar", toolbarPosition]]),
+      itemSpecs = specs.slice(1),
+      positions = itemSpecs.map((spec) => {
+        const itemPosition = position(box, spec.kind, "", spec, known);
+        assert.ok(itemPosition, `${label}: ${spec.kind} should be positioned at scale ${zoom}`);
+        return itemPosition;
+      }),
+      toolbarRight = toolbarPosition.x + toolbarPosition.baseWidth;
+
+    let previousRight = toolbarPosition.x;
+    for (let index = 0; index < positions.length; index++) {
+      const itemPosition = positions[index],
+        itemWidth = itemPosition.baseWidth * (itemPosition.scale || 1),
+        itemRight = itemPosition.x + itemWidth;
+      assert.ok(itemPosition.x >= toolbarPosition.x - epsilon, `${label}: item ${index} starts inside toolbar`);
+      assert.ok(itemRight <= toolbarRight + epsilon, `${label}: item ${index} ends inside toolbar`);
+      assert.ok(itemPosition.x >= previousRight - epsilon, `${label}: item ${index} does not overlap the preceding action`);
+      previousRight = itemRight;
+      if (itemSpecs[index].kind === "interact") {
+        assert.equal(itemPosition.scale, 1, `${label}: interact stays screen-sized`);
+        assert.equal(itemPosition.baseWidth, itemSpecs[index].baseWidth, `${label}: interact keeps its width`);
+        assert.ok(
+          Math.abs(itemPosition.x + itemWidth / 2 - (toolbarPosition.x + toolbarPosition.baseWidth / 2)) < epsilon,
+          `${label}: interact remains centered`,
+        );
+      }
+    }
+    if (zoom < 1) assert.equal(toolbarPosition.baseWidth, toolbar.minimumWidth, `${label}: tiny Widget uses the toolbar minimum`);
+  };
+
+  for (const interactWidth of [76, 120]) {
+    for (const toolCount of [1, 2, 5]) {
+      const layout = makeSpecs(interactWidth, Array.from({length:toolCount}, () => 28));
+      for (const zoom of [1, 0.1, 0.01]) {
+        assertToolbarLayout(layout, zoom, `interact ${interactWidth}px / ${toolCount} tools`);
+      }
+      const decisionless = makeSpecs(interactWidth, Array.from({length:toolCount}, () => 28), false);
+      for (const zoom of [1, 0.1, 0.01]) {
+        assertToolbarLayout(decisionless, zoom, `decisionless interact ${interactWidth}px / ${toolCount} tools`);
+      }
+    }
+  }
+
+  const mixed = makeSpecs(120, [28, 92, 28, 28, 92]);
+  for (const zoom of [1, 0.1, 0.01]) {
+    assertToolbarLayout(mixed, zoom, `interact 120px / mixed tools including 92px refine`);
+  }
+});
+
+test("Widget right-click lists the toolbar without decisions and interaction shows a status bar", () => {
+  const app = read("public/app.js"),
+    css = read("public/style.css"),
+    zh = read("public/locales/zh.js"),
+    chromeSpecs = functionSource(app, "objectChromeSpecs"),
+    widgetBranch = chromeSpecs.slice(chromeSpecs.indexOf("prefix:`widget:${handTarget.id}`"), chromeSpecs.indexOf("pendingChromeSpecs(specs, state.pending)"));
+
+  assert.match(app, /view\.addEventListener\('dblclick'[\s\S]*?canvasWidgetAtEvent\(event\)[\s\S]*?enterWidgetInteraction\(widget\)/);
+  assert.match(app, /view\.addEventListener\('contextmenu', \(event\) => \{ showWidgetContextToolbar\(event\); \}\)/);
+  assert.doesNotMatch(app, /screen\.addEventListener\("contextmenu"/);
+  assert.match(functionSource(app, "showWidgetContextToolbar"), /event\.preventDefault\(\)[\s\S]*?state\.viewMode \|\| state\.spacePan \|\| state\.interactingWidgetId[\s\S]*?\["pen", "hand", "select"\]\.includes\(state\.mode\)[\s\S]*?canvasWidgetAtEvent\(event\)[\s\S]*?showHandObjectToolbar\("widget", widget\)/);
+  assert.match(functionSource(app, "enterWidgetInteraction"), /state\.viewMode[\s\S]*?setCanvasViewTool\("select"\)[\s\S]*?state\.mode !== "select"[\s\S]*?setCanvasMode\("select"\)[\s\S]*?setWidgetInteraction\(widget\)/);
+  assert.match(functionSource(app, "canvasWidgetInteractionChromeTarget"), /#canvasViewActions, #canvasNavigationActions, \.canvas-fit-contents, \.canvas-navigation-lock, \.object-chrome-button, \.widget-interaction-status/);
+  assert.match(app, /key:`widget:\$\{widget\.id\}:interact`[\s\S]*?activate:\(\) => \{ enterWidgetInteraction\(widget\); \}/);
+  assert.match(widgetBranch, /decisions:false[\s\S]*?addWidgetToolSpecs\(specs, handTarget, \{[\s\S]*?decisions:false/);
+  assert.doesNotMatch(widgetBranch, /widgetDelete|widgetAccept|kind:"cancel"|kind:"accept"/);
+  assert.match(chromeSpecs, /prefix:`pending-widget:\$\{widget\.id\}`[\s\S]*?cancelLabel:t\("widgetDiscard"\)[\s\S]*?acceptLabel:t\("widgetAccept"\)/);
+  assert.match(app, /widgetInteracting: "Interacting"/);
+  assert.match(zh, /widgetInteracting: "正在交互中"/);
+  assert.match(functionSource(app, "syncWidgetInteractionStatus"), /state\.interactingWidgetId[\s\S]*?screenObjectBox\(widgetBox\(widget\)\)[\s\S]*?label\.textContent = t\("widgetInteracting"\)[\s\S]*?--widget-interaction-status-x/);
+  assert.match(functionSource(app, "renderInteractionLayer"), /syncObjectChrome\(\)[\s\S]*?syncWidgetInteractionStatus\(\)/);
+  assert.match(css, /\.widget-interaction-status \{[^}]*z-index: 5[^}]*pointer-events: none[^}]*font: 650 12\.5px/);
+  assert.match(css, /\.widget-interaction-status\[hidden\] \{ display: none; \}/);
+  assert.match(css, /#viewport\.canvas-navigation-previewing :is\([^)]*\.widget-interaction-status\)/);
+  assert.match(css, /body\[data-theme="studio"\] \.widget-interaction-status \{[^}]*color: var\(--studio-accent-strong\)/);
 });

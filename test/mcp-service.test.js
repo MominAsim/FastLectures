@@ -317,6 +317,19 @@ test("MCP service keeps discovery credentials private and binds a session to its
   assert.equal(reused.value.result.sessionId, sessionId);
   assert.equal(calls.filter(call => call.name === "mcp_start_session").length, 1);
 
+  const attachArgs={canvasId:"canvas-a",instanceId:status.instanceId,target:"current",title:"Attach",client:"Codex",sessionKey:"attachment"};
+  const attach=await requestJson(address.port,"/api/mcp/rpc",{headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_start_session",arguments:attachArgs}});
+  assert.equal(attach.status,200);
+  assert.equal(calls.at(-1).arguments.target,"current");
+  assert.equal(calls.at(-1).arguments.documentId,undefined);
+  const attachRetry=await requestJson(address.port,"/api/mcp/rpc",{headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_start_session",arguments:attachArgs}});
+  assert.equal(attachRetry.value.result.sessionId,attach.value.result.sessionId);
+  assert.equal(attachRetry.value.result.reused,true);
+  const currentConflict=await requestJson(address.port,"/api/mcp/rpc",{headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_start_session",arguments:{...attachArgs,sessionKey:"stable"}}});
+  assert.equal(currentConflict.status,409);
+  assert.equal(calls.at(-1).arguments.sessionId,sessionId);
+  assert.equal(calls.at(-1).arguments.target,"current");
+
   const files = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_list_files",arguments:{sessionId}}});
   assert.deepEqual(files.value.result.files,[{path:"/notes.md",kind:"text"}]);
   const read = await requestJson(address.port, "/api/mcp/rpc", {headers:rpcHeaders,body:{operation:"call",ownerId,name:"penecho_read_file",arguments:{sessionId,path:"/notes.md"}}});
@@ -515,7 +528,7 @@ test("MCP service keeps discovery credentials private and binds a session to its
   await closeServer(server);
 });
 
-test("browser routes accept only exact host addresses while private RPC stays loopback-only", async () => {
+test("authenticated LAN browser status is allowed while configuration and private RPC stay local", async () => {
   const stateDirectory = tempDirectory(), server = http.createServer(), checkedAddresses = [];
   const service = createMcpService({
     server,
@@ -538,9 +551,11 @@ test("browser routes accept only exact host addresses while private RPC stays lo
   assert.equal(sameHostConfigure.value.error.code, "unsupported_media_type");
 
   const otherLanHost = await invokeServiceHttp(service, "192.168.50.8", "/api/mcp/status", { headers:{"x-test-browser":"allowed"} });
-  assert.equal(otherLanHost.status, 403);
-  assert.equal(otherLanHost.value.error.code, "local_host_required");
-  assert.match(otherLanHost.value.error.message, /same computer/i);
+  assert.equal(otherLanHost.status, 200);
+  assert.equal(otherLanHost.value.canConfigureLocalClients, false);
+  assert.equal(otherLanHost.value.config, null);
+  const remoteConfigure = await invokeServiceHttp(service, "192.168.50.8", "/api/mcp/configure", {headers:{"x-test-browser":"allowed"}});
+  assert.equal(remoteConfigure.value.error.code, "local_host_required");
   assert.equal(JSON.stringify(otherLanHost.value).includes("192.168.50"), false);
 
   const authorizationDenied = await invokeServiceHttp(service, "192.168.50.7", "/api/mcp/status");
@@ -560,10 +575,10 @@ test("browser routes accept only exact host addresses while private RPC stays lo
       destroy() { this.destroyed = true; resolve(Buffer.concat(writes.map(value => Buffer.from(value))).toString("utf8")); },
       write(value) { writes.push(value); },
     };
-    server.emit("upgrade", { headers:{"x-test-browser":"allowed"}, socket:{remoteAddress:"192.168.50.8"}, url:"/api/mcp/canvas" }, socket, Buffer.alloc(0));
+    server.emit("upgrade", { headers:{}, socket:{remoteAddress:"192.168.50.8"}, url:"/api/mcp/canvas" }, socket, Buffer.alloc(0));
   });
   assert.match(upgradeResult, /403 Forbidden/);
-  assert.match(upgradeResult, /local_host_required/);
+  assert.match(upgradeResult, /forbidden/);
   assert.equal(upgradeResult.includes("192.168.50"), false);
 
   await service.close();
@@ -588,6 +603,12 @@ test("MCP status inspects configured clients only when explicitly requested", as
   const denied = await invokeServiceHttp(service, "127.0.0.1", "/api/mcp/status?inspectClients=1", { method:"GET" });
   assert.equal(denied.status, 403);
   assert.equal(inspections, 0);
+
+  const remote = await invokeServiceHttp(service, "192.168.50.8", "/api/mcp/status?inspectClients=1", {method:"GET",headers:{"x-test-browser":"allowed"}});
+  assert.equal(remote.status,200);
+  assert.equal(remote.value.config,null);
+  assert.equal(remote.value.configuredClients,undefined);
+  assert.equal(inspections,0);
 
   const inspected = await invokeServiceHttp(service, "127.0.0.1", "/api/mcp/status?inspectClients=1", { method:"GET", headers:{"x-test-browser":"allowed"} });
   assert.equal(inspected.status, 200);
@@ -650,7 +671,10 @@ test("native canvas heartbeat terminates clients that stop answering pong", asyn
     const closed = waitForSocketEvent(ws, "close");
     ws.send(JSON.stringify({type:"hello",canvasId:"heartbeat-canvas",title:"Heartbeat board"}));
     await ready;
+    const pending = service.callTool(crypto.randomUUID(), "penecho_start_session", {instanceId:service.instanceId,canvasId:"heartbeat-canvas",title:"Offline request"});
+    const rejected = assert.rejects(pending,{code:"canvas_disconnected"});
     const [code] = await closed;
+    await rejected;
     await delay(0);
     assert.equal(code, 1006);
     assert.equal(nativePings > 0, true);
@@ -765,4 +789,58 @@ test("configured MCP client inspection is bounded, read-only, and treats failure
   });
   assert.deepEqual(timedOut, []);
   assert.equal(Date.now() - startedAt < 250, true);
+});
+
+test("authenticated LAN WebSocket participates in local RPC discovery and routing", async () => {
+  const server = http.createServer();
+  server.on("upgrade", req => Object.defineProperty(req.socket, "remoteAddress", {value:"192.168.50.8"}));
+  const service = createMcpService({server, authorizeBrowser:req => req.headers["x-test-browser"] === "allowed" ? null : "Forbidden", stateDirectory:tempDirectory()});
+  server.on("request", (req,res) => { void service.handleHttp(req,res); });
+  const address = await listen(server);
+  service.register(address);
+  const record = readRecords(recordsDirectory(service.status().config.args.at(-1)))[0];
+  try {
+    const {ws} = await openCanvas(address.port, []);
+    const owner = crypto.randomUUID();
+    const rpc = await requestJson(address.port,"/api/mcp/rpc",{headers:{authorization:`Bearer ${record.secret}`,"x-penecho-mcp-instance":service.instanceId},body:{operation:"list_canvases",ownerId:owner}});
+    assert.equal(rpc.status,200);
+    assert.equal(rpc.value.result.canvases.length, 1);
+    const started = await service.callTool(owner, "penecho_start_session", {instanceId:service.instanceId,canvasId:"canvas-a",title:"LAN"});
+    assert.ok(started.sessionId);
+    const closed = waitForSocketEvent(ws, "close");
+    ws.close();
+    await closed;
+    await delay(0);
+    assert.deepEqual(service.listCanvases(), []);
+    await assert.rejects(service.callTool(owner,"penecho_inspect_session",{sessionId:started.sessionId}), {code:"canvas_disconnected"});
+  } finally { await service.close(); await closeServer(server); }
+});
+
+test("remote channels register canvases, route tools, replace and revoke pending calls", async () => {
+  const service = createMcpService({server:http.createServer(),authorizeBrowser:() => "Forbidden",stateDirectory:tempDirectory()});
+  const execute = service.executeRemote;
+  const open = async () => {
+    const {channelId} = await execute({operation:"canvas.mcp.open"});
+    await execute({operation:"canvas.mcp.frame",channelId,frame:JSON.stringify({type:"hello",canvasId:"cloud-canvas",title:"Cloud"})});
+    const ready = await execute({operation:"canvas.mcp.pull",channelId});
+    assert.equal(JSON.parse(ready.frames[0]).type,"ready");
+    return channelId;
+  };
+  try {
+    const channelId = await open(), owner = crypto.randomUUID();
+    assert.equal(service.listCanvases()[0].canvasId,"cloud-canvas");
+    const call = service.callTool(owner,"penecho_start_session",{instanceId:service.instanceId,canvasId:"cloud-canvas",title:"Cloud work"});
+    const pulled = await execute({operation:"canvas.mcp.pull",channelId}), frame = JSON.parse(pulled.frames[0]);
+    assert.equal(frame.name,"mcp_start_session");
+    await execute({operation:"canvas.mcp.frame",channelId,frame:JSON.stringify({type:"result",requestId:frame.requestId,ok:true,result:{sessionId:frame.arguments.sessionId,revision:1}})});
+    const started = await call;
+    const pending = service.callTool(owner,"penecho_inspect_session",{sessionId:started.sessionId});
+    const rejected = assert.rejects(pending,{code:"canvas_disconnected"});
+    const replacement = await open();
+    await rejected;
+    await assert.rejects(execute({operation:"canvas.mcp.pull",channelId}),{code:"mcp_remote_session"});
+    await execute({operation:"canvas.mcp.close",channelId:replacement});
+    assert.deepEqual(service.listCanvases(),[]);
+  } finally { await service.close(); }
+  await assert.rejects(execute({operation:"canvas.mcp.open"}),{code:"mcp_service_closed"});
 });

@@ -30,21 +30,54 @@
     syncWidgetHostStates();
     resetCanvasCursor();
   }
-  function setWidgetInteraction(widget) {
+  function setWidgetInteraction(widget, options = {}) {
     if (widget && (!canvasWidgetSelectionEnabled() || !visibleWidgets().includes(widget))) return false;
     const next = widget?.id || null;
     if (state.interactingWidgetId === next) return true;
     const previous = state.widgets.find(item => item.id === state.interactingWidgetId);
     if (previous?.frame && document.activeElement === previous.frame) document.activeElement.blur();
     state.interactingWidgetId = next;
+    if (!next) {
+      const returnTool = state.widgetInteractionReturnTool;
+      state.widgetInteractionReturnTool = null;
+      if (options.restoreTool !== false && returnTool && returnTool.viewMode === state.viewMode) {
+        if (state.viewMode) setCanvasViewTool(returnTool.mode);
+        else setCanvasMode(returnTool.mode);
+      }
+    }
     syncCanvasNavigation();
     if (widget?.frame) widget.frame.focus({ preventScroll:true });
     requestInteractionLayerRender();
     return true;
   }
+  // One entry point for every explicit activation gesture (toolbar, double-click,
+  // context menu): it selects the tool that can own Widget interaction first.
+  function enterWidgetInteraction(widget) {
+    if (!widget || widget.pending || !visibleWidgets().includes(widget)) return false;
+    const returnTool = state.widgetInteractionReturnTool || { viewMode:state.viewMode, mode:state.viewMode ? state.viewTool : state.mode };
+    if (state.viewMode) {
+      if (state.viewTool !== "select") setCanvasViewTool("select");
+    } else if (state.mode !== "select") {
+      setCanvasMode("select");
+    }
+    state.widgetInteractionReturnTool = returnTool;
+    return setWidgetInteraction(widget);
+  }
+  function canvasWidgetInteractionChromeTarget(target) {
+    return Boolean(target?.closest?.("#canvasViewActions, #canvasNavigationActions, .canvas-fit-contents, .canvas-navigation-lock, .object-chrome-button, .widget-interaction-status"));
+  }
+  function showWidgetContextToolbar(event) {
+    event.preventDefault();
+    if (state.viewMode || state.spacePan || state.interactingWidgetId) return false;
+    if (!["pen", "hand", "select"].includes(state.mode)) return false;
+    if (canvasWidgetInteractionChromeTarget(event.target)) return false;
+    const widget = canvasWidgetAtEvent(event);
+    if (!widget || widget.pending || !state.widgets.includes(widget)) return false;
+    return showHandObjectToolbar("widget", widget);
+  }
   function setCanvasViewTool(tool) {
     if (!state.viewMode || !['hand', 'select'].includes(tool)) return;
-    setWidgetInteraction(null);
+    setWidgetInteraction(null, { restoreTool:false });
     state.widgetActivationTap = null;
     state.viewTool = tool;
     syncCanvasNavigation();
@@ -168,6 +201,15 @@
     setWidgetInteraction(null);
     (state.viewMode ? document.querySelector('#canvasViewSelect') : document.querySelector('#lassoToolBtn'))?.focus({ preventScroll:true });
   });
+  view.addEventListener('dblclick', (event) => {
+    if (state.spacePan || state.interactingWidgetId) return;
+    const tool = state.viewMode ? state.viewTool : state.mode;
+    if (tool !== 'hand' && tool !== 'select') return;
+    if (canvasWidgetInteractionChromeTarget(event.target)) return;
+    const widget = canvasWidgetAtEvent(event);
+    if (widget) enterWidgetInteraction(widget);
+  });
+  view.addEventListener('contextmenu', (event) => { showWidgetContextToolbar(event); });
   document.querySelector('#canvasFitContents')?.addEventListener('click', fitCanvasContents);
   const wheelZoomSetting = document.querySelector('#settingsWheelZoom');
   if (wheelZoomSetting) {

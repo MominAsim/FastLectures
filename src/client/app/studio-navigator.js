@@ -459,7 +459,7 @@
           canvasKey=doc.locator?`${doc.locator.location}:${doc.locator.id}`:current&&state.canvasAgentCanvasKey||`workspace:${doc.id}`,
           previous=groups.get(canvasKey),item=previous?.item||doc.stored?.item||null;
         groups.set(canvasKey,{...previous,canvasKey,documentId:doc.id,location:doc.locator?.location||"",item,
-          name:doc.title||t("canvasUntitledName"),updatedAt:previous?.updatedAt||Number(item?.updatedAt||item?.createdAt)||0,
+          name:doc.title||t("canvasUntitledName"),updatedAt:Math.max(Number(previous?.updatedAt)||0,Number(item?.updatedAt||item?.createdAt)||0,...(doc.changes||[]).map(change=>Number(change.at)||0)),
           conversations:previous?.conversations||[],current,unseen:doc.unseen>0});
       }
       return [...groups.values()].map((group)=>({...group,current:group.documentId?group.current:group.canvasKey===state.canvasAgentCanvasKey})).sort((a,b)=>Number(b.current)-Number(a.current)||Number(Boolean(b.documentId))-Number(Boolean(a.documentId))||b.updatedAt-a.updatedAt);
@@ -829,7 +829,7 @@
       return studioNavigatorWorkGroups().filter(group=>{
         const doc=canvasDocuments.records.get(group.documentId);
         return doc && (doc.bindings?.length || doc.sessions?.length || [...mcpRuntime.sessions.values()].some(session=>session.documentId===doc.id));
-      });
+      }).sort((a,b)=>b.updatedAt-a.updatedAt);
     }
     function renderStudioMcpHistory() {
       syncStudioMcpActions();
@@ -855,6 +855,10 @@
         studioNavigatorSearch.value="";
         setStudioNavigatorTab("mcp",{persist:false});
         setStudioNavigatorOpen(true);
+        // Each live MCP connection starts with Follow latest on; a later
+        // manual off stays off for the rest of that connection.
+        studioMcpFollowLatest=true;studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;
+        syncStudioMcpActions();
       }else if(studioNavigatorActiveTab==="mcp")setStudioNavigatorTab("all",{persist:false});
     }
     let studioWorkspaceSignature="";
@@ -872,6 +876,21 @@
         const doc=canvasDocuments.records.get(row.dataset.workspaceDocumentId),dot=row.querySelector(".workspace-update-dot");
         if(dot){dot.hidden=!doc?.unseen;dot.setAttribute("aria-label",canvasDocumentsCopy("New updates","有新内容"));}
         row.disabled=canvasDocuments.switching;
+      }
+      if(typeof studioNavigatorActiveTab!=="undefined"&&studioNavigatorActiveTab==="mcp"){
+        const rows=new Map([...studioMcpRecentList.querySelectorAll("[data-workspace-document-id]")].map(row=>[row.dataset.workspaceDocumentId,row]));
+        let index=0;
+        for(const group of studioNavigatorMcpGroups()){
+          const row=rows.get(group.documentId);if(!row)continue;
+          const section=row.parentElement;
+          if(studioMcpRecentList.children[index]!==section)studioMcpRecentList.insertBefore(section,studioMcpRecentList.children[index]||null);
+          const meta=row.querySelector("small");
+          if(meta&&meta.dataset.updatedAt!==String(group.updatedAt)){
+            studioNavigatorRenderCanvasMeta(meta,group.current,true,group.location,group.updatedAt);
+            meta.dataset.updatedAt=String(group.updatedAt);
+          }
+          index++;
+        }
       }
     }
     function renderActiveStudioNavigatorHistory() {

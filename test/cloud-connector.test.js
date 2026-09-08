@@ -1588,3 +1588,19 @@ test("Cloud Canvas loading downloads one verified bundle and preserves asset ord
     fs.rmSync(stateDir, { recursive: true, force: true });
   }
 });
+
+test("cloud relay advertises and isolates MCP channel operations", async () => {
+  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-cloud-mcp-test-"));
+  try {
+    const calls=[], connector=new CloudConnector({stateDir,executeRequest:async()=>assert.fail("MCP reached AI executor"),executeHttpRequest:async()=>assert.fail("MCP reached HTTP executor"),executeMcpRequest:async payload=>{calls.push(payload);return {channelId:"test-channel"};}});
+    assert.equal(connector.capabilities.mcp,true);
+    const responses=[], socket={readyState:WebSocket.OPEN,send:value=>responses.push(JSON.parse(value))};
+    for(const operation of ["canvas.mcp.open","canvas.mcp.frame","canvas.mcp.pull","canvas.mcp.close"])await connector.handleRequest(socket,{requestId:operation,payload:{operation}});
+    assert.deepEqual(calls.map(item=>item.operation),["canvas.mcp.open","canvas.mcp.frame","canvas.mcp.pull","canvas.mcp.close"]);
+    assert.equal(responses.every(item=>item.ok),true);
+    const unsupported=new CloudConnector({stateDir,executeRequest:async()=>assert.fail("Unsupported MCP reached AI")});
+    assert.equal(unsupported.capabilities.mcp,undefined);
+    await unsupported.handleRequest(socket,{requestId:"unsupported",payload:{operation:"canvas.mcp.open"}});
+    assert.equal(responses.at(-1).ok,false);
+  } finally {fs.rmSync(stateDir,{recursive:true,force:true});}
+});

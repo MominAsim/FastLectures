@@ -39,6 +39,10 @@ app.whenReady().then(async()=>{try{
  win.webContents.debugger.attach('1.3');
  const click=async(x,y)=>{for(const type of ['mouseMoved','mousePressed','mouseReleased'])await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type,x,y,button:type==='mouseMoved'?'none':'left',clickCount:type==='mouseMoved'?0:1});await pause(100);};
  const drag=async(x,y,dx,dy)=>{await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mousePressed',x,y,button:'left',buttons:1,clickCount:1});await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',x:x+dx,y:y+dy,button:'left',buttons:1});await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseReleased',x:x+dx,y:y+dy,button:'left',buttons:0,clickCount:1});await pause(100);};
+ const rightClick=async(x,y)=>{for(const type of ['mouseMoved','mousePressed','mouseReleased'])await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type,x,y,button:type==='mouseMoved'?'none':'right',buttons:type==='mousePressed'?2:0,clickCount:type==='mouseMoved'?0:1});await pause(120);};
+ const doubleClick=async(x,y)=>{for(const [type,clickCount,buttons] of [['mouseMoved',0,0],['mousePressed',1,1],['mouseReleased',1,0],['mousePressed',2,1],['mouseReleased',2,0]])await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type,x,y,button:type==='mouseMoved'?'none':'left',buttons,clickCount});await pause(150);};
+ const toolbarVisible=()=>js('(()=>{const e=document.querySelector(".object-chrome-button.interact");return Boolean(e)&&getComputedStyle(e).visibility==="visible";})()');
+ const statusBar=()=>js('(()=>{const e=document.querySelector(".widget-interaction-status");if(!e||e.hidden)return null;const box=e.getBoundingClientRect();return {text:e.textContent.trim(),bottom:box.bottom,top:box.top};})()');
 
  let before=await camera(),r=(await rects())[1];
  await drag(r.x+100,r.y+100,45,25);
@@ -46,15 +50,32 @@ app.whenReady().then(async()=>{try{
  report.checks.push('Hand drags over live Widget without firing its controls');
  r=(await rects())[1];await click(r.x+120,r.y+130);
  assert.equal(await js('navigationTest.state.mode'),'hand');
- assert.ok(await js('(()=>{const e=document.querySelector(".object-chrome-button.interact");return e&&getComputedStyle(e).visibility==="visible";})()'),'Hand click shows visible Widget toolbar');
+ assert.ok(await toolbarVisible(),'Hand click shows visible Widget toolbar');
+ assert.equal(await js('!!document.querySelector(".object-chrome-button.accept, .object-chrome-button.cancel")'),false,'Widget toolbar omits accept/cancel decisions');
  assert.equal((await counters()).reduce((n,c)=>n+c.pointer,0),0,'Hand click never reaches Widget content');
  fs.writeFileSync(path.join(directory,'hand-toolbar-desktop.png'),(await win.webContents.capturePage()).toPNG());
 
  const interactPoint=await js('(()=>{const r=document.querySelector(".object-chrome-button.interact").getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()');
  await click(interactPoint.x,interactPoint.y);
  assert.equal(await js('navigationTest.state.interactingWidgetId'),'widget-2');
+ await pause(150);
+ let status=await statusBar();
+ assert.ok(status&&['Interacting','正在交互中'].includes(status.text),'Interaction shows a localized status bar');
+ r=(await rects())[1];assert.ok(status.bottom<=r.y+1,'Interaction status sits above the Widget');
+ fs.writeFileSync(path.join(directory,'widget-interaction-status.png'),(await win.webContents.capturePage()).toPNG());
+ await js('document.querySelector("#canvasWidgetExit").click()');
+ await pause(150);
+ assert.equal(await statusBar(),null,'Interaction status hides after leaving interaction');
+ await js('navigationTest.setCanvasMode("select");navigationTest.setCanvasMode("hand")');
+ await pause(200);
+ assert.equal(await toolbarVisible(),false,'Toolbar is hidden before the context-menu check');
+ r=(await rects())[1];await rightClick(r.x+120,r.y+130);
+ assert.ok(await toolbarVisible(),'Right-click lists the Widget toolbar without a native menu');
+ await doubleClick(r.x+120,r.y+130);
+ assert.equal(await js('navigationTest.state.mode'),'select','Double-click from Hand selects the tool that owns interaction');
+ assert.equal(await js('navigationTest.state.interactingWidgetId'),'widget-2','Double-click from Hand enters Widget interaction');
  await js('document.querySelector("#canvasWidgetExit").click();navigationTest.setCanvasMode("hand")');
- report.checks.push('Hand click opens toolbar without switching tools; Interact explicitly enters Widget');
+ report.checks.push('Hand click opens toolbar without switching tools; Interact explicitly enters Widget; right-click lists it and double-click enters it; a status bar marks interaction');
  assert.equal(await js('!!document.querySelector(".object-chrome-button.refine")'),false,'Hand toolbar never shows AI Refine');
  await js('navigationTest.setCanvasMode("pen")');
  r=(await rects())[1];
@@ -83,7 +104,15 @@ app.whenReady().then(async()=>{try{
 
  await js(`navigationTest.setCanvasViewMode(true)`);await pause(250);
  assert.equal(await js('navigationTest.state.viewTool'),'hand');
- r=(await rects())[1];before=await camera();await drag(r.x+100,r.y+100,20,15);assert.ok((await camera()).x>before.x);
+ r=(await rects())[1];before=await camera();
+ // View Hand double-click enters interaction directly and marks it with the status bar.
+ await doubleClick(r.x+85,r.y+60);
+ assert.equal(await js('navigationTest.state.interactingWidgetId'),'widget-2','View Hand double-click enters Widget interaction');
+ await pause(150);
+ assert.ok(await statusBar(),'View interaction shows the status bar');
+ await js('document.querySelector("#canvasWidgetExit").click();navigationTest.setCanvasViewTool("hand")');await pause(150);
+ assert.equal(await statusBar(),null,'View status bar hides after exit');
+ await drag(r.x+100,r.y+100,20,15);assert.ok((await camera()).x>before.x);
  await js(`document.querySelector('#canvasViewSelect').click()`);
  r=(await rects())[1];await click(r.x+85,r.y+60);
  assert.equal(await js('navigationTest.state.interactingWidgetId'),'widget-2');assert.equal((await counters()).reduce((n,c)=>n+c.click,0),0,'selection must not activate inner button');

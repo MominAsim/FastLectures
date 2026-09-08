@@ -1107,8 +1107,73 @@
         }
       }
     }
+    let fitContentStyle = null;
+    function setFitContentLayout(enabled) {
+      if (!enabled) {
+        if (fitContentStyle) fitContentStyle.disabled = true;
+        return;
+      }
+      if (fitContentStyle && !fitContentStyle.disabled) return;
+      // Read first, then apply one stylesheet. Preserve authored styles and live DOM.
+      const rules = ["html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}"];
+      const containers = [];
+      for (const element of document.body?.querySelectorAll("*") || []) {
+        if (!(element instanceof HTMLElement) || element.matches("textarea,input,select,iframe,[contenteditable]")) continue;
+        const style = getComputedStyle(element);
+        const vertical = /^(auto|scroll)$/.test(style.overflowY);
+        const horizontal = /^(auto|scroll)$/.test(style.overflowX);
+        if (!vertical && !horizontal) continue;
+        containers.push({ element, vertical, horizontal,
+          width:element.scrollWidth > element.clientWidth ? element.scrollWidth + element.offsetWidth - element.clientWidth : 0 });
+      }
+      for (const [index, item] of containers.entries()) {
+        item.element.setAttribute("data-penecho-fit-scroll", String(index));
+        rules.push('[data-penecho-fit-scroll="' + index + '"]{'
+          + (item.vertical ? "height:auto!important;max-height:none!important;overflow-y:visible!important;flex-shrink:0!important;" : "")
+          + (item.horizontal ? "max-width:none!important;overflow-x:visible!important;" + (item.width ? "min-width:" + item.width + "px!important;" : "") : "")
+          + "}");
+      }
+      if (!fitContentStyle) {
+        fitContentStyle = document.createElement("style");
+        document.head.append(fitContentStyle);
+      }
+      fitContentStyle.textContent = rules.join("\n");
+      fitContentStyle.disabled = false;
+    }
+    async function measureContent(message) {
+      try {
+        await waitForSnapshotViewport(message.width, message.height, 1500);
+        setFitContentLayout(true);
+        const body = document.body, root = document.documentElement;
+        if (!body) return;
+        const style = getComputedStyle(body);
+        let width = 0, height = 0;
+        for (const child of body.children) {
+          if (["SCRIPT", "STYLE", "LINK"].includes(child.tagName)) continue;
+          const rect = child.getBoundingClientRect();
+          if (!rect.width && !rect.height) continue;
+          const childStyle = getComputedStyle(child);
+          if (childStyle.position === "fixed") continue;
+          width = Math.max(width, rect.right + scrollX + (parseFloat(childStyle.marginRight) || 0));
+          height = Math.max(height, rect.bottom + scrollY + (parseFloat(childStyle.marginBottom) || 0));
+        }
+        width += (parseFloat(style.paddingRight) || 0) + (parseFloat(style.marginRight) || 0);
+        height += (parseFloat(style.paddingBottom) || 0) + (parseFloat(style.marginBottom) || 0);
+        width = Math.max(width, root.scrollWidth, body.scrollWidth);
+        height = Math.max(height, root.scrollHeight, body.scrollHeight);
+        parent.postMessage({ type:"penecho-widget-content-size", runtimeVersion,
+          requestId:message.requestId, width:Math.ceil(width || root.clientWidth),
+          height:Math.ceil(height || root.clientHeight) }, "*");
+      } catch {
+        // The parent owns the bounded request timeout and user-facing retry state.
+      }
+    }
     addEventListener("message", (event) => {
       if (event.source !== parent) return;
+      if (event.data?.type === "penecho-widget-measure-content") {
+        void measureContent(event.data);
+        return;
+      }
       if (event.data?.type === PUBLIC_FETCH_RESPONSE && publicFetchRequests.has(event.data.requestId)) {
         const pending = publicFetchRequests.get(event.data.requestId);
         publicFetchRequests.delete(event.data.requestId);
@@ -1126,7 +1191,8 @@
       else if (event.data?.type === "penecho-widget-state" && typeof event.data.selected === "boolean" && typeof event.data.active === "boolean"
         && Number.isFinite(event.data.scaleX) && event.data.scaleX > 0 && Number.isFinite(event.data.scaleY) && event.data.scaleY > 0) {
         const becameVisible = event.data.active && (!widgetStateReceived || !widgetState.active);
-        widgetState = { selected:event.data.selected, interactive:Boolean(event.data.interactive), active:event.data.active, navigationLocked:Boolean(event.data.navigationLocked), scaleX:event.data.scaleX, scaleY:event.data.scaleY };
+        widgetState = { fitContent:event.data.fitContent === true, selected:event.data.selected, interactive:Boolean(event.data.interactive), active:event.data.active, navigationLocked:Boolean(event.data.navigationLocked), scaleX:event.data.scaleX, scaleY:event.data.scaleY };
+        setFitContentLayout(widgetState.fitContent);
         widgetStateReceived = true;
         if (!widgetState.selected) setControlCursor();
         setRuntimeActive(widgetState.active);
@@ -1702,8 +1768,10 @@
         inner.contentWindow?.postMessage({type:"penecho-mcp-progress",progress:message.progress},"*");
       } else if (message?.type === "penecho-widget-state" && typeof message.selected === "boolean" && typeof message.active === "boolean"
         && Number.isFinite(message.scaleX) && message.scaleX > 0 && Number.isFinite(message.scaleY) && message.scaleY > 0) {
-        widgetState = { selected:message.selected, interactive:Boolean(message.interactive), active:message.active, navigationLocked:Boolean(message.navigationLocked), scaleX:message.scaleX, scaleY:message.scaleY };
+        widgetState = { fitContent:message.fitContent === true, selected:message.selected, interactive:Boolean(message.interactive), active:message.active, navigationLocked:Boolean(message.navigationLocked), scaleX:message.scaleX, scaleY:message.scaleY };
         forwardWidgetState();
+      } else if (message?.type === "penecho-widget-measure-content" && typeof message.requestId === "string" && message.requestId.length <= 128) {
+        if (innerDocumentReady && [message.width, message.height].every(value => Number.isFinite(value) && value > 0)) inner.contentWindow?.postMessage({ type:message.type, requestId:message.requestId, width:message.width, height:message.height }, "*");
       } else if (message?.type === "penecho-widget-snapshot-request") {
         const requestedWidth = Number(message.width), requestedHeight = Number(message.height),
           timeoutMs = Math.max(1000, Math.min(SNAPSHOT_REQUEST_TIMEOUT_MS, Number(message.timeoutMs) || SNAPSHOT_REQUEST_TIMEOUT_MS));
@@ -1724,6 +1792,12 @@
       return;
     }
     if (event.source !== inner.contentWindow || !message || typeof message !== "object") return;
+    if (message.type === "penecho-widget-content-size" && message.runtimeVersion === runtimeVersion
+      && typeof message.requestId === "string" && message.requestId.length <= 128
+      && [message.width, message.height].every(value => Number.isFinite(value) && value > 0)) {
+      parent.postMessage({ type:message.type, requestId:message.requestId, width:message.width, height:message.height }, parentOrigin);
+      return;
+    }
     if (["penecho-widget-document-ready", "penecho-widget-snapshot", "penecho-widget-snapshot-error"].includes(message.type)) {
       snapshotDebugLog("inner-message", {
         type:message.type,
