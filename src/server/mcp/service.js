@@ -8,7 +8,7 @@ const { applyPatch, parsePatch } = require("diff");
 const { WebSocket, WebSocketServer } = require("ws");
 const { configureClient, inspectConfiguredClients: defaultInspectConfiguredClients } = require("./configure.js");
 const { SESSION_INSTRUCTIONS } = require("./guidance.js");
-const { recordsDirectory, removeRecord, writeRecord } = require("./records.js");
+const { registryStateDirectory, recordsDirectory, removeRecord, writeRecord } = require("./records.js");
 const { createMcpRequestTracer } = require("./request-trace.js");
 const { MAX_EVENTS_PER_UPDATE, MAX_FILE_BYTES, McpBridgeError, validateToolArguments } = require("./schema.js");
 
@@ -393,7 +393,8 @@ function createMcpService(options) {
   const isLocalBrowserAddress = options.isLocalBrowserAddress;
   const inspectConfiguredClients = options.inspectConfiguredClients || defaultInspectConfiguredClients;
   const stateDirectory = options.stateDirectory ? path.resolve(options.stateDirectory) : undefined;
-  const directory = recordsDirectory(stateDirectory), instanceId = crypto.randomUUID(), secret = crypto.randomBytes(32).toString("hex");
+  const registryDirectory = options.registryStateDirectory ? path.resolve(options.registryStateDirectory) : registryStateDirectory();
+  const directory = recordsDirectory(registryDirectory), instanceId = crypto.randomUUID(), secret = crypto.randomBytes(32).toString("hex");
   const logger = typeof options.logger === "function" ? options.logger : () => {};
   const requestTracer = options.requestTraceEnabled === true ? createMcpRequestTracer({
     requestTraceDirectory:options.requestTraceDirectory,
@@ -403,10 +404,10 @@ function createMcpService(options) {
   const stdioPath = path.resolve(__dirname, "stdio.js");
   const defaultLaunch = {
     command:process.execPath,
-    args:[stdioPath, ...(stateDirectory ? ["--state-directory", stateDirectory] : [])],
+    args:[stdioPath, "--state-directory", registryDirectory],
     ...((process.versions.electron || /electron(?:\.exe)?$/i.test(path.basename(process.execPath))) ? { env:{ ELECTRON_RUN_AS_NODE:"1" } } : {}),
   };
-  const launchValue = typeof options.launch === "function" ? options.launch({ instanceId, stdioPath, stateDirectory }) : options.launch;
+  const launchValue = typeof options.launch === "function" ? options.launch({ instanceId, stdioPath, stateDirectory:registryDirectory }) : options.launch;
   const launch = launchValue && typeof launchValue.command === "string" && Array.isArray(launchValue.args)
     ? { command:launchValue.command, args:launchValue.args.map(String), ...(launchValue.env && typeof launchValue.env === "object" ? { env:Object.fromEntries(Object.entries(launchValue.env).map(([key, value]) => [String(key), String(value)])) } : {}) }
     : defaultLaunch;

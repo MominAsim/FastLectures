@@ -365,7 +365,7 @@
       imageMaterialStyle = runtimeElementStyle(imageMaterialLayer, "image-material-layer-stack"),
       imageStyle = runtimeElementStyle(placedContentLayer, "placed-content-layer-stack"),
       textEditorStyle = runtimeElementStyle(textEditorLayer, "text-editor-layer-stack");
-    if (widgetStyle) widgetStyle.zIndex = selectedWidgetMaterialActive ? "3" : widgetInFront ? "2" : "1";
+    if (widgetStyle) widgetStyle.zIndex = selectedWidgetMaterialActive || widgetInFront ? "3" : "1";
     if (imageMaterialStyle) imageMaterialStyle.zIndex = widgetInFront ? "1" : "2";
     if (imageStyle) imageStyle.zIndex = widgetInFront ? "1" : "2";
     if (textEditorStyle) textEditorStyle.setProperty("--text-editor-layer-z", state.frontCanvasObjectKind === "text-box" ? "6" : "1");
@@ -655,6 +655,7 @@
     for (const key of [...state.handToolbarTargets.keys()]) {
       if (key !== ensured.key) finishHandToolbarHide(key);
     }
+    if (kind === "widget") commitWidgetToolbarFront(object);
     state.handToolbarActiveKey = ensured.key;
     ensured.record.expanded = true;
     if (token) ensured.record.holds.add(token);
@@ -702,6 +703,7 @@
       state.handToolbarActiveKey = null;
       return false;
     }
+    if (record.kind === "widget") commitWidgetToolbarFront(object);
     if (record.kind === "animation") showAnimationControls(HAND_OBJECT_TOOLBAR_VISIBLE_MS + HAND_OBJECT_TOOLBAR_FADE_MS);
     refreshHandObjectToolbar(key);
     return true;
@@ -753,7 +755,7 @@
     if (state.mode !== "select" || Number(event.button) !== 0) return false;
     const target = handObjectToolbarTargetAtPoint(point);
     if (!target) return false;
-    // Selection preserves the visible stacking order.
+    // Focus raises the selected Widget through focusHandObject.
     if (target.kind === "image") bringImageToFront(target.object);
     else if (target.kind === "text-box") bringTextBoxToFront(target.object);
     const token = `pointer:${event.pointerId}`,
@@ -1191,6 +1193,25 @@
       changed = stackChanged || layerChanged;
     if (changed && state.widgetEdit?.id === widget.id) state.widgetEdit.changed = true;
     return changed;
+  }
+  function commitWidgetToolbarFront(widget) {
+    if (!widget || !state.widgets.includes(widget)) return false;
+    if (state.widgets.at(-1) === widget && state.frontCanvasObjectKind === "widget") return false;
+    recordWidgetsBefore();
+    const edit = state.widgetEdit?.id === widget.id ? state.widgetEdit : null,
+      wasChanged = edit?.changed;
+    bringHtmlWidgetToFront(widget);
+    // Clicking a toolbar commits its order independently of a later edit/cancel.
+    if (edit) {
+      edit.beforeIndex = state.widgets.indexOf(widget);
+      edit.beforeFrontCanvasObjectKind = state.frontCanvasObjectKind;
+      edit.beforeFrontPlacedCanvasObjectKind = state.frontPlacedCanvasObjectKind;
+      edit.changed = wasChanged;
+    }
+    state.userRevision++;
+    saveUserCanvasChange();
+    if (edit) recordWidgetsBefore();
+    return true;
   }
   function capturableWidgets(region = null) {
     const widgets = visibleWidgets(region),
@@ -3972,55 +3993,8 @@
     });
     return true;
   }
-  async function fitWidgetToContent(widget) {
-    if (widget.fitContentBusy || !widget.frame?.contentWindow) return;
-    let before = widgetLayout(widget);
-    const html = widget.html;
-    widget.fitContentBusy = true;
-    requestInteractionLayerRender();
-    try {
-      for (let pass = 0; pass < 4; pass++) {
-        const size = await new Promise((resolve, reject) => {
-          const requestId = crypto.randomUUID();
-          const finish = (error, value) => {
-            clearTimeout(timer);
-            window.removeEventListener("message", receive);
-            error ? reject(error) : resolve(value);
-          };
-          const receive = (event) => {
-            const data = event.data;
-            if (event.source !== widget.frame?.contentWindow || event.origin !== (widget.hostOrigin || location.origin)
-              || data?.type !== "penecho-widget-content-size" || data.requestId !== requestId) return;
-            if (![data.width, data.height].every(value => Number.isFinite(value) && value > 0)) return;
-            finish(null, data);
-          };
-          const timer = setTimeout(() => finish(Error("Content measurement timed out")), 3000);
-          window.addEventListener("message", receive);
-          widget.frame.contentWindow.postMessage({ type:"penecho-widget-measure-content", requestId, width:widget.contentW, height:widget.contentH }, widget.hostOrigin || location.origin);
-        });
-        if (!state.widgets.includes(widget) || widget.html !== html || state.widgetGesture
-          || Object.keys(before).some(key => widgetLayout(widget)[key] !== before[key])) return;
-        const scaleX = widget.w / widget.contentW, scaleY = widget.h / widget.contentH;
-        const width = Math.max(300, 300 / scaleX, Math.min(size.width, MAX_WIDGET_CONTENT_DIMENSION, (SIZE - widget.x) / scaleX));
-        const height = Math.max(200, 200 / scaleY, Math.min(size.height, MAX_WIDGET_CONTENT_DIMENSION, (SIZE - widget.y) / scaleY));
-        if (width === widget.contentW && height === widget.contentH && widget.fitContent) return;
-        beginWidgetEdit(widget);
-        Object.assign(widget, { fitContent:true, contentW:width, contentH:height, w:width * scaleX, h:height * scaleY });
-        state.widgetEdit.changed = true;
-        positionWidget(widget);
-        before = widgetLayout(widget);
-      }
-    } catch {
-      setStatusKey("widgetFitContentFailed");
-    } finally {
-      widget.fitContentBusy = false;
-      sendWidgetHostState(widget, undefined, undefined, true);
-      requestInteractionLayerRender();
-    }
-  }
   const WIDGET_COPY_ICON_FEEDBACK_MS = 2000;
   const OBJECT_CHROME_ICONS = Object.freeze({
-    fitContent:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>',
     interact:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 14 9-7 1-3 7z"/></svg>',
     move:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9V3M9 6l3-3 3 3M12 15v6M9 18l3 3 3-3M9 12H3M6 9l-3 3 3 3M15 12h6M18 9l3 3-3 3"/></svg>',
     accept:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7"/></svg>',
@@ -4063,15 +4037,6 @@
     if (["select", "hand", "pen"].includes(state.mode) && !widget.pending && options.objectToolbarKey) items.push({
       key:`widget:${widget.id}:interact`, kind:"interact", label:t("widgetInteract"),
       baseWidth:84, iconOnly:false, activate:() => { enterWidgetInteraction(widget); },
-    });
-    if (options.objectToolbarKey && !widget.pending && widget.widgetType !== "diagram_source") items.push({
-      key:`widget:${widget.id}:fit-content`,
-      kind:"fitContent",
-      label:t("widgetFitContent"),
-      baseWidth:28,
-      iconOnly:true,
-      busy:widget.fitContentBusy === true,
-      activate:() => void fitWidgetToContent(widget),
     });
     if (options.copy && copyLabel) items.push({
       key:`widget:${widget.id}:tool-copy`,

@@ -17,6 +17,7 @@
   const widgetPaintReadyFrames = new WeakSet();
   const widgetPaintReadyWaiters = new Set();
   let bridgeDeviceId = "";
+  let bridgeDeviceLinked = false;
   let browserEditing = false;
   const hostedExecutionSessionId = crypto.randomUUID();
   const hostedExecutionSessionStartedAt = Date.now();
@@ -60,8 +61,10 @@
   function browserOnlyRequest(sourceUrl, method, options, headers) {
     if (sourceUrl.pathname === "/api/settings" && method === "GET") return Promise.resolve(jsonResponse({ provider:"api", connections:[], connectionLimit:0, hasApiKey:false, cli:{}, requestTrace:false }));
     if (sourceUrl.pathname === "/api/settings/connections" && method === "GET") return Promise.resolve(jsonResponse({ connections:[] }));
-    if (sourceUrl.pathname === "/api/canvases" && method === "GET") return Promise.resolve(jsonResponse({ canvases:[] }));
-    if (sourceUrl.pathname === "/api/canvas-projects" && method === "GET") return Promise.resolve(jsonResponse({ projects:[] }));
+    if (["/api/canvases", "/api/canvas-projects"].includes(sourceUrl.pathname) && method === "GET") {
+      const code = bridgeDeviceLinked ? "device_offline" : "linked_device_required";
+      return Promise.resolve(jsonResponse({ error:code, code }, 409));
+    }
     if (["/canvas/api/widget-fetch", "/api/widget-fetch"].includes(sourceUrl.pathname)) return nativeFetch(`/api/v1/widget-fetch${sourceUrl.search}`, { ...options, method, headers, credentials:"same-origin" });
     if (sourceUrl.pathname.startsWith("/api/cloud/") || sourceUrl.pathname === "/api/plugins") return nativeFetch(sourceUrl.pathname + sourceUrl.search, { ...options, method, headers, credentials:"same-origin" });
     return Promise.resolve(jsonResponse({ error:"linked_device_required", message:"This feature needs a linked PenEcho device. Browser editing supports Cloud saves and PenEcho models; local files, CLI tools and private API forwarding stay on your device." }, 409));
@@ -124,7 +127,7 @@
     try {
       const target = new URL(String(value), location.href), page = new URL(location.href);
       const expectedProtocol = page.protocol === "https:" ? "wss:" : "ws:";
-      if (target.protocol !== expectedProtocol || target.host !== page.host || target.pathname !== "/api/v1/remote-canvas/canvas-agent") return value;
+      if (target.protocol !== expectedProtocol || target.host !== page.host || !["/api/v1/remote-canvas/canvas-agent", "/api/v1/remote-canvas/mcp"].includes(target.pathname)) return value;
       target.searchParams.set("deviceId", bridgeDeviceId);
       return target.toString();
     } catch { return value; }
@@ -161,6 +164,11 @@
     const method = String(options.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
     const inputHeaders = input instanceof Request ? input.headers : undefined;
     const headers = csrfHeaders(options.headers || inputHeaders);
+    if (cloudRuntime && sourceUrl.pathname === "/api/mcp/status") {
+      return bridgeGate.then((state) => state?.online && bridgeDeviceId && !browserEditing
+        ? nativeFetch(`/api/v1/remote-canvas/mcp/status?deviceId=${encodeURIComponent(bridgeDeviceId)}`, { ...options, method:"GET", body:undefined, headers, credentials:"same-origin" })
+        : unavailableBridgeResponse(state));
+    }
     const hostedModel = /^hosted:([0-9a-f-]{36})$/i.exec(headers.get("x-penecho-connection") || "");
     if (sourceUrl.pathname === "/api/ai/command" && method === "POST" && hostedModel && requestedCanvasId) {
       const command = JSON.parse(options.body || "{}");
@@ -311,6 +319,7 @@
         window.PENECHO_CONFIG.hostedCanvasAgent=result.capabilities.hostedCanvasAgent;
       }
       bridgeDeviceId = deviceIdPattern.test(String(result.device?.id || "")) ? String(result.device.id) : "";
+      bridgeDeviceLinked = Boolean(result.device);
       publishCloudHeaderStatus(result);
       if (!result.device?.online && nativeCloudCanvasReadsEnabled && !isCommunityCraft) {
         browserEditing = true;

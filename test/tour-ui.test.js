@@ -190,7 +190,7 @@ test("feature tour persists seen ids, supports replay, and repositions accessibl
   assert.doesNotMatch(app, /resolveInitialLanguage\([^)]*navigator/);
 });
 
-test("1.2.0 release notes put performance second and keyboard shortcuts third", () => {
+test("1.3.0 release notes include Canvas Agent and MCP in both languages", () => {
   const html = read("public/index.html"),
     app = read("public/app.js"),
     css = read("public/style.css"),
@@ -202,18 +202,18 @@ test("1.2.0 release notes put performance second and keyboard shortcuts third", 
   assert.doesNotMatch(layer, /aria-describedby=/);
   for (const id of ["changelogClose", "changelogTitle"]) assert.match(layer, new RegExp(`id="${id}"`));
   for (const id of ["changelogIntro", "changelogCurrentVersion", "changelogDone"]) assert.doesNotMatch(layer, new RegExp(`id="${id}"`));
-  assert.match(layer, />1\.2\.0</);
+  assert.match(layer, />1\.3\.0</);
   assert.doesNotMatch(layer, /class="changelog-demo"|class="changelog-release changelog-earlier"/);
   assert.match(app, /CHANGELOG_STORAGE_KEY = "penecho-changelog-seen"/);
-  assert.match(app, /CHANGELOG_VERSION = "1\.2\.0"/);
+  assert.match(app, /CHANGELOG_VERSION = "1\.3\.0"/);
   assert.match(app, /localStorage\.getItem\(CHANGELOG_STORAGE_KEY\) === CHANGELOG_VERSION/);
   assert.match(app, /localStorage\.setItem\(CHANGELOG_STORAGE_KEY, CHANGELOG_VERSION\)/);
-  assert.match(app, /function maybeStartOnboarding\(\)\s*\{\s*if \(window\.PENECHO_CONFIG\?\.runtime === "viewer"\) return false;\s*if \(!maybeStartFeatureTour\(\)\) maybeShowChangelog\(\);/);
+  assert.match(app, /function maybeStartOnboarding\(\)\s*\{\s*if \(window\.PENECHO_CONFIG\?\.runtime === "viewer" \|\| settings\.open\) return false;\s*if \(!maybeStartFeatureTour\(\)\) maybeShowChangelog\(\);/);
   assert.match(app, /function closeFeatureTour[\s\S]*?maybeShowChangelog\(\)/);
   assert.match(app, /changelogLayer\.addEventListener\("keydown", handleChangelogKeydown\)/);
   assert.match(css, /\.changelog-layer\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;[^}]*place-items:\s*center/);
   assert.match(css, /\.changelog-dialog\s*\{[^}]*width:\s*min\(620px,[^}]*max-height:/);
-  for (const key of ["changelogDialog", "changelogBadge", "changelogTitle", "changelogFrostedStudio", "changelogPerformance", "changelogKeyboardShortcuts"]) {
+  for (const key of ["changelogDialog", "changelogBadge", "changelogTitle", "changelogCanvasAgent", "changelogMcpCanvases", "changelogFrostedStudio", "changelogPerformance", "changelogKeyboardShortcuts"]) {
     assert.match(app, new RegExp(`${key}:`), `missing English ${key}`);
     assert.match(zh, new RegExp(`${key}:`), `missing Chinese ${key}`);
   }
@@ -221,7 +221,7 @@ test("1.2.0 release notes put performance second and keyboard shortcuts third", 
     assert.doesNotMatch(app, new RegExp(`${key}:`));
     assert.doesNotMatch(zh, new RegExp(`${key}:`));
   }
-  assert.equal((layer.match(/<li data-i18n="changelog/g) || []).length, 3);
+  assert.equal((layer.match(/<li data-i18n="changelog/g) || []).length, 5);
   assert.match(layer, /changelogFrostedStudio[\s\S]*changelogPerformance[\s\S]*changelogKeyboardShortcuts/);
   assert.match(app, /changelogFrostedStudio:[^\n]*frosted Studio[^\n]*Translucent materials[^\n]*Canvas visible/);
   assert.match(app, /changelogPerformance:[^\n]*Drawing, erasing, panning, and zooming[^\n]*Low-latency live ink/);
@@ -229,7 +229,7 @@ test("1.2.0 release notes put performance second and keyboard shortcuts third", 
   assert.match(zh, /changelogFrostedStudio:[^\n]*磨砂 Studio[^\n]*半透明材质[^\n]*画布始终清晰可见/);
   assert.match(zh, /changelogPerformance:[^\n]*书写、擦除、平移和缩放[^\n]*低延迟实时笔迹/);
   assert.match(zh, /changelogKeyboardShortcuts:[^\n]*自定义键盘快捷键[^\n]*撤销与重做/);
-  assert.match(readme, /What's new in 1\.2\.0[\s\S]*A simpler frosted Studio[\s\S]*Faster Canvas interaction[\s\S]*Customizable keyboard shortcuts/);
+  assert.match(readme, /alt="Version 1\.3\.0"/);
 });
 
 test("feature tour copy is complete in English and Chinese", () => {

@@ -61,6 +61,7 @@
       cloudUser:"PenEcho user",
       credits:"{count} credits",
       refreshAccount:"Refresh account",
+      openDashboard:"Cloud Dashboard ↗",
       signOutHost:"Sign out on this host",
       signOutConfirm:"Sign out on this PenEcho host? The device link will remain available.",
       localSignInHelp:"Sign in for private projects and favorites; API keys stay on this device.",
@@ -268,6 +269,7 @@
       cloudUser:"PenEcho 用户",
       credits:"{count} 积分",
       refreshAccount:"刷新账户",
+      openDashboard:"云端 Dashboard ↗",
       signOutHost:"在此主机退出",
       signOutConfirm:"要在此 PenEcho 主机退出吗？设备连接会继续保留。",
       localSignInHelp:"登录后即可使用私有项目和收藏；API 密钥仍保存在此设备。",
@@ -912,6 +914,7 @@
       };
       renderOverview();
       const actions = el("div", { class:"cloud-button-row cloud-page-actions" }, [
+        el("a", { class:"cloud-button", href:new URL("/dashboard.html", `${cloudOrigin()}/`).toString(), target:"_blank", rel:"noopener", text:cloudT("openDashboard") }),
         el("button", { class:"cloud-button", type:"button", text:cloudT("refreshAccount"), onclick:async () => action(render, async () => {
           await refreshStatus(true);
           state.library = await loadCloudLibrary();

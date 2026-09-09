@@ -58,7 +58,7 @@ ABS_ROOT/src/server/mcp/stdio.js
 版本的 schema，再进行工具调用。
 
 The process uses stdio. It can start before the PenEcho app, discovers all live
-per-user instance records in the same state directory, and keeps each instance's
+per-user instance records in the shared MCP discovery directory, and keeps each instance's
 dynamic HTTP/WebSocket port and secret internal. `penecho_list_canvases` combines
 the canvases exposed by those records; it may return canvases from more than one
 instance. Do not put a port, local URL, session token, or credential in an MCP
@@ -66,24 +66,42 @@ configuration. A remote AI client cannot reach this local stdio bridge; Cloud br
 through the Linked Device relay described above. No MCP registry entry or npm publication is
 needed for local use.
 
-进程使用 stdio 通信。它可以先于 PenEcho 应用启动，会发现同一 state directory 下当前
+进程使用 stdio 通信。它可以先于 PenEcho 应用启动，会发现统一 MCP 登记目录下当前
 用户的所有存活实例记录，并将每个实例的动态 HTTP/WebSocket 端口和 secret 保持在内部。
 `penecho_list_canvases` 会合并这些记录暴露的 Canvas，因此可能返回多个实例的 Canvas。
 MCP 配置中不要填写端口、本地 URL、session token 或任何凭据。远程 MCP 客户端无法连接
 这个本地桥接；Cloud 浏览器通过上述 Linked Device 中继注册。本地使用无需 MCP registry 条目，也无需
 发布 npm 包。
 
-The default direct or generated entry scans every live record in its state
-directory. The generated entry can include the state-directory argument, but it
+Desktop and CLI hosts share `~/.penecho/mcp/instances/` on macOS and
+`%USERPROFILE%\.penecho\mcp\instances\` on Windows. Application configuration,
+credentials, plugins, and managed Codex installations keep their existing paths;
+sharing MCP discovery does not share those installations or settings.
+
+桌面版和 CLI 在 Mac 共用 `~/.penecho/mcp/instances/`，在 Windows 共用
+`%USERPROFILE%\.penecho\mcp\instances\`。应用配置、凭据、插件和托管 Codex
+工具仍使用各自原有目录；统一 MCP 发现不等于共享这些安装和设置。
+
+The default direct or generated entry scans every live record in the shared
+directory. The generated entry includes the shared state-directory argument, but it
 intentionally omits the volatile instance ID. Do not add an instance selector;
 select the exact instanceId and canvasId returned by `penecho_list_canvases`.
 The list is empty while no PenEcho instance is running, so the bridge may be
 started first and queried again after the app connects.
 
-默认的直接或生成条目会扫描 state directory 中所有存活记录。生成条目可以包含
+默认的直接或生成条目会扫描统一目录中所有存活记录。生成条目包含指向统一目录根的
 state-directory 参数，但会刻意省略易变化的 instance ID。不要自行添加 instance
 selector；请使用 `penecho_list_canvases` 返回的准确 instanceId 和 canvasId。没有
 PenEcho 实例运行时列表为空，因此可以先启动桥接，待应用连接后再次查询。
+
+A current bridge launched with a legacy `--state-directory` also reads the shared
+directory, preferring shared records when an instance appears in both. An old
+bridge executable must be updated to gain this behavior. Existing client launch
+paths must remain installed and executable; discovery does not relocate the bridge.
+
+新版 bridge 收到旧 `--state-directory` 参数时，也会读取统一目录；同一实例重复登记时
+以统一目录为准。旧版本 bridge 本身需要升级才能支持此行为。第三方配置中的启动程序
+路径仍需有效，统一发现不会修复已移动或卸载的 bridge。
 
 ## Add the server / 添加服务器
 
@@ -302,7 +320,7 @@ the current bridge contract for adapters and documentation.
 
 | Tool | Input contract | Purpose |
 | --- | --- | --- |
-| penecho_list_canvases | `{}` | List connected, MCP-enabled canvases and their exact IDs across live same-state-directory instances. |
+| penecho_list_canvases | `{}` | List connected, MCP-enabled canvases and their exact IDs across live instances in shared discovery. |
 | penecho_open_canvas | `instanceId`, `canvasId`, required `requestId`; either exclusive `create:true`, or `documentId`, `locator`, or both; optional `title` for create and `show` (default false) | Create or open a persistent document through that exact opted-in connection. Supplying ID plus locator verifies an exact saved copy. It does not change the visible document unless `show:true`. |
 | penecho_find_canvases | `instanceId`, `canvasId`; optional `documentId` | Return authorized document candidates and per-provider statuses from that connection, without cross-host guessing. |
 | penecho_start_session | `instanceId`, `canvasId`, `title`; optional `target:"current"` (exclusive with `documentId`), `documentId`, `takeover` (default false), `client`, `sessionKey` | Start session metadata bound to the browser-selected document. No progress board is created automatically; `boardObjectId` may be null. The returned session ID owns all later document routing. |

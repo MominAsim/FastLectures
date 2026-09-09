@@ -271,12 +271,8 @@
       const label = studioNavigatorCanvasMeta(current, open, location, updatedAt);
       meta.title = label;
       meta.setAttribute("aria-label", label);
-      if (!open || current) { meta.textContent = label; return; }
-      const dot = document.createElement("span");
-      dot.className = "studio-navigator-open-dot";
-      dot.textContent = "●";
-      dot.setAttribute("aria-hidden", "true");
-      meta.replaceChildren(dot, document.createTextNode(" " + [location ? snapshotLocationLabel(location) : "", studioNavigatorMetaTime(updatedAt)].filter(Boolean).join(" · ")));
+      // Open state is textual; green is reserved for unread updates.
+      meta.textContent = [current ? t("studioNavigatorCurrent") : "", location ? snapshotLocationLabel(location) : "", studioNavigatorMetaTime(updatedAt)].filter(Boolean).join(" · ");
     }
     function syncStudioNavigatorCurrentSource() {
       const location=String(snapshotItemsLocation||"");
@@ -511,17 +507,27 @@
       if(group.documentId){
         heading.dataset.workspaceDocumentId=group.documentId;
         const dot=document.createElement("span");dot.className="workspace-update-dot";dot.hidden=!group.unseen;
-        dot.setAttribute("role","img");dot.title=canvasDocumentsCopy("New updates","有新内容");dot.setAttribute("aria-label",dot.title);heading.append(dot);
+        dot.setAttribute("role","img");dot.title=canvasDocumentsCopy("New updates","有新内容");dot.setAttribute("aria-label",dot.title);meta.prepend(dot);
         heading.disabled=canvasDocuments.switching;
       }
       heading.addEventListener("click",()=>{
-        if(group.documentId){canvasDocumentsUiAction(async()=>{await canvasDocumentsShow(group.documentId);closeStudioNavigatorAfterCompactAction();});return;}
+        if(group.documentId){canvasDocumentsUiAction(async()=>{await canvasDocumentsShow(group.documentId);if(studioNavigatorActiveTab==="mcp")selectCanvasToolMode("hand");closeStudioNavigatorAfterCompactAction();});return;}
         if(group.current){closeStudioNavigatorAfterCompactAction();return;}
         if(!identity){setStatus(t("studioNavigatorCanvasUnavailable"));return;}
         closeStudioNavigatorAfterCompactAction();
         void runSnapshotLoadAction(heading,()=>requestLoadSnapshot(identity.id,identity.location));
       });
       section.append(heading);
+      if(group.current&&group.documentId){
+        section.classList.add("has-current-close");
+        const close=document.createElement("button");close.type="button";
+        close.className="studio-navigator-current-close";peButton(close,"icon","compact");
+        close.title=canvasDocumentsCopy("Close current canvas","关闭当前画布");close.setAttribute("aria-label",close.title);
+        close.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>';
+        close.disabled=canvasDocuments.switching;
+        close.addEventListener("click",()=>canvasDocumentsUiAction(()=>requestCanvasTransition({type:"close",documentId:group.documentId})));
+        section.append(close);
+      }
       if(includeConversations&&group.conversations.length){
         const list=document.createElement("div");
         list.className="studio-navigator-group-conversations";
@@ -742,13 +748,24 @@
         closeOthers.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching||canvasDocuments.records.size<=1;
         closeOthers.setAttribute("aria-busy",String(Boolean(studioMcpCloseQueue)));
       }
+      const mcpTab=studioNavigatorActiveTab==="mcp";
+      if(closeOthers)closeOthers.hidden=mcpTab;
+      const count=document.getElementById("canvasWorkspaceCount");
+      if(count){
+        count.textContent=canvasDocumentsCopy(`${canvasDocuments.records.size} open`,`${canvasDocuments.records.size} 个已打开`);
+        count.setAttribute("aria-busy",String(canvasDocuments.switching));
+      }
+      const menuOthers=document.getElementById("studioMcpCloseOthers"),more=document.getElementById("studioMcpMore");
+      if(menuOthers){menuOthers.textContent=canvasDocumentsCopy("Close other MCP canvases","关闭其他 MCP 画布");menuOthers.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching||!studioMcpOpenDocumentIds().some(id=>id!==canvasDocuments.activeId);}
+      if(more){more.setAttribute("aria-label",canvasDocumentsCopy("MCP canvas actions","MCP 画布操作"));more.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching;}
       if(!follow||!close)return;
       const busy=Boolean(studioMcpCloseQueue)||canvasDocuments.switching;
       group?.setAttribute("aria-label",canvasDocumentsCopy("MCP canvas actions","MCP 画布操作"));
-      follow.querySelector("span").textContent=canvasDocumentsCopy("Follow latest","跟随最新");
-      follow.setAttribute("aria-pressed",String(studioMcpFollowLatest));follow.disabled=busy;
+      const followLabel=document.getElementById("studioMcpFollowLabel");
+      if(followLabel)followLabel.textContent=canvasDocumentsCopy("Follow latest","跟随最新");
+      follow.setAttribute("aria-checked",String(studioMcpFollowLatest));follow.disabled=busy;
       follow.title=canvasDocumentsCopy("Follow the latest updated content, switching canvases when needed. Pauses while you edit or navigate.","跟随最新更新的内容，必要时切换画布；编辑或移动视野时暂停。");
-      close.textContent=canvasDocumentsCopy("Close all","全部关闭");close.disabled=busy||!studioMcpOpenDocumentIds().length;
+      close.textContent=canvasDocumentsCopy("Close all MCP canvases","关闭全部 MCP 画布");close.disabled=busy||!studioMcpOpenDocumentIds().length;
       close.setAttribute("aria-busy",String(Boolean(studioMcpCloseQueue)));
       close.title=canvasDocumentsCopy("Close all open MCP canvases. Saved canvases stay in the library.","关闭所有已打开的 MCP 画布，已保存画布仍保留在画布库中。");
     }
@@ -776,6 +793,15 @@
       if(studioMcpCloseQueue||canvasDocuments.switching)return;
       const retainedDocumentId=canvasDocumentsCurrent().id;
       const batch=[...canvasDocuments.records.keys()].filter(id=>id!==retainedDocumentId);
+      if(!batch.length)return;
+      batch.retainedDocumentId=retainedDocumentId;
+      studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      await continueStudioMcpCloseAll(batch);
+    }
+    async function closeOtherStudioMcpCanvases() {
+      if(studioMcpCloseQueue||canvasDocuments.switching)return;
+      const retainedDocumentId=canvasDocumentsCurrent().id;
+      const batch=studioMcpOpenDocumentIds().filter(id=>id!==retainedDocumentId);
       if(!batch.length)return;
       batch.retainedDocumentId=retainedDocumentId;
       studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
@@ -825,11 +851,18 @@
         if(studioMcpFollowLatest&&studioMcpPendingDocumentId&&studioMcpPendingDocumentId!==id)queueMicrotask(()=>void flushStudioMcpFollowLatest());
       }
     }
+    const studioMcpOrder=new Map();
+    let studioMcpOrderSequence=0;
     function studioNavigatorMcpGroups() {
+      // Assign once in workspace insertion order. Updates and selection never move a row.
+      for(const doc of canvasDocuments.records.values()){
+        if(!studioMcpOrder.has(doc.id)&&(doc.bindings?.length||doc.sessions?.length||[...mcpRuntime.sessions.values()].some(session=>session.documentId===doc.id)))studioMcpOrder.set(doc.id,++studioMcpOrderSequence);
+      }
+      for(const id of studioMcpOrder.keys())if(!canvasDocuments.records.has(id))studioMcpOrder.delete(id);
       return studioNavigatorWorkGroups().filter(group=>{
         const doc=canvasDocuments.records.get(group.documentId);
         return doc && (doc.bindings?.length || doc.sessions?.length || [...mcpRuntime.sessions.values()].some(session=>session.documentId===doc.id));
-      }).sort((a,b)=>b.updatedAt-a.updatedAt);
+      }).sort((a,b)=>studioMcpOrder.get(b.documentId)-studioMcpOrder.get(a.documentId));
     }
     function renderStudioMcpHistory() {
       syncStudioMcpActions();
@@ -849,6 +882,7 @@
       if(!enabled){studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;}
       studioNavigatorMcpTab.hidden=!enabled;
       if(enabled){
+        selectCanvasToolMode("hand");
         studioNavigatorSuspendedAgent=false;
         studioNavigatorRestoreAgentAfterManager=false;
         closeCanvasAgent({focus:false});
@@ -886,7 +920,9 @@
           if(studioMcpRecentList.children[index]!==section)studioMcpRecentList.insertBefore(section,studioMcpRecentList.children[index]||null);
           const meta=row.querySelector("small");
           if(meta&&meta.dataset.updatedAt!==String(group.updatedAt)){
+            const dot=meta.querySelector(".workspace-update-dot");
             studioNavigatorRenderCanvasMeta(meta,group.current,true,group.location,group.updatedAt);
+            if(dot)meta.prepend(dot);
             meta.dataset.updatedAt=String(group.updatedAt);
           }
           index++;
@@ -916,6 +952,8 @@
         try { localStorage.setItem(STUDIO_NAVIGATOR_TAB_KEY, studioNavigatorActiveTab); }
         catch {}
       }
+      setStudioMcpMenuOpen(false);
+      syncStudioMcpActions();
       updateStudioNavigatorA11y();
       renderActiveStudioNavigatorHistory();
       if(focus)tabs[studioNavigatorActiveTab].focus({preventScroll:true});
@@ -1022,6 +1060,26 @@
       if (studioEdgeSwipe?.pointerId === event.pointerId) studioEdgeSwipe = null;
     }
 
+    function setStudioMcpMenuOpen(open,{focus=false}={}) {
+      const menu=document.getElementById("studioMcpMenu"),trigger=document.getElementById("studioMcpMore");
+      if(!menu||!trigger)return;
+      menu.hidden=!open;trigger.setAttribute("aria-expanded",String(open));
+      if(focus)(open?menu.querySelector("button:not(:disabled)"):trigger)?.focus({preventScroll:true});
+    }
+    const mcpMenu=document.getElementById("studioMcpMenu"),mcpMore=document.getElementById("studioMcpMore");
+    mcpMore?.addEventListener("click",()=>setStudioMcpMenuOpen(mcpMenu.hidden,{focus:true}));
+    mcpMenu?.addEventListener("click",event=>{if(event.target.closest("button"))setStudioMcpMenuOpen(false,{focus:true});});
+    mcpMenu?.addEventListener("keydown",event=>{
+      if(event.key==="Escape"){event.preventDefault();event.stopPropagation();setStudioMcpMenuOpen(false,{focus:true});return;}
+      if(!["ArrowDown","ArrowUp","Home","End"].includes(event.key))return;
+      event.preventDefault();
+      const items=[...mcpMenu.querySelectorAll("button:not(:disabled)")],index=items.indexOf(document.activeElement);
+      const next=event.key==="Home"?0:event.key==="End"?items.length-1:(index+(event.key==="ArrowDown"?1:-1)+items.length)%items.length;
+      items[next]?.focus();
+    });
+    document.addEventListener("pointerdown",event=>{if(!mcpMenu?.hidden&&!mcpMenu.contains(event.target)&&!mcpMore.contains(event.target))setStudioMcpMenuOpen(false);});
+    document.addEventListener("focusin",event=>{if(!mcpMenu?.hidden&&!mcpMenu.contains(event.target)&&!mcpMore.contains(event.target))setStudioMcpMenuOpen(false);});
+    document.getElementById("studioMcpCloseOthers")?.addEventListener("click",()=>canvasDocumentsUiAction(closeOtherStudioMcpCanvases));
     function toggleStudioWorkspaceNavigator() {
       const opening=!studioNavigatorIsOpen();
       if(opening&&studioNavigatorToggle.dataset.workspaceUpdates==="true"){

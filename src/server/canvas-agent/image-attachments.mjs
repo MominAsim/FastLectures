@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
+import { utimes, unlink } from 'node:fs/promises'
+import { join } from 'node:path'
+import { ManagedFileRetention, attachmentRetention } from './managed-file-retention.mjs'
 
 const require = createRequire(import.meta.url)
 const sharp = require('sharp')
@@ -101,8 +104,58 @@ function waitForShared(promise, signal) {
 export class PenEchoAttachmentStore extends LocalAttachmentStore {
   pngFallbacks=new Map()
   requestImageObserver=null
+  activeOperations=0
+  retentionProtected=()=>false
+  retention=null
+  pendingDeletion=null
+
+  async withActiveOperation(operation) {
+    this.activeOperations++
+    try {
+      // A new upload of the same hash cannot race a deletion already issued to the filesystem.
+      // This waits only for one unlink, never for a scan or another retention round.
+      await this.pendingDeletion
+      return await operation()
+    } finally { this.activeOperations-- }
+  }
+
+  async renewUpload(ref) {
+    const hash = String(ref?.attachmentId || '').replace(/^sha256:/,'')
+    if (/^[a-f0-9]{64}$/.test(hash)) {
+      const now = new Date()
+      await utimes(join(this.root,'objects',hash.slice(0,2),hash),now,now).catch(()=>{})
+    }
+    return ref
+  }
+  async saveImage(input) { return this.withActiveOperation(async()=>this.renewUpload(await super.saveImage(input))) }
+  async saveImages(inputs) { return this.withActiveOperation(async()=>{
+    const refs = await super.saveImages(inputs)
+    for (const ref of refs) await this.renewUpload(ref)
+    return refs
+  }) }
+  async readImage(ref, signal) { return this.withActiveOperation(()=>super.readImage(ref,signal)) }
+
+  cleanupExpiredFiles(options = {}) {
+    this.retention ||= new ManagedFileRetention({
+      root:this.root, policy:attachmentRetention,
+      directoryAllowed:relative=>/^(objects|request-images)(\/[a-f0-9]{2})?$/.test(relative)||relative==='tmp',
+      protectedFile:relative=>this.activeOperations>0||this.retentionProtected(relative),
+      deleteFile:(path,relative)=>{
+        if (this.activeOperations>0||this.retentionProtected(relative)) return false
+        this.pendingDeletion=unlink(path).finally(()=>{this.pendingDeletion=null})
+        return this.pendingDeletion.then(()=>true)
+      },
+    })
+    return this.retention.runOnce(options)
+  }
+
+  async closeRetention() { await this.retention?.close() }
 
   async readImageRequest(ref, policy, signal) {
+    return this.withActiveOperation(()=>this.readImageRequestActive(ref,policy,signal))
+  }
+
+  async readImageRequestActive(ref, policy, signal) {
     const image=await super.readImageRequest(ref,policy,signal)
     let output=image
     if (image.mediaType === 'image/jpeg') {

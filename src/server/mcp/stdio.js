@@ -3,7 +3,7 @@
 
 const crypto = require("node:crypto");
 const http = require("node:http");
-const { processIsAlive, readRecords, recordsDirectory } = require("./records.js");
+const { discoverRecords } = require("./records.js");
 const { TOOLS } = require("./schema.js");
 const { SESSION_INSTRUCTIONS, VISUAL_INSTRUCTIONS, visualExplorerPrompt } = require("./guidance.js");
 
@@ -41,7 +41,7 @@ function argumentValue(argv, name) {
 }
 
 function selectRecord(options = {}) {
-  const directory = recordsDirectory(options.stateDirectory), records = readRecords(directory).filter(record => processIsAlive(record.pid));
+  const records = discoverRecords(options);
   if (options.instanceId) {
     const record = records.find(item => item.instanceId === options.instanceId);
     if (!record) throw new Error("The configured PenEcho MCP instance is no longer available. Reopen PenEcho or configure the MCP client again.");
@@ -120,11 +120,12 @@ function captureToolResult(value) {
 }
 
 class PenEchoStdioServer {
-  constructor({ input = process.stdin, output = process.stdout, record, stateDirectory, instanceId } = {}) {
+  constructor({ input = process.stdin, output = process.stdout, record, stateDirectory, registryStateDirectory, instanceId } = {}) {
     this.input = input;
     this.output = output;
     this.fixedRecord = record || null;
     this.stateDirectory = stateDirectory;
+    this.registryStateDirectory = registryStateDirectory;
     this.instanceId = instanceId || "";
     this.ownerId = crypto.randomUUID();
     this.sessions = new Map();
@@ -138,7 +139,7 @@ class PenEchoStdioServer {
 
   records() {
     if (this.fixedRecord) return [this.fixedRecord];
-    const records = readRecords(recordsDirectory(this.stateDirectory)).filter(record => processIsAlive(record.pid));
+    const records = discoverRecords(this);
     return this.instanceId ? records.filter(record => record.instanceId === this.instanceId) : records;
   }
 

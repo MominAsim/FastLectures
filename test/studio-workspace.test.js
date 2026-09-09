@@ -74,23 +74,25 @@ test("MCP connection opens its tab once, enables Follow latest, closes Agent per
   const context=vm.createContext({studioNavigatorMcpEnabled:false,studioNavigatorSuspendedAgent:true,studioNavigatorActiveTab:"agent",studioNavigatorMcpTab:tab,studioNavigatorSearch:search,
     studioMcpFollowLatest:false,studioMcpPendingDocumentId:"stale",studioMcpPendingRegion:{x:1,y:2,w:3,h:4},
     syncStudioMcpActions:()=>actions.push(["follow",context.studioMcpFollowLatest]),
+    selectCanvasToolMode:mode=>actions.push(["tool",mode]),
     closeCanvasAgent:options=>actions.push(["close",options.focus]),setStudioNavigatorTab:value=>{context.studioNavigatorActiveTab=value;actions.push(["tab",value]);},setStudioNavigatorOpen:value=>actions.push(["open",value]),
   });
   vm.runInContext(extract("syncStudioNavigatorMcp"),context);
   context.syncStudioNavigatorMcp(true);
-  assert.deepEqual(actions,[["close",false],["tab","mcp"],["open",true],["follow",true]]);assert.equal(tab.hidden,false);assert.equal(search.value,"");assert.equal(context.studioNavigatorSuspendedAgent,false);
+  assert.deepEqual(actions,[["tool","hand"],["close",false],["tab","mcp"],["open",true],["follow",true]]);assert.equal(tab.hidden,false);assert.equal(search.value,"");assert.equal(context.studioNavigatorSuspendedAgent,false);
   assert.equal(context.studioMcpFollowLatest,true,"Follow latest is on by default for a live MCP connection");
   assert.equal(context.studioMcpPendingDocumentId,null);assert.equal(context.studioMcpPendingRegion,null);
-  context.syncStudioNavigatorMcp(true);assert.equal(actions.length,4,"heartbeat/status renders must not reopen navigation");
+  context.syncStudioNavigatorMcp(true);assert.equal(actions.length,5,"heartbeat/status renders must not reopen navigation");
   context.syncStudioNavigatorMcp(false);assert.equal(tab.hidden,true);assert.equal(context.studioNavigatorActiveTab,"all");assert.equal(context.studioMcpFollowLatest,false);
 });
 test("MCP list contains only participating canvases, including retained and live sessions",()=>{
   const docs=[{id:"ordinary"},{id:"bound",bindings:[{}]},{id:"retained",sessions:[{}]},{id:"live"}];
   const result=vm.runInNewContext(`(${extract("studioNavigatorMcpGroups")})()`,{
+    studioMcpOrder:new Map(),studioMcpOrderSequence:0,
     studioNavigatorWorkGroups:()=>[...docs.map(doc=>({documentId:doc.id})),{canvasKey:"server:unrelated"}],
     canvasDocuments:{records:new Map(docs.map(doc=>[doc.id,doc]))},mcpRuntime:{sessions:new Map([["s",{documentId:"live"}]])},
   });
-  assert.deepEqual(Array.from(result,group=>group.documentId),["bound","retained","live"]);
+  assert.deepEqual(Array.from(result,group=>group.documentId),["live","retained","bound"]);
 });
 test("tab keyboard navigation includes MCP only while enabled",()=>{
   for(const enabled of [false,true]){
@@ -160,16 +162,22 @@ test("canvas metadata distinguishes current, background open and closed saved ca
   }
 });
 
- test("MCP orders by persisted content changes ahead of current and creation order",()=>{
+ test("MCP keeps arrival order across updates and selection, inserting new entries first",()=>{
   const records=new Map([
     ["new",{id:"new",title:"New current",bindings:[{}],stored:{item:{createdAt:200}},changes:[]}],
     ["old",{id:"old",title:"Older edited",bindings:[{}],stored:{item:{createdAt:100}},changes:[{at:300}]}],
   ]);
-  const context=vm.createContext({canvasDocuments:{records,activeId:"new"},state:{canvasAgentCanvasKey:""},
+  const context=vm.createContext({studioMcpOrder:new Map(),studioMcpOrderSequence:0,canvasDocuments:{records,activeId:"new"},state:{canvasAgentCanvasKey:""},
     canvasAgentStoredHistoryGroups:()=>[],studioNavigatorSnapshots:()=>[],t:key=>key,mcpRuntime:{sessions:new Map()}});
   vm.runInContext(extract("studioNavigatorWorkGroups")+"\n"+extract("studioNavigatorMcpGroups"),context);
   assert.deepEqual(Array.from(context.studioNavigatorMcpGroups(),g=>g.documentId),["old","new"]);
   assert.equal(context.studioNavigatorMcpGroups()[0].updatedAt,300);
   records.get("new").changes.push({at:400});
-  assert.deepEqual(Array.from(context.studioNavigatorMcpGroups(),g=>g.documentId),["new","old"]);
+  assert.deepEqual(Array.from(context.studioNavigatorMcpGroups(),g=>g.documentId),["old","new"]);
+  context.canvasDocuments.activeId="old";
+  assert.deepEqual(Array.from(context.studioNavigatorMcpGroups(),g=>g.documentId),["old","new"]);
+  records.set("latest",{id:"latest",title:"Latest",bindings:[{}],changes:[]});
+  assert.deepEqual(Array.from(context.studioNavigatorMcpGroups(),g=>g.documentId),["latest","old","new"]);
+  records.delete("old");
+  assert.deepEqual(Array.from(context.studioNavigatorMcpGroups(),g=>g.documentId),["latest","new"]);
  });

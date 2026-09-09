@@ -8,7 +8,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { after, test } = require("node:test");
 const { WebSocket } = require("ws");
-const { safeTraceValue } = require("../src/server/mcp/request-trace.js");
+const { createMcpRequestTracer, safeTraceValue } = require("../src/server/mcp/request-trace.js");
 const { createMcpService } = require("../src/server/mcp/service.js");
 
 const temporaryDirectories = [];
@@ -50,7 +50,7 @@ function traces(directory) {
   if (!fs.existsSync(directory)) return [];
   return fs.readdirSync(directory, { withFileTypes:true })
     .filter(entry => entry.isDirectory())
-    .map(entry => JSON.parse(fs.readFileSync(path.join(directory, entry.name, "trace.json"), "utf8")));
+    .flatMap(entry => fs.readdirSync(path.join(directory, entry.name), {withFileTypes:true}).filter(child => child.isDirectory()).map(child => JSON.parse(fs.readFileSync(path.join(directory, entry.name, child.name, "trace.json"), "utf8"))));
 }
 
 async function waitFor(check, timeoutMs = 1_000) {
@@ -230,10 +230,76 @@ test("MCP request tracing records failures without changing errors and prunes on
   await new Promise(resolve => setTimeout(resolve, 2));
   await service.callTool(ownerId, "penecho_list_canvases", {});
   const retained = traces(traceDirectory);
-  assert.equal(retained.length, 2);
+  assert.equal(fs.readdirSync(traceDirectory).length, 2);
+  assert.equal(retained.length, 5);
   assert.equal(retained.every(trace => trace.kind === "mcp-request"), true);
 
   ws.close();
   await service.close();
   await closeServer(server);
+});
+
+
+test("full session payloads preserve large text, source, images and owner isolation", () => {
+  const directory = tempDirectory(), tracer = createMcpRequestTracer({requestTraceDirectory:directory});
+  const html = `<p>${"full content ".repeat(3000)}</p><img src="data:image/png;base64,AQID">`;
+  const first = tracer.begin({ownerId:"owner-a", name:"penecho_start_session", arguments:{sessionKey:"../../unsafe", html, password:"hidden"}});
+  tracer.complete(first, {sessionId:"session-a", text:html});
+  const second = tracer.begin({ownerId:"owner-a", name:"read", arguments:{sessionId:"session-a"}});
+  tracer.complete(second, {image:{mimeType:"image/png", data:"AQID"}, text:"x".repeat(20000)});
+  const reconnect = tracer.begin({ownerId:"owner-a", name:"penecho_start_session", arguments:{sessionKey:"../../unsafe"}});
+  tracer.complete(reconnect, {sessionId:"session-b"});
+  const other = tracer.begin({ownerId:"owner-b", name:"read", arguments:{sessionId:"session-a"}});
+  tracer.complete(other, {});
+  assert.equal(first.group.directory, second.group.directory);
+  assert.equal(first.group.directory, reconnect.group.directory);
+  assert.notEqual(other.group.directory, first.group.directory);
+  const request = JSON.parse(fs.readFileSync(path.join(first.directory,"request.json")));
+  assert.equal(request.arguments.html, html);
+  assert.equal(request.arguments.password,"<redacted>");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(second.directory,"response.json"))).text.length,20000);
+  assert.ok(fs.readFileSync(path.join(second.directory,"response.txt"),"utf8").includes("x".repeat(20000)));
+  const imageFile = fs.readdirSync(second.directory).find(name => name.endsWith(".png"));
+  assert.deepEqual(fs.readFileSync(path.join(second.directory,imageFile)),Buffer.from([1,2,3]));
+  const source = fs.readdirSync(first.directory).find(name => name.endsWith(".html"));
+  assert.equal(fs.readFileSync(path.join(first.directory,source),"utf8"),html);
+  assert.equal(fs.statSync(first.directory).mode & 0o777,0o700);
+  assert.equal(fs.statSync(path.join(first.directory,"request.json")).mode & 0o777,0o600);
+});
+
+test("retention pins running and queued sessions, then prunes completed session groups", () => {
+  const directory=tempDirectory(), tracer=createMcpRequestTracer({requestTraceDirectory:directory,requestTraceLimit:1});
+  fs.mkdirSync(path.join(directory,"keep-me"));
+  const first=tracer.begin({ownerId:"one",name:"update",arguments:{sessionId:"one"}});
+  tracer.complete(first,{accepted:true,applied:false});
+  const second=tracer.begin({ownerId:"two",name:"read",arguments:{sessionId:"two"}});
+  assert.ok(fs.existsSync(first.directory));
+  assert.ok(fs.existsSync(second.directory));
+  tracer.queuedUpdateOutcome(first,"applied",{applied:true});
+  assert.equal(fs.existsSync(first.directory),false);
+  tracer.complete(second,{});
+  assert.ok(fs.existsSync(second.directory));
+  assert.ok(fs.existsSync(path.join(directory,"keep-me")));
+});
+
+
+test("symlinked trace roots cannot write or create outside the root", () => {
+  const directory = tempDirectory(), outside = tempDirectory();
+  fs.mkdirSync(path.join(outside, "session-" + "a".repeat(64)));
+  fs.mkdirSync(path.join(outside, "session-" + "b".repeat(64)));
+  fs.symlinkSync(outside, path.join(directory, "linked"));
+  const tracer = createMcpRequestTracer({requestTraceDirectory:path.join(directory,"linked"),requestTraceLimit:1});
+  const trace = tracer.begin({ownerId:"owner",name:"read",arguments:{}});
+  tracer.complete(trace,{text:"must not escape"});
+  assert.equal(fs.readdirSync(outside).length,2);
+});
+
+test("extracts an actual PNG byte-for-byte and records its manifest", () => {
+  const png="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=";
+  const tracer=createMcpRequestTracer({requestTraceDirectory:tempDirectory()});
+  const trace=tracer.begin({ownerId:"owner",name:"capture",arguments:{}});
+  tracer.complete(trace,{image:{mimeType:"image/png",data:png}});
+  const manifest=JSON.parse(fs.readFileSync(path.join(trace.directory,"response-images.json")));
+  assert.deepEqual(fs.readFileSync(path.join(trace.directory,manifest[0].filename)),Buffer.from(png,"base64"));
+  assert.equal(JSON.parse(fs.readFileSync(path.join(trace.directory,"response.json"))).image.data,png);
 });

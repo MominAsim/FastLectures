@@ -2324,7 +2324,7 @@ test("last-clicked images, TextBoxes, text inputs, and HTML Widgets share the fr
     layerStyles.get("image-material-layer-stack").zIndex,
     layerStyles.get("placed-content-layer-stack").zIndex,
     layerStyles.get("text-editor-layer-stack")["--text-editor-layer-z"],
-  ], ["2", "1", "1", "1"]);
+  ], ["3", "1", "1", "1"]);
   layerState.frontCanvasObjectKind = "text-box";
   layerState.frontPlacedCanvasObjectKind = "text-box";
   syncCanvasObjectLayerOrder();
@@ -5062,4 +5062,39 @@ test("Widget right-click lists the toolbar without decisions and interaction sho
   assert.match(css, /\.widget-interaction-status\[hidden\] \{ display: none; \}/);
   assert.match(css, /#viewport\.canvas-navigation-previewing :is\([^)]*\.widget-interaction-status\)/);
   assert.match(css, /body\[data-theme="studio"\] \.widget-interaction-status \{[^}]*color: var\(--studio-accent-strong\)/);
+});
+
+test("opening Widget toolbar keeps canonical front order when Interact hides its material", () => {
+  const app = read("public/app.js");
+  for (const entry of ["focusHandObject", "showHandObjectToolbar"]) {
+    const rear = {id:"rear",styleRule:{style:{}}}, front = {id:"front",styleRule:{style:{}}},
+      state = {widgets:[rear,front],userRevision:0,mode:"select",frontCanvasObjectKind:"image",handToolbarTargets:new Map()},
+      selectedWidgetMaterial = {hidden:false,classList:{remove(){}}}, styles = new Map(),
+      context = vm.createContext({state,selectedWidgetMaterial,Date,Set,
+        HAND_OBJECT_TOOLBAR_VISIBLE_MS:10000,
+        widgetLayer:{},imageMaterialLayer:{},placedContentLayer:{},textEditorLayer:{},
+        runtimeElementStyle:(_,key)=>{if(!styles.has(key))styles.set(key,{setProperty(){}});return styles.get(key);},
+        handToolbarKey:(kind,id)=>`${kind}:${id}`,
+        handToolbarRecord:key=>state.handToolbarTargets.get(key),
+        handToolbarObject:record=>state.widgets.find(w=>w.id===record.id),
+        recordWidgetsBefore(){},saveUserCanvasChange(){},
+        beginWidgetEdit:()=>true,finishHandToolbarHide(){},scheduleHandObjectToolbarTick(){},
+        requestInteractionLayerRender(){},refreshHandObjectToolbar(){},
+      });
+    for (const name of ["syncCanvasObjectLayerOrder","setCanvasObjectFrontKind","syncWidgetLayerOrder","setWidgetStackIndex","bringHtmlWidgetToFront","commitWidgetToolbarFront","ensureHandToolbarRecord","focusHandObject","activateHandObjectToolbar","showHandObjectToolbar","syncSelectedWidgetMaterial"]) {
+      vm.runInContext(functionSource(app,name),context);
+    }
+    context[entry]("widget",rear);
+    assert.deepEqual(state.widgets.map(w=>w.id),["front","rear"],entry);
+    assert.equal(state.frontCanvasObjectKind,"widget");
+    assert.equal(state.userRevision,1,"clicking alone marks saved content changed");
+    context[entry]("widget",rear);
+    assert.equal(state.userRevision,1,"refocusing the front Widget creates no extra save");
+    const beforeLayer = styles.get("widget-layer-stack").zIndex;
+    state.interactingWidgetId = rear.id;
+    context.syncSelectedWidgetMaterial(null);
+    assert.equal(styles.get("widget-layer-stack").zIndex,beforeLayer);
+    assert.ok(Number(rear.styleRule.style.zIndex)>Number(front.styleRule.style.zIndex));
+    assert.equal(styles.get("widget-layer-stack").zIndex,"3","Widget stays above ink and placed content");
+  }
 });

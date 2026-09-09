@@ -3,6 +3,8 @@
 const { execFile } = require("node:child_process");
 const os = require("node:os");
 const { cliCandidates } = require("../../providers/cli-discovery.js");
+const { resolveCodexLaunch } = require("../../providers/codex-cli.js");
+const { resolveClaudeLaunch } = require("../../providers/claude-cli.js");
 const { McpBridgeError } = require("./schema.js");
 
 const MAX_OUTPUT_BYTES = 64 * 1024;
@@ -19,9 +21,15 @@ function configurationArguments(client, launch) {
 
 function executeFile(executable, args, options = {}) {
   return new Promise((resolve, reject) => {
-    execFile(executable, args, {
+    // Resolve npm shell wrappers to their native/Node entry point, keeping every
+    // MCP argument literal instead of passing configuration through a shell.
+    const launch = (options.client === "codex" ? resolveCodexLaunch : resolveClaudeLaunch)(executable, options.env);
+    const env = launch.command === process.execPath && launch.prefixArgs.length
+      ? { ...options.env, ELECTRON_RUN_AS_NODE:"1" }
+      : options.env;
+    execFile(launch.command, [...launch.prefixArgs, ...args], {
       cwd:options.cwd,
-      env:options.env,
+      env,
       timeout:options.timeout === undefined ? CONFIGURE_TIMEOUT_MS : options.timeout,
       maxBuffer:MAX_OUTPUT_BYTES,
       windowsHide:true,
@@ -56,6 +64,7 @@ async function inspectConfiguredClients(options = {}) {
     for (const candidate of candidates) {
       try {
         await boundedInspectionRun(runner, candidate.executable, ["mcp", "get", "penecho"], {
+          client,
           cwd:options.rootDirectory,
           env:options.env || process.env,
           timeout:timeoutMs,
@@ -87,7 +96,7 @@ async function configureClient(client, launch, options = {}) {
   for (const candidate of candidates) {
     try {
       try {
-        await runner(candidate.executable, inspectArgs, { cwd:options.rootDirectory, env:options.env || process.env });
+        await runner(candidate.executable, inspectArgs, { client, cwd:options.rootDirectory, env:options.env || process.env });
         return {
           configured:false,
           client,
@@ -96,7 +105,7 @@ async function configureClient(client, launch, options = {}) {
           command:launch,
         };
       } catch {}
-      await runner(candidate.executable, args, { cwd:options.rootDirectory, env:options.env || process.env });
+      await runner(candidate.executable, args, { client, cwd:options.rootDirectory, env:options.env || process.env });
       return { configured:true, client };
     } catch (error) { lastError = error; }
   }

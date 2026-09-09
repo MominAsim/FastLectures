@@ -431,8 +431,13 @@
           </section>
           <section id="studioNavigatorMcpPanel" class="studio-navigator-panel" role="tabpanel" aria-labelledby="studioNavigatorMcpTab" hidden>
             <div class="studio-mcp-actions" role="group" aria-label="MCP canvas actions" id="studioMcpActions">
-              <button id="studioMcpFollowLatest" type="button" data-pe-button="toolbar" data-pe-density="compact" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5H5v3m11-3h3v3M5 16v3h3m11-3v3h-3"/><circle cx="12" cy="12" r="3"/></svg><span>Follow latest</span></button>
-              <button id="studioMcpCloseAll" type="button" data-pe-button="ghost" data-pe-density="compact">Close all</button>
+              <label class="studio-mcp-follow" for="studioMcpFollowLatest"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5H5v3m11-3h3v3M5 16v3h3m11-3v3h-3"/><circle cx="12" cy="12" r="3"/></svg><span id="studioMcpFollowLabel">Follow latest</span><button id="studioMcpFollowLatest" type="button" role="switch" data-pe-control="switch" aria-labelledby="studioMcpFollowLabel" aria-checked="false"></button></label>
+              <button id="studioMcpMore" type="button" data-pe-button="icon" data-pe-density="compact" aria-label="MCP canvas actions" aria-haspopup="menu" aria-expanded="false" aria-controls="studioMcpMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+              <div id="studioMcpMenu" class="studio-mcp-menu" role="menu" data-pe-surface="menu" data-pe-list="menu" data-pe-material="popover-glass" data-pe-size="xs" data-pe-layout="single" hidden>
+                <button id="canvasWorkspaceClose" type="button" role="menuitem" data-pe-button="menu-item" data-pe-density="standard">Close current</button>
+                <button id="studioMcpCloseOthers" type="button" role="menuitem" data-pe-button="menu-item" data-pe-density="standard">Close others</button>
+                <button id="studioMcpCloseAll" type="button" role="menuitem" data-pe-button="menu-item" data-pe-density="standard">Close all MCP canvases</button>
+              </div>
             </div>
             <div id="studioMcpRecentList" class="studio-navigator-list"></div>
           </section>
@@ -445,7 +450,7 @@
         </div>
         <footer class="studio-navigator-foot">
           <div id="canvasWorkspace" class="canvas-workspace" hidden>
-            <button id="canvasWorkspaceClose" type="button" data-pe-button="ghost" data-pe-density="compact">Close</button>
+            <span id="canvasWorkspaceCount" role="status" aria-live="polite">1 open</span>
             <button id="canvasWorkspaceCloseAll" type="button" data-pe-button="ghost" data-pe-density="compact">Close all</button>
             <span id="canvasWorkspaceStatus" role="status" aria-live="polite"></span>
             <button id="canvasWorkspaceRetry" type="button" data-pe-button="secondary" data-pe-density="compact" hidden>Retry</button>
@@ -1400,9 +1405,11 @@
         </button>
       </header>
       <div class="changelog-scroll">
-        <h2 id="changelogTitle" data-i18n="changelogTitle">A simpler, more focused Studio</h2>
+        <h2 id="changelogTitle" data-i18n="changelogTitle">Create with Canvas Agent and MCP</h2>
         <section class="changelog-release">
           <ul>
+            <li data-i18n="changelogCanvasAgent">Canvas Agent works with your canvas, files, and web sources to create and refine editable visual content. Continue the conversation to build on your results.</li>
+            <li data-i18n="changelogMcpCanvases">Connect external AI tools through MCP to create and update Canvas documents. Find their canvases in the Navigator and follow the latest updates.</li>
             <li data-i18n="changelogFrostedStudio">A simpler frosted Studio brings the toolbar, Navigator, Agent, settings, and dialogs into one restrained visual system. Translucent materials, fine hairlines, and lighter controls keep the Canvas visible and the workspace easy to scan.</li>
             <li data-i18n="changelogPerformance">Drawing, erasing, panning, and zooming feel more immediate. Low-latency live ink and coordinated frame work keep Widgets live and restore sharper text after movement.</li>
             <li data-i18n="changelogKeyboardShortcuts">Customizable keyboard shortcuts are now available in Settings for focusing the Agent, saving, undo and redo, opening the Canvas Library, fullscreen, and Settings.</li>

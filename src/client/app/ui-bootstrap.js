@@ -1615,60 +1615,88 @@
   window.visualViewport?.addEventListener("resize", handleFeatureTourViewportChange);
   window.visualViewport?.addEventListener("scroll", scheduleFeatureTourPosition);
   window.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || e.isComposing || keyboardShortcutTextEditingTarget(e.target)) return;
+    const canvasKeyContext = keyboardShortcutCanvasContext(e, keyboardShortcutChordFromEvent(e));
     if (e.key === "Escape" && (document.querySelector("#newCanvasDialog").open || document.querySelector("#textHelpDialog").open)) return;
     if (e.key === "Escape" && eraserToolMenu && !eraserToolMenu.hidden) {
       hideEraserToolMenu({ restoreFocus:true });
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
-    if (e.key === "Escape" && state.areaEraseGesture) {
+    if (e.key === "Escape" && canvasKeyContext && state.areaEraseGesture) {
       cancelAreaEraseGesture();
       setStatusKey("ready");
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
-    if (e.key === "Escape" && state.selection) {
+    if (e.key === "Escape" && canvasKeyContext && state.selection) {
       cancelSelection();
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
-    if (e.key === "Escape" && state.pendingWidget) {
+    if (e.key === "Escape" && canvasKeyContext && state.pendingWidget) {
       rejectPendingWidget();
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
-    if (e.key === "Escape" && activeWidgetRefinement()) {
+    if (e.key === "Escape" && canvasKeyContext && activeWidgetRefinement()) {
       cancelWidgetRefinement();
       setStatusKey("ready");
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
-    if (e.key === "Escape" && state.widgetRefineConfirmation) {
+    if (e.key === "Escape" && canvasKeyContext && state.widgetRefineConfirmation) {
       cancelWidgetRefineConfirmation();
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
-    if (e.key === "Escape" && state.widgetRefineCandidate) {
+    if (e.key === "Escape" && canvasKeyContext && state.widgetRefineCandidate) {
       dismissWidgetRefineCandidate();
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
-    if (e.key === "Escape" && state.imageEdit) {
+    if (e.key === "Escape" && canvasKeyContext && state.imageEdit) {
       cancelImageEdit();
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
-    if ((e.key === "Delete" || e.key === "Backspace") && state.imageEdit && !/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName)) {
+    if ((e.key === "Delete" || e.key === "Backspace") && state.imageEdit && canvasKeyContext) {
       deleteImage(selectedImage());
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
-    if (e.key === "Escape" && state.widgetEdit) {
+    if (e.key === "Escape" && canvasKeyContext && state.widgetEdit) {
       cancelWidgetEdit();
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
-    if ((e.key === "Delete" || e.key === "Backspace") && state.widgetEdit && !/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName)) {
+    if ((e.key === "Delete" || e.key === "Backspace") && state.widgetEdit && canvasKeyContext) {
       deleteWidget(selectedWidget());
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
-    if (e.key === "Enter" && state.selection?.phase === "active" && !/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName)) {
+    if (e.key === "Enter" && state.selection?.phase === "active" && canvasKeyContext) {
       commitSelection();
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
     if (e.key === "Escape" && !document.querySelector("#autoDelayPopover").hidden) {
       hideAutoDelayControl();
       document.querySelector("#auto").focus();
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
     if (e.key === "Tab" && trapHistoryPanelFocus(e)) return;
@@ -1676,6 +1704,8 @@
     if (e.key === "Escape" && document.querySelector("#historyPanel").classList.contains("open") && !document.querySelector("dialog[open]")) {
       closeHistoryPanel();
       document.querySelector("#historyBtn").focus();
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
     if (e.key === "Alt" && !state.drawing && !state.pending && !state.pendingWidget) setCanvasCursor("grab");

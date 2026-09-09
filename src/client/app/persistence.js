@@ -27,6 +27,7 @@
     snapshotLoadingId = null,
     snapshotItemsLocation = null,
     snapshotLocationCountCache = new Map(),
+    serverSnapshotUnavailableKey = "",
     serverCanvasProjects = [],
     selectedServerProjectId = storedServerProjectId(),
     cloudCanvasProjects = [],
@@ -535,7 +536,7 @@
     if (!response.ok) {
       const error = Error(body?.error || `PenEcho server returned HTTP ${response.status}`);
       error.status = response.status;
-      error.code = body?.code || null;
+      error.code = body?.code || body?.error || null;
       throw error;
     }
     return body;
@@ -830,6 +831,15 @@
       return {};
     }
   }
+  function snapshotCanvasObjectExtensions() {
+    return { ...snapshotExtensionObject(state.currentSnapshotBundleExtensions), penechoObjectOrder:{
+      version:1, frontKind:state.frontCanvasObjectKind, placedKind:state.frontPlacedCanvasObjectKind,
+    } };
+  }
+  function restoreSnapshotCanvasObjectOrder(extensions) {
+    const order = extensions?.penechoObjectOrder;
+    restoreCanvasObjectFrontKinds(order?.version === 1 ? order.frontKind : "image", order?.version === 1 ? order.placedKind : "image");
+  }
   function snapshotPreservedAssets(value) {
     if (!Array.isArray(value)) return [];
     try {
@@ -898,7 +908,7 @@
         textBoxes,
         images,
         preview,
-        bundleExtensions:snapshotExtensionObject(state.currentSnapshotBundleExtensions),
+        bundleExtensions:snapshotCanvasObjectExtensions(),
         manifestExtensions:snapshotExtensionObject(state.currentSnapshotManifestExtensions),
     };
     return { ...(await serverSnapshotPayload(item, tileEntries)), ...communityImages };
@@ -1014,6 +1024,7 @@
       state.currentSnapshotProjectId = null;
       state.currentSnapshotRevisionId = null;
       state.currentSnapshotBundleExtensions = snapshotExtensionObject(item.bundleExtensions);
+      restoreSnapshotCanvasObjectOrder(item.bundleExtensions);
       state.currentSnapshotManifestExtensions = snapshotExtensionObject(item.manifestExtensions);
       state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       state.dirty = null;
@@ -1179,7 +1190,7 @@
         imageCount: images.length,
         images,
         preview,
-        bundleExtensions:typeof canvasDocumentsSaveMetadata==="function"?canvasDocumentsSaveMetadata({copy:!overwriteId&&Boolean(state.currentSnapshotId)}):snapshotExtensionObject(state.currentSnapshotBundleExtensions),
+        bundleExtensions:typeof canvasDocumentsSaveMetadata==="function"?canvasDocumentsSaveMetadata({copy:!overwriteId&&Boolean(state.currentSnapshotId)}):snapshotCanvasObjectExtensions(),
         manifestExtensions:snapshotExtensionObject(state.currentSnapshotManifestExtensions),
         preservedAssets:snapshotPreservedAssets(state.currentSnapshotPreservedAssets),
       };
@@ -1407,6 +1418,7 @@
       state.currentSnapshotProjectId = item.projectId || null;
       state.currentSnapshotRevisionId = location === "cloud" ? item.currentRevisionId || null : null;
       state.currentSnapshotBundleExtensions = snapshotExtensionObject(item.bundleExtensions);
+      restoreSnapshotCanvasObjectOrder(item.bundleExtensions);
       state.currentSnapshotManifestExtensions = snapshotExtensionObject(item.manifestExtensions);
       state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       state.snapshotSavedRevision = state.userRevision;
@@ -1852,7 +1864,7 @@
     const error = document.createElement("div");
     error.className = "history-list-loading error";
     error.setAttribute("role", "alert");
-    error.textContent = t("snapshotLibraryLoadFailed").replace("{location}", snapshotLocationLabel(location));
+    error.textContent = t(location === "server" && serverSnapshotUnavailableKey || "snapshotLibraryLoadFailed").replace("{location}", snapshotLocationLabel(location));
     list.replaceChildren(error);
     updateHistorySelectionUi(null);
     window.PenEchoStudioNavigator?.renderCanvases?.();
@@ -2205,6 +2217,10 @@
       updateHistoryReadControls();
       return;
     }
+    if (location === "server" && serverSnapshotUnavailableKey) {
+      renderSnapshotListError(location);
+      return;
+    }
     if (snapshotListInProgress && snapshotItemsLocation !== location) {
       renderSnapshotListLoading(location);
       return;
@@ -2465,6 +2481,7 @@
       const items = await snapshotsAt(location);
       if (generation !== snapshotListGeneration || location !== state.snapshotLocation) return false;
       if (location === "cloud") cloudHistorySignInRequired = false;
+      if (location === "server") serverSnapshotUnavailableKey = "";
       snapshotItems = items;
       snapshotItemsLocation = location;
       if (location === "cloud") cacheCloudHistory(items);
@@ -2473,6 +2490,15 @@
       return true;
     } catch (error) {
       if (generation === snapshotListGeneration && location === state.snapshotLocation) {
+        if (location === "server" && ["device_offline", "linked_device_required"].includes(error.code)) {
+          serverSnapshotUnavailableKey = error.code === "device_offline" ? "serverHistoryDeviceOffline" : "serverHistoryDeviceRequired";
+          snapshotItems = [];
+          snapshotItemsLocation = null;
+          serverCanvasProjects = [];
+          renderSnapshotList();
+          hideHistoryActivity();
+          return false;
+        }
         authenticationRequired = location === "cloud" && cloudHistoryRequiresSignIn(error);
         if (location === "cloud") cloudHistorySignInRequired = authenticationRequired;
         if (authenticationRequired) {

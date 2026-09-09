@@ -7289,6 +7289,12 @@ body[data-theme="studio"] .primary-tools .view-tools { gap: 8px; }
   body[data-theme="studio"]:not(.studio-toolbar-two-row) .primary-tools .view-tools > :is(#fullscreenBtn, #gridToggle)[data-pe-button] { margin-inline: 0; }
 }
 
+/* Canvas toolbar keeps the catalog's painted controls and vertical touch
+   extension, with compact horizontal touch margins between actions. */
+@media (pointer: coarse) {
+  body[data-theme="studio"] .toolbar [data-pe-button="toolbar"] { margin-inline: 2px; }
+}
+
 /* Project manager rows use the catalog's borderless trailing action. The
    shared hit-area contract remains active without painting a second frame. */
 :is(#pe-button-contract, #canvasAgentProjectPopover) .canvas-agent-project-remove[data-pe-button="icon"] {
@@ -7541,13 +7547,18 @@ body[data-theme="studio"] .studio-navigator-tabs > [role="tab"] {
 body[data-theme="studio"] .studio-navigator-tabs > [role="tab"][hidden] { display: none; }
 .studio-navigator-foot {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  position: relative;
+  gap: 4px;
 }
-.studio-navigator-foot .canvas-workspace { flex: 1 1 auto; width: auto; gap: 0; }
+.studio-navigator-foot .canvas-workspace { flex: 1 1 auto; width: auto; max-width: none; gap: 4px; flex-wrap: nowrap; }
 .studio-navigator-foot .canvas-workspace > :is(#canvasWorkspaceClose, #canvasWorkspaceCloseAll) { padding-inline: 4px; }
 .studio-navigator-foot #canvasWorkspaceStatus:empty { display: none; }
-.studio-navigator-foot #canvasWorkspaceStatus:not(:empty) { flex-basis: 100%; overflow-wrap: anywhere; }
+.studio-navigator-foot #canvasWorkspaceStatus:not(:empty):not(.sr-only) { position: absolute; bottom: 100%; left: 8px; right: 8px; padding: 8px; background: var(--pe-surface); border: 1px solid var(--pe-line); border-radius: 5px; overflow-wrap: anywhere; }
+#canvasWorkspaceCount { position: relative; flex: 0 0 auto; white-space: nowrap; color: var(--pe-ink-3); font: 400 12px/28px var(--pe-font-ui); }
+.studio-navigator-foot #canvasWorkspaceCloseAll { flex: 0 0 auto; width: auto; }
+#canvasWorkspaceCount[aria-busy="true"] { color: transparent; }
+#canvasWorkspaceCount[aria-busy="true"]::after { content: ""; position: absolute; width: 12px; height: 12px; inset: 0; margin: auto; border: 1.5px solid var(--pe-line); border-top-color: var(--pe-ink-3); border-radius: 50%; animation: pe-public-spin 1s linear infinite; }
 :is(#pe-button-contract, .studio-navigator-foot) > #studioNavigatorManage[data-pe-button="ghost"] {
   flex: 0 0 auto;
   width: auto;
@@ -7585,13 +7596,25 @@ body[data-theme="studio"].studio-mcp-docked .canvas-frame::after { left: var(--s
   body[data-theme="studio"].studio-mcp-docked .studio-navigator { transition: none; }
 }
 body[data-theme="studio"].studio-mcp-docked .studio-navigator-scrim { display: none; }
-.studio-mcp-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; padding:0 6px 8px; }
-.studio-mcp-actions [data-pe-button] { flex:0 0 auto; }
-/* Keep Close all's label footprint while its progress indicator overlays it. */
+/* Source: catalog #buttons switch / compact icon, #dialogs menu, #lists metadata.
+   The rail owns layout; controls retain their shared geometry and states. */
+body[data-theme="studio"].studio-mcp-docked .studio-navigator-head { padding-bottom: 2px; }
+.studio-mcp-actions { position: sticky; top: -2px; z-index: 3; display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; padding: 0 6px 4px; background: var(--pe-surface); }
+.studio-mcp-follow { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; gap: 6px; min-height: 30px; padding: 0 8px; border: 1px solid var(--pe-line); border-radius: var(--pe-control-radius, 5px); color: var(--pe-ink); font: 500 12.5px/30px var(--pe-font-ui); cursor: pointer; }
+.studio-mcp-follow > svg { width: 14px; height: 14px; flex: 0 0 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.studio-mcp-follow > span { flex: 1 1 auto; white-space: nowrap; }
+.studio-mcp-follow > button, .studio-mcp-actions > button { flex-shrink: 0; }
+.studio-mcp-menu { position: absolute; top: 100%; right: 6px; width: max-content; max-width: calc(100% - 12px); padding: 5px; background: var(--pe-surface); border: 1px solid var(--pe-line); border-radius: var(--pe-r-popover, 10px); box-shadow: var(--pe-shadow-short, 0 6px 14px rgba(17, 24, 39, .14)); }
+.studio-mcp-menu[hidden] { display: none; }
+:is(#pe-button-contract, .studio-mcp-menu) > [data-pe-button="menu-item"] { grid-template-columns: minmax(0, 1fr); }
+/* Busy indicators overlay existing footprints, never create a second footer row. */
 :is(#studioMcpCloseAll, #canvasWorkspaceCloseAll)[aria-busy="true"] { color:transparent; }
-:is(#studioMcpCloseAll, #canvasWorkspaceCloseAll)[aria-busy="true"]::before { position:absolute; inset:0; margin:auto; color:var(--pe-ink, var(--studio-text, #20242c)); }
-:is(#pe-button-contract, .studio-mcp-actions) #studioMcpFollowLatest { width:max-content; min-width:max-content; max-width:none; padding-inline:8px; gap:6px; }
-.studio-mcp-actions #studioMcpFollowLatest > svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+:is(#studioMcpCloseAll, #canvasWorkspaceCloseAll)[aria-busy="true"]::before { position:absolute; inset:0; margin:auto; color:var(--pe-ink); }
+body[data-theme="studio"].studio-mcp-docked .studio-navigator-title-row { display: none; }
+body[data-theme="studio"].studio-mcp-docked .studio-navigator-search { margin-top: 0; }
+.studio-navigator-item-body small > .workspace-update-dot { display: inline-block; width: 5px; height: 5px; margin-right: 5px; vertical-align: 1px; }
+.studio-navigator-item-body small > .workspace-update-dot[hidden] { display: none; }
+@media(prefers-reduced-motion:reduce) { #canvasWorkspaceCount[aria-busy="true"]::after { animation: none; } }
 body[data-theme="studio"].studio-mcp-docked .studio-navigator :is(.studio-navigator-head,.studio-navigator-body,.studio-navigator-foot) { width: 100%; }
 body[data-theme="studio"].studio-mcp-docked :is(#pe-button-contract, .mcp-canvas-notice) > button[data-pe-button] {
   min-width: 0;
@@ -7602,8 +7625,7 @@ body[data-theme="studio"].studio-mcp-docked :is(#pe-button-contract, .mcp-canvas
   line-height: 1.8;
 }
 
-/* Open Canvas status follows the catalog connection-state success indicator. */
-.studio-navigator-open-dot { color: var(--pe-success, #277a4c); }
+
 
 /* Remote browser setup must respect the runtime capability disclosure. */
 #settingsPageMcp .mcp-clients[hidden] { display:none; }
@@ -7702,3 +7724,7 @@ body[data-theme="studio"].studio-mcp-docked :is(#pe-button-contract, .mcp-canvas
 #settingsPageConnections .settings-hosted-rates-table thead th:last-child { border-top-right-radius: var(--pe-r-group); }
 #settingsPageConnections .settings-hosted-rates-table tbody tr:last-child th { border-bottom-left-radius: var(--pe-r-group); }
 #settingsPageConnections .settings-hosted-rates-table tbody tr:last-child td:last-child { border-bottom-right-radius: var(--pe-r-group); }
+
+.studio-navigator-group.has-current-close { position: relative; }
+.studio-navigator-group.has-current-close > .studio-navigator-group-heading { padding-right: 36px; }
+.studio-navigator-current-close { position: absolute !important; right: 2px; top: 10px; }

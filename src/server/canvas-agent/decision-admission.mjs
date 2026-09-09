@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { BlockAssembler, CallId } from '@deepseek-ai/dsh-llm'
+import { MAX_CANVAS_DECISION_TOOLS, registerCanvasDecisionBatch } from './tool-batch.mjs'
 
 export const CANVAS_DECISION_FEEDBACK_TOOL = 'penecho_canvas_decision_feedback'
-export const CANVAS_DECISION_PROTOCOL_SUMMARY = 'Use at most one tool call per model step. Treat errors as feedback: correct or switch tools and continue; finish only when complete or unable to proceed.'
+export const CANVAS_DECISION_PROTOCOL_SUMMARY = 'Batch up to 16 known calls. Canvas calls run in order. Sibling writes use the same observed baseRevision; the host forwards only successful batch revisions. Keep each Widget sourceHash exact; combine same-object edits. Never guess prior results/IDs. Put required capture after edits in the same step. A failed write stops later writes, preserving successes. Correct errors and continue; finish when done/blocked.'
 
 function decisionError(code, message, details = null) {
   const error = new Error(message)
@@ -20,12 +21,13 @@ function feedbackFrom(error, details = null) {
   const code = String(error?.code || 'CANVAS_DECISION_REJECTED'), message = String(error?.message || error || 'PenEcho Agent decision was rejected.')
   return Object.freeze({
     code,
-    message:`${message} The entire tool decision was rejected before execution; no Canvas tool ran. Return exactly one corrected standard JSON tool call, or a final answer only when the task is complete or cannot proceed.`,
+    message:`${message} The entire tool decision was rejected before execution; no Canvas tool ran. Return corrected standard JSON tool calls, or a final answer only when the task is complete or cannot proceed.`,
     details:details || error?.details || null,
   })
 }
 
 function stageFeedback(session, feedback) {
+  registerCanvasDecisionBatch(session,[])
   const id = CallId(`penecho_decision_${randomUUID()}`), callId = String(id)
   if (!(session?.decisionFeedbackCalls instanceof Map) || !(session?.decisionFeedbackCallIds instanceof Set)) {
     throw new Error('PenEcho Agent decision feedback storage is unavailable.')
@@ -47,17 +49,23 @@ function validateToolCall(block, availableTools) {
 
 export function admitCanvasDecision({ session, blocks, availableTools = [] }) {
   const content=Array.isArray(blocks)?blocks:[],toolCalls=content.filter(block=>block?.type==='tool-call')
-  if(toolCalls.length>1){
+  if(toolCalls.length>MAX_CANVAS_DECISION_TOOLS){
     return{kind:'feedback',block:stageFeedback(session,feedbackFrom(decisionError(
-      'CANVAS_ONE_TOOL_PER_STEP',
-      `Your previous step returned ${toolCalls.length} tool calls, but PenEcho Agent allows at most one tool call per model step.`,
+      'CANVAS_TOOL_BATCH_LIMIT',
+      `Your previous step returned ${toolCalls.length} tool calls; the maximum is ${MAX_CANVAS_DECISION_TOOLS}.`,
       {toolCallCount:toolCalls.length},
     )))}
   }
-  if(!toolCalls.length)return{kind:'final'}
+  if(!toolCalls.length){registerCanvasDecisionBatch(session,[]);return{kind:'final'}}
   try{
-    validateToolCall(toolCalls[0],new Set(availableTools))
-    return{kind:'tool-call',block:toolCalls[0]}
+    const names=new Set(availableTools),ids=new Set()
+    for(const call of toolCalls){
+      validateToolCall(call,names)
+      if(!call.id||ids.has(String(call.id)))throw decisionError('CANVAS_TOOL_CALL_ID_INVALID','Tool call IDs must be nonempty and unique within a decision.')
+      ids.add(String(call.id))
+    }
+    registerCanvasDecisionBatch(session,toolCalls)
+    return{kind:'tool-call',block:toolCalls[0],blocks:toolCalls}
   }catch(error){
     return{kind:'feedback',block:stageFeedback(session,feedbackFrom(error))}
   }
@@ -107,8 +115,8 @@ export async function * admitCanvasAgentDecisionStream(upstream, { session, avai
   const admission=terminalKind==='max-tokens'&&toolCalls.length
     ? {kind:'feedback',block:stageFeedback(session,feedbackFrom(decisionError('CANVAS_TOOL_DECISION_INCOMPLETE','A tool decision reached the model token limit and cannot be executed safely.',{terminalKind})))}
     : admitCanvasDecision({session,blocks,availableTools}),
-    unchangedSingleTool=admission.kind==='tool-call'&&toolCalls.length===1&&admission.block===toolCalls[0]
-  if(admission.kind==='final'||unchangedSingleTool){
+    unchangedTools=admission.kind==='tool-call'
+  if(admission.kind==='final'||unchangedTools){
     for(const held of heldChunks)yield held
     for(const usage of heldUsageChunks)yield usage
     yield terminal

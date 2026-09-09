@@ -2,7 +2,7 @@
 // Iframes retain their identity. Selecting a Widget never replays the selecting
 // click into its document, and inactive front shells block underlying Widgets.
   function canvasNavigationTextTarget(target) {
-    return Boolean(target?.closest?.('input,textarea,select,[contenteditable="true"],[role="textbox"]'));
+    return keyboardShortcutTextEditingTarget(target);
   }
   function canvasWidgetSelectionEnabled() {
     return !state.spacePan && (state.viewMode ? state.viewTool === "select" : state.mode === "select");
@@ -225,7 +225,8 @@
   window.addEventListener('keydown', (event) => {
     if (state.interactingWidgetId && event.key !== 'Escape') return;
     if (event.defaultPrevented || event.isComposing || canvasNavigationTextTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (document.querySelector('dialog[open],.settings-panel.open,.configuration-layer:not([hidden])')) return;
+    if (event.key !== 'Escape' && !keyboardShortcutCanvasContext(event, keyboardShortcutChordFromEvent(event))) return;
+    if (keyboardShortcutBlockingSurfaceOpen()) return;
     if (event.code === 'Space' && !event.target?.closest?.('button') && !state.drawing) {
       event.preventDefault();
       setSpacePan(true);

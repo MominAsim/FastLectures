@@ -12,6 +12,12 @@ Alternative commercial licenses may be available. See COMMERCIAL-LICENSE.md.
 Third-party software
 --------------------
 
+DeepSeek Harness local backports are distributed under the MIT License,
+Copyright (c) 2026 DeepSeek. Local adaptations retain MIT. The complete license
+and upstream commit provenance are included in src/server/canvas-agent/vendor/.
+These vendored modules are excluded from the repository's AGPL-only default;
+PenEcho's own integration remains AGPL-3.0-only.
+
 AntV Infographic (npm package "@antv/infographic") is distributed under the
 MIT License. Copyright (c) 2025 AntV. The complete license text is included at
 public/vendor/antv-infographic.LICENSE.

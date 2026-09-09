@@ -25,7 +25,7 @@ function harness({documents=[],dirty=false}={}){
   }};
   const mcpRuntime={sessions:new Map(),pendingView:new Map(),layoutTimer:0,layoutSince:0,queued:0,ready:true};
   const context=vm.createContext({
-    state,document,mcpRuntime,canvasDocuments,
+    state,document,mcpRuntime,canvasDocuments,selectCanvasToolMode:mode=>{state.mode=mode;},
     mcpEl:id=>id==="settingsLayer"?settingsLayer:null,
     canvasDocumentsCopy:text=>text,
     canvasDocumentsShow:async id=>{calls.push(["show",id]);const error=typeof controls.showError==="function"?controls.showError(id):controls.showError;if(error)throw error;if(controls.showGate&&controls.showGate.id===id)await controls.showGate.promise;canvasDocuments.activeId=id;controls.showAfter?.(id);return true;},
@@ -38,7 +38,7 @@ function harness({documents=[],dirty=false}={}){
     clearTimeout,performance,queueMicrotask,
   });
   context.dirty=dirty;
-  const functions=["studioMcpOpenDocumentIds","syncStudioMcpActions","cancelStudioMcpCloseAll","continueStudioMcpCloseAll","closeOtherStudioCanvases","closeAllStudioMcpCanvases","noteStudioMcpContentUpdate","flushStudioMcpFollowLatest","syncStudioNavigatorMcp"].map(name=>extract(name,studioSource)).join("\n");
+  const functions=["studioMcpOpenDocumentIds","syncStudioMcpActions","cancelStudioMcpCloseAll","continueStudioMcpCloseAll","closeOtherStudioCanvases","closeOtherStudioMcpCanvases","closeAllStudioMcpCanvases","noteStudioMcpContentUpdate","flushStudioMcpFollowLatest","syncStudioNavigatorMcp"].map(name=>extract(name,studioSource)).join("\n");
   vm.runInContext(`
     let pendingCanvasTransition=null;
     let studioMcpFollowLatest=false,studioMcpLatestDocumentId=null,studioMcpLatestRegion=null,studioMcpPendingDocumentId=null,studioMcpPendingRegion=null,studioMcpFollowing=false,studioMcpCloseQueue=null;
@@ -53,7 +53,7 @@ function harness({documents=[],dirty=false}={}){
     ${functions}
     globalThis.api={
       mcpRuntime,canvasDocuments,document,state,
-      syncStudioMcpActions,cancelStudioMcpCloseAll,continueStudioMcpCloseAll,closeOtherStudioCanvases,closeAllStudioMcpCanvases,noteStudioMcpContentUpdate,flushStudioMcpFollowLatest,syncStudioNavigatorMcp,requestCanvasTransition,performCanvasTransition,
+      syncStudioMcpActions,cancelStudioMcpCloseAll,continueStudioMcpCloseAll,closeOtherStudioCanvases,closeOtherStudioMcpCanvases,closeAllStudioMcpCanvases,noteStudioMcpContentUpdate,flushStudioMcpFollowLatest,syncStudioNavigatorMcp,requestCanvasTransition,performCanvasTransition,
       setFollowLatest(value){studioMcpFollowLatest=Boolean(value);studioMcpPendingDocumentId=studioMcpFollowLatest?studioMcpLatestDocumentId:null;studioMcpPendingRegion=studioMcpFollowLatest?studioMcpLatestRegion:null;syncStudioMcpActions();},
       setCloseQueue(value){studioMcpCloseQueue=value;syncStudioMcpActions();},
       mcpState(){return {follow:studioMcpFollowLatest,latest:studioMcpLatestDocumentId,latestRegion:studioMcpLatestRegion,pending:studioMcpPendingDocumentId,pendingRegion:studioMcpPendingRegion,following:studioMcpFollowing,closeQueue:studioMcpCloseQueue,retainedDocumentId:studioMcpCloseQueue?.retainedDocumentId||null};},
@@ -142,7 +142,7 @@ test("Close other propagates transition errors and leaves the failed and remaini
 test("A live MCP connection turns Follow latest on so the next content update switches canvases",async()=>{
   const h=harness({documents:[mcpDoc("active"),mcpDoc("latest")]});
   h.syncStudioNavigatorMcp(true);
-  assert.equal(h.mcpState().follow,true);assert.equal(h.follow.attrs["aria-pressed"],"true");assert.equal(h.mcpState().pending,null);
+  assert.equal(h.mcpState().follow,true);assert.equal(h.follow.attrs["aria-checked"],"true");assert.equal(h.mcpState().pending,null);
   h.noteStudioMcpContentUpdate("latest");await h.flushStudioMcpFollowLatest();
   assert.deepEqual(h.calls.filter(call=>Array.isArray(call)&&call[0]==="show"),[["show","latest"]]);assert.equal(h.canvasDocuments.activeId,"latest");
   h.syncStudioNavigatorMcp(false);assert.equal(h.mcpState().follow,false);
@@ -242,4 +242,13 @@ test("Follow latest frames a newer same-document region that arrives during an i
 test("MCP completion hook only marks content producing tools and excludes reads/progress/inspect",()=>{
   const match=mcpRuntimeSource.match(/if\(\["mcp_present_widget","mcp_draw","mcp_plot","mcp_apply_patch","mcp_edit_canvas"\][\s\S]*?noteMcpContentUpdate\?\.\(result\.documentId,region\);/);
   assert.ok(match,"content update hook whitelist should remain explicit");assert.doesNotMatch(match[0],/mcp_read_feedback|mcp_update_session|mcp_inspect_session|mcp_capture_widget/);assert.match(match[0],/presentation\?\.intent!=="inspect"/);assert.match(match[0],/message\.arguments\?\.action!=="show"/);
+});
+
+
+test("MCP close others keeps the current canvas and unrelated ordinary canvases",async()=>{
+  const h=harness({documents:[mcpDoc("current",{bindings:[{}]}),mcpDoc("ordinary"),mcpDoc("other-mcp",{bindings:[{}]})]});
+  await h.closeOtherStudioMcpCanvases();
+  assert.deepEqual(h.closed,["other-mcp"]);
+  assert.equal(h.canvasDocuments.activeId,"current");
+  assert.ok(h.records.has("ordinary"));assert.ok(h.records.has("current"));
 });

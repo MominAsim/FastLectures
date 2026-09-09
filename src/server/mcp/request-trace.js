@@ -5,18 +5,16 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const MAX_ARRAY_ITEMS = 32;
-const MAX_BROWSER_INTERACTIONS = 32;
 const MAX_OBJECT_KEYS = 64;
 const MAX_STRING_CHARS = 8_000;
 const MAX_VALUE_CHARS = 64_000;
 const MAX_VALUE_NODES = 512;
 const SECRET_KEY = /(?:^|[-_])(?:authorization|proxy[-_]?authorization|api[-_]?key|access[-_]?token|refresh[-_]?token|resume[-_]?token|cookie|password|secret)(?:$|[-_])/i;
 const SECRET_TEXT = /((?:authorization|proxy[-_]?authorization|api[-_]?key|access[-_]?token|refresh[-_]?token|resume[-_]?token|cookie|password|secret)\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)/gi;
-const TRACE_DIRECTORY_NAME = /^\d{13}-[0-9a-f-]{36}$/i;
 
-function redactText(value) {
+function redactText(value, preserveImages = false) {
   return String(value)
-    .replace(/data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+/gi, "<encoded image omitted>")
+    .replace(/data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+/gi, match => preserveImages ? match : "<encoded image omitted>")
     .replace(/(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1<redacted>")
     .replace(SECRET_TEXT, "$1<redacted>")
     .replace(/([?&](?:api[-_]?key|access[-_]?token|refresh[-_]?token|resume[-_]?token)=)[^&#\s]+/gi, "$1<redacted>")
@@ -76,121 +74,127 @@ function isoTime(value) {
 function createMcpRequestTracer({ requestTraceDirectory, requestTraceLimit = 100, logger = () => {}, now = () => Date.now(), createRequestId = () => crypto.randomUUID() }) {
   if (!path.isAbsolute(requestTraceDirectory)) throw new TypeError("requestTraceDirectory must be an absolute path.");
   if (!Number.isInteger(requestTraceLimit) || requestTraceLimit < 1 || requestTraceLimit > 1_000) throw new TypeError("requestTraceLimit must be an integer between 1 and 1000.");
-  const root = path.resolve(requestTraceDirectory);
-  let lastDirectoryTimestamp = 0;
-
+  const root = path.resolve(requestTraceDirectory), groups = new Map(), aliases = new Map();
+  let rootAvailable = false;
+  const hash = value => crypto.createHash("sha256").update(String(value)).digest("hex");
+  const sessionPattern = /^session-[a-f0-9]{64}$/;
   function report(error, requestId) {
     try { logger({ type:"mcp-request-trace-error", requestId, errorCode:String(error?.code || "write_failed").slice(0, 80) }); } catch {}
   }
-
-  function write(trace) {
-    try {
-      trace.data.updatedAt = isoTime(now());
-      fs.writeFileSync(path.join(trace.directory, "trace.json"), JSON.stringify(trace.data, null, 2), { encoding:"utf8", mode:0o600 });
-    } catch (error) { report(error, trace.data.requestId); }
+  function guarded(trace, action) { try { return action(); } catch (error) { report(error, trace?.data?.requestId); } }
+  function privateDirectory(directory) {
+    for (let current = directory;; current = path.dirname(current)) {
+      if (!["/var", "/tmp"].includes(current) && fs.existsSync(current) && fs.lstatSync(current).isSymbolicLink()) throw new Error("Symlinked trace directory");
+      if (path.dirname(current) === current) break;
+    }
+    fs.mkdirSync(directory, { recursive:true, mode:0o700 });
+    fs.chmodSync(directory, 0o700);
   }
-
-  function prune(requestId) {
-    try {
-      const entries = fs.readdirSync(root, { withFileTypes:true })
-        .filter(entry => entry.isDirectory() && TRACE_DIRECTORY_NAME.test(entry.name))
-        .sort((a, b) => a.name.localeCompare(b.name));
-      for (const entry of entries.slice(0, Math.max(0, entries.length - requestTraceLimit))) {
-        const target = path.resolve(root, entry.name);
-        if (path.dirname(target) === root) fs.rmSync(target, { recursive:true, force:true });
+  function file(directory, name, value) {
+    const target = path.join(directory, name);
+    const fd = fs.openSync(target, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW, 0o600);
+    try { fs.fchmodSync(fd, 0o600); fs.writeFileSync(fd, value); } finally { fs.closeSync(fd); }
+  }
+  function write(trace) { if (!trace.available) return; guarded(trace, () => {
+    trace.data.updatedAt = isoTime(now());
+    file(trace.directory, "trace.json", JSON.stringify(trace.data, null, 2));
+    file(trace.group.directory, "session.json", JSON.stringify({ schemaVersion:2, kind:"mcp-session", identityHash:trace.group.id, ...trace.group.metadata, updatedAt:trace.data.updatedAt }, null, 2));
+  }); }
+  function payload(trace, label, value) { if (!trace.available) return; return guarded(trace, () => {
+    let asset = 0; const assets = []; const seen = new WeakSet();
+    function image(data, mime) {
+      const extension = ({"image/png":"png", "image/jpeg":"jpg", "image/webp":"webp", "image/gif":"gif", "image/svg+xml":"svg"})[mime.toLowerCase()] || "bin";
+      const filename = `${label}-image-${++asset}.${extension}`;
+      assets.push({filename, mimeType:mime});
+      file(trace.directory, filename, Buffer.from(data.replace(/\s/g, ""), "base64"));
+      return filename;
+    }
+    function visit(item, key = "", parent = null) {
+      if (typeof item === "string") {
+        if (key === "data" && /^image\//i.test(String(parent?.mimeType || parent?.mediaType || ""))) { image(item, parent.mimeType || parent.mediaType); return item; }
+        const replaced = item.replace(/data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)/gi, (match, mime, data) => { image(data, mime); return match; });
+        const text = redactText(replaced, true);
+        if (/^(html|content|patch|text|source)$/i.test(key)) file(trace.directory, `${label}-source-${++asset}.${key === "html" ? "html" : "txt"}`, text);
+        return text;
       }
-    } catch (error) { report(error, requestId); }
+      if (item === null || typeof item === "boolean" || typeof item === "number") return item;
+      if (item instanceof Error) return visit({ name:item.name, code:item.code, message:item.message, stack:item.stack, details:item.details });
+      if (item === undefined) return undefined;
+      if (typeof item !== "object") return String(item);
+      if (seen.has(item)) return "<circular reference>";
+      seen.add(item);
+      const output = Array.isArray(item) ? item.map(entry => visit(entry, "", item)) : Object.fromEntries(Object.keys(item).map(name => [name, SECRET_KEY.test(name) ? "<redacted>" : visit(item[name], name, item)]));
+      seen.delete(item); return output;
+    }
+    const full = visit(value);
+    if (assets.length) file(trace.directory, `${label}-images.json`, JSON.stringify(assets, null, 2));
+    file(trace.directory, `${label}.json`, JSON.stringify(full, null, 2));
+    file(trace.directory, `${label}.txt`, typeof full === "string" ? full : JSON.stringify(full, null, 2));
+    return full;
+  }); }
+  function prune() { if (!rootAvailable) return; guarded(null, () => {
+    privateDirectory(root);
+    const entries = fs.readdirSync(root, { withFileTypes:true }).filter(entry => entry.isDirectory() && sessionPattern.test(entry.name))
+      .map(entry => ({ name:entry.name, time:fs.statSync(path.join(root, entry.name)).mtimeMs })).sort((a,b) => a.time-b.time);
+    let excess = entries.length - requestTraceLimit;
+    for (const entry of entries) {
+      if (excess <= 0) break;
+      const group = groups.get(entry.name.slice(8));
+      if (group?.active.size) continue;
+      fs.rmSync(path.join(root, entry.name), {recursive:true, force:true}); excess--;
+    }
+  }); }
+  function groupFor(identity) {
+    const id = hash(identity); let group = groups.get(id);
+    if (!group) { group = {id, directory:path.join(root, `session-${id}`), active:new Set()}; groups.set(id, group); }
+    return group;
   }
-
-  function begin({ ownerId, name, arguments:argumentsValue }) {
-    const startedAt = now(), requestId = createRequestId(), directoryTimestamp = Math.max(startedAt, lastDirectoryTimestamp + 1), directory = path.join(root, `${directoryTimestamp}-${requestId}`);
-    lastDirectoryTimestamp = directoryTimestamp;
-    const trace = {
-      directory,
-      data:{
-        schemaVersion:1,
-        kind:"mcp-request",
-        requestId,
-        startedAt:isoTime(startedAt),
-        updatedAt:isoTime(startedAt),
-        completedAt:null,
-        durationMs:null,
-        status:"running",
-        request:{ ownerId:safeTraceValue(ownerId), tool:safeTraceValue(name), arguments:safeTraceValue(argumentsValue) },
-        browserInteractions:[],
-        outcome:null,
-        error:null,
-      },
-    };
-    try {
-      fs.mkdirSync(directory, { recursive:true, mode:0o700 });
-      write(trace);
-      prune(requestId);
-    } catch (error) { report(error, requestId); }
-    return trace;
+  function begin({ ownerId, name, arguments:args }) {
+    const startedAt = now(), requestId = String(createRequestId()), owner = String(ownerId);
+    const sessionIdentity = args?.sessionId ? `${owner}\0id:${args.sessionId}` : null;
+    const group = aliases.get(sessionIdentity) || groupFor(`${owner}\0${args?.sessionKey ? `key:${args.sessionKey}` : args?.sessionId ? `id:${args.sessionId}` : name === "penecho_start_session" ? `start:${requestId}` : "discovery"}`);
+    group.metadata ||= {ownerId:safeTraceValue(ownerId), sessionKey:safeTraceValue(args?.sessionKey), title:safeTraceValue(args?.title), client:safeTraceValue(args?.client), sessionIds:[]};
+    const trace = { available:false, group, owner, directory:path.join(group.directory, `request-${String(startedAt).padStart(13,"0")}-${hash(requestId)}`), data:{schemaVersion:2, kind:"mcp-request", requestId, startedAt:isoTime(startedAt), updatedAt:isoTime(startedAt), completedAt:null, durationMs:null, status:"running", request:{ownerId:safeTraceValue(ownerId), tool:safeTraceValue(name), arguments:safeTraceValue(args)}, browserInteractions:[], outcome:null, error:null} };
+    group.active.add(trace);
+    guarded(trace, () => { privateDirectory(root); rootAvailable = true; privateDirectory(group.directory); privateDirectory(trace.directory); trace.available = true; });
+    payload(trace, "request", {ownerId, tool:name, arguments:args}); write(trace); prune(); return trace;
   }
-
-  function browserStarted(trace, { requestId, name, arguments:argumentsValue, requestedAt }) {
+  function browserStarted(trace, {requestId, name, arguments:args, requestedAt}) {
     if (!trace) return null;
-    const interaction = {
-      requestId,
-      name,
-      requestedAt:isoTime(requestedAt),
-      completedAt:null,
-      durationMs:null,
-      status:"pending",
-      arguments:safeTraceValue(argumentsValue),
-      result:null,
-      error:null,
-    };
-    if (trace.data.browserInteractions.length >= MAX_BROWSER_INTERACTIONS) trace.data.browserInteractions.shift();
+    const interaction = {requestId, name, requestedAt:isoTime(requestedAt), completedAt:null, durationMs:null, status:"pending", arguments:safeTraceValue(args), result:null, error:null};
+    interaction.artifactPrefix = `browser-${trace.data.browserInteractions.length + 1}`;
     trace.data.browserInteractions.push(interaction);
-    return interaction;
+    payload(trace, `${interaction.artifactPrefix}-request`, args); write(trace); return interaction;
   }
-
-  function browserCompleted(trace, interaction, { result, timing }) {
+  function browserCompleted(trace, interaction, {result, timing}) {
     if (!trace || !interaction) return;
-    interaction.completedAt = isoTime(timing.completedAt);
-    interaction.durationMs = timing.durationMs;
-    interaction.status = "completed";
-    interaction.result = safeTraceValue(result);
+    Object.assign(interaction, {completedAt:isoTime(timing.completedAt), durationMs:timing.durationMs, status:"completed", result:safeTraceValue(result)});
+    payload(trace, `${interaction.artifactPrefix}-response`, result); write(trace);
   }
-
   function browserFailed(trace, interaction, error, completedAt = now()) {
     if (!trace || !interaction) return;
-    interaction.completedAt = isoTime(completedAt);
-    interaction.durationMs = Math.max(0, completedAt - new Date(interaction.requestedAt).getTime());
-    interaction.status = "failed";
-    interaction.error = safeTraceValue(error);
+    Object.assign(interaction, {completedAt:isoTime(completedAt), durationMs:Math.max(0, completedAt-new Date(interaction.requestedAt).getTime()), status:"failed", error:safeTraceValue(error)});
+    payload(trace, `${interaction.artifactPrefix}-error`, error); write(trace);
   }
-
   function queuedUpdateOutcome(trace, state, details) {
     if (!trace) return;
-    trace.data.queuedUpdate = { state, recordedAt:isoTime(now()), ...safeTraceValue(details) };
-    write(trace);
+    trace.data.queuedUpdate = {state, recordedAt:isoTime(now()), ...safeTraceValue(details)};
+    payload(trace, "queued-outcome", {state, ...details}); write(trace);
+    trace.group.active.delete(trace); prune();
   }
-
-  function complete(trace, result) {
+  function finish(trace, result, error) {
     if (!trace) return;
+    if (!error && trace.data.request.tool === "penecho_start_session" && result?.sessionId) {
+      aliases.set(`${trace.owner}\0id:${result.sessionId}`, trace.group);
+      if (!trace.group.metadata.sessionIds.includes(result.sessionId)) trace.group.metadata.sessionIds.push(result.sessionId);
+    }
     const completedAt = now();
-    trace.data.status = "completed";
-    trace.data.completedAt = isoTime(completedAt);
-    trace.data.durationMs = Math.max(0, completedAt - new Date(trace.data.startedAt).getTime());
-    trace.data.outcome = safeTraceValue(result);
-    write(trace);
+    Object.assign(trace.data, {status:error ? "failed" : "completed", completedAt:isoTime(completedAt), durationMs:Math.max(0, completedAt-new Date(trace.data.startedAt).getTime()), outcome:error ? null : safeTraceValue(result), error:error ? safeTraceValue(error) : null});
+    payload(trace, error ? "error" : "response", error || result); write(trace);
+    if (error || !result?.accepted || result?.applied !== false || trace.data.queuedUpdate) trace.group.active.delete(trace);
+    prune();
   }
-
-  function fail(trace, error) {
-    if (!trace) return;
-    const completedAt = now();
-    trace.data.status = "failed";
-    trace.data.completedAt = isoTime(completedAt);
-    trace.data.durationMs = Math.max(0, completedAt - new Date(trace.data.startedAt).getTime());
-    trace.data.error = safeTraceValue(error);
-    write(trace);
-  }
-
-  return { begin, browserCompleted, browserFailed, browserStarted, complete, fail, queuedUpdateOutcome };
+  return {begin, browserCompleted, browserFailed, browserStarted, complete:(trace,result) => finish(trace,result,null), fail:(trace,error) => finish(trace,null,error), queuedUpdateOutcome};
 }
 
 module.exports = { createMcpRequestTracer, safeTraceValue };

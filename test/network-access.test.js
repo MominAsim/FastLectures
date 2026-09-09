@@ -66,7 +66,7 @@ test("lanHosts preserves priority, numeric address order, and deduplication", ()
     duplicate:[{ address:"192.168.1.2", family:"IPv4", internal:false }],
   }), [
     "192.168.1.2", "192.168.1.20", "10.0.0.20", "172.20.0.2",
-    "100.64.0.2", "169.254.20.2", "203.0.113.2", "203.0.113.10",
+    "100.64.0.2", "203.0.113.2", "203.0.113.10",
   ]);
 });
 
@@ -105,4 +105,14 @@ test("lanUrls validates ports and preserves hosts with a trailing slash", () => 
   assert.deepEqual(lanUrls(3888, hosts), ["http://192.168.1.2:3888/", "http://203.0.113.8:3888/"]);
   assert.deepEqual(lanUrls("65535", hosts), ["http://192.168.1.2:65535/", "http://203.0.113.8:65535/"]);
   for (const port of [0, -1, 65536, 3888.5, "not-a-port", null, undefined]) assert.deepEqual(lanUrls(port, hosts), [], String(port));
+});
+
+test("LAN announcements omit Windows VM and VPN adapters without excluding physical private subnets", () => {
+  const virtualNames = ["vEthernet (Default Switch)", "vEthernet (WSL)", "VMware Network Adapter VMnet1", "VirtualBox Host-Only Network", "Tailscale", "ZeroTier One", "WireGuard Tunnel", "OpenVPN TAP-Windows6", "Clash", "Mihomo", "Meta", "sing-box", "Work VPN"];
+  const interfaces = Object.fromEntries(virtualNames.map((name, index) => [name, [{ address:`192.168.50.${index + 1}`, family:"IPv4", internal:false }]]));
+  interfaces["Wi-Fi"] = [{ address:"192.168.50.100", family:"IPv4", internal:false }];
+  interfaces["以太网"] = [{ address:"172.20.32.2", family:4, internal:false }];
+  interfaces["Ethernet 2"] = [{ address:"169.254.20.1", family:"IPv4", internal:false }];
+  assert.deepEqual(lanHosts(interfaces), ["192.168.50.100", "172.20.32.2"]);
+  assert.deepEqual(lanUrls(3888, lanHosts(interfaces)), ["http://192.168.50.100:3888/", "http://172.20.32.2:3888/"]);
 });

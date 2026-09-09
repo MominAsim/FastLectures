@@ -5,9 +5,11 @@ import { chmod, mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
+import { isDeepStrictEqual } from 'node:util'
 import { Context } from '@deepseek-ai/cordis'
 import { admitEncodedImages } from '@deepseek-ai/dsh-attachment'
 import { canvasAgentConversationContinuity } from './conversation-continuity.mjs'
+import { createCanvasDecisionBatch, MAX_CANVAS_DECISION_TOOLS } from './tool-batch.mjs'
 import PenEchoAttachmentStore from './image-attachments.mjs'
 import { NativeActivityDiagnostics } from './native-activity-diagnostics.mjs'
 import { DEFAULT_CANVAS_AGENT_IDLE_TIMEOUT_MS, canvasAgentTimeoutSeconds, createCanvasAgentModelTimeout } from './model-timeout.mjs'
@@ -1734,6 +1736,35 @@ export class CodexNativeHost {
       aliases,
       rejectionTraced:false,
     }
+    if(batch.count>1){
+      batch.canvasDecisionBatch=createCanvasDecisionBatch(session)
+      // The installed CLI can still wrap dynamic tools in exec even when Code
+      // Mode is disabled. Its actual callbacks supply resolved JSON arguments;
+      // do not evaluate or parse the JavaScript wrapper in the PenEcho host.
+      batch.callbackOrdered=calls.length===1&&calls[0].name==='exec'
+      let predecessor=Promise.resolve()
+      for(const call of underlyingCalls){
+        call.predecessor=predecessor
+        predecessor=new Promise(resolve=>{call.complete=resolve})
+      }
+      try{
+        if(batch.count>MAX_CANVAS_DECISION_TOOLS)throw Object.assign(new Error(`A decision supports at most ${MAX_CANVAS_DECISION_TOOLS} calls.`),{code:'CANVAS_TOOL_BATCH_LIMIT'})
+        const ids=new Set()
+        for(const call of calls){
+          if(call.name==='exec'){
+            if(!batch.callbackOrdered)throw Object.assign(new Error('Do not mix wrapper and direct tool batches; return direct tool calls.'),{code:'CANVAS_TOOL_BATCH_WRAPPER'})
+            for(const name of call.underlyingToolNames)if(!session.native.tool(name))throw Object.assign(new Error(`Unavailable tool: ${name}.`),{code:'CANVAS_TOOL_UNAVAILABLE'})
+            continue
+          }
+          if(call.namespace!==null&&call.namespace!=='penecho')throw new Error('Tool namespace is unavailable.')
+          if(!session.native.tool(call.name))throw Object.assign(new Error(`Unavailable tool: ${call.name}.`),{code:'CANVAS_TOOL_UNAVAILABLE'})
+          if(!call.aliases.length||call.aliases.some(id=>ids.has(id)))throw new Error('Tool call IDs must be nonempty and unique.')
+          call.aliases.forEach(id=>ids.add(id))
+          const args=typeof call.arguments==='string'?JSON.parse(call.arguments):call.arguments
+          if(!args||typeof args!=='object'||Array.isArray(args))throw new Error('Tool arguments must be a JSON object.')
+        }
+      }catch(error){batch.admissionError={code:error.code||'CANVAS_TOOL_ARGUMENTS_INVALID',message:error.message}}
+    }
     active.rawBoundaryCount++
     active.sealedDecisionBatches.push(batch)
     session.traceDecisionProtocol?.({
@@ -1940,20 +1971,38 @@ export class CodexNativeHost {
     }
     matched.state='admitted'
     rawCall.admitted=true
-    if(batch.count>1){
+    if(batch.admissionError){
       if(callId&&callId.length<=256)active.callIds.add(callId)
-      const message=`PenEcho Agent decision rejected: this model step returned ${batch.count} tool calls. Exactly one tool call is allowed per model step; the entire decision was rejected before execution and no Canvas tool ran. Return exactly one corrected tool call, or a final answer only when the task is complete or cannot proceed.`
-      this.traceNativeDecisionRejection(session,batch,'CANVAS_ONE_TOOL_PER_STEP',message)
+      const message=`PenEcho Agent decision rejected: ${batch.admissionError.message} The entire decision was rejected before execution; no Canvas tool ran. Return corrected direct JSON tool calls.`
+      this.traceNativeDecisionRejection(session,batch,batch.admissionError.code,message)
       return {success:false,contentItems:[{type:'inputText',text:message}]}
     }
-    if(batch.count!==1){
+    if(batch.count<1){
       const message='Codex dynamic tool call has no unique raw model response boundary.'
       this.traceNativeDecisionRejection(session,batch,'CODEX_NATIVE_TOOL_CALL_NOT_UNIQUE',message)
       throw new Error(message)
     }
-    const parsed=this.parseNativeToolRequest(request)
-    active.callIds.add(parsed.callId)
-    return this.executeNativeToolRequest(session,parsed)
+    if(!batch.canvasDecisionBatch){
+      const parsed=this.parseNativeToolRequest(request)
+      if(parsed.name!==matched.name)throw new Error('Dynamic tool name differs from the admitted model decision.')
+      active.callIds.add(parsed.callId)
+      return this.executeNativeToolRequest(session,parsed)
+    }
+    // Requests can arrive out of order. Wait before joining the session queue,
+    // otherwise a later call could hold that queue while awaiting its predecessor.
+    try{
+      const parsed=this.parseNativeToolRequest(request)
+      if(parsed.name!==matched.name)throw new Error('Dynamic tool name differs from the admitted model decision.')
+      if(!batch.callbackOrdered){
+        const rawArgs=typeof rawCall.arguments==='string'?JSON.parse(rawCall.arguments):rawCall.arguments
+        if(!isDeepStrictEqual(parsed.args,rawArgs))throw new Error('Dynamic tool arguments differ from the admitted model decision.')
+      }
+      active.callIds.add(parsed.callId)
+      if(!batch.callbackOrdered)await raceAbortableExecution(matched.predecessor,active.inputController.signal,'Canvas batch cancelled.')
+      if(active.settled)throw new Error('Canvas batch turn already ended.')
+      return await this.executeNativeToolRequest(session,{...parsed,canvasDecisionBatch:batch.canvasDecisionBatch})
+    }catch(error){batch.canvasDecisionBatch.failed=true;throw error}
+    finally{matched.complete()}
   }
 
   rejectNativeToolAdmission(active, error) {
@@ -1985,7 +2034,7 @@ export class CodexNativeHost {
       this.emitPublicEvent(session, { kind:'tool_call', turn:session.turnNumber, callId, name, arguments:redactPublicProjectValue(args, session) })
       try {
         const value = await raceAbortableExecution(
-          Promise.resolve().then(() => tool.execute(args, { callId, signal:controller.signal, concludeTurn:()=>{concludesTurn=true} })),
+          Promise.resolve().then(() => tool.execute(args, { callId, signal:controller.signal, canvasDecisionBatch:request.canvasDecisionBatch, concludeTurn:()=>{concludesTurn=true} })),
           controller.signal,
           `PenEcho tool ${name} timed out.`,
         )
@@ -2009,6 +2058,7 @@ export class CodexNativeHost {
         if(concludesTurn)this.concludeNativeTurnAfterTool(session,active,value)
         return response
       } catch (error) {
+        if(request.canvasDecisionBatch&&['canvas_create','canvas_edit','canvas_patch_widget','canvas_revert'].includes(name))request.canvasDecisionBatch.failed=true
         if (toolStillActive()) session.native.recordToolResult({ isError:true, error })
         const text = boundedText(redactPublicProjectValue(safeError(error, `PenEcho tool ${name} failed.`), session), 2_000)
         if (toolStillActive()) this.emitPublicEvent(session, { kind:'tool_result', turn:session.turnNumber, callId, text, error:{ code:'CODEX_TOOL_FAILED', message:text } })

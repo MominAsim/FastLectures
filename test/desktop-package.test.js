@@ -189,7 +189,7 @@ test("desktop LAN addresses exclude tunnels and prioritize common LAN ranges", (
     lo0:[{ address:"127.0.0.1", family:"IPv4", internal:true }],
     ipv6:[{ address:"2001:db8::1", family:"IPv6", internal:false }],
   });
-  assert.deepEqual(hosts, ["192.168.1.20", "192.168.56.1", "10.0.0.5", "172.20.32.1", "100.100.1.2", "169.254.10.20", "203.0.113.8"]);
+  assert.deepEqual(hosts, ["192.168.1.20", "10.0.0.5", "203.0.113.8"]);
   assert.equal(isPrivateIpv4("172.31.255.1"), true);
   assert.equal(isPrivateIpv4("172.32.0.1"), false);
   assert.deepEqual(lanUrls(3888, hosts), hosts.map(host => `http://${host}:3888/`));

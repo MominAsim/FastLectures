@@ -147,7 +147,7 @@ src/server/main.js (CommonJS)
   tools: { mode: "native" },
   agentLoop: {
     agents: [],
-    maxParallelToolCalls: 1
+    maxParallelToolCalls: 4
   },
   compaction: {
     thresholdRatio: 0.625,
@@ -261,10 +261,11 @@ Harness engine 把固定、可复用且跨 step 不变的 Visual Explorer 与 Wi
 
 本节只适用于新的 PenEcho Agent，不得接入 Main Canvas AI、`/api/ai/command` 或旧 one-shot Canvas AI adapter。
 
-- 一个模型 step 最多包含一个工具调用；零个工具调用时可以直接 final。该约束不限制一次用户请求包含多少个顺序 model step。`maxParallelToolCalls: 1` 只表示串行执行，不能满足该约束；因此 Harness engine 必须在 AgentLoop 记录 assistant decision、执行任何真实工具之前，对完整 `llm/stream` step 做统一准入。若发现两个或更多调用，整步替换为一个仅模型可见的错误 tool result，明确说明调用数量、整步已拒绝且没有 Canvas 工具执行，然后让 AgentLoop 继续原用户请求。不得因此 cancel、close session 或提前结束回复，也不得对外宣称支持同一步多个工具调用。
-- Codex-native 不经过 Harness。thread 必须开启 App Server `experimentalRawEvents`，以每个 `rawResponse/completed` 作为上游单次模型 response 的精确边界。Code Mode 的 raw item 是 `exec` wrapper；PenEcho 必须从 wrapper 中统计 `tools.penecho__*` 调用，并按工具名与 response 顺序匹配 App Server 后续发出的独立 `exec-*` dynamic call id，不能假设两套 id 相等。超过一个底层工具调用时，全部 dynamic request 返回失败结果且不发浏览器 RPC，App Server 在同一 thread 内继续。
+- 一个模型 step 可包含最多 16 个已知工具调用，零调用可以 final。完整决策在执行前校验工具可用性、JSON 和唯一 call ID；非法或截断决策整体替换成可恢复的模型反馈。合法批次原样进入 Harness canonical history，保留 replay metadata。独立 `canvas_read` 可并发，最多 4 个；mutation 保持独占、按模型顺序执行。
+- 同批写入可提交同一份已观察到的 `baseRevision`。宿主仅依据本批成功写入的连续回执衔接 revision，浏览器仍做最终精确校验；绝不拿最新 digest 自动重试。`sourceHash` 原样保留，不跨对象或跨批次改写。失败或无法确认回执归属后，后续写入停止，已有成功结果保留，诊断读取仍可执行。它不是跨工具事务；一次 `canvas_edit` 内的 operations 仍是原子操作。
+- Codex-native 以 `rawResponse/completed` 为完整模型边界。直接 JSON 工具批次先整体校验，动态调用的 name/arguments 必须匹配 raw decision；请求乱序到达时在加入执行队列前等待前序调用，取消时释放等待。仍关闭 Code Mode 配置；兼容已安装 CLI 实际产生的单个 `exec` wrapper：先核对声明的工具名称和数量，再对实际到达的 JSON 回调逐个校验，按回调顺序串行执行并复用同一 revision 链。宿主不执行 wrapper JavaScript；不支持混合 wrapper 与直接调用批次。
 - API/Harness、Kimi CLI、Claude CLI 与 Codex dynamic tool request 都使用现有标准工具 schema。`html`、`source`、`patch` 是普通 JSON string 字段，无 one-hot header、raw body、source ref 或自定义版本标记。模型/provider 必须按各自原生 tool protocol 生成合法转义；PenEcho 只做一次标准解析和 schema 校验，不猜测或修补非法 JSON。
-- API/Harness 路径在 provider-runtime 的完整 `llm/stream` 决策边界先缓冲、准入、再投影。未改变的 final/single-tool step 按原 chunk 顺序透传并保留 provider replay metadata；多工具拒绝会合成 feedback tool result，因此丢弃不匹配的该 step replay envelope，下一请求从 Harness canonical history 派生。
+- API/Harness 在完整 `llm/stream` 决策边界先缓冲工具、准入、再投影；之前的公开进展仍可流式呈现。合法 final、单工具及多工具 step 按原 chunk 顺序透传，保留 provider replay metadata。仅在决策被替换成 feedback 时丢弃不再匹配的该 step replay envelope。
 - 本地 request trace 保存完整 provider diagnostic、Codex raw wrapper、dynamic server request 的已解析参数和拒绝详情（credential/token 字段仍按全局日志规则脱敏），用于区分“传输层 JSON 显示转义”与“解析后源码真的改变”。
 
 #### `penecho-credentials`
@@ -591,7 +592,7 @@ Harness 在每个模型 step 自动注入 Canvas-Agent-only Visual Explorer cont
 ### 7.10 通用执行规则
 
 - `exec.callId` 是 `(canvasSessionId, callId)` 范围内的幂等键；浏览器缓存终态结果，重复请求返回原结果。
-- mutation tools 独占执行。MVP 即使读取工具理论上安全，也通过 `maxParallelToolCalls: 1` 串行执行。
+- mutation tools 独占执行。Harness 使用 `maxParallelToolCalls: 4`，只对显式声明并发安全的读取开放并发；Native Canvas 工具按模型顺序执行。成功写入立即失效旧截图缓存，不等待稍后到达的浏览器 digest。
 - 所有工具尊重 Harness `exec.signal`。
 - 首版统一 tool RPC deadline 为 45 秒；浏览器端截图压缩和 Widget snapshot 也必须尊重该 deadline。
 - 任何 schema/策略错误都返回结构化错误，不抛出包含内部路径或 secret 的 raw stack。
@@ -774,7 +775,7 @@ Harness attachment refs 要求二进制在 session log 外可寻址。PenEcho Ag
 | Codex CLI | 支持 | 独立 native host：单 Canvas conversation 复用一个隔离 `app-server` process/ephemeral thread；只开放 PenEcho dynamic tools，不进入 Harness |
 | Claude CLI | 支持 | Harness 专用长驻 `stream-json` 进程 + `--tools ""` + strict MCP config + safe mode |
 
-Kimi 与 Claude 由 `penecho-cli-llm` 使用窄 decision protocol：每个 step 返回覆盖完整响应的一个标准 `final` 或 `tool_call` JSON 对象，HTML/source/patch 直接位于 `arguments`；插件翻译成 Harness `StreamChunk` 后仍由统一准入层决定是否执行。其自带工具关闭，上游 conversation 只在 replay metadata 与 canonical Harness history 一致时续接。Codex 是例外：App Server 原生 tool-call stream、thread history 和 automatic compaction 直接拥有该 provider conversation，PenEcho 不在 Harness 内建立镜像或执行 snapshot replay。
+Kimi 与 Claude 由 `penecho-cli-llm` 使用窄 decision protocol：每个 step 返回覆盖完整响应的一个标准 `final`、`tool_call` 或 `tool_calls` JSON 对象，HTML/source/patch 直接位于 `arguments`；插件翻译成 Harness `StreamChunk` 后仍由统一准入层决定是否执行。其自带工具关闭，上游 conversation 只在 replay metadata 与 canonical Harness history 一致时续接。Codex 是例外：App Server 原生 tool-call stream、thread history 和 automatic compaction 直接拥有该 provider conversation，PenEcho 不在 Harness 内建立镜像或执行 snapshot replay。
 
 右上角 connection switch 是唯一模型选择来源。一个 PenEcho Agent session 固定绑定一个 connection 和一个 engine，防止一轮内混用 provider；切换 connection、保存选中 connection 的配置或删除选中 connection 时，客户端先失效旧 generation、取消待决提交/工具并创建新的 provider conversation。即使面板隐藏，涉及进入或离开 `codex-cli` 的 transition 也必须销毁旧 native owner；Harness 到 Harness 的隐藏面板行为保持既有语义。`ready.connectionId`、`ready.engine` 和当前 handshake identity 必须共同匹配后才能接受新 session。
 

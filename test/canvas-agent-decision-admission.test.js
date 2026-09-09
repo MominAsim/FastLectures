@@ -57,8 +57,8 @@ test('public progress streams before provider completion while tool admission st
     for await(const chunk of stream)chunks.push(chunk)
     assert.equal(chunks.filter(chunk=>chunk.type==='text-delta').length,1,'do not replay streamed commentary')
     const calls=chunks.filter(chunk=>chunk.type==='block-end'&&chunk.block?.type==='tool-call')
-    assert.equal(calls.length,1)
-    assert.equal(calls[0].block.name,CANVAS_DECISION_FEEDBACK_TOOL,'reject both proposed tools before either can execute')
+    assert.equal(calls.length,2)
+    assert.equal(calls.every(call=>call.block.name==='canvas_inspect'),true,'release the validated batch only after provider completion')
   }finally{clearTimeout(deadline);release();await stream.return()}
 })
 
@@ -79,18 +79,13 @@ test('closing a progress stream closes its upstream before any tool executes',as
   assert.equal(toolReached,false)
 })
 
-test('PenEcho Agent rejects a multi-tool step before execution and returns bounded corrective feedback',async()=>{
-  const admission=await import('../src/server/canvas-agent/decision-admission.mjs'),session=decisionSession(),chunks=await collect(admission.admitCanvasAgentDecisionStream(modelBlocks([
-    {type:'tool-call',id:'a',name:'canvas_inspect',arguments:'{"scope":"canvas"}'},
-    {type:'tool-call',id:'b',name:'canvas_capture',arguments:'{"target":"canvas","quality":"basic"}'},
-  ]),{session,availableTools:['canvas_inspect','canvas_capture']})),calls=chunks.filter(chunk=>chunk.type==='block-end'&&chunk.block?.type==='tool-call').map(chunk=>chunk.block)
-  assert.equal(calls.length,1)
-  assert.equal(calls[0].name,admission.CANVAS_DECISION_FEEDBACK_TOOL)
-  const feedback=await admission.canvasDecisionFeedbackResult(session,{name:calls[0].name,callId:String(calls[0].id)},()=>Promise.reject(new Error('must not delegate')))
-  assert.equal(feedback.isError,true)
-  assert.equal(feedback.error.info.code,'CANVAS_ONE_TOOL_PER_STEP')
-  assert.match(feedback.content[0].text,/returned 2 tool calls[\s\S]*no Canvas tool ran[\s\S]*one corrected standard JSON tool call/)
-})
+test('PenEcho Agent admits a known tool batch without an extra model round',async()=>{
+  const admission=await import('../src/server/canvas-agent/decision-admission.mjs'),session=decisionSession();
+  const blocks=[{type:'tool-call',id:'a',name:'canvas_inspect',arguments:'{}'}, {type:'tool-call',id:'b',name:'canvas_capture',arguments:'{}'}];
+  const chunks=await collect(admission.admitCanvasAgentDecisionStream(modelBlocks(blocks),{session,availableTools:['canvas_inspect','canvas_capture']}));
+  assert.deepEqual(chunks.filter(c=>c.type==='block-end').map(c=>c.block),blocks);
+  assert.equal(session.protocolRecords.length,0);
+});
 
 test('PenEcho Agent passes a large standard JSON tool call unchanged and preserves exact HTML after one parse',async()=>{
   const admission=await import('../src/server/canvas-agent/decision-admission.mjs'),session=decisionSession(),html=`<!doctype html>\n<style>.quote::after{content:'"\\\\';}</style>\n<script>const path="C:\\\\tmp\\\\widget";</script>\n<main>${'long-source-line\n'.repeat(500)}</main>`,
@@ -122,7 +117,7 @@ test('PenEcho Agent validates a multi-tool decision atomically before exposing a
   ],chunks=await collect(admission.admitCanvasAgentDecisionStream(modelBlocks(blocks),{session,availableTools:['canvas_inspect','canvas_capture']})),calls=chunks.filter(chunk=>chunk.type==='block-end'&&chunk.block?.type==='tool-call').map(chunk=>chunk.block)
   assert.equal(calls.length,1)
   assert.equal(calls[0].name,admission.CANVAS_DECISION_FEEDBACK_TOOL)
-  assert.equal(session.protocolRecords[0].code,'CANVAS_ONE_TOOL_PER_STEP')
+  assert.equal(session.protocolRecords[0].code,'CANVAS_TOOL_ARGUMENTS_INVALID')
 })
 
 test('PenEcho Agent leaves final text and one valid tool stream unchanged',async()=>{
@@ -139,4 +134,15 @@ test('PenEcho Agent rejects a token-truncated tool decision and continues throug
   ],{finishKind:'max-tokens'}),{session,availableTools:['canvas_create']})),call=chunks.filter(chunk=>chunk.type==='block-end'&&chunk.block?.type==='tool-call').at(-1)?.block
   assert.equal(call.name,admission.CANVAS_DECISION_FEEDBACK_TOOL)
   assert.equal(session.decisionFeedbackCalls.get(String(call.id)).code,'CANVAS_TOOL_DECISION_INCOMPLETE')
+})
+
+test('batch admission rejects duplicate call identities and bounded-size overflow',async()=>{
+  const admission=await import('../src/server/canvas-agent/decision-admission.mjs')
+  for(const [blocks,code] of [
+    [[{type:'tool-call',id:'same',name:'canvas_read',arguments:'{}'},{type:'tool-call',id:'same',name:'canvas_read',arguments:'{}'}],'CANVAS_TOOL_CALL_ID_INVALID'],
+    [Array.from({length:17},(_,i)=>({type:'tool-call',id:String(i),name:'canvas_read',arguments:'{}'})),'CANVAS_TOOL_BATCH_LIMIT'],
+  ]){
+    const session=decisionSession(),result=admission.admitCanvasDecision({session,blocks,availableTools:['canvas_read']})
+    assert.equal(result.kind,'feedback');assert.equal(session.protocolRecords[0].code,code)
+  }
 })

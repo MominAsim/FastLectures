@@ -110,6 +110,7 @@ function harness(options = {}) {
     save: () => {}, requestRender: () => { control.renders += 1; }, render: () => { control.renders += 1; },
     serializedWidgets: () => state.widgets.map(item => ({ ...item })), storedTextBoxes: () => state.textBoxes.map(item => ({ ...item })), storedImages: () => state.images.map(item => ({ ...item })), serializedAnimations: () => [],
     imageHistoryState: () => [], textBoxHistoryState: () => [], positionWidget: () => {}, unmountWidget: () => { control.mounts += 1; },
+    restoreCanvasObjectFrontKinds:(front,placed)=>{state.frontCanvasObjectKind=["image","widget","text-box"].includes(front)?front:"image";state.frontPlacedCanvasObjectKind=["image","text-box"].includes(placed)?placed:"image";},
     snapshotExtensionObject: value => structuredClone(value || {}), snapshotPreservedAssets: value => structuredClone(value || []),
     finalizeCanvasForSnapshot: async () => {}, canvasBlob: async value => value, cloneCanvas: value => value,
     offscreen: () => ({ getContext: () => ({ drawImage: () => {}, clearRect: () => {} }) }),
@@ -126,7 +127,7 @@ function harness(options = {}) {
   });
   const scripts = ["document-identity.js", "mcp-runtime.js", "canvas-documents.js"]
     .map(file => fs.readFileSync(path.join(ROOT, "src/client/app", file), "utf8")).join("\n");
-  vm.runInContext(`${clientFunction("core.js", "canvasClientId")}\n${["currentCanvasDisplayName","currentCanvasNeedsAgentName","applyCurrentCanvasGeneratedName"].map(name=>clientFunction("persistence.js",name)).join("\n")}\n${scripts}\nglobalThis.api={canvasDocumentIdentity,canvasDocuments,canvasDocumentsReady,canvasDocumentsCurrent,canvasDocumentsExternal,canvasDocumentsRecord,canvasDocumentsSaveMetadata,canvasDocumentsDidSave,canvasDocumentsExecute,canvasDocumentsQueueMessage,canvasDocumentsClose,mcpRuntime};`, context);
+  vm.runInContext(`${clientFunction("core.js", "canvasClientId")}\n${["snapshotCanvasObjectExtensions","restoreSnapshotCanvasObjectOrder","currentCanvasDisplayName","currentCanvasNeedsAgentName","applyCurrentCanvasGeneratedName"].map(name=>clientFunction("persistence.js",name)).join("\n")}\n${scripts}\nglobalThis.api={canvasDocumentIdentity,canvasDocuments,canvasDocumentsReady,canvasDocumentsCurrent,canvasDocumentsExternal,canvasDocumentsRecord,canvasDocumentsSaveMetadata,canvasDocumentsDidSave,canvasDocumentsExecute,canvasDocumentsQueueMessage,canvasDocumentsClose,mcpRuntime};`, context);
   context.api.canvasDocuments.db = memoryDb(records, control);
   return { ...context.api, context, control, records, state, listeners };
 }
@@ -463,6 +464,28 @@ test("unseen background updates survive reload and clear persistently when shown
   assert.equal(third.canvasDocuments.records.get(opened.documentId).unseen, 0);
 });
 
+test("failed Canvas decoding before activation preserves background unread state", async () => {
+  const records = new Map(), h = harness({ records });
+  const opened = await createHidden(h, "unseen-decode-failure", "Unread decode failure");
+  await startHidden(h, opened.documentId, "unseen-decode-session");
+  await h.canvasDocumentsExecute("mcp_present_widget", {
+    sessionId: "unseen-decode-session", artifactId: "unseen-decode-artifact",
+    title: "Unread artifact", html: "<p>New content</p>",
+  }, {});
+  const doc = h.canvasDocuments.records.get(opened.documentId), unseen = doc.unseen;
+  assert.ok(unseen > 0);
+  assert.equal(records.get(opened.documentId).unseen, unseen);
+
+  h.context.decodeSnapshotTilesInBatches = async () => { throw Error("snapshot decode failed"); };
+  await assert.rejects(
+    h.canvasDocumentsExecute("mcp_open_canvas", { documentId: opened.documentId, requestId: "unseen-decode-show", show: true }, {}),
+    /snapshot decode failed/,
+  );
+  assert.equal(h.canvasDocuments.activeId, "visible-document");
+  assert.equal(doc.unseen, unseen);
+  assert.equal(records.get(opened.documentId).unseen, unseen);
+});
+
 test("invalid persisted unseen values reset to zero", async () => {
   const records = new Map(), first = harness({ records });
   const opened = await createHidden(first, "unseen-invalid", "Invalid");
@@ -772,4 +795,23 @@ test("draw_ink canonical raster tiles round trip through real save undo and redo
   assert.equal(state.history.length,1);assert.equal(tiles.get("0,0").marks.length,2);
   context.undo();assert.equal(tiles.size,0);assert.equal(state.future.length,1);
   context.redo();assert.equal(tiles.get("0,0").marks.length,2);assert.equal(tiles.get("0,0").marks[0].color,"#42b983");
+});
+
+test("saved Widget front order survives workspace reload and explicit save metadata", async () => {
+  const records = new Map(), first = harness({records});
+  await first.canvasDocumentsReady();
+  const doc = first.canvasDocumentsCurrent();
+  first.state.widgets = [{id:"widget-2"},{id:"widget-1"}];
+  first.state.frontCanvasObjectKind = "widget";
+  first.state.frontPlacedCanvasObjectKind = "text-box";
+  first.state.userRevision++;
+  const metadata = first.canvasDocumentsSaveMetadata();
+  assert.deepEqual({...metadata.penechoObjectOrder},{version:1,frontKind:"widget",placedKind:"text-box"});
+  await first.context.canvasDocumentsPark();
+  const second = harness({records,activeId:"different-canvas"});
+  await second.canvasDocumentsReady();
+  await second.canvasDocumentsExecute("mcp_open_canvas",{documentId:doc.id,requestId:"restore-order",show:true},{});
+  assert.deepEqual(second.state.widgets.map(w=>w.id),["widget-2","widget-1"]);
+  assert.equal(second.state.frontCanvasObjectKind,"widget");
+  assert.equal(second.state.frontPlacedCanvasObjectKind,"text-box");
 });

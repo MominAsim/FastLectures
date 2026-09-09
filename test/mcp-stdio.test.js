@@ -262,7 +262,7 @@ test("stdio framing rejects malformed JSON without writing logs around protocol 
 test("stdio starts before PenEcho, discovers multiple live instances, and pins sessions to the selected instance", async () => {
   const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-stdio-discovery-"));
   const input = new PassThrough(), output = new PassThrough(), next = outputReader(output);
-  const stdio = new PenEchoStdioServer({ input, output, stateDirectory }).start();
+  const stdio = new PenEchoStdioServer({ input, output, stateDirectory, registryStateDirectory:stateDirectory }).start();
   const send = value => input.write(`${JSON.stringify(value)}\n`);
   send({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:PROTOCOL_VERSION,capabilities:{},clientInfo:{name:"test",version:"1"}}});
   assert.equal((await next()).result.protocolVersion, PROTOCOL_VERSION);
@@ -310,7 +310,7 @@ test("penecho mcp enters stdio directly without an app banner or model preflight
   const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cli-mcp-"));
   const child = spawn(process.execPath, [path.resolve(__dirname, "../cli.js"), "mcp", "--state-directory", stateDirectory], {
     cwd:path.resolve(__dirname, ".."),
-    env:{...process.env},
+    env:{...process.env, HOME:stateDirectory, USERPROFILE:stateDirectory},
     stdio:["pipe", "pipe", "pipe"],
   });
   const next = outputReader(child.stdout);

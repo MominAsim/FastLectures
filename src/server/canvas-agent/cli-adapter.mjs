@@ -24,8 +24,8 @@ const CLI_REASONING_LEVELS = Object.freeze(['off', 'minimal', 'low', 'medium', '
 
 const CLI_PROTOCOL_SYSTEM = `Harness owns the conversation and tools. Return bare JSON. Never invoke CLI built-ins; no prose/fences/reasoning. Use images.
 Before substantial tool work, first add "progress":"Progress: public update" (or "进展：…"), max 160 chars, no reasoning/args; never alone.
-Forms: {"type":"final","text":"..."} or {"progress":"Progress: …","type":"tool_call","name":"NAME","arguments":{}}.
-Use one schema-valid HARNESS REQUEST.availableTools name; JSON-escape source/patch. Errors are feedback; final only when done/blocked.`
+Forms: {"type":"final","text":"..."}, {"type":"tool_call","name":"NAME","arguments":{}}, or {"type":"tool_calls","calls":[{"name":"NAME","arguments":{}},{"name":"NAME","arguments":{}}]} for up to 16 known calls.
+Use schema-valid HARNESS REQUEST.availableTools names; JSON-escape source/patch. Canvas calls run in order. Never guess earlier results. Errors are feedback; final only when done/blocked.`
 
 function hash(value) {
   return createHash('sha256').update(String(value)).digest('hex')
@@ -241,7 +241,7 @@ export function parseCliDecision(output, toolNames = []) {
   const progress=decisionProgress(value)
   const multiple=Array.isArray(value)?value:(value?.type==='tool_calls'&&Array.isArray(value.calls)?value.calls:null)
   if(multiple){
-    if(multiple.length<2)throw invalidCliDecision('PenEcho Agent CLI tool_calls must contain more than one call so Harness can reject the whole decision.')
+    if(multiple.length<2)throw invalidCliDecision('PenEcho Agent CLI tool_calls must contain at least two calls; use tool_call for one.')
     const calls=multiple.map((call,index)=>{
       if(!call||typeof call!=='object'||Array.isArray(call)||!['tool_call',undefined].includes(call.type))throw invalidCliDecision(`PenEcho Agent CLI tool_calls[${index}] is invalid.`)
       const name=String(call.name||'')

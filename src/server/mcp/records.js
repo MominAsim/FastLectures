@@ -7,8 +7,12 @@ const path = require("node:path");
 const RECORD_VERSION = 1;
 const INSTANCE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function registryStateDirectory() {
+  return path.join(os.homedir(), ".penecho");
+}
+
 function recordsDirectory(stateDirectory) {
-  const base = stateDirectory ? path.resolve(stateDirectory) : path.join(os.homedir(), ".penecho");
+  const base = stateDirectory ? path.resolve(stateDirectory) : registryStateDirectory();
   return path.join(base, "mcp", "instances");
 }
 
@@ -73,4 +77,19 @@ function removeRecord(directory, identity) {
   } catch (error) { if (error?.code !== "ENOENT") throw error; }
 }
 
-module.exports = { RECORD_VERSION, processIsAlive, readRecords, recordsDirectory, removeRecord, writeRecord };
+// Prefer the shared record when a legacy directory contains the same instance.
+function discoverRecords({ stateDirectory, registryStateDirectory:sharedDirectory } = {}) {
+  const directories = new Set([recordsDirectory(sharedDirectory)]);
+  if (stateDirectory) directories.add(recordsDirectory(stateDirectory));
+  const records = new Map();
+  for (const directory of directories) {
+    let candidates;
+    try { candidates = readRecords(directory); } catch { continue; }
+    for (const record of candidates) {
+      if (!records.has(record.instanceId) && processIsAlive(record.pid)) records.set(record.instanceId, record);
+    }
+  }
+  return [...records.values()].sort((a, b) => Number(b.startedAt || 0) - Number(a.startedAt || 0));
+}
+
+module.exports = { discoverRecords, registryStateDirectory, RECORD_VERSION, processIsAlive, readRecords, recordsDirectory, removeRecord, writeRecord };

@@ -968,7 +968,76 @@ test("Codex Native rejected steering rolls back per-turn parity state without re
   assert.equal((await submitted).output,"Still active.");
 });
 
-test("Codex Native rejects every call in a multi-tool model step before browser execution and continues the turn", async t => {
+test("Codex Native executes a batch in model order even when transport requests arrive reversed",async t=>{
+  const harness=await createNativeHarness();t.after(()=>harness.cleanup())
+  const session=await harness.connect(),process=harness.processes[0]
+  process.requestHandler=async method=>{
+    if(method!=="turn/start")return{}
+    const turnId="ordered-batch"
+    setImmediate(async()=>{
+      process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:turnId}})
+      const calls=[
+        {callId:"first-read",tool:"canvas_inspect",arguments:{scope:"canvas"}},
+        {callId:"second-read",tool:"canvas_inspect",arguments:{scope:"selection"}},
+      ]
+      emitRawToolDecision(process,turnId,calls)
+      const later=process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,...calls[1]})
+      await new Promise(resolve=>setImmediate(resolve))
+      const earlier=process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,...calls[0]})
+      const results=await Promise.all([earlier,later]);assert.ok(results.every(r=>r.success))
+      process.emitNotification("item/agentMessage/delta",{threadId:process.threadId,turnId,delta:"Both inspected."})
+      process.emitNotification("turn/completed",{threadId:process.threadId,turn:{id:turnId,status:"completed",items:[]}})
+    })
+    return{turn:{id:turnId}}
+  }
+  const submitted=harness.host.submit(session,"Inspect both scopes.",false,[],{},null)
+  for(const [index,scope] of ["canvas","selection"].entries()){
+    await waitFor(()=>harness.messages.filter(m=>m.type==="tool_request").length===index+1)
+    const request=harness.messages.filter(m=>m.type==="tool_request")[index]
+    assert.equal(request.payload.arguments.scope,scope)
+    harness.host.resolveToolResult(session,{requestId:request.payload.requestId,ok:true,result:{revision:7}})
+  }
+  assert.equal((await submitted).output,"Both inspected.")
+  assert.equal(process.requests.filter(r=>r.method==="turn/start").length,1)
+})
+
+for(const wrapped of [false,true])for(const externalEdit of [false,true])test(`Codex Native ${wrapped?"wrapped":"direct"} sibling writes ${externalEdit?'stop at intervening user edits':'forward committed revisions'} through browser RPC`,async t=>{
+  const harness=await createNativeHarness();t.after(()=>harness.cleanup())
+  const session=await harness.connect(),process=harness.processes[0]
+  session.stateDigest={revision:10,canvas:{width:2048,height:2048},objects:[]}
+  process.requestHandler=async method=>{
+    if(method!=="turn/start")return{}
+    const turnId="revision-batch"
+    setImmediate(async()=>{
+      process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:turnId}})
+      const calls=[0,1,2].map(index=>({callId:`write-${index}`,tool:"canvas_edit",arguments:{baseRevision:10,operations:[{type:"update_text",objectId:`text-${index}`,text:"Updated"}]}}))
+      if(wrapped){
+        process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{type:"custom_tool_call",id:"wrapper-batch",call_id:"wrapper-call",name:"exec",arguments:calls.map(call=>`await tools.penecho__${call.tool}(${JSON.stringify(call.arguments)});`).join('\n')}})
+        process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId,responseId:"wrapped-batch",usage:null})
+      }else emitRawToolDecision(process,turnId,calls)
+      const results=await Promise.all(calls.map(call=>process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,...call})))
+      assert.deepEqual(results.map(r=>r.success),externalEdit?[true,false,false]:[true,true,true])
+      process.emitNotification("item/agentMessage/delta",{threadId:process.threadId,turnId,delta:"Batch finished."})
+      process.emitNotification("turn/completed",{threadId:process.threadId,turn:{id:turnId,status:"completed",items:[]}})
+    })
+    return{turn:{id:turnId}}
+  }
+  const submitted=harness.host.submit(session,"Update these texts.",false,[],{},null)
+  for(let index=0;index<(externalEdit?2:3);index++){
+    await waitFor(()=>harness.messages.filter(m=>m.type==="tool_request").length===index+1)
+    const request=harness.messages.filter(m=>m.type==="tool_request")[index]
+    assert.equal(request.payload.arguments.baseRevision,10+index)
+    // Deliberately do not update the synchronized digest: receipt ordering must
+    // work even if the browser's state notification is delayed.
+    harness.host.resolveToolResult(session,{requestId:request.payload.requestId,...(externalEdit&&index===1
+      ?{ok:false,error:{code:"REVISION_CONFLICT",message:"User edited the Canvas"}}
+      :{ok:true,result:{ok:true,previousRevision:10+index,revision:11+index}})})
+  }
+  assert.equal((await submitted).output,"Batch finished.")
+  assert.equal(harness.messages.filter(m=>m.type==="tool_request").length,externalEdit?2:3)
+})
+
+test("Codex Native rejects every call in a malformed multi-tool model step before browser execution and continues the turn", async t => {
   const traceEvents=[],harness = await createNativeHarness(),requestTraceDirectory=path.join(harness.directory,"logs","requests");
   const {createCanvasAgentRequestTracer}=require("../src/server/canvas-agent/request-trace.js"),requestTracer=createCanvasAgentRequestTracer({requestTraceDirectory,prune:()=>{}});
   harness.host.conversationTrace=event=>{traceEvents.push(event);requestTracer(event)};
@@ -1010,20 +1079,20 @@ test("Codex Native rejects every call in a multi-tool model step before browser 
   assert.equal(process.responseErrors.length, 0);
   for (const response of process.responses.slice(0,2)) {
     assert.equal(response.result.success, false);
-    assert.match(response.result.contentItems[0].text, /returned 2 tool calls/);
+    assert.match(response.result.contentItems[0].text, /JSON|property name/);
     assert.match(response.result.contentItems[0].text, /no Canvas tool ran/);
   }
   assert.equal(process.responses[2].result.success,true);
   assert.match(process.responses[2].result.contentItems[0].text,/"revision":7/);
   const protocolDiagnostics=traceEvents.filter(event=>event.phase==="diagnostic").map(event=>JSON.parse(event.diagnostic.traceDiagnostic));
   assert.ok(protocolDiagnostics.some(record=>record.kind==="native-response-boundary"&&record.toolCallCount===2&&record.recognizedCallIdCount===2));
-  const rejection=protocolDiagnostics.filter(record=>record.kind==="decision-rejected"&&record.code==="CANVAS_ONE_TOOL_PER_STEP");
+  const rejection=protocolDiagnostics.filter(record=>record.kind==="decision-rejected"&&record.code==="CANVAS_TOOL_ARGUMENTS_INVALID");
   assert.equal(rejection.length,1,"one rejected response boundary is traced once even though every call receives feedback");
   assert.equal(rejection[0].details.toolCallCount,2);
   assert.ok(protocolDiagnostics.some(record=>record.kind==="native-response-boundary"&&record.rawCalls?.some(call=>call.itemId==="codex-call-corrected"&&call.callId==="response-call-corrected")),"dynamic request ids may match raw item.id even when raw call_id differs");
   assert.equal(JSON.stringify(protocolDiagnostics).includes("{malformed"),true);
   const traceDirectory=fs.readdirSync(requestTraceDirectory,{withFileTypes:true}).find(entry=>entry.isDirectory()),trace=JSON.parse(fs.readFileSync(path.join(requestTraceDirectory,traceDirectory.name,"trace.json"),"utf8"));
-  assert.ok(trace.diagnostics.some(diagnostic=>diagnostic.error?.code==="CANVAS_ONE_TOOL_PER_STEP"));
+  assert.ok(trace.diagnostics.some(diagnostic=>diagnostic.error?.code==="CANVAS_TOOL_ARGUMENTS_INVALID"));
   assert.ok(trace.diagnostics.some(diagnostic=>diagnostic.trace?.value?.kind==="native-response-boundary"&&diagnostic.trace.value.toolCallCount===2));
   assert.equal(JSON.stringify(trace).includes("{malformed"),true);
 });
@@ -1197,7 +1266,7 @@ test("Codex Native executes a large standard JSON canvas_create carried by Code 
   assert.equal(process.responseErrors.length,0);
 });
 
-test("Codex Native counts underlying Code Mode tool invocations and rejects the whole multi-tool exec",async t=>{
+test("Codex Native rejects an unavailable sibling tool in a wrapped batch before any browser execution",async t=>{
   const traceEvents=[],harness=await createNativeHarness({conversationTrace:event=>traceEvents.push(event)});
   t.after(()=>harness.cleanup());
   const session=await harness.connect(),process=harness.processes[0];
@@ -1207,16 +1276,16 @@ test("Codex Native counts underlying Code Mode tool invocations and rejects the 
     setImmediate(async()=>{
       process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:turnId}});
       process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{
-        type:"custom_tool_call",id:"ctc-multi",call_id:"call-multi",name:"exec",arguments:'const a=await tools.penecho__canvas_inspect({scope:"canvas"}); const b=await tools.penecho__canvas_capture({target:"canvas",quality:"basic"}); text([a,b])',
+        type:"custom_tool_call",id:"ctc-multi",call_id:"call-multi",name:"exec",arguments:'const a=await tools.penecho__canvas_inspect({scope:"canvas"}); const b=await tools.penecho__unavailable_tool({target:"canvas",quality:"basic"}); text([a,b])',
       }});
       const requests=[
         process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-multi-a",namespace:"penecho",tool:"canvas_inspect",arguments:{scope:"canvas"}}),
-        process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-multi-b",namespace:"penecho",tool:"canvas_capture",arguments:{target:"canvas",quality:"basic"}}),
+        process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-multi-b",namespace:"penecho",tool:"unavailable_tool",arguments:{target:"canvas",quality:"basic"}}),
       ];
       process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId,responseId:"code-mode-multi",usage:null});
       const results=await Promise.all(requests);
       assert.equal(results.every(result=>result.success===false),true);
-      assert.equal(results.every(result=>/returned 2 tool calls/.test(result.contentItems[0].text)),true);
+      assert.equal(results.every(result=>/Unavailable tool/.test(result.contentItems[0].text)),true);
       process.emitNotification("item/agentMessage/delta",{threadId:process.threadId,turnId,delta:"Stopped after feedback."});
       process.emitNotification("item/completed",{threadId:process.threadId,turnId,item:{type:"agentMessage",text:"Stopped after feedback."}});
       process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId,responseId:"code-mode-multi-final",usage:null});
@@ -1228,7 +1297,7 @@ test("Codex Native counts underlying Code Mode tool invocations and rejects the 
   assert.equal(harness.messages.some(message=>message.type==="tool_request"),false);
   const diagnostics=traceEvents.filter(event=>event.phase==="diagnostic").map(event=>JSON.parse(event.diagnostic.traceDiagnostic));
   assert.ok(diagnostics.some(record=>record.kind==="native-response-boundary"&&record.wrapperCallCount===1&&record.toolCallCount===2));
-  assert.equal(diagnostics.filter(record=>record.code==="CANVAS_ONE_TOOL_PER_STEP").length,1);
+  assert.equal(diagnostics.filter(record=>record.code==="CANVAS_TOOL_UNAVAILABLE").length,1);
 });
 
 test("Codex Native expires an unexecuted Code Mode boundary before matching a later response",async t=>{
@@ -1260,7 +1329,7 @@ test("Codex Native expires an unexecuted Code Mode boundary before matching a la
   assert.equal((await submitted).output,"Corrected response matched.");
   const diagnostics=traceEvents.filter(event=>event.phase==="diagnostic").map(event=>JSON.parse(event.diagnostic.traceDiagnostic));
   assert.ok(diagnostics.some(record=>record.kind==="native-response-boundary-expired"&&record.responseId==="failed-exec-boundary"&&record.uncalledToolNames.length===2));
-  assert.equal(diagnostics.some(record=>record.code==="CANVAS_ONE_TOOL_PER_STEP"),false);
+  assert.equal(diagnostics.some(record=>record.code==="CANVAS_TOOL_ARGUMENTS_INVALID"),false);
 });
 
 test("Codex Native web_read executes through the injected SSRF-safe public fetch", async t => {

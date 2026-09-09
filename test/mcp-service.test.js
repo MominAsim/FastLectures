@@ -12,7 +12,8 @@ const { WebSocket } = require("ws");
 const { configurationArguments, configureClient, inspectConfiguredClients } = require("../src/server/mcp/configure.js");
 const { SESSION_INSTRUCTIONS } = require("../src/server/mcp/guidance.js");
 const { readRecords, recordsDirectory } = require("../src/server/mcp/records.js");
-const { createMcpService } = require("../src/server/mcp/service.js");
+const { createMcpService: createService } = require("../src/server/mcp/service.js");
+const createMcpService = options => createService({ ...options, registryStateDirectory:options.registryStateDirectory || options.stateDirectory || tempDirectory() });
 
 const temporaryDirectories = [];
 after(() => { for (const directory of temporaryDirectories) fs.rmSync(directory, { recursive:true, force:true }); });

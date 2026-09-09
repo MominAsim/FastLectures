@@ -394,6 +394,26 @@ test("opt-in browser editing opens stored Canvas without a device and keeps host
   assert.equal(run.fetchCalls.at(-1).url,"/api/v1/widget-fetch?url=https%3A%2F%2Fexample.test%2Fdata");
 });
 
+test("browser-only Canvas library reads report the linked-device state", async () => {
+  for (const [status, expectedCode, result] of [
+    ["unlinked", "linked_device_required", { device:null }],
+    ["offline", "device_offline", { device:{ name:"Host", platform:"linux", online:false } }],
+  ]) {
+    const run = boot({ nativeReads:true, respond:() => result });
+    await flush();
+    assert.equal(run.gate.dataset.state, "opening", `${status} browser editing should open the stored Canvas`);
+
+    for (const endpoint of ["/api/canvases", "/api/canvas-projects"]) {
+      const response = await run.window.fetch(endpoint);
+      assert.equal(response.status, 409, `${status} ${endpoint} should be blocked`);
+      assert.equal(response.ok, false, `${status} ${endpoint} should not look successful`);
+      const payload = await response.json();
+      assert.equal(payload.error, expectedCode, `${status} ${endpoint} error`);
+      assert.equal(payload.code, expectedCode, `${status} ${endpoint} code`);
+    }
+  }
+});
+
 test("Remote Canvas fetch wrapper preserves the Canvas base URL on nested community routes", async () => {
   const run = boot({
     pathname:`/canvas/community/${COMMUNITY_ID}`,
