@@ -508,8 +508,8 @@
             <span data-i18n="canvasWelcomeKicker">start here</span>
             <svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1.5 6h20M16.5 1.5 21 6l-4.5 4.5"/></svg>
           </span>
-          <strong data-i18n="canvasWelcomeTitle">Start sketching, or ask PenEcho Agent</strong>
-          <span data-i18n="canvasWelcomeBody">Draw with your pen, or start a conversation in the Agent sidebar on the right.</span>
+          <strong data-i18n="canvasWelcomeTitle">Start sketching, or create with AI</strong>
+          <span data-i18n="canvasWelcomeBody">Ask PenEcho Agent, or connect an external AI via MCP to create and edit canvas content.</span>
         </div>
         <canvas id="screen"></canvas>
         <canvas id="animationLayer" class="animation-layer" aria-hidden="true"></canvas>
@@ -1033,27 +1033,33 @@
             </section>
           </section>
           <section id="settingsPageConnections" class="settings-page" role="tabpanel" aria-labelledby="settingsNavConnections" data-settings-page="connections" hidden>
-            <section id="settingsHostedSection" class="settings-group settings-entry-group" aria-labelledby="settingsHostedHeading" hidden>
-              <div class="settings-quick-heading"><h3 id="settingsHostedHeading" data-i18n="settingsHostedModels">PenEcho models</h3><button id="settingsHostedRefresh" type="button" data-i18n="settingsHostedRefresh" data-pe-button="secondary" data-pe-density="compact">Refresh</button></div>
-              <p id="settingsHostedStatus" class="settings-save-status" role="status" aria-live="polite"></p>
+            <div id="settingsCloudAccount" class="settings-cloud-account" hidden>
+              <span class="settings-cloud-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-8 6 6 0 0 0-11.5-1A4.5 4.5 0 0 0 7 18Z"/></svg></span>
+              <strong>PenEcho Cloud</strong><span id="settingsCloudAccountStatus" role="status" aria-live="polite"></span>
+              <a id="settingsHostedBilling" target="_blank" rel="noopener noreferrer" data-i18n="settingsHostedBilling" data-pe-button="ghost" data-pe-density="compact">Account &amp; credits ↗</a>
+            </div>
+            <h3 id="settingsConfigurationHeading" class="settings-connections-title" data-i18n="settingsConnections">AI connections</h3>
+            <div id="settingsCloudSetup" class="settings-cloud-setup">
+              <span class="settings-cloud-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-8 6 6 0 0 0-11.5-1A4.5 4.5 0 0 0 7 18Z"/></svg></span>
+              <div class="settings-cloud-setup-copy"><strong data-i18n="settingsCloudSetupTitle">Sign in to use cloud connections</strong><p data-i18n="settingsCloudSetupHelp">Sign in to PenEcho Cloud, then choose a cloud model below. No API key or CLI setup needed.</p></div>
+              <a id="settingsCloudSetupLink" href="https://penecho.ai/auth.html" target="_blank" rel="noopener noreferrer" data-i18n="settingsCloudSetupLink" data-pe-button="secondary" data-pe-density="compact">Sign in</a>
+            </div>
+            <section id="settingsHostedSection" class="settings-connections-group" aria-labelledby="settingsHostedHeading" hidden>
+              <div class="settings-connections-heading"><h4 id="settingsHostedHeading" data-i18n="settingsHostedModels">Cloud models</h4><button id="settingsHostedRefresh" type="button" data-i18n="settingsHostedRefresh" data-pe-button="ghost" data-pe-density="compact">Refresh</button></div>
+              <p id="settingsHostedStatus" class="settings-save-status" role="status" aria-live="polite" hidden></p>
               <div id="settingsHostedList" class="settings-connection-quick-list"></div>
-              <details><summary data-i18n="settingsHostedPricing">How credits are calculated</summary><p data-i18n="settingsHostedPricingHelp">Input, cache reads, cache writes and output have separate rates. The displayed multiplier applies to each base rate. Your own connections do not spend PenEcho credits.</p><div id="settingsHostedRates"></div></details>
-              <a id="settingsHostedBilling" target="_blank" rel="noopener noreferrer" data-i18n="settingsHostedBilling" data-pe-button="ghost" data-pe-density="compact">Credits & billing ↗</a>
-              <p id="settingsHostedBrowserNotice" class="settings-help" data-i18n="settingsHostedBrowserNotice" hidden>Browser editing supports PenEcho models and Cloud saves. Link a device to configure your own connections, search or system settings, and use local files or PenEcho Agent.</p>
+              <details id="settingsHostedPricing" class="settings-hosted-pricing" hidden><summary data-i18n="settingsHostedPricing">How credits are calculated</summary><p data-i18n="settingsHostedPricingHelp">Input, cache reads, cache writes and output have separate rates. The displayed multiplier applies to each base rate. Your own connections do not spend PenEcho credits.</p><div id="settingsHostedRates" class="settings-rate-table"></div></details>
+            </section>
+            <section class="settings-connections-group" aria-labelledby="settingsLocalConnectionsHeading">
+              <div class="settings-connections-heading"><h4 id="settingsLocalConnectionsHeading" data-i18n="settingsLocalConnections">Local connections</h4><button id="settingsOpenApi" type="button" data-i18n="settingsManage" data-pe-button="primary" data-pe-density="compact">Manage</button></div>
+              <div id="settingsConnectionQuickList" class="settings-connection-quick-list"></div>
+              <p id="settingsLocalConnectionsEmpty" class="settings-help" data-i18n="settingsLocalConnectionsEmpty" hidden>No local connections yet. Choose Manage to add one.</p>
+              <p id="settingsHostedBrowserNotice" class="settings-help" data-i18n="settingsHostedBrowserNotice" hidden>Use PenEcho models to edit this Canvas and save to Cloud. Your own connections, local files and device settings need a linked device.</p>
               <a id="settingsHostedLinkDevice" href="/dashboard.html#devices" target="_blank" rel="noopener noreferrer" data-i18n="settingsHostedLinkDevice" data-pe-button="ghost" data-pe-density="compact" hidden>Link a device ↗</a>
             </section>
-            <section class="settings-group settings-entry-group" aria-labelledby="settingsConfigurationHeading">
-          <div class="settings-quick-heading"><h3 id="settingsConfigurationHeading" data-i18n="settingsConnections">AI connections</h3><button id="settingsOpenApi" type="button" data-i18n="settingsManage" data-pe-button="secondary" data-pe-density="compact">Manage</button></div>
-          <p class="settings-help" data-i18n="settingsCloudSetupHelp">No API key, or unsure how to set up a connection? Create a free PenEcho account to use PenEcho Cloud directly—no API or CLI setup needed.</p>
-          <a id="settingsCloudSetupLink" href="https://penecho.ai/dashboard.html" target="_blank" rel="noopener noreferrer" data-i18n="settingsCloudSetupLink" data-pe-button="ghost" data-pe-density="compact">Open PenEcho Cloud ↗</a>
-          <div id="settingsConnectionQuickList" class="settings-connection-quick-list"></div>
-          <div class="settings-entry-actions">
-            <button id="pluginButton" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="pluginPopover" data-i18n-aria="plugins" aria-label="Plugins" data-pe-hit="choice">
-              <strong data-i18n="plugins">Plugins</strong><small data-i18n="settingsPluginsEntryHelp">Manage AI capabilities</small>
-            </button>
-            <button id="settingsOpenSearch" type="button" data-pe-hit="choice"><strong data-i18n="settingsSearchEntry">Internet search</strong><small id="settingsSearchEntryStatus" data-i18n="settingsSearchNotConfigured">DuckDuckGo + built-in search ready · DeepSeek Flash or Tavily optional</small></button>
-            <button id="settingsOpenSystem" type="button" data-pe-hit="choice"><strong data-i18n="settingsSystemEntry">System settings</strong><small data-i18n="settingsSystemEntryHelp">Restart required after saving</small></button>
-          </div>
+            <section class="settings-connections-group" aria-labelledby="settingsCapabilitiesHeading">
+              <div class="settings-connections-heading"><h4 id="settingsCapabilitiesHeading" data-i18n="settingsCapabilities">Capabilities</h4></div>
+              <div class="settings-capability-list"><button id="pluginButton" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="pluginPopover" data-i18n-aria="plugins" aria-label="Plugins" data-pe-hit="choice"><span class="settings-capability-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg></span><span class="settings-capability-copy"><strong data-i18n="plugins">Plugins</strong><small data-i18n="settingsPluginsEntryHelp">Manage AI capabilities</small></span><svg class="settings-capability-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button><button id="settingsOpenSearch" type="button"  data-pe-hit="choice"><span class="settings-capability-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg></span><span class="settings-capability-copy"><strong data-i18n="settingsSearchEntry">Internet search</strong><small id="settingsSearchEntryStatus" data-i18n="settingsSearchNotConfigured">DuckDuckGo + built-in search ready · DeepSeek Flash or Tavily optional</small></span><svg class="settings-capability-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button><button id="settingsOpenSystem" type="button"  data-pe-hit="choice"><span class="settings-capability-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="17" r="2"/></svg></span><span class="settings-capability-copy"><strong data-i18n="settingsSystemEntry">System settings</strong><small data-i18n="settingsSystemEntryHelp">Restart required after saving</small></span><svg class="settings-capability-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></div>
             </section>
           </section>
           <section id="settingsPageMcp" class="settings-page settings-page-mcp" role="tabpanel" aria-labelledby="settingsNavMcp" data-settings-page="mcp" hidden>

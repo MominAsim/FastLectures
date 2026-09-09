@@ -14,7 +14,7 @@
   <a href="docs/readme/README.de.md">Deutsch</a>
 </p>
 
-<p align="center"><strong>An editable canvas for working with AI.</strong></p>
+<h1 align="center">A spatial workspace<br>for thinking with AI.</h1>
 <p align="center">Draw, explore, and build with the built-in Agent or your own MCP-compatible assistant.</p>
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.3.0-087f83" alt="Version 1.3.0">
@@ -29,9 +29,44 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_full_demo.webp" alt="Handwriting and AI answers on the PenEcho canvas" width="49%">
-  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins.webp" alt="Editable visual content in PenEcho" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_full_demo.webp" alt="PenEcho full demo" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins.webp" alt="PenEcho professional diagrams demo" width="49%">
 </p>
+
+<p align="center">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins_sub_x10.webp" alt="PenEcho plugins demo" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/play_patris.webp" alt="PenEcho interactive canvas demo" width="49%">
+</p>
+
+<p align="center">
+  <a href="https://www.kimi.com/code?aff=penecho">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/kimi-open-source-friends-dark.svg">
+      <img src="docs/assets/kimi-open-source-friends-light.svg" alt="Kimi Open Source Friends" width="326" height="56">
+    </picture>
+  </a>
+</p>
+
+## A spatial extension of your AI conversation
+
+Keep talking in **Codex, Claude, Kimi, or other AI agents**. Let PenEcho give the work a place to live.
+
+Through MCP, your AI can turn explanations into diagrams and ideas into interactive previews. Keep references, reasoning, and work side by side — then mark up the canvas and bring feedback into the next round.
+
+| Keep the conversation | See the work take shape | Bring feedback back |
+| --- | --- | --- |
+| Work with the AI agent you already use. | PenEcho's MCP server brings diagrams, documents, and interactive previews onto the Canvas. | Try the result, annotate it, and let your agent read your feedback for the next revision. |
+
+<p align="center">
+  <a href="docs/assets/mcp-spatial-example.png">
+    <img src="docs/assets/mcp-spatial-example.png" alt="An architecture discussion with AI, with handwritten feedback alongside the proposed design on a PenEcho Canvas" width="760">
+  </a>
+</p>
+<p align="center"><em>An architecture discussion, annotated by hand on the Canvas.</em></p>
+
+**See it before it’s finished.** See the work take shape as you talk with AI. Try it, give feedback, and move your project forward together.
+
+[Connect your agent with MCP →](#connect-your-agent-with-mcp)
 
 ## What you can do
 
@@ -120,16 +155,25 @@ Hosted models on your computer require a Cloud sign-in, without device pairing o
 
 Your own API and CLI connections do not spend PenEcho credits. A Cloud account is optional for local use with your own connection. AI features require access to the selected provider; running PenEcho locally does not make a remote model available offline.
 
-## Configuration and data
+## Recommended model configurations
 
-Use **Settings** for AI connections and Canvas preferences, or `penecho configure` for local server configuration. See the [configuration reference](docs/configuration.md) for endpoints, reasoning settings, timeouts, and CLI options.
+These recommendations balance answer quality against the latency of PenEcho's real canvas workload, based on current hands-on testing; actual response time varies with the provider, canvas complexity, and reasoning behavior.
 
-Canvases can be stored locally or saved to Cloud. AI requests send the relevant content to the selected provider. Local API credentials are managed by the host; do not share configuration files or traces containing secrets. Keep direct LAN access on a trusted network and use linked-device Cloud access for remote work.
+| Model | Effort | Notes | Recommended use |
+| --- | --- | --- | --- |
+| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `medium` | Strong quality with a better latency balance | Everyday canvas work |
+| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `high` | Higher reasoning quality, longer and more variable waits | Complex handwriting, mathematics, diagrams, or layout |
+| Fable 5 (`claude-fable-5` or `fable`) | `medium` | Often around half the response time of `gpt-5.6-sol` at `xhigh` | Fast, high-quality general use |
+| [Kimi K3](https://platform.kimi.ai?aff=penecho) (`kimi-k3`) | `medium` | Very good quality; `medium` keeps the balance practical | Recommended Kimi default |
+| `gpt-5.6-terra` | `low` to `high` | Surprisingly strong and responsive | Flexible quality and latency targets |
+| `gpt-5.6-luna` | `xhigh` | Very good canvas results with strong speed | Quality-first, still responsive |
+| `gpt-5.6-sol` | `high` | Good enough for most requests, more responsive than `xhigh` | Default when responsiveness matters |
+| `gpt-5.6-sol` | `xhigh` | Very good but slower and more variable | Difficult canvas tasks |
+| `deepseek-v4-flash-vision-exp` | `medium` | Good | Vision-capable work through the DeepSeek API |
+| `glm-5.3-flash` | `medium` | Good | Fast work through the GLM Anthropic-compatible API |
 
 ## Community and license
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) to contribute; run `npm run check` before opening a pull request. Report bugs in [Issues](https://github.com/penecho/penecho/issues), discuss ideas in [Discussions](https://github.com/penecho/penecho/discussions), or join [Discord](https://discord.gg/3jrPJ3mXdX).
-
-PenEcho participates in **Kimi Open Source Friends**. Support the project through [Kimi Code](https://www.kimi.com/code?aff=penecho) or [Kimi Open Platform](https://platform.kimi.ai?aff=penecho).
 
 Licensed under [AGPL-3.0-only](LICENSE). Alternative [commercial licensing](COMMERCIAL-LICENSE.md) is available. See the [trademark policy](TRADEMARKS.md) and [contributor agreement](CONTRIBUTOR-LICENSE-AGREEMENT.md).

@@ -14,7 +14,7 @@
   <a href="README.de.md">Deutsch</a>
 </p>
 
-<p align="center"><strong>与 AI 一起工作的可编辑画布。</strong></p>
+<h1 align="center">A spatial workspace<br>for thinking with AI.</h1>
 <p align="center">手写、探索、创作，让内置 Agent 或你自己的 MCP 助手加入同一块画布。</p>
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.3.0-087f83" alt="版本 1.3.0">
@@ -29,9 +29,44 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_full_demo.webp" alt="在 PenEcho 画布上手写并获得 AI 回答" width="49%">
-  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins.webp" alt="PenEcho 中的可编辑可视化内容" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_full_demo.webp" alt="PenEcho full demo" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins.webp" alt="PenEcho professional diagrams demo" width="49%">
 </p>
+
+<p align="center">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins_sub_x10.webp" alt="PenEcho plugins demo" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/play_patris.webp" alt="PenEcho interactive canvas demo" width="49%">
+</p>
+
+<p align="center">
+  <a href="https://www.kimi.com/code?aff=penecho">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="../assets/kimi-open-source-friends-dark.svg">
+      <img src="../assets/kimi-open-source-friends-light.svg" alt="Kimi Open Source Friends" width="326" height="56">
+    </picture>
+  </a>
+</p>
+
+## 让 AI 对话在空间中展开
+
+继续使用你熟悉的 **Codex、Claude、Kimi 或其他 AI Agent**，让 PenEcho 为对话中的成果提供一个工作空间。
+
+通过 MCP，让 AI 把解释变成图解，把方案变成可操作的预览。资料、推理和作品并排展开；你在画布上的圈画、批注与反馈，可以被 AI 客户端读取，接着推进下一轮修改。
+
+| 继续熟悉的对话 | 看见成果逐步成形 | 让反馈回到对话 |
+| --- | --- | --- |
+| 使用你已有的 AI Agent 讨论问题、推进任务。 | 通过 PenEcho MCP 服务，把图解、文档和交互预览放到画布上。 | 试用结果、圈画批注，让 Agent 读取反馈并继续修改。 |
+
+<p align="center">
+  <a href="../assets/mcp-spatial-example.png">
+    <img src="../assets/mcp-spatial-example.png" alt="与 AI 讨论架构，在 PenEcho 画布上并排查看方案并用手写标注提出反馈" width="760">
+  </a>
+</p>
+<p align="center"><em>在画布上讨论架构，并用手写标注提出反馈。</em></p>
+
+**在完成之前，先看到它的样子。** 在与 AI 的交互中，看见项目逐步成形。先试一试，再给出反馈，一起把项目向前推进。
+
+[通过 MCP 接入你的 Agent →](#通过-mcp-接入你的-agent)
 
 ## 你可以做什么
 
@@ -120,16 +155,25 @@ Agent 可以查看相关内容、编辑对象、创建可视化结果、修改�
 
 自有 API 和 CLI 连接不消耗 PenEcho 积分。使用自己的连接在本地工作，无需 Cloud 账号。AI 功能需要访问所选服务；本地运行 PenEcho 不代表远程模型可以离线使用。
 
-## 配置与数据
+## 模型与效果
 
-在**设置**中管理 AI 连接和画布偏好，或运行 `penecho configure` 配置本地服务。模型接口、推理强度、超时和 CLI 参数见[配置参考](../configuration.md)。
+以下为现有实测推荐；响应时间会随服务商、画布复杂度和推理设置变化。表内模型、推理等级及效果描述保留原文。
 
-画布可以保存在本地或保存到 Cloud。AI 请求会将相关内容发送给所选服务商；本地 API 凭据由主机管理。不要分享含密钥的配置文件或请求记录。直接局域网访问应限于可信网络，远程使用可通过 Cloud 关联设备连接。
+| Model | Effort | Notes | Recommended use |
+| --- | --- | --- | --- |
+| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `medium` | Strong quality with a better latency balance | Everyday canvas work |
+| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `high` | Higher reasoning quality, longer and more variable waits | Complex handwriting, mathematics, diagrams, or layout |
+| Fable 5 (`claude-fable-5` or `fable`) | `medium` | Often around half the response time of `gpt-5.6-sol` at `xhigh` | Fast, high-quality general use |
+| [Kimi K3](https://platform.kimi.ai?aff=penecho) (`kimi-k3`) | `medium` | Very good quality; `medium` keeps the balance practical | Recommended Kimi default |
+| `gpt-5.6-terra` | `low` to `high` | Surprisingly strong and responsive | Flexible quality and latency targets |
+| `gpt-5.6-luna` | `xhigh` | Very good canvas results with strong speed | Quality-first, still responsive |
+| `gpt-5.6-sol` | `high` | Good enough for most requests, more responsive than `xhigh` | Default when responsiveness matters |
+| `gpt-5.6-sol` | `xhigh` | Very good but slower and more variable | Difficult canvas tasks |
+| `deepseek-v4-flash-vision-exp` | `medium` | Good | Vision-capable work through the DeepSeek API |
+| `glm-5.3-flash` | `medium` | Good | Fast work through the GLM Anthropic-compatible API |
 
 ## 社区与许可
 
 参与贡献请阅读 [CONTRIBUTING.md](../../CONTRIBUTING.md)，提交 PR 前运行 `npm run check`。欢迎在 [Issues](https://github.com/penecho/penecho/issues) 报告问题、在 [Discussions](https://github.com/penecho/penecho/discussions) 交流，或加入 [Discord](https://discord.gg/3jrPJ3mXdX)。
-
-PenEcho 参与 **Kimi Open Source Friends**。你可以通过 [Kimi Code](https://www.kimi.com/code?aff=penecho) 或 [Kimi 开放平台](https://platform.kimi.com?aff=penecho) 支持项目。
 
 采用 [AGPL-3.0-only](../../LICENSE) 许可，同时提供[商业许可](../../COMMERCIAL-LICENSE.md)。另见[商标政策](../../TRADEMARKS.md)和[贡献者协议](../../CONTRIBUTOR-LICENSE-AGREEMENT.md)。

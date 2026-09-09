@@ -7617,3 +7617,99 @@ body[data-theme="studio"].studio-mcp-docked :is(#pe-button-contract, .mcp-canvas
 .custom-color-control input[type="color"]::-moz-color-swatch { border: 5px solid transparent; border-radius: 50%; }
 .custom-color-control input[type="color"]:focus-visible { outline: 2px solid var(--pe-tint, var(--studio-accent, var(--gold-bright))); outline-offset: 1px; }
 @media (pointer: coarse) { .custom-color-control { min-height: 44px; } .custom-color-control input[type="color"] { flex-basis: 44px; width: 44px; height: 44px; padding: 8px; } }
+
+/* AI connections: canonical settings architecture + #lists single/double rows.
+   Geometry/type/material sourced from penecho-design-language.css; product owns behavior. */
+#settingsPageConnections { container: pe-connections / inline-size; color: var(--pe-ink); background: var(--pe-surface-raised); }
+#settingsPageConnections .settings-connections-title { margin: 0 0 16px; color: var(--pe-ink); font: 600 20px/1.3 var(--pe-font-ui); }
+#settingsPageConnections .settings-connections-group { margin: 20px 0 0; padding: 0; min-width: 0; }
+#settingsPageConnections .settings-connections-heading { display: flex; min-height: 28px; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+#settingsPageConnections .settings-connections-heading h4 { margin: 0; color: var(--pe-ink-3); font: 600 12px/1.45 var(--pe-font-ui); }
+#settingsPageConnections .settings-cloud-account,
+#settingsPageConnections .settings-cloud-setup { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--pe-line); border-radius: var(--pe-r-group, 10px); background: var(--pe-surface); }
+#settingsPageConnections .settings-cloud-account { margin-bottom: 16px; flex-wrap: wrap; }
+#settingsPageConnections .settings-cloud-account strong,
+#settingsPageConnections .settings-cloud-setup strong { color: var(--pe-ink); font: 500 13px/1.45 var(--pe-font-ui); }
+#settingsPageConnections .settings-cloud-account > a { margin-left: auto; }
+#settingsPageConnections #settingsCloudAccountStatus { color: var(--pe-ink-2); font: 400 12px/1.45 var(--pe-font-ui); }
+#settingsPageConnections .settings-cloud-setup { background: var(--pe-surface); }
+#settingsPageConnections .settings-cloud-setup-copy { flex: 1; min-width: 0; }
+#settingsPageConnections .settings-cloud-setup p { margin: 2px 0 0; color: var(--pe-ink-2); font: 400 12px/1.45 var(--pe-font-ui); }
+#settingsPageConnections .settings-cloud-icon,
+#settingsPageConnections .settings-capability-icon { display: grid; flex: none; width: 24px; height: 24px; place-items: center; border-radius: 6px; color: var(--pe-ink-2); background: var(--pe-surface-muted); }
+#settingsPageConnections .settings-cloud-icon { color: var(--pe-accent-label); }
+#settingsPageConnections svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+#settingsPageConnections .settings-connection-quick-list,
+#settingsPageConnections .settings-capability-list { display: grid; gap: 0; margin: 0; border: 1px solid var(--pe-line); border-radius: var(--pe-r-group, 10px); background: var(--pe-surface); }
+#settingsPageConnections .settings-connection-quick-list:empty { display: none; }
+#settingsPageConnections .settings-connection-quick,
+#settingsPageConnections .settings-capability-list > button { display: grid; min-width: 0; min-height: 54px; grid-template-columns: 15px minmax(0, 1fr); align-items: center; gap: 9px; margin: 0; padding: 8px 10px; color: var(--pe-ink); border: 0; border-bottom: 1px solid var(--pe-line); border-radius: 0; background: transparent; text-align: left; cursor: pointer; box-shadow: none; }
+#settingsPageConnections #settingsHostedList > button { min-height: 48px; grid-template-columns: 15px 16px minmax(0, 1fr) auto; }
+#settingsPageConnections .settings-capability-list > button { grid-template-columns: 24px minmax(0, 1fr) 16px; }
+#settingsPageConnections .settings-connection-quick:first-child,
+#settingsPageConnections .settings-capability-list > button:first-child { border-start-start-radius: var(--pe-r-group, 10px); border-start-end-radius: var(--pe-r-group, 10px); }
+#settingsPageConnections .settings-connection-quick:last-child,
+#settingsPageConnections .settings-capability-list > button:last-child { border-bottom: 0; border-end-start-radius: var(--pe-r-group, 10px); border-end-end-radius: var(--pe-r-group, 10px); }
+#settingsPageConnections .settings-connection-quick:hover,
+#settingsPageConnections .settings-capability-list > button:hover { color: var(--pe-ink); background: var(--pe-surface-raised); }
+#settingsPageConnections .settings-connection-quick:focus-visible,
+#settingsPageConnections .settings-capability-list > button:focus-visible { outline: 2px solid var(--pe-accent); outline-offset: 2px; z-index: 1; }
+#settingsPageConnections .settings-connection-quick > span:first-child { box-sizing: border-box; display: grid; width: 15px; height: 15px; place-items: center; border: 1px solid var(--pe-line-strong); border-radius: 50%; color: transparent; background: transparent; font: 500 11.5px/15px var(--pe-font-ui); }
+#settingsPageConnections .settings-connection-quick.active > span:first-child { border-color: var(--pe-success); color: var(--pe-surface); background: var(--pe-success); }
+#settingsPageConnections .settings-connection-quick > span,
+#settingsPageConnections .settings-capability-copy { min-width: 0; }
+#settingsPageConnections .settings-connection-quick strong,
+#settingsPageConnections .settings-capability-copy strong { display: block; overflow: visible; white-space: normal; overflow-wrap: anywhere; color: var(--pe-ink); font: 500 13px/1.45 var(--pe-font-ui); }
+#settingsPageConnections .settings-connection-quick small,
+#settingsPageConnections .settings-capability-copy small { display: block; overflow: visible; white-space: normal; overflow-wrap: anywhere; margin: 2px 0 0; color: var(--pe-ink-2); text-align: left; font: 400 12px/1.45 var(--pe-font-ui); }
+#settingsPageConnections .settings-model-cloud-icon { display: grid; place-items: center; color: var(--pe-accent-label); }
+#settingsPageConnections .settings-connection-quick .settings-model-multiplier { margin: 0; padding: 2px 6px; border-radius: var(--pe-r-control, var(--pe-control-radius, 5px)); background: var(--pe-surface-muted); color: var(--pe-ink-3); white-space: nowrap; font: 400 11.5px/1.45 var(--pe-font-ui); }
+#settingsPageConnections .settings-capability-chevron { color: var(--pe-ink-3); }
+#settingsPageConnections .settings-capability-list > button:disabled { opacity: .48; cursor: not-allowed; }
+#settingsPageConnections .settings-hosted-pricing { margin-top: 10px; color: var(--pe-ink-2); font: 400 12px/1.45 var(--pe-font-ui); overflow-wrap: anywhere; }
+#settingsPageConnections .settings-hosted-pricing summary { color: var(--pe-ink-2); cursor: pointer; font-weight: 500; }
+#settingsPageConnections .settings-hosted-pricing summary:hover { color: var(--pe-ink); }
+#settingsPageConnections .settings-hosted-pricing > p { max-width: 78ch; margin: 8px 0 0; }
+#settingsPageConnections .settings-rate-table { margin-top: 10px; }
+#settingsPageConnections .settings-rate-caption { margin: 0 2px 6px; color: var(--pe-ink-3); font: 500 10.5px/1.4 var(--pe-font-ui); letter-spacing: .02em; }
+#settingsPageConnections .settings-rate-card { max-height: 244px; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--pe-line); border-radius: var(--pe-r-group, 10px); background: var(--pe-surface); overflow-wrap: normal; }
+#settingsPageConnections .settings-rate-card table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+#settingsPageConnections .settings-rate-card th,
+#settingsPageConnections .settings-rate-card td { padding: 8px 12px; }
+#settingsPageConnections .settings-rate-card thead th { position: sticky; top: 0; z-index: 1; width: 96px; color: var(--pe-ink-3); background: color-mix(in srgb, var(--pe-surface-muted) 72%, var(--pe-surface)); box-shadow: inset 0 -1px 0 var(--pe-line); text-align: right; font: 500 10.5px/1.35 var(--pe-font-ui); letter-spacing: .05em; text-transform: uppercase; }
+#settingsPageConnections .settings-rate-card thead th:first-child { width: auto; text-align: left; }
+#settingsPageConnections .settings-rate-card tbody th { overflow: hidden; color: var(--pe-ink); text-align: left; text-overflow: ellipsis; white-space: nowrap; font: 500 12.5px/1.45 var(--pe-font-ui); }
+#settingsPageConnections .settings-rate-card tbody td { color: var(--pe-ink); text-align: right; font: 400 12.5px/1.45 var(--pe-font-ui); font-variant-numeric: tabular-nums; }
+#settingsPageConnections .settings-rate-card tbody tr + tr > * { border-top: 1px solid color-mix(in srgb, var(--pe-line) 62%, transparent); }
+#settingsPageConnections .settings-rate-card tbody tr:nth-child(odd) { background: color-mix(in srgb, var(--pe-surface-muted) 40%, transparent); }
+@container pe-connections (max-width: 560px) {
+  #settingsPageConnections .settings-rate-card th,
+  #settingsPageConnections .settings-rate-card td { padding: 7px 8px; }
+  #settingsPageConnections .settings-rate-card thead th { width: 64px; font-size: 10px; }
+}
+@container pe-connections (max-width: 400px) {
+  #settingsPageConnections .settings-rate-card th,
+  #settingsPageConnections .settings-rate-card td { padding: 6px; }
+  #settingsPageConnections .settings-rate-card thead th { width: 48px; font-size: 9px; letter-spacing: 0; }
+  #settingsPageConnections .settings-rate-card tbody th,
+  #settingsPageConnections .settings-rate-card tbody td { font-size: 11.5px; }
+}
+#settingsPageConnections [hidden] { display: none; }
+@media (max-width: 700px) {
+  #settingsPageConnections .settings-cloud-setup { flex-wrap: wrap; }
+  #settingsPageConnections .settings-cloud-setup > a { margin-left: 34px; max-width: 100%; }
+  #settingsPageConnections .settings-cloud-setup-copy { flex-basis: calc(100% - 34px); }
+}
+@media (forced-colors: active) {
+  #settingsPageConnections .settings-connection-quick.active > span:first-child { border-color: Highlight; background: Highlight; color: HighlightText; forced-color-adjust: none; }
+}
+
+@container pe-connections (max-width: 360px) {
+  #settingsPageConnections .settings-cloud-setup { flex-wrap: wrap; }
+  #settingsPageConnections .settings-cloud-setup-copy { flex-basis: calc(100% - 34px); }
+  #settingsPageConnections .settings-cloud-setup > a { margin-left: 34px; max-width: 100%; }
+}
+
+/* Ready-state marker reuses the existing workspace update status-dot geometry. */
+#settingsPageConnections #settingsCloudAccountStatus::before,
+#settingsPageConnections #settingsSearchEntryStatus::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--pe-success, #277a4c); vertical-align: baseline; }

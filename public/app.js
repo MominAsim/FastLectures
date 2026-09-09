@@ -577,6 +577,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       tourNext: "Next",
       tourDone: "Finish",
       tourCanvasAgentLauncherTitle: "Open PenEcho Agent",
+      tourMcpTitle: "Bring external AI onto your canvas",
+      tourMcpBody: "Connect Codex, Claude, or another MCP-compatible AI to create and edit canvas content. Set it up in Settings → MCP service, then use this button to connect or disconnect. Give the AI your request in its own app.",
       tourCanvasAgentLauncherBody: "On larger screens, use the Agent control at the right end of the toolbar. On narrow screens, use the floating button at the lower right. Start multi-step work with folders, files, web research, and the current canvas.",
       tourCanvasAgentPanelTitle: "Work in the Agent panel",
       tourCanvasAgentPanelBody: "PenEcho Agent opens as a right sidebar on larger screens and a bottom panel on narrow screens. Type or handwrite a request, add files or a read-only folder project, reference a Widget, and enable web search when available. Resize the desktop sidebar from its left edge.",
@@ -699,13 +701,18 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsKimiCodingRecommendationReason: "Kimi CLI may not reliably reuse the Harness context cache, which can increase latency and usage.",
       settingsConfiguration: "Configuration",
       settingsConnections: "AI connections",
-      settingsCloudSetupHelp: "No API key, or unsure how to set up a connection? Create a free PenEcho account to use PenEcho Cloud directly—no API or CLI setup needed.",
-      settingsCloudSetupLink: "Open PenEcho Cloud ↗",
-      settingsHostedModels: "PenEcho models",
+      settingsCloudSetupTitle: "Sign in to use cloud connections",
+      settingsCloudSignedIn: "Signed in · {balance}",
+      settingsLocalConnections: "Local connections",
+      settingsLocalConnectionsEmpty: "No local connections yet. Choose Manage to add one.",
+      settingsCapabilities: "Capabilities",
+      settingsCloudSetupHelp: "Sign in to PenEcho Cloud, then choose a cloud model below. No API key or CLI setup needed.",
+      settingsCloudSetupLink: "Sign in",
+      settingsHostedModels: "Cloud models",
       settingsHostedRefresh: "Refresh",
       settingsHostedPricing: "How credits are calculated",
       settingsHostedPricingHelp: "Input, cache reads, cache writes and output have separate rates. The displayed multiplier applies to each base rate. Your own connections do not spend PenEcho credits.",
-      settingsHostedBilling: "Credits & billing ↗",
+      settingsHostedBilling: "Account & credits ↗",
       settingsHostedBrowserNotice: "Use PenEcho models to edit this Canvas and save to Cloud. Your own connections, local files and device settings need a linked device.",
       canvasAgentCloudContext: "Cloud Canvas",
       canvasAgentCloudContextHelp: "This connection works with the current Canvas. Use a device connection for local folders and files.",
@@ -715,7 +722,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsHostedEmpty: "No PenEcho models are available right now.",
       settingsHostedError: "Could not refresh PenEcho models. Try again.",
       settingsHostedBalance: "{count} credits available",
-      settingsHostedRate: "{name}: input {input} · cache read {read} · cache write {write} · output {output} credits / 1M tokens",
+      settingsHostedRateUnit: "Credits per 1M tokens",
+      settingsHostedRateModel: "Model",
+      settingsHostedRateInput: "Input",
+      settingsHostedRateRead: "Cache read",
+      settingsHostedRateWrite: "Cache write",
+      settingsHostedRateOutput: "Output",
       settingsManage: "Manage",
       settingsApiEntry: "API & CLI settings",
       settingsApiEntryHelp: "Changes apply immediately",
@@ -728,7 +740,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsSearchTavilyReady: "Tavily + DuckDuckGo + built-in ready",
       settingsSearchNotConfigured: "DuckDuckGo + built-in search ready · Flash or Tavily optional",
       settingsApiDialogTitle: "API & CLI settings",
-      settingsApiDialogSubtitle: "Connections are shared with every client. Your current choice is private to this device and applies immediately.",
+      settingsApiDialogSubtitle: "Manage your saved connections and choose which one to use on this device. Changes take effect immediately.",
       settingsSearchDialogTitle: "Internet search",
       settingsSearchDialogSubtitle: "Choose DeepSeek official or OpenCode Go for native Flash search; Tavily, DuckDuckGo, research, GitHub, and stock search remain available as backups.",
       settingsConnectionEditor: "Connection details",
@@ -980,8 +992,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasSaveStateEdited: "Edited",
       canvasSaveStateSaving: "Saving…",
       canvasWelcomeKicker: "start here",
-      canvasWelcomeTitle: "Start sketching, or ask PenEcho Agent",
-      canvasWelcomeBody: "Draw with your pen, or start a conversation in the Agent sidebar on the right.",
+      canvasWelcomeTitle: "Start sketching, or create with AI",
+      canvasWelcomeBody: "Ask PenEcho Agent, or connect an external AI via MCP to create and edit canvas content.",
       canvasBrowserWelcomeTitle: "Start sketching on your Cloud Canvas",
       canvasBrowserWelcomeBody: "Choose a PenEcho cloud model in Settings to work with this Canvas online. Connect a device to use local files and connections.",
       exportPng: "Export PNG",
@@ -1996,6 +2008,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     { id: "core-fullscreen-v1", targets: ["#fullscreenBtn"], titleKey: "tourFullscreenTitle", bodyKey: "tourFullscreenBody", placement: "bottom", radius: 7 },
     { id: "cloud-share-canvas-v1", targets: ["#shareCanvasBtn"], titleKey: "tourShareCanvasTitle", bodyKey: "tourShareCanvasBody", placement: "bottom", radius: 7 },
     { id: "cloud-workspace-v1", targets: ["#cloudAccountBtn"], titleKey: "tourCloudTitle", bodyKey: "tourCloudBody", placement: "bottom", radius: 8 },
+    { id: "mcp-canvas-v1", targets: ["#mcpToolbarToggle"], titleKey: "tourMcpTitle", bodyKey: "tourMcpBody", placement: "bottom", radius: 8, padding: 4 },
     { id: "canvas-agent-launcher-v2", targets: ["#canvasAgentToggle"], titleKey: "tourCanvasAgentLauncherTitle", bodyKey: "tourCanvasAgentLauncherBody", placement: "bottom", radius: 9, padding: 4 },
     { id: "canvas-agent-panel-v2", targets: ["#canvasAgentPanel"], titleKey: "tourCanvasAgentPanelTitle", bodyKey: "tourCanvasAgentPanelBody", placement: "left", radius: 18, padding: 4, preview: "canvas-agent-panel" },
     { id: "core-manual-ai-v1", targets: ["#aiOrb"], titleKey: "tourManualAITitle", bodyKey: "tourManualAIBody", placement: "left", radius: 50 },
@@ -2592,7 +2605,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const section = document.getElementById("settingsHostedSection"), list = document.getElementById("settingsHostedList"), status = document.getElementById("settingsHostedStatus"), rates = document.getElementById("settingsHostedRates");
     if (!section || !list) return;
     const cloudSetupLink = document.getElementById("settingsCloudSetupLink");
-    if (cloudSetupLink) cloudSetupLink.href = `${String(window.PENECHO_CONFIG?.cloudOrigin || (window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : "https://penecho.ai")).replace(/\/$/, "")}/dashboard.html`;
+    if (cloudSetupLink) cloudSetupLink.href = `${String(window.PENECHO_CONFIG?.cloudOrigin || (window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : "https://penecho.ai")).replace(/\/$/, "")}/auth.html`;
     const browserEditing = window.PENECHO_CONFIG?.browserCanvasEditing === true;
     for (const id of ["settingsHostedBrowserNotice", "settingsHostedLinkDevice"]) document.getElementById(id).hidden = !browserEditing;
     for (const control of [settingsOpenApi, settingsOpenSearch, settingsOpenSystem]) {
@@ -2600,12 +2613,18 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       if (browserEditing) control.setAttribute("aria-describedby", "settingsHostedBrowserNotice");
       else control.removeAttribute("aria-describedby");
     }
-    section.hidden = !hostedSettings.signedIn && !hostedSettings.loading;
+    section.hidden = !hostedSettings.signedIn && !hostedSettings.loading && !hostedSettings.error;
+    document.getElementById("settingsCloudAccount").hidden = !hostedSettings.signedIn;
+    document.getElementById("settingsCloudSetup").hidden = hostedSettings.signedIn || hostedSettings.loading;
+    document.getElementById("settingsCloudAccountStatus").textContent = t("settingsCloudSignedIn").replace("{balance}", t("settingsHostedBalance").replace("{count}", Number(hostedSettings.credits || 0).toLocaleString()));
+    status.hidden = !hostedSettings.loading && !hostedSettings.error && hostedSettings.models.length > 0;
     const selected = selectedAiConnectionId();
     status.textContent = hostedSettings.loading ? t("settingsHostedLoading") : hostedSettings.error ? t("settingsHostedError") : hostedSettings.models.length ? t("settingsHostedBalance").replace("{count}", Number(hostedSettings.credits || 0).toLocaleString()) : t("settingsHostedEmpty");
     document.getElementById("settingsHostedRefresh").disabled = hostedSettings.loading;
     list.replaceChildren();
     rates.replaceChildren();
+    const pricing = document.getElementById("settingsHostedPricing");
+    if (pricing) pricing.hidden = hostedSettings.models.length === 0;
     for (const model of hostedSettings.models) {
       const button = document.createElement("button"), mark = document.createElement("span"), copy = document.createElement("span"), name = document.createElement("strong"), detail = document.createElement("small");
       button.type = "button";
@@ -2614,12 +2633,49 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       button.dataset.connectionActivate = `hosted:${model.id}`;
       button.setAttribute("aria-pressed", String(selected === button.dataset.connectionActivate));
       mark.textContent = selected === button.dataset.connectionActivate ? "✓" : "";
-      name.textContent = `☁️ ${model.displayName}`;
+      mark.setAttribute("aria-hidden", "true");
+      const cloudIcon = document.createElement("span");
+      cloudIcon.className = "settings-model-cloud-icon";
+      cloudIcon.setAttribute("aria-hidden", "true");
+      cloudIcon.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .6-8 6 6 0 0 0-11.5-1A4.5 4.5 0 0 0 7 18Z"/></svg>';
+      name.textContent = model.displayName;
       detail.textContent = hostedMultiplierLabel(model.multiplier);
-      copy.append(name, detail); button.append(mark, copy); list.append(button);
-      const rate = document.createElement("p"), number = value => Number.isFinite(Number(value)) && value !== null ? Number(value).toLocaleString(undefined, { maximumFractionDigits:4 }) : "—";
-      rate.textContent = t("settingsHostedRate").replace("{name}", model.displayName).replace("{input}", number(model.inputCreditsPerMillion)).replace("{read}", number(model.cacheReadInputCreditsPerMillion)).replace("{write}", number(model.cacheWriteInputCreditsPerMillion)).replace("{output}", number(model.outputCreditsPerMillion));
-      rates.append(rate);
+      detail.className = "settings-model-multiplier";
+      copy.append(name); button.append(mark, cloudIcon, copy, detail); list.append(button);
+    }
+    if (hostedSettings.models.length) {
+      const rateNumber = value => {
+          const numeric = Number(value);
+          return value === null || value === undefined || value === "" || !Number.isFinite(numeric) ? "—" : Math.round(numeric).toLocaleString();
+        },
+        caption = document.createElement("p"), card = document.createElement("div"), table = document.createElement("table"),
+        head = document.createElement("thead"), headRow = document.createElement("tr"), body = document.createElement("tbody");
+      caption.className = "settings-rate-caption";
+      caption.textContent = t("settingsHostedRateUnit");
+      card.className = "settings-rate-card";
+      for (const key of ["settingsHostedRateModel", "settingsHostedRateInput", "settingsHostedRateRead", "settingsHostedRateWrite", "settingsHostedRateOutput"]) {
+        const cell = document.createElement("th");
+        cell.setAttribute("scope", "col");
+        cell.textContent = t(key);
+        headRow.append(cell);
+      }
+      head.append(headRow);
+      for (const model of hostedSettings.models) {
+        const row = document.createElement("tr"), modelCell = document.createElement("th");
+        modelCell.setAttribute("scope", "row");
+        modelCell.setAttribute("title", model.displayName);
+        modelCell.textContent = model.displayName;
+        row.append(modelCell);
+        for (const value of [model.inputCreditsPerMillion, model.cacheReadInputCreditsPerMillion, model.cacheWriteInputCreditsPerMillion, model.outputCreditsPerMillion]) {
+          const cell = document.createElement("td");
+          cell.textContent = rateNumber(value);
+          row.append(cell);
+        }
+        body.append(row);
+      }
+      table.append(head, body);
+      card.append(table);
+      rates.append(caption, card);
     }
     document.getElementById("settingsHostedBilling").href = `${String(window.PENECHO_CONFIG?.cloudOrigin || (window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : "https://penecho.ai")).replace(/\/$/, "")}/dashboard.html#billing`;
     if (typeof canvasAgentUpdateConnectionButton === "function") canvasAgentUpdateConnectionButton();
@@ -2905,12 +2961,15 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (!settingsConnectionList || !settingsConnectionQuickList) return;
     settingsConnectionList.replaceChildren();
     settingsConnectionQuickList.replaceChildren();
+    document.getElementById("settingsLocalConnectionsEmpty").hidden = settings.connections.length > 0;
     for (const connection of settings.connections) {
       const quick = document.createElement("button"), quickMark = document.createElement("span"), quickCopy = document.createElement("span"), quickName = document.createElement("strong"), quickSummary = document.createElement("small");
       quick.type = "button";
       peChoice(quick);
       quick.className = `settings-connection-quick${connection.active ? " active" : ""}`;
       quick.dataset.connectionActivate = connection.id;
+      quick.setAttribute("aria-pressed", String(connection.active));
+      quickMark.setAttribute("aria-hidden", "true");
       quickMark.textContent = connection.active ? "✓" : "";
       quickName.textContent = connectionTitle(connection);
       quickSummary.textContent = connectionSummary(connection);

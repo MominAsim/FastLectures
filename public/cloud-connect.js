@@ -2534,6 +2534,12 @@
   window.addEventListener("penecho:remote-cloud-status", updateCloudButton);
 
   cloudButton.addEventListener("click", openCloud);
+  document.getElementById("settingsCloudSetupLink")?.addEventListener("click", (event) => {
+    if (!localHostControlsAvailable) return;
+    event.preventDefault();
+    state.cloudSection = "account";
+    void openCloud();
+  });
   shareCanvasButton.addEventListener("click", async () => { await refreshStatus(); shareDialog({ kind:"canvas" }); });
   window.addEventListener("penecho:community-widget-action", async (event) => {
     const actionName = event.detail?.action;
