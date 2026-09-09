@@ -34,9 +34,11 @@ test("hosted credit rates render whole numbers in a table and hide without model
  h.context.renderHostedModels();
  assert.equal(pricing.hidden,false);
  const rows=[...rates.querySelectorAll("tbody tr")];assert.equal(rows.length,2);
- assert.deepEqual([...rows[0].querySelectorAll("th, td")].map(cell=>cell.textContent),["model one","549","16","549","940"]);
- assert.deepEqual([...rows[1].querySelectorAll("th, td")].map(cell=>cell.textContent),["model two","227","65","227","795"]);
- assert.equal(rates.querySelectorAll("thead th").length,5);
+ assert.deepEqual([...rows[0].querySelectorAll("th, td")].map(cell=>cell.textContent),["model one","1×","549","16","940"]);
+ assert.deepEqual([...rows[1].querySelectorAll("th, td")].map(cell=>cell.textContent),["model two","2×","227","65","795"]);
+ assert.deepEqual([...rates.querySelectorAll("thead th")].map(cell=>cell.textContent),["settingsHostedRateModel","settingsHostedRateMultiplier","settingsHostedRateInput","settingsHostedRateRead","settingsHostedRateOutput"]);
+ h.hostedSettings.models=[];h.context.renderHostedModels();
+ assert.equal(pricing.hidden,true);assert.equal(rates.children.length,0);
 });
 test("loading and errors remain recoverable; browser-only Canvas cannot configure host settings",()=>{
  const h=harness(),get=id=>h.document.getElementById(id);
@@ -67,5 +69,18 @@ test("sign-in opens the local Cloud account area and retains web authentication 
   assert.equal(opened,localHostControlsAvailable?1:0);
   assert.equal(state.cloudSection,localHostControlsAvailable?"account":"projects");
   assert.equal(link.getAttribute("href"),"https://example.test/auth.html");
+ }
+});
+
+test("missing and invalid rates stay distinct from zero and model names remain text",()=>{
+ const h=harness();h.hostedSettings.signedIn=true;
+ h.hostedSettings.models=[{id:"edge",displayName:"<img src=x>",multiplier:0.8,inputCreditsPerMillion:0,cacheReadInputCreditsPerMillion:null,outputCreditsPerMillion:"invalid"}];
+ h.context.renderHostedModels();
+ const rates=h.document.getElementById("settingsHostedRates");
+ assert.deepEqual([...rates.querySelectorAll("tbody th, tbody td")].map(cell=>cell.textContent),["<img src=x>","0.8×","0","—","—"]);
+ assert.equal(rates.querySelector("img"),null);
+ for (const missing of [undefined, "", "   "]) {
+  h.hostedSettings.models[0].cacheReadInputCreditsPerMillion=missing;h.context.renderHostedModels();
+  assert.equal(rates.querySelectorAll("tbody td")[2].textContent,"—");
  }
 });

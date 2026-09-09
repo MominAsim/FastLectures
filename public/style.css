@@ -7666,34 +7666,9 @@ body[data-theme="studio"].studio-mcp-docked :is(#pe-button-contract, .mcp-canvas
 #settingsPageConnections .settings-connection-quick .settings-model-multiplier { margin: 0; padding: 2px 6px; border-radius: var(--pe-r-control, var(--pe-control-radius, 5px)); background: var(--pe-surface-muted); color: var(--pe-ink-3); white-space: nowrap; font: 400 11.5px/1.45 var(--pe-font-ui); }
 #settingsPageConnections .settings-capability-chevron { color: var(--pe-ink-3); }
 #settingsPageConnections .settings-capability-list > button:disabled { opacity: .48; cursor: not-allowed; }
-#settingsPageConnections .settings-hosted-pricing { margin-top: 10px; color: var(--pe-ink-2); font: 400 12px/1.45 var(--pe-font-ui); overflow-wrap: anywhere; }
-#settingsPageConnections .settings-hosted-pricing summary { color: var(--pe-ink-2); cursor: pointer; font-weight: 500; }
-#settingsPageConnections .settings-hosted-pricing summary:hover { color: var(--pe-ink); }
-#settingsPageConnections .settings-hosted-pricing > p { max-width: 78ch; margin: 8px 0 0; }
-#settingsPageConnections .settings-rate-table { margin-top: 10px; }
-#settingsPageConnections .settings-rate-caption { margin: 0 2px 6px; color: var(--pe-ink-3); font: 500 10.5px/1.4 var(--pe-font-ui); letter-spacing: .02em; }
-#settingsPageConnections .settings-rate-card { max-height: 244px; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--pe-line); border-radius: var(--pe-r-group, 10px); background: var(--pe-surface); overflow-wrap: normal; }
-#settingsPageConnections .settings-rate-card table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-#settingsPageConnections .settings-rate-card th,
-#settingsPageConnections .settings-rate-card td { padding: 8px 12px; }
-#settingsPageConnections .settings-rate-card thead th { position: sticky; top: 0; z-index: 1; width: 96px; color: var(--pe-ink-3); background: color-mix(in srgb, var(--pe-surface-muted) 72%, var(--pe-surface)); box-shadow: inset 0 -1px 0 var(--pe-line); text-align: right; font: 500 10.5px/1.35 var(--pe-font-ui); letter-spacing: .05em; text-transform: uppercase; }
-#settingsPageConnections .settings-rate-card thead th:first-child { width: auto; text-align: left; }
-#settingsPageConnections .settings-rate-card tbody th { overflow: hidden; color: var(--pe-ink); text-align: left; text-overflow: ellipsis; white-space: nowrap; font: 500 12.5px/1.45 var(--pe-font-ui); }
-#settingsPageConnections .settings-rate-card tbody td { color: var(--pe-ink); text-align: right; font: 400 12.5px/1.45 var(--pe-font-ui); font-variant-numeric: tabular-nums; }
-#settingsPageConnections .settings-rate-card tbody tr + tr > * { border-top: 1px solid color-mix(in srgb, var(--pe-line) 62%, transparent); }
-#settingsPageConnections .settings-rate-card tbody tr:nth-child(odd) { background: color-mix(in srgb, var(--pe-surface-muted) 40%, transparent); }
-@container pe-connections (max-width: 560px) {
-  #settingsPageConnections .settings-rate-card th,
-  #settingsPageConnections .settings-rate-card td { padding: 7px 8px; }
-  #settingsPageConnections .settings-rate-card thead th { width: 64px; font-size: 10px; }
-}
-@container pe-connections (max-width: 400px) {
-  #settingsPageConnections .settings-rate-card th,
-  #settingsPageConnections .settings-rate-card td { padding: 6px; }
-  #settingsPageConnections .settings-rate-card thead th { width: 48px; font-size: 9px; letter-spacing: 0; }
-  #settingsPageConnections .settings-rate-card tbody th,
-  #settingsPageConnections .settings-rate-card tbody td { font-size: 11.5px; }
-}
+#settingsPageConnections .settings-hosted-pricing { margin-top: 8px; color: var(--pe-ink-2); font: 400 12px/1.45 var(--pe-font-ui); overflow-wrap: anywhere; }
+#settingsPageConnections .settings-hosted-pricing summary { cursor: pointer; }
+#settingsPageConnections .settings-hosted-pricing p { margin: 8px 0; }
 #settingsPageConnections [hidden] { display: none; }
 @media (max-width: 700px) {
   #settingsPageConnections .settings-cloud-setup { flex-wrap: wrap; }
@@ -7713,3 +7688,17 @@ body[data-theme="studio"].studio-mcp-docked :is(#pe-button-contract, .mcp-canvas
 /* Ready-state marker reuses the existing workspace update status-dot geometry. */
 #settingsPageConnections #settingsCloudAccountStatus::before,
 #settingsPageConnections #settingsSearchEntryStatus::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--pe-success, #277a4c); vertical-align: baseline; }
+
+/* Connections rates: design catalog #foundations token-table density. */
+#settingsPageConnections #settingsHostedRates { min-width: 0; overflow-x: auto; }
+#settingsPageConnections .settings-hosted-rates-table { width: 100%; border-collapse: separate; border-spacing: 0; color: var(--pe-ink-2); font: 400 12px/1.45 var(--pe-font-ui); }
+#settingsPageConnections .settings-hosted-rates-table caption { padding: 8px 0; color: var(--pe-ink-3); text-align: left; }
+#settingsPageConnections .settings-hosted-rates-table :is(th, td) { padding: 6px 10px; height: 36px; box-sizing: border-box; border-bottom: 1px solid var(--pe-line); text-align: right; font-variant-numeric: tabular-nums; }
+#settingsPageConnections .settings-hosted-rates-table thead th { background: var(--pe-surface-raised); color: var(--pe-ink-3); font-size: 10.5px; font-weight: 600; border-top: 1px solid var(--pe-line); }
+#settingsPageConnections .settings-hosted-rates-table th:first-child { text-align: left; border-left: 1px solid var(--pe-line); }
+#settingsPageConnections .settings-hosted-rates-table tr > :last-child { border-right: 1px solid var(--pe-line); }
+#settingsPageConnections .settings-hosted-rates-table tbody th { color: var(--pe-ink); font-weight: 500; overflow-wrap: anywhere; }
+#settingsPageConnections .settings-hosted-rates-table thead th:first-child { border-top-left-radius: var(--pe-r-group); }
+#settingsPageConnections .settings-hosted-rates-table thead th:last-child { border-top-right-radius: var(--pe-r-group); }
+#settingsPageConnections .settings-hosted-rates-table tbody tr:last-child th { border-bottom-left-radius: var(--pe-r-group); }
+#settingsPageConnections .settings-hosted-rates-table tbody tr:last-child td:last-child { border-bottom-right-radius: var(--pe-r-group); }

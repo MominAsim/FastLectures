@@ -606,9 +606,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsHostedBalance: "{count} credits available",
       settingsHostedRateUnit: "Credits per 1M tokens",
       settingsHostedRateModel: "Model",
+      settingsHostedRateMultiplier: "Multiplier",
       settingsHostedRateInput: "Input",
       settingsHostedRateRead: "Cache read",
-      settingsHostedRateWrite: "Cache write",
       settingsHostedRateOutput: "Output",
       settingsManage: "Manage",
       settingsApiEntry: "API & CLI settings",
@@ -2526,38 +2526,33 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       copy.append(name); button.append(mark, cloudIcon, copy, detail); list.append(button);
     }
     if (hostedSettings.models.length) {
-      const rateNumber = value => {
-          const numeric = Number(value);
-          return value === null || value === undefined || value === "" || !Number.isFinite(numeric) ? "—" : Math.round(numeric).toLocaleString();
-        },
-        caption = document.createElement("p"), card = document.createElement("div"), table = document.createElement("table"),
-        head = document.createElement("thead"), headRow = document.createElement("tr"), body = document.createElement("tbody");
-      caption.className = "settings-rate-caption";
+      const table = document.createElement("table");
+      table.className = "settings-hosted-rates-table";
+      const caption = document.createElement("caption");
+      table.append(caption);
       caption.textContent = t("settingsHostedRateUnit");
-      card.className = "settings-rate-card";
-      for (const key of ["settingsHostedRateModel", "settingsHostedRateInput", "settingsHostedRateRead", "settingsHostedRateWrite", "settingsHostedRateOutput"]) {
+      const head = document.createElement("thead"), heading = document.createElement("tr");
+      head.append(heading); table.append(head);
+      for (const key of ["settingsHostedRateModel", "settingsHostedRateMultiplier", "settingsHostedRateInput", "settingsHostedRateRead", "settingsHostedRateOutput"]) {
         const cell = document.createElement("th");
-        cell.setAttribute("scope", "col");
+        cell.scope = "col";
         cell.textContent = t(key);
-        headRow.append(cell);
+        heading.append(cell);
       }
-      head.append(headRow);
+      const body = document.createElement("tbody");
+      table.append(body);
+      const number = value => value !== null && value !== undefined && String(value).trim() !== "" && Number.isFinite(Number(value)) ? Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—";
       for (const model of hostedSettings.models) {
-        const row = document.createElement("tr"), modelCell = document.createElement("th");
-        modelCell.setAttribute("scope", "row");
-        modelCell.setAttribute("title", model.displayName);
-        modelCell.textContent = model.displayName;
-        row.append(modelCell);
-        for (const value of [model.inputCreditsPerMillion, model.cacheReadInputCreditsPerMillion, model.cacheWriteInputCreditsPerMillion, model.outputCreditsPerMillion]) {
-          const cell = document.createElement("td");
-          cell.textContent = rateNumber(value);
-          row.append(cell);
-        }
+        const row = document.createElement("tr"), name = document.createElement("th");
         body.append(row);
+        name.scope = "row";
+        name.textContent = model.displayName;
+        row.append(name);
+        for (const value of [hostedMultiplierLabel(model.multiplier), number(model.inputCreditsPerMillion), number(model.cacheReadInputCreditsPerMillion), number(model.outputCreditsPerMillion)]) {
+          const cell = document.createElement("td"); cell.textContent = value; row.append(cell);
+        }
       }
-      table.append(head, body);
-      card.append(table);
-      rates.append(caption, card);
+      rates.append(table);
     }
     document.getElementById("settingsHostedBilling").href = `${String(window.PENECHO_CONFIG?.cloudOrigin || (window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : "https://penecho.ai")).replace(/\/$/, "")}/dashboard.html#billing`;
     if (typeof canvasAgentUpdateConnectionButton === "function") canvasAgentUpdateConnectionButton();
