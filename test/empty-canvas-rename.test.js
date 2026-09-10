@@ -269,3 +269,15 @@ test("renaming an existing Canvas overwrites its stored identity", async () => {
   assert.equal(h.storage.tiles.size, 0);
   assert.equal(h.state.currentSnapshotId, existing.id);
 });
+
+test('saving retains Widget source when preview capture is unavailable',async()=>{
+ const h=harness(),widget={id:'animated-widget',html:'<canvas></canvas>',x:100,y:100,w:400,h:400};
+ h.context.visibleWidgets=()=>[widget];h.context.serializedWidgets=()=>[widget];
+ h.context.prepareVisibleWidgetSnapshots=async(region,bestEffort)=>{
+  if(!bestEffort)throw Error('snapshot timed out');
+  return {total:1,captured:0,missing:1};
+ };
+ const result=await h.context.saveSnapshot({name:'Animation'});
+ assert.ok(result);assert.equal(h.storage.items.size,1);
+ const item=[...h.storage.items.values()][0];assert.equal(item.widgets[0].html,widget.html);
+});

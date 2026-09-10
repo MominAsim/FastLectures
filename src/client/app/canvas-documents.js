@@ -36,7 +36,7 @@
   }
   function canvasDocumentsRecord(meta,stored=null) {
     return {id:meta.documentId,title:meta.title||canvasDocumentsCopy("Untitled Canvas","未命名画布"),context:meta.context||"",bindings:meta.bindings||[],locators:meta.locators||[],processor:meta.processor||{kind:"penecho"},stored,
-      revision:1,savedRevision:0,feedback:[],feedbackSequence:0,messages:[],messageSequence:0,changes:[],changeSequence:0,sessions:[],unseen:0,undo:[],redo:[],receipts:new Map()};
+      revision:1,savedRevision:0,feedback:[],feedbackSequence:0,messages:[],messageSequence:0,changes:[],changeSequence:0,sessions:[],internalSessions:[],unseen:0,undo:[],redo:[],receipts:new Map()};
   }
   function canvasDocumentsUnseen(value) { return Number.isSafeInteger(value) && value >= 0 ? value : 0; }
   function canvasDocumentsIsActive(doc) { return doc.id === canvasDocuments.activeId; }
@@ -60,12 +60,14 @@
     const current=[...new Map(runtime.map(s=>[s.sessionKey?binding(s):s.sessionId,s])).values()];
     const live=current.filter(s=>!s.closed).map(s=>({sessionKey:s.sessionKey||"",client:s.client||"",title:s.title,status:s.status,summary:s.summary,steps:s.steps,events:s.events,boardObjectId:s.boardObjectId,layout:s.layout,artifacts:[...s.artifacts],feedbackStart:s.feedbackStart}));
     // Keyless sessions remain transient and never acquire a reconnect binding.
-    const sessions=[...retained,...live].slice(-64);
-    return {version:1,sessions,feedback:doc.feedback.slice(-200),feedbackSequence:doc.feedbackSequence,messages:doc.messages.slice(-100),messageSequence:doc.messageSequence,changes:doc.changes.slice(-200),changeSequence:doc.changeSequence};
+    const internalBindings=new Set(runtime.filter(s=>s.internalAgent).map(binding));
+    const sessions=[...retained,...live.filter(s=>!internalBindings.has(binding(s)))].slice(-64);
+    const internalSessions=[...(doc.internalSessions||[]).filter(s=>!overridden.has(binding(s))),...live.filter(s=>internalBindings.has(binding(s)))].slice(-64);
+    return {version:1,sessions,...(internalSessions.length?{internalSessions}:{}),feedback:doc.feedback.slice(-200),feedbackSequence:doc.feedbackSequence,messages:doc.messages.slice(-100),messageSequence:doc.messageSequence,changes:doc.changes.slice(-200),changeSequence:doc.changeSequence};
   }
   function canvasDocumentsRestoreWorkspace(doc,value) {
     const normalized=canvasDocumentIdentity.normalizeWorkspace(value,canvasDocumentsMetadata(doc));if(!normalized)return;
-    for(const field of ["feedback","messages","changes","sessions","feedbackSequence","messageSequence","changeSequence"])doc[field]=normalized[field];
+    for(const field of ["feedback","messages","changes","sessions","internalSessions","feedbackSequence","messageSequence","changeSequence"])doc[field]=normalized[field];
   }
   async function canvasDocumentsDb() {
     if(canvasDocuments.db)return canvasDocuments.db;
@@ -202,13 +204,14 @@
   }
   function canvasDocumentsBounds(object) { const {x,y,w,h}=object.item;return {x,y,w,h}; }
   function canvasDocumentsObject(doc,id) {return canvasDocumentsObjects(doc).find(o=>o.item.id===id);}
+  function canvasDocumentsSourceEditable(object) {return object.kind!=="widget"||object.item.widgetType==="html_widget"&&(!object.item.pluginId||object.item.pluginId==="general");}
   function canvasDocumentsFilePaths(doc) {
     const entries=[{path:"canvas.json",writable:false},{path:"context.md",writable:true},{path:"layout.json",writable:false},{path:"view.json",writable:false},{path:"objects/index.json",writable:false},{path:"runtime/viewport.json",writable:false},{path:"runtime/selection.json",writable:false},{path:"runtime/changes.json",writable:false},{path:"runtime/messages.json",writable:false},{path:"ink/index.json",writable:false}];
     for(const object of canvasDocumentsObjects(doc)) {
       const root=`objects/${encodeURIComponent(object.item.id)}`,common={objectId:object.item.id,kind:object.kind,bounds:canvasDocumentsBounds(object)};
       entries.push({...common,path:`${root}/geometry.json`,writable:true});
       const names=object.kind==="widget"?["widget.json",...(object.item.widgetType==="diagram_source"?["widget.source"]:["widget.html",...(object.item.copyText&&object.item.copyText!==object.item.html?["widget.source"]:[])])]:object.kind==="text"?["content.txt"]:["image.json"];
-      for(const name of names)entries.push({...common,path:`${root}/${name}`,writable:object.kind!=="image"});
+      for(const name of names)entries.push({...common,path:`${root}/${name}`,writable:object.kind!=="image"&&canvasDocumentsSourceEditable(object)});
     }
     return entries;
   }
@@ -305,6 +308,7 @@
     if(!object)throw canvasDocumentsError("READ_ONLY_FILE","This is a derived runtime file. Use a Canvas action instead.");
     if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
     const field=parts[2],item=object.item;let replacement={...item};
+    if(field!=="geometry.json"&&!canvasDocumentsSourceEditable(object))throw canvasDocumentsError("READ_ONLY_FILE","Professional Diagram and private plugin source editing is unavailable. Existing content is preserved.");
     if(field==="geometry.json") {
       let geometry;try{geometry=JSON.parse(args.content);}catch{throw canvasDocumentsError("INVALID_JSON","Geometry must be valid JSON.");}
       if(Object.keys(geometry).some(k=>!["x","y","w","h"].includes(k)))throw canvasDocumentsError("INVALID_GEOMETRY","Geometry contains unsupported fields.");
@@ -315,7 +319,8 @@
       const made=await renderedTextBoxRecord({...item,text:args.content});if(!made)throw canvasDocumentsError("INVALID_TEXT","Text could not be rendered. Shorten it and retry.");replacement=made;
       canvasDocumentsValidateGeometry(doc,canvasDocumentsBounds({item:replacement}),item.id);
     } else if(object.kind==="widget"&&["widget.html","widget.source","widget.json"].includes(field)) {
-      if(field==="widget.html") {replacement.html=args.content;if(widgetUsesHtmlCopySource(item))replacement.copyText=args.content;}
+      const htmlCopySource=field==="widget.html"&&widgetUsesHtmlCopySource(item);
+      if(field==="widget.html") {replacement.html=args.content;if(htmlCopySource)delete replacement.copyText;}
       else if(field==="widget.source") {if(item.widgetType==="diagram_source")replacement.source=args.content;else replacement.copyText=args.content;}
       else {
         let value;try{value=JSON.parse(args.content);}catch{throw canvasDocumentsError("INVALID_JSON","widget.json must remain valid JSON.");}
@@ -325,6 +330,9 @@
       }
       const validated=canvasDocumentsWidgetRecord(replacement);if(!validated)throw canvasDocumentsError("INVALID_WIDGET","Patched Widget source was rejected. Check its format and retry.");
       replacement=validated;
+      // HTML remains the canonical copy source. Clear any old mirrored field
+      // when merging into an inactive record without duplicating large HTML.
+      if(htmlCopySource)replacement.copyText=undefined;
       if(canvasDocumentsIsActive(doc)) {
         if(canvasDocumentsFile(doc,path)!==before)throw canvasDocumentsError("SOURCE_CONFLICT","Source changed before applying. Read it again and retry.");
         const edit=widgetEditContext(item,"agent"),sourceHash=await canvasAgentHash(canvasAgentWidgetSourceState(edit));
@@ -417,17 +425,18 @@
     if(doc.stored?.item)doc.stored.item.name=title;
     return true;
   }
-  function canvasDocumentsSession(doc,args) {
-    const existing=(doc.sessions||[]).find(s=>args.sessionKey&&s.sessionKey===args.sessionKey&&(s.client||"")===(args.client||""));
+  function canvasDocumentsSession(doc,args,{internalAgent=false}={}) {
+    const existing=(internalAgent?doc.internalSessions||[]:doc.sessions||[]).find(s=>args.sessionKey&&s.sessionKey===args.sessionKey&&(s.client||"")===(args.client||""));
     const session={sessionId:args.sessionId,documentId:doc.id,slotIndex:args.slotIndex||0,title:args.title,client:args.client||"",sessionKey:args.sessionKey||"",status:"working",summary:"",steps:[],events:[],artifacts:new Map(),feedbackStart:doc.feedbackSequence,createdAt:Date.now(),...existing};
     session.sessionId=args.sessionId;session.artifacts=new Map(existing?.artifacts||[]);session.closed=false;
-    if(args.sessionKey) {
+    if(args.sessionKey&&!internalAgent) {
       if(doc.bindings.some(b=>b.key===args.sessionKey&&b.client!==(args.client||"")))throw canvasDocumentsError("BINDING_CONFLICT","This conversation key belongs to a different client. Use that client or a new key.");
       if(doc.bindings.length>=64&&!doc.bindings.some(b=>b.key===args.sessionKey))throw canvasDocumentsError("BINDING_LIMIT","This Canvas has 64 conversation bindings. Use another Canvas.");
       const conflict=[...canvasDocuments.records.values()].find(d=>d.id!==doc.id&&d.bindings.some(b=>b.key===args.sessionKey&&b.client===(args.client||"")));
       if(conflict)throw canvasDocumentsError("BINDING_CONFLICT","This conversation is bound to another Canvas. Reopen its documentId or use a new conversation key.",{documentId:conflict.id});
       if(!doc.bindings.some(b=>b.key===args.sessionKey&&b.client===(args.client||"")))doc.bindings.push({key:args.sessionKey,client:args.client||"",documentId:doc.id});
     }
+    session.internalAgent=internalAgent;
     return session;
   }
   async function canvasDocumentsBackground(doc,name,args,execution) {
@@ -589,6 +598,33 @@
     else throw canvasDocumentsError("UNSUPPORTED_OPERATION","This Canvas action is not supported.");
     canvasDocumentsEndEdit(doc,args.action,args.objectId);return {applied:true,objectId:args.objectId,revision:doc.revision};
   }
+  // First-party Agent calls enter the same document executor as MCP. The
+  // existing Agent socket is the authority: this does not opt in a public MCP
+  // connection, allocate a new Canvas, or give access to other documents.
+  async function canvasAgentDocumentOperation(input,execution) {
+    const allowed=new Set(["mcp_list_files","mcp_read_file","mcp_prepare_patch","mcp_apply_patch","mcp_edit_canvas","mcp_present_widget","mcp_draw","mcp_plot","mcp_capture_canvas","mcp_capture_widget","mcp_capture_primitives","mcp_read_feedback","mcp_inspect_session","mcp_read_messages","mcp_ack_messages"]);
+    if(!input||Object.keys(input).some(key=>!["operation","arguments","bindingKey"].includes(key))||!allowed.has(input.operation))throw canvasDocumentsError("UNSUPPORTED_OPERATION","This Agent document operation is unavailable.");
+    const key=input.bindingKey,args=input.arguments;
+    if(typeof key!=="string"||!/^agent-[a-f0-9]{64}$/.test(key)||!args||args.sessionId!==key)throw canvasDocumentsError("BINDING_CONFLICT","The Agent document binding is invalid.");
+    const activeId=canvasDocumentsCurrent().id,epoch=canvasDocuments.epoch;
+    await canvasDocumentsReady();
+    canvasAgentAssertToolExecution(execution);
+    if(activeId!==canvasDocuments.activeId||epoch!==canvasDocuments.epoch)throw canvasDocumentsError("CANVAS_BUSY","The Canvas changed while preparing this operation.");
+    let session=mcpRuntime.sessions.get(key);
+    if(session&&(session.closed||!session.internalAgent||session.documentId!==activeId||session.client!=="PenEcho Agent"))throw canvasDocumentsError("BINDING_CONFLICT","This conversation belongs to a different Canvas.");
+    if(!session){
+      const doc=canvasDocuments.records.get(activeId);
+      const conflict=[...canvasDocuments.records.values()].find(other=>other.id!==activeId&&(other.internalSessions||[]).some(saved=>saved.sessionKey===key));
+      if(conflict)throw canvasDocumentsError("BINDING_CONFLICT","This conversation belongs to a different Canvas.");
+      session=canvasDocumentsSession(doc,{sessionId:key,sessionKey:key,client:"PenEcho Agent",title:"PenEcho Agent",target:"current"},{internalAgent:true});
+      // Retain recent identities without consuming external MCP binding slots.
+      const prior=[...mcpRuntime.sessions.values()].filter(s=>s.internalAgent&&s.documentId===activeId);
+      if(prior.length>=64){doc.internalSessions=canvasDocumentsWorkspaceData(doc).internalSessions||[];for(const old of prior.slice(0,prior.length-63)){mcpRuntime.sessions.delete(old.sessionId);mcpRuntime.pendingView?.delete(old.sessionId);}}
+      mcpRuntime.sessions.set(key,session);
+    }
+    execution.documentEpoch=epoch;execution.documentId=activeId;execution.activeDocumentId=activeId;
+    return canvasDocumentsExecute(input.operation,args,execution);
+  }
   async function canvasDocumentsExecute(name,args,execution) {
     if(name==="mcp_start_session"&&!args.client)args={...args,client:"External AI"};
     if(name==="mcp_find_canvases")return canvasDocumentsFind(args);
@@ -630,6 +666,10 @@
       return canvasDocumentsReadFile(doc,args,true);
     }
     if(name==="mcp_present_widget"&&args.presentation?.intent==="inspect")return {...await mcpInspectHtml(args,execution),revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision,documentId:doc.id};
+    if(name==="mcp_present_widget") {
+      const artifact=session.artifacts.get(args.artifactId),object=artifact&&canvasDocumentsObject(doc,artifact.objectId);
+      if(object&&!canvasDocumentsSourceEditable(object))throw canvasDocumentsError("READ_ONLY_FILE","Professional Diagram and private plugin source editing is unavailable. Existing content is preserved.");
+    }
     const work=async()=>{
       let result;
       if(name==="mcp_list_files") {

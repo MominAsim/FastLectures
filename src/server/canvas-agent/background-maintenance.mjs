@@ -11,6 +11,7 @@ export class BackgroundMaintenance {
     this.started = false
     this.controller = new AbortController()
     this.results = {}
+    this.nextRuns = new Map()
   }
 
   start() {
@@ -23,25 +24,29 @@ export class BackgroundMaintenance {
     if (this.closed) return
     this.timer = setTimeout(async () => {
       this.timer = null
-      await this.runOnce()
-      this.schedule(this.intervalMs)
+      await this.runOnce({ scheduled:true })
+      const next = Math.min(...this.tasks.map(task=>this.nextRuns.get(task.name) || Date.now()+this.intervalMs))
+      this.schedule(Math.max(1000,Math.min(this.intervalMs,next-Date.now())))
     }, delay)
     this.timer.unref?.()
   }
 
-  runOnce() {
+  runOnce({ scheduled = false } = {}) {
     if (this.closed) return Promise.resolve()
     if (this.running) return this.running
     this.running = (async () => {
       for (const task of this.tasks) {
         if (this.closed) break
+        if (scheduled && (this.nextRuns.get(task.name)||0)>Date.now()) continue
         const startedAt = Date.now()
         try {
           const result = await task.run({ signal:this.controller.signal })
           this.results[task.name] = { at:Date.now(), durationMs:Date.now() - startedAt, result }
+          this.nextRuns.set(task.name,Date.now()+(result?.pending ? 1000 : this.intervalMs))
         } catch (error) {
           const code = String(error?.code || error?.name || 'maintenance_failed').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64)
           this.results[task.name] = { at:Date.now(), durationMs:Date.now() - startedAt, error:code }
+          this.nextRuns.set(task.name,Date.now()+this.intervalMs)
           try { this.logger?.({ task:task.name, errorCode:code }) } catch { /* housekeeping cannot fail through logging */ }
         }
         await new Promise(resolve => setImmediate(resolve))

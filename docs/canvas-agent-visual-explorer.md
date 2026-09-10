@@ -1,92 +1,45 @@
-# PenEcho Agent Visual Explorer
+# Shared Canvas authoring and Visual Explorer
 
-PenEcho Agent Visual Explorer creates one responsive, source-authored General HTML Widget for understanding-, organizing-, or planning-first work. It is an isolated PenEcho Agent extension: Main Canvas AI, Canvas Pen AI Refine, the shared General HTML contract, personal plugins, and existing General HTML behavior are unchanged.
+PenEcho Agent and third-party MCP agents use the same document operations, validation, source-editing protocol, and authoring guidance. The built-in host binds its current Canvas conversation automatically; external MCP clients retain their existing explicit connection and document lifecycle. Neither path is a host-filesystem view: the files are virtual Canvas sources.
 
-It is the PenEcho Agent default for substantial pasted text and requests to explain, learn, analyze, or organize equations, projects, documents, and other material, even when the user does not explicitly ask for an infographic. A bare request to draw one or more function graphs instead uses the host-native `canvas_create` `type:"plot"` item; the mathematical Visual Explorer route is reserved for graphs that also need derivation, linked evidence, animation, interaction, or an explicitly requested Widget. Visual Explorer also yields to direct edits or supplements to existing Canvas/page elements and to requests whose defining result is interaction, simulation, live data, a small ordinary HTML tool, or another enabled artifact.
+## Routing and design guidance
 
-## Output contract
+Understanding, learning, analysis, and organization use Visual Explorer. Product pages, UI previews, ordinary HTML tools, live data, and interaction-first simulations use General HTML. Creating a new page does not automatically activate Visual Explorer. Bare function graphs use `penecho_plot`.
 
-The canonical artifact is one complete, readable HTML document built from semantic HTML, inline CSS, inline SVG, and only the JavaScript that materially improves the result. The first render must already be complete and useful without interaction, and `widget.html` is the sole reusable source.
+`penecho_get_guidance` loads `visual-explorer`, `general-html`, `math-2d`, `physics-2d`, or `math-3d` on demand. Both clients receive the same version, hash, and document. The default prompt contains only routing and execution rules; full design/scientific documents do not inflate every request. Existing MCP prompt templates remain available.
 
-Visual Explorer plans information before styling and uses a `Macro → Meso → Micro` reading hierarchy: a 3–5 second global model, roughly 30-second anchored drill-downs, and up to three minutes of high-value numbers, rules, constraints, exceptions, and evidence. It compresses repetition into shared annotations, legends, axes, or tables and prioritizes relationships and structure over completeness.
+The Visual Explorer design body is sourced directly from `src/server/canvas-agent/visual-explorer-contract.md`. Its semantic grammar, Macro/Meso/Micro hierarchy, typography, information density, and visual quality requirements remain authoritative. Only delivery instructions are adapted to the shared tools. Scientific guidance retains its deterministic equations, calibrated evidence, static fallback, and verified rendering examples.
 
-Concise document mode is selected directly, without a confirmation question, when the user asks for something simple, concise, clear, direct, intuitive, visual-first, at-a-glance, lower-text, or easier to understand; asks to simplify or visually clarify an existing result; requests a one-page, one-slide, presentation-ready, executive-summary, or quick-overview visual; targets Word, PowerPoint/PPT, slides, decks, reports, documents, handouts, export, download, print, or embedding; or supplies a straightforward concept that does not need dense analysis. Words such as explain, analyze, summarize, learn, document, or infographic do not trigger it by themselves when the request actually calls for comprehensive technical depth.
+## Shared operations
 
-The mode preserves the 3–5 second overview but favors diagrams, arrows, comparisons, small tables, and short labels; each module is normally a title plus one very short introduction or 1–3 labels. It omits nonessential prose and micro-detail so exported text remains readable and unclipped. When compact format and technical depth conflict, required facts, relationships, numbers, and conclusions remain, but are compressed into visual structure instead of paragraphs.
+- `penecho_present_widget` creates or updates responsive HTML using a stable `artifactId`. The host supplies automatic or requested relative placement. Existing updates retain geometry.
+- `penecho_list_files` and `penecho_read_file` discover exact virtual paths and raw source. `penecho_patch_file` applies strict unified diffs with the returned `contentHash` and a request receipt.
+- A source conflict requires a fresh read and a new `requestId`. An uncertain outcome is retried with identical arguments and the same ID. Neither client substitutes a guessed revision.
+- `penecho_edit_canvas` supports guarded geometry actions and `draw_ink` at world coordinates, including annotation over handwriting. Existing MCP actions and placement semantics remain unchanged.
+- Creation can combine `capture:true` with one tool call. Ordinary edits need no intermediate screenshot. Returned application receipts and pixel evidence remain distinct; a failed capture can leave successfully applied content and must not trigger duplicate creation.
 
-The topic selects the dominant grammar instead of inheriting one fixed layout. Supported choices include pipeline, layered system, causal or relationship map, hub-and-spoke, timeline or schedule lanes, comparison or matrix, hierarchy, feedback loop, route or spatial map, visual notes, and meaningful combinations. A pipeline is used only for real sequence or transformation. Importance determines area, related details stay close, metrics stay beside what they explain, and connectors represent real relationships.
+Internal calls use the same bound operation module and browser document executor as MCP, with the current host session supplied automatically. They cannot open or switch documents or opt the Canvas into an external processor. Navigation invalidates stale internal execution.
 
-References provide composition evidence only. Their reading order, density, proportions, typography, grouping, whitespace, color roles, and connector language may guide the design, but labels, values, and claims must come from the user's factual material. There is no mandatory orientation or panel arrangement: the information hierarchy chooses the layout, and connectors represent only real relationships.
+Professional Diagram and private-plugin authoring/source editing are not advertised. Existing saved content remains readable and renderable. Geometry remains part of ordinary document operations. Historical low-level Canvas kernels remain for saved behavior and regression tests, but are not registered as a second model-facing creation API.
 
-Typography is planned against the focused Canvas display rather than raw Widget coordinates. The model supplies its actual body, caption, and title source sizes to `canvas_inspect`; when its prediction is too small, the model simplifies content, increases typography, changes the aspect ratio, or uses more Canvas space before creating the Widget.
+## Scientific rendering
 
-Every newly authored Visual Explorer uses exactly these markers:
+Manim-Web is the default explanatory rendering/motion language whenever it can present the request at least as clearly as a static alternative. Use deterministic calibration and complete static HTML/SVG evidence; fallback is appropriate when animation cannot faithfully, legibly, accessibly, or efficiently improve the explanation. This is a renderer, not a symbolic solver or a substitute for checked mathematics.
 
-```json
-{
-  "pluginId": "general",
-  "widgetType": "html_widget",
-  "sourceFormat": "penecho-visual-explorer+html",
-  "frameworkVersion": "penecho-visual-explorer/1",
-  "refreshSeconds": 0
-}
-```
-
-`copyText` and `copyLabel` are omitted, and `widget.source` remains empty.
-
-## PenEcho Agent workflow
-
-1. Use the host-supplied authoritative initial Canvas state. On a nonempty Canvas, capture the complete Canvas with `target:"canvas"`, `quality:"basic"`, and `coordinates:"none"` before requesting placement if that overview was not already supplied.
-2. If the host-supplied initial state explicitly declares an empty Canvas at the current revision, skip the unchanged inspect/capture and create directly with finite dimensions and `placement.mode:"auto"`. Otherwise call `canvas_inspect` with `plannedWidget.sourceFormat:"penecho-visual-explorer+html"`, the intended dimensions, and source typography. Treat its width, height, and absolute `createPlacement` as authoritative.
-3. Call `canvas_create` once with exactly one `general/html_widget`, both exact markers, and either the empty-Canvas auto placement or the exact nonempty-Canvas proposal. When the complete source is likely to exceed about 3,000 output tokens or delay visible progress for close to a minute, use progressive delivery: create a useful runnable scaffold immediately, then fill coherent sections through bounded `widget.html` patches, aiming for a useful visible increment about once per minute. The scaffold reserves the final dimensions, region geometry, hierarchy, and scale; progressive patches populate the plan without layout drift, so the finished result matches the planned one-shot composition.
-4. Capture the complete Canvas with `target:"canvas"`, `quality:"basic"`, and `coordinates:"none"` to verify scale, placement, and overlap.
-5. Capture the created Widget with `target:"object"`, `quality:"detail"`, and `coordinates:"none"` to review hierarchy, typography, clipping, connectors, density, and visual-grammar fidelity.
-6. For an ordinary completed Widget, patch only a concrete remaining defect. For a planned progressive Widget, read only the needed `widget.html` ranges and fill one coherent section per bounded patch, keeping every intermediate version runnable and useful.
-7. Stop when the request is satisfied, consecutive versions no longer make material progress, or remaining gains are marginal. Use clean captures when they add evidence; do not capture unchanged content repeatedly.
-
-The server enforces one newly created Visual Explorer, at most 20 same-target patch attempts as a runaway guard, and at most two successful clean detail captures per actual user message. Progressive construction patches are not treated as failed refinement, and the model should normally stop far before the hard guard.
-
-## Legacy compatibility
-
-The legacy `VisualExplainerPlan` and AntV authoring tools are hidden from new PenEcho Agent authoring. Their implementation remains in the codebase, and saved Canvas content keeps its existing read, render, patch, and compatibility paths. No legacy format or component is deleted by this integration.
-
-## Scientific Visual Explorer
-
-Scientific Visual Explorer extends the same General HTML artifact without changing its source or framework markers. The authoring route is selected by the learning goal:
-
-| Goal | Route | Rendering responsibility |
-| --- | --- | --- |
-| Bare request for one or more function graphs | Native Canvas `plot` item | Host-calibrated direct renderer; no sampled Widget or hand-authored point list |
-| Function concepts, derivatives, extrema, or geometric proof states | Visual Explorer with `math-2d` | Width-based dense curves with adaptive curvature refinement, calibrated static-first SVG evidence, and Manim-Web explanatory rendering/motion by default when it is at least as clear |
-| Forces, motion, fields, or conservation explanations | Visual Explorer with `physics-2d` | Static-first boundary, vectors, trajectory, and state evidence plus Manim-Web explanatory rendering/motion by default when it is at least as clear |
-| 3-D surfaces, cameras, coordinate transforms, or morphs | Visual Explorer with `math-3d` | Static-first canonical 3-D evidence plus Manim-Web rendering/camera motion by default; bounded orbit/zoom interaction with visible instructions and Reset view when inspection helps |
-| Open-ended experiments whose controls continuously change data, simulation state, or the view | Custom HTML | Application-owned controls and simulation lifecycle |
-| One standalone precision chart | Visual Explorer | Calibrated General HTML/SVG with explicit axes, scales, units, and data encoding |
-
-Every scientific artifact is explanation-first. Its initial static HTML/SVG is complete, deterministic, readable, and retained as fallback before JavaScript runs. Manim-Web is the default explanatory rendering/motion language whenever it can present the request at least as clearly as a static alternative; fall back only when it cannot faithfully, legibly, accessibly, or efficiently improve the presentation. It is not a computer algebra system, numerical solver, or substitute for visible assumptions and deterministic derivations.
-
-### Two-stage lazy loading
-
-Scientific instructions and code are absent from the initial PenEcho Agent prompt. The always-visible `load_visual_skill` router selects one bounded local contract: `math-2d`, `physics-2d`, or `math-3d`. Loading appends the full contract to durable provider-owned conversation context without placing it in ordinary tool-result history: Harness stores it as an append-only session system section, while native Codex supplies it as application `additionalContext` on subsequent turns of the same App Server thread. The stable initial instruction prefix is not rebuilt. Repeating the call reports `alreadyLoaded` without duplicating the contract.
-
-Authored scientific HTML declares exactly one matching marker:
+HTML declares exactly one supported marker, for example:
 
 ```html
 <meta name="penecho-visual-skill" content="math-2d">
 ```
 
-The server rejects an unknown, duplicated, or not-yet-loaded marker. It also rejects unmarked or unpinned Manim-Web module imports. This is an authoring gate at `canvas_create`; it is not a general HTML security boundary or a provenance mechanism for later source patches.
+Both shared `penecho-mcp+html` documents and the legacy Visual Explorer source/framework pair activate the same lazy scientific Widget runtime. Unknown, duplicated, or absent markers do not activate it. Ordinary HTML keeps its existing runtime.
 
-The browser runtime is lazy independently of the model instructions. Only an exact Visual Explorer source/framework pair with one supported skill marker receives the scientific CSP, import rewrite, readiness bridge, and snapshot hooks. A pinned authored import of `https://cdn.jsdelivr.net/npm/manim-web@0.3.24/dist/manim-web.browser.js` is rewritten in memory to the local packaged mirror; persisted HTML remains portable and canonical. Ordinary General HTML Widgets keep their prior initialization, CSP, readiness, and snapshot behavior.
+Only exact pinned Manim-Web module imports are rewritten to the packaged mirror. The static HTML/SVG remains complete before JavaScript runs and survives enhancement failure. Scientific readiness, bounded replay/orbit controls, reduced motion, and canonical snapshot hooks use the existing Widget host; there is no second renderer for MCP.
 
-The supported packaged surface is deliberately bounded to the verified scene, axes, curve, vector-field, 3-D surface, camera, geometry, and animation APIs named by the loaded skill. MathJax-backed `Tex`/`MathTex`, GIF/video export, audio, and other runtime-fetched assets are outside this release; equations and exact evidence stay in static HTML/SVG.
+## Validation and rollout
 
-### Readiness, motion, and snapshots
+The common operation tests and document-executor parity tests cover both clients together: files, source conflicts, idempotency, placement, captures, retired source protection, and binding. Native/Harness tests additionally cover provider lifecycle, cancellation, budget limits, and invalid-decision correction.
 
-Scientific HTML calls `window.penechoWidgetReady()` after its static fallback and selected enhancement have settled. The host then waits for the DOM renderer and two presented animation frames before reporting the document ready. There is no success timeout that can hide a failed render.
+Cloud consumes the reviewed server dependency graph through `tools/sync-canvas-agent-runtime.mjs` and browser artifacts through `tools/sync-public-canvas.mjs`. Sync the client and server together before live acceptance. UAT records bounded provider argument facts, admission failures, and failed turn endings; production detailed recording stays disabled. Missing/invalid arguments are not silently normalized to `{}`, and truncated tool responses never execute.
 
-An artifact provides replay and pause controls when it animates, respects `prefers-reduced-motion`, and defines a stable final state. An inspectable 3-D artifact also exposes bounded pointer/touch/keyboard orbit controls, visible usage instructions, constrained zoom, and a Reset view action; reduced motion disables automatic transitions without removing useful manual exploration. Optional bounded `beforeSnapshot` and `afterSnapshot` hooks reset WebGL content to its canonical capture state and then restore the user's prior bounded view without changing the ordinary Widget snapshot path. If Manim-Web cannot load or initialize, the complete static SVG explanation remains visible.
-
-### Cloud rollout boundary
-
-The 071 repository is the source of truth for this implementation. A Cloud release must explicitly sync both packaged Manim-Web files, expose their two allowlisted routes, and carry the matching Widget host/runtime changes. Treat Cloud as not supporting this feature until that atomic rollout is complete; never deploy a partial mirror containing only the host, skill contracts, routes, or browser assets.
+Automated contract tests do not establish live model latency or visual quality. UAT acceptance must run the same page creation, explanation, scientific rendering, source refinement, annotation, and cancellation scenarios for both clients, comparing tool failures, unnecessary calls, first useful output, and final pixels.

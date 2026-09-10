@@ -45,3 +45,17 @@ test('non-overlapping Agent panel does not shrink the fit region', () => {
 test('bottom-sheet Agent panel leaves the top canvas area available', () => {
   assert.deepEqual(fit({ rect:{ left:0, top:400, right:1200, bottom:800, width:1200, height:400 } }), { scale:.68, centerX:600, centerY:200 });
 });
+
+test('Agent automatic framing ignores closed and navigation-hidden panels and centers actual content',()=>{
+ const agentSource=fs.readFileSync(require('node:path').join(__dirname,'../src/client/app/canvas-agent-runtime.js'),'utf8');
+ const start=agentSource.indexOf('  function canvasAgentFramePlan('),end=agentSource.indexOf('  function canvasAgentFrameRegion(',start);
+ const region={x:5000,y:6000,w:1200,h:800};
+ for(const options of [{open:false},{hidden:true},{navigationHidden:true},{open:true}]){
+  const context={SIZE:32768,view:{clientWidth:1200,clientHeight:800},canvasAgentPanel:{hidden:!!options.hidden},document:{body:{classList:{contains:name=>name==='canvas-agent-open'?!!options.open:!!options.navigationHidden}}},canvasElementLayoutRect:()=>({left:600,top:0,right:1200,bottom:800})};
+  const plan=vm.runInNewContext(agentSource.slice(start,end)+';canvasAgentFramePlan',context)(region,96);
+  const expectedWidth=options.open?588:1200;
+  assert.equal(plan.stage.w,expectedWidth);
+  assert.ok(Math.abs(plan.panX+(region.x+region.w/2)*plan.scale-expectedWidth/2)<1e-8);
+  assert.ok(Math.abs(plan.panY+(region.y+region.h/2)*plan.scale-400)<1e-8);
+ }
+});

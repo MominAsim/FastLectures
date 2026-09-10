@@ -431,13 +431,8 @@
           </section>
           <section id="studioNavigatorMcpPanel" class="studio-navigator-panel" role="tabpanel" aria-labelledby="studioNavigatorMcpTab" hidden>
             <div class="studio-mcp-actions" role="group" aria-label="MCP canvas actions" id="studioMcpActions">
-              <label class="studio-mcp-follow" for="studioMcpFollowLatest"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5H5v3m11-3h3v3M5 16v3h3m11-3v3h-3"/><circle cx="12" cy="12" r="3"/></svg><span id="studioMcpFollowLabel">Follow latest</span><button id="studioMcpFollowLatest" type="button" role="switch" data-pe-control="switch" aria-labelledby="studioMcpFollowLabel" aria-checked="false"></button></label>
-              <button id="studioMcpMore" type="button" data-pe-button="icon" data-pe-density="compact" aria-label="MCP canvas actions" aria-haspopup="menu" aria-expanded="false" aria-controls="studioMcpMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
-              <div id="studioMcpMenu" class="studio-mcp-menu" role="menu" data-pe-surface="menu" data-pe-list="menu" data-pe-material="popover-glass" data-pe-size="xs" data-pe-layout="single" hidden>
-                <button id="canvasWorkspaceClose" type="button" role="menuitem" data-pe-button="menu-item" data-pe-density="standard">Close current</button>
-                <button id="studioMcpCloseOthers" type="button" role="menuitem" data-pe-button="menu-item" data-pe-density="standard">Close others</button>
-                <button id="studioMcpCloseAll" type="button" role="menuitem" data-pe-button="menu-item" data-pe-density="standard">Close all MCP canvases</button>
-              </div>
+              <div class="studio-mcp-follow"><span class="studio-mcp-follow-copy"><span id="studioMcpFollowLabel">Follow latest</span><small id="studioMcpFollowDescription">Auto-focus new content</small></span><button id="studioMcpFollowLatest" type="button" role="switch" data-pe-control="switch" aria-labelledby="studioMcpFollowLabel" aria-describedby="studioMcpFollowDescription" aria-checked="false"></button></div>
+
             </div>
             <div id="studioMcpRecentList" class="studio-navigator-list"></div>
           </section>
@@ -451,7 +446,12 @@
         <footer class="studio-navigator-foot">
           <div id="canvasWorkspace" class="canvas-workspace" hidden>
             <span id="canvasWorkspaceCount" role="status" aria-live="polite">1 open</span>
-            <button id="canvasWorkspaceCloseAll" type="button" data-pe-button="ghost" data-pe-density="compact">Close all</button>
+              <button id="studioMcpMore" type="button" data-pe-button="ghost" data-pe-density="compact" aria-label="MCP canvas actions" aria-haspopup="menu" aria-expanded="false" aria-controls="studioMcpMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+              <div id="studioMcpMenu" class="studio-mcp-menu" role="menu" data-pe-surface="menu" data-pe-list="menu" data-pe-material="popover-glass" data-pe-size="xs" data-pe-layout="single" hidden>
+                <button id="canvasWorkspaceClose" type="button" role="menuitem" data-pe-button="menu-item" data-pe-density="standard">Close current</button>
+                <button id="studioMcpCloseOthers" type="button" role="menuitem" data-pe-button="menu-item" data-pe-density="standard">Close others</button>
+                <button id="studioMcpCloseAll" type="button" role="menuitem" data-pe-button="menu-item" data-pe-density="standard">Close all MCP canvases</button>
+              </div>
             <span id="canvasWorkspaceStatus" role="status" aria-live="polite"></span>
             <button id="canvasWorkspaceRetry" type="button" data-pe-button="secondary" data-pe-density="compact" hidden>Retry</button>
           </div>

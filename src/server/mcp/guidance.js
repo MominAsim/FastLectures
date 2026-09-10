@@ -1,15 +1,6 @@
 "use strict";
 
-const fs = require("node:fs");
-const path = require("node:path");
-
-// Keep the design authority shared with the built-in Visual Explorer. Its
-// internal canvas_create/load_visual_skill instructions do not apply to MCP.
-const contract = fs.readFileSync(path.join(__dirname, "../canvas-agent/visual-explorer-contract.md"), "utf8");
-const designStart = contract.indexOf("Do not start from visual decoration.");
-const designEnd = contract.indexOf("## PenEcho Agent source and invocation");
-if (designStart < 0 || designEnd <= designStart) throw new Error("Visual Explorer design contract boundaries are missing.");
-const VISUAL_EXPLORER_DESIGN = contract.slice(designStart, designEnd).trim();
+const { getAuthoringGuidance } = require("./authoring-guidance.js");
 
 const INVOCATION_INSTRUCTIONS = `Use PenEcho for explicit visual-workspace requests naming penecho, echo, canvas or 画布, e.g. “echo一下这个想法”, “penecho一下文件夹的架构”, “把你要做的修改放到canvas”. Begin with penecho_list_canvases and select the exact opted-in connection. Ordinary shell echo commands and unrelated canvas mentions are not triggers.`;
 
@@ -17,7 +8,7 @@ const WORKSPACE_INSTRUCTIONS = `${INVOCATION_INSTRUCTIONS} For “current canvas
 
 const PAGE_PREVIEW_INSTRUCTIONS = `For one page, keep one complete scrollable Widget and update the same artifactId. Different artifactIds create separate Canvas objects; supporting/alternative roles do not merge them. Create extra page variants or section Widgets only when the user asks to compare separate deliverables. Use intent:inspect with capture:true for temporary responsive or section checks, never deliver them as extra Widgets. A capture failure may leave the Widget applied: inspect the existing artifact and reuse its ID, never create a replacement ID to retry.`;
 
-const VISUAL_INSTRUCTIONS = `UI design: deliver a usable page preview, preserving product styling and background. ${PAGE_PREVIEW_INSTRUCTIONS} Choose page (1200×800) for desktop UI, explicit width/height for mobile, base (480×360) only for one compact idea; never combine preset size with dimensions. Explanations use clear hierarchy, meaningful diagrams/tables, concise labels and restrained semantic colors. Keep text readable at the displayed scale; reflow or simplify instead of shrinking type to fit, with no clipped controls or invented data. Use labeled native buttons/inputs with keyboard focus. Filters, tabs and toggles work locally without model calls; only explicit AI choices use data-penecho-action plus a bounded data-penecho-prompt. Label those as requests, not instant AI execution. Keep artifactId stable. Use capture:false ordinarily; for first UI review or a meaningful layout change, combine present+capture:true at basic quality, inspect returned pixels, then fix concrete defects. Reuse that image; detail is for an unresolved visual question. The optional penecho_visual_explorer prompt adds the full design standard if the client exposes prompts; it is not a prerequisite.`;
+const VISUAL_INSTRUCTIONS = `UI: deliver a usable page. ${PAGE_PREVIEW_INSTRUCTIONS} Choose page (1200×800) for desktop UI, explicit width/height for mobile, base (480×360) only for one compact idea; never combine preset size with dimensions. Explanations use clear hierarchy, meaningful diagrams/tables, concise labels and restrained semantic colors. Keep text readable at the displayed scale; reflow or simplify instead of shrinking type to fit, with no clipped controls or invented data. Use labeled native buttons/inputs with keyboard focus. Filters, tabs and toggles work locally without model calls; only explicit AI choices use data-penecho-action plus a bounded data-penecho-prompt. Label those as requests, not instant AI execution. Keep artifactId stable. Use capture:false ordinarily; for first UI review or a meaningful layout change, combine present+capture:true at basic quality, inspect returned pixels, then fix concrete defects. Stop once complete and usable; fix material errors or unreadable content, not optional cosmetic polish. On demand: penecho_get_guidance id visual-explorer for explanations; general-html for new UI, never auto-VE; math-2d/physics-2d/math-3d for science.`;
 
 const VISUAL_TOOL_INSTRUCTIONS = `${PAGE_PREVIEW_INSTRUCTIONS} Prefer this for UI design/review: use page for desktop, explicit dimensions for mobile, and base only for one compact idea. Preserve product styling, readable type and responsive layout. Use labeled native controls with keyboard access; only explicit AI requests opt into data-penecho-action/data-penecho-prompt. Ordinary updates use capture:false; initial UI review or substantial layout changes may combine capture:true at basic quality. Read the image and fix concrete defects without recapturing unchanged work.`;
 
@@ -27,7 +18,7 @@ const MCP_PRESENTATION_INSTRUCTIONS = `${PAGE_PREVIEW_INSTRUCTIONS} Use presenta
 const SESSION_INSTRUCTIONS = WORKSPACE_INSTRUCTIONS;
 
 function visualExplorerPrompt() {
-  return `${VISUAL_EXPLORER_DESIGN}\n\n## External MCP delivery\n${SESSION_INSTRUCTIONS}\n\n${MCP_PRESENTATION_INSTRUCTIONS}\n\nCreate responsive HTML/CSS/SVG with minimal JavaScript and present it with penecho_present_widget. For simple native nodes/text use penecho_draw; for bare functions use penecho_plot. Use only tools advertised by this MCP server. Read feedback before replacing an existing artifact; preserve its identity and user placement. Inspect a bounded capture after initial authoring or meaningful layout revisions when visual evidence is needed; correct concrete readability, clipping, and responsive defects. Never claim visual verification without returned pixels.`;
+  return `${getAuthoringGuidance("visual-explorer").document}\n\n## External MCP delivery\n${SESSION_INSTRUCTIONS}\n\n${MCP_PRESENTATION_INSTRUCTIONS}\n\nCreate responsive HTML/CSS/SVG with minimal JavaScript and present it with penecho_present_widget. For simple native nodes/text use penecho_draw; for bare functions use penecho_plot. Use only tools advertised by this MCP server. Read feedback before replacing an existing artifact; preserve its identity and user placement. Inspect a bounded capture after initial authoring or meaningful layout revisions when visual evidence is needed; correct concrete readability, clipping, and responsive defects. Never claim visual verification without returned pixels.`;
 }
 
 module.exports = { INVOCATION_INSTRUCTIONS, PAGE_PREVIEW_INSTRUCTIONS, MCP_PRESENTATION_INSTRUCTIONS, WORKSPACE_INSTRUCTIONS, VISUAL_INSTRUCTIONS, VISUAL_TOOL_INSTRUCTIONS, SESSION_INSTRUCTIONS, visualExplorerPrompt };

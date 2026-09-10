@@ -127,7 +127,7 @@ function harness(options = {}) {
   });
   const scripts = ["document-identity.js", "mcp-runtime.js", "canvas-documents.js"]
     .map(file => fs.readFileSync(path.join(ROOT, "src/client/app", file), "utf8")).join("\n");
-  vm.runInContext(`${clientFunction("core.js", "canvasClientId")}\n${["snapshotCanvasObjectExtensions","restoreSnapshotCanvasObjectOrder","currentCanvasDisplayName","currentCanvasNeedsAgentName","applyCurrentCanvasGeneratedName"].map(name=>clientFunction("persistence.js",name)).join("\n")}\n${scripts}\nglobalThis.api={canvasDocumentIdentity,canvasDocuments,canvasDocumentsReady,canvasDocumentsCurrent,canvasDocumentsExternal,canvasDocumentsRecord,canvasDocumentsSaveMetadata,canvasDocumentsDidSave,canvasDocumentsExecute,canvasDocumentsQueueMessage,canvasDocumentsClose,mcpRuntime};`, context);
+  vm.runInContext(`${clientFunction("core.js", "canvasClientId")}\n${["snapshotCanvasObjectExtensions","restoreSnapshotCanvasObjectOrder","currentCanvasDisplayName","currentCanvasNeedsAgentName","applyCurrentCanvasGeneratedName"].map(name=>clientFunction("persistence.js",name)).join("\n")}\n${scripts}\nglobalThis.api={canvasDocumentIdentity,canvasDocuments,canvasDocumentsReady,canvasDocumentsCurrent,canvasDocumentsExternal,canvasDocumentsRecord,canvasDocumentsSaveMetadata,canvasDocumentsDidSave,canvasDocumentsExecute,canvasAgentDocumentOperation,canvasDocumentsQueueMessage,canvasDocumentsClose,mcpRuntime};`, context);
   context.api.canvasDocuments.db = memoryDb(records, control);
   return { ...context.api, context, control, records, state, listeners };
 }
@@ -814,4 +814,198 @@ test("saved Widget front order survives workspace reload and explicit save metad
   assert.deepEqual(second.state.widgets.map(w=>w.id),["widget-2","widget-1"]);
   assert.equal(second.state.frontCanvasObjectKind,"widget");
   assert.equal(second.state.frontPlacedCanvasObjectKind,"text-box");
+});
+
+test("internal and external Agents use the same current-document source and presentation executor", async () => {
+  const internal=harness(),external=harness(),id=`agent-${"a".repeat(64)}`;
+  await external.canvasDocumentsExecute("mcp_start_session",{sessionId:id,sessionKey:id,client:"External AI",title:"Test",target:"current"},{});
+  const firstCanvas=internal.canvasDocumentsCurrent().id;
+  const invoke=(h,builtin,name,args)=>builtin
+    ?h.canvasAgentDocumentOperation({operation:name,arguments:{...args,sessionId:id},bindingKey:id},{})
+    :h.canvasDocumentsExecute(name,{...args,sessionId:id},{});
+  for(const [h,builtin] of [[internal,true],[external,false]]) {
+    const created=await invoke(h,builtin,"mcp_present_widget",{artifactId:"page",title:"Page",html:"<main>Page</main>",width:1200,height:800});
+    assert.ok(created.objectId);
+    const files=await invoke(h,builtin,"mcp_list_files",{});
+    const file=files.entries.find(f=>f.objectId===created.objectId&&f.path.endsWith("widget.html"));
+    const read=await invoke(h,builtin,"mcp_read_file",{path:file.path});
+    assert.equal(read.content,"<main>Page</main>");
+    assert.ok(read.contentHash);
+    const context=await invoke(h,builtin,"mcp_read_file",{path:"context.md"});
+    const args={path:"context.md",expectedHash:context.contentHash,content:"Shared context",requestId:"context-write"};
+    await invoke(h,builtin,"mcp_apply_patch",args);
+    const repeated=await invoke(h,builtin,"mcp_apply_patch",args);
+    assert.equal(repeated.applied,true);
+    assert.equal((await invoke(h,builtin,"mcp_read_file",{path:"context.md"})).content,"Shared context");
+    await assert.rejects(invoke(h,builtin,"mcp_apply_patch",{...args,requestId:"stale-write",content:"Lost update"}),e=>e.code==="SOURCE_CONFLICT");
+    assert.equal(h.state.widgets.length,1);
+  }
+  assert.deepEqual(internal.state.widgets.map(w=>[w.x,w.y,w.w,w.h,w.html]),external.state.widgets.map(w=>[w.x,w.y,w.w,w.h,w.html]));
+  assert.equal(internal.canvasDocuments.activeId,firstCanvas);
+  assert.equal(internal.canvasDocuments.records.size,1,"binding internal Agent must not create a document");
+  assert.equal(internal.canvasDocumentsExternal(),false,"binding internal Agent must not opt into an external processor");
+});
+
+test("internal document binding rejects cross-document routing and lifecycle operations", async () => {
+  const h=harness(),id=`agent-${"b".repeat(64)}`;
+  const input={operation:"mcp_read_file",arguments:{sessionId:id,path:"canvas.json"},bindingKey:id};
+  await h.canvasAgentDocumentOperation(input,{});
+  const original=h.canvasDocumentsCurrent().id;
+  await assert.rejects(h.canvasAgentDocumentOperation({...input,operation:"mcp_open_canvas"},{}),e=>e.code==="UNSUPPORTED_OPERATION");
+  await assert.rejects(h.canvasAgentDocumentOperation({...input,arguments:{...input.arguments,sessionId:"other"}},{}),e=>e.code==="BINDING_CONFLICT");
+  h.mcpRuntime.sessions.get(id).documentId="different-document";
+  await assert.rejects(h.canvasAgentDocumentOperation(input,{}),e=>e.code==="BINDING_CONFLICT");
+  assert.equal(h.canvasDocuments.activeId,original);
+});
+
+test("shared document tools preserve retired plugin content without allowing source replacement", async () => {
+  for (const builtin of [false,true]) for (const widget of [
+    {widgetType:"diagram_source",pluginId:"flowchart",source:"graph TD; A-->B"},
+    {widgetType:"html_widget",pluginId:"private-plugin",html:"<main>Saved private content</main>"},
+  ]) {
+    const h=harness(),id=`agent-${"c".repeat(64)}`;
+    await h.canvasDocumentsReady();
+    h.state.widgets.push({id:"saved",x:10,y:20,w:500,h:400,...widget});
+    if(!builtin)await h.canvasDocumentsExecute("mcp_start_session",{sessionId:id,client:"External AI",target:"current",title:"Test"},{});
+    const run=(operation,args={})=>builtin?h.canvasAgentDocumentOperation({operation,arguments:{sessionId:id,...args},bindingKey:id},{}):h.canvasDocumentsExecute(operation,{sessionId:id,...args},{});
+    const files=await run("mcp_list_files");
+    const source=files.entries.find(entry=>entry.objectId==="saved"&&entry.path.endsWith(widget.widgetType==="diagram_source"?"widget.source":"widget.html"));
+    assert.equal(source.writable,false);
+    const current=await run("mcp_read_file",{path:source.path});
+    assert.equal(current.content,widget.source||widget.html);
+    await assert.rejects(run("mcp_apply_patch",{path:source.path,content:"Changed",expectedHash:current.contentHash,requestId:"retired-edit"}),{code:"READ_ONLY_FILE"});
+    h.mcpRuntime.sessions.get(id).artifacts.set("saved-artifact",{objectId:"saved"});
+    await assert.rejects(run("mcp_present_widget",{artifactId:"saved-artifact",title:"Overwrite",html:"<p>Replacement</p>"}),{code:"READ_ONLY_FILE"});
+    assert.equal(h.state.widgets[0].source||h.state.widgets[0].html,widget.source||widget.html);
+  }
+});
+
+test("internal conversations do not consume external binding slots and retain bounded reconnect identities", async () => {
+  const h=harness();await h.canvasDocumentsReady();const doc=h.canvasDocumentsCurrent();
+  doc.bindings=Array.from({length:64},(_,i)=>({key:`external-${i}`,client:"External AI",documentId:doc.id}));
+  const before=JSON.stringify(doc.bindings);
+  let id;
+  for(let i=0;i<70;i++){
+    id=`agent-${i.toString(16).padStart(64,"0")}`;
+    await h.canvasAgentDocumentOperation({operation:"mcp_read_file",arguments:{sessionId:id,path:"canvas.json"},bindingKey:id},{});
+  }
+  assert.equal(JSON.stringify(doc.bindings),before);
+  assert.equal([...h.mcpRuntime.sessions.values()].filter(s=>s.internalAgent).length,64);
+  const created=await h.canvasAgentDocumentOperation({operation:"mcp_present_widget",arguments:{sessionId:id,artifactId:"retained",title:"Retained",html:"<p>Same artifact</p>"},bindingKey:id},{});
+  const metadata=h.canvasDocumentsSaveMetadata(),workspace=Object.values(metadata).find(v=>v?.internalSessions);
+  assert.equal(workspace.internalSessions.length,64);
+  const restored=h.canvasDocumentIdentity.normalizeWorkspace(workspace,{version:1,documentId:doc.id,bindings:doc.bindings});
+  doc.internalSessions=restored.internalSessions;
+  h.mcpRuntime.sessions.clear();
+  h.context.widgetEditContext=widget=>({...widget});
+  h.context.canvasAgentReplaceWidget=async ({objectId,command})=>{Object.assign(h.state.widgets.find(w=>w.id===objectId),command);return {revision:++h.state.userRevision};};
+  const replay=await h.canvasAgentDocumentOperation({operation:"mcp_present_widget",arguments:{sessionId:id,artifactId:"retained",title:"Retained",html:"<p>Updated same artifact</p>"},bindingKey:id},{});
+  assert.equal(replay.objectId,created.objectId);assert.equal(h.state.widgets.length,1);
+  assert.equal(h.mcpRuntime.sessions.get(id).internalAgent,true);
+});
+
+test("the real document executor places Widgets beside and below an anchor, and explicit moves preserve content", async () => {
+  const h=harness();
+  await h.canvasDocumentsReady();
+  await h.canvasDocumentsExecute("mcp_start_session",{sessionId:"placement-session",sessionKey:"placement-key",client:"Codex",target:"current",title:"Placement"},{});
+  const present=(artifactId,html,presentation,width,height)=>h.canvasDocumentsExecute("mcp_present_widget",{
+    sessionId:"placement-session",artifactId,title:artifactId,html,presentation,width,height,
+  },{});
+  const object=id=>h.state.widgets.find(widget=>widget.id===id);
+
+  const anchorResult=await present("anchor","<p>Anchor</p>",undefined,360,220),anchor=object(anchorResult.objectId);
+  assert.deepEqual({x:anchor.x,y:anchor.y,w:anchor.w,h:anchor.h,contentW:anchor.contentW,contentH:anchor.contentH},{
+    x:anchor.x,y:anchor.y,w:360,h:220,contentW:360,contentH:220,
+  });
+  assert.equal(anchorResult.viewport.width,360);
+  assert.equal(anchorResult.viewport.height,220);
+
+  const rightResult=await present("right","<p>Right</p>",{intent:"compare",role:"supporting",relativeTo:"anchor",relation:"beside"},300,200),right=object(rightResult.objectId);
+  assert.equal(right.x,anchor.x+anchor.w+32,"beside placement uses the clear right side of the anchor");
+  assert.equal(right.y,anchor.y);
+  assert.equal(rightResult.viewport.width,300);
+  assert.equal(rightResult.viewport.height,200);
+
+  const belowResult=await present("below","<p>Below</p>",{intent:"explain",role:"supporting",relativeTo:"anchor",relation:"below"},300,200),below=object(belowResult.objectId);
+  assert.equal(below.x,anchor.x,"below placement keeps the anchor's x coordinate");
+  assert.equal(below.y,anchor.y+anchor.h+32);
+  assert.equal(belowResult.viewport.width,300);
+  assert.equal(belowResult.viewport.height,200);
+
+  // presentation has no explicit x/y fields. Use the existing move action to
+  // put the already-created right artifact on the anchor's left side.
+  const before=await h.canvasDocumentsExecute("mcp_read_file",{sessionId:"placement-session",path:`objects/${right.id}/widget.html`},{});
+  const canvas=await h.canvasDocumentsExecute("mcp_read_file",{sessionId:"placement-session",path:"canvas.json"},{});
+  const leftRegion={x:anchor.x-right.w-32,y:anchor.y,w:right.w,h:right.h};
+  assert.ok(leftRegion.x>=48,"the explicit left placement stays inside the Canvas bounds");
+  const moved=await h.canvasDocumentsExecute("mcp_edit_canvas",{
+    sessionId:"placement-session",action:"move",objectId:right.id,region:leftRegion,baseRevision:canvas.revision,requestId:"move-right-artifact-left",
+  },{});
+  assert.equal(moved.applied,true);
+  assert.deepEqual({x:right.x,y:right.y,w:right.w,h:right.h},leftRegion);
+  assert.equal(right.html,"<p>Right</p>");
+  assert.equal((await h.canvasDocumentsExecute("mcp_read_file",{sessionId:"placement-session",path:`objects/${right.id}/widget.html`},{})).content,before.content);
+  assert.equal((await h.canvasDocumentsExecute("mcp_read_file",{sessionId:"placement-session",path:`objects/${right.id}/widget.html`},{})).contentHash,before.contentHash);
+});
+
+test("an internal document operation rejects an active Canvas epoch replacement without touching the replacement document", async () => {
+  const h=harness();
+  await h.canvasDocumentsReady();
+  const original=h.canvasDocumentsCurrent(),replacement=await createHidden(h,"epoch-replacement","Replacement"),replacementDoc=h.canvasDocuments.records.get(replacement.documentId),originalEpoch=h.canvasDocuments.epoch;
+  const id=`agent-${"d".repeat(64)}`;
+  const input={operation:"mcp_present_widget",bindingKey:id,arguments:{sessionId:id,artifactId:"race-artifact",title:"Race",html:"<p>Race</p>",width:300,height:200}};
+  const pending=h.canvasAgentDocumentOperation(input,{});
+
+  // The executor captures the current document and epoch before its readiness
+  // await. A replacement during that window must fail before session/artifact
+  // creation can be routed into the new active document.
+  h.canvasDocuments.activeId=replacement.documentId;
+  h.canvasDocuments.epoch=originalEpoch+1;
+  await assert.rejects(pending,error=>error.code==="CANVAS_BUSY");
+
+  assert.equal(h.canvasDocuments.activeId,replacement.documentId);
+  assert.equal(h.canvasDocuments.records.get(original.id).revision,original.revision);
+  assert.equal(h.canvasDocuments.records.get(replacement.documentId).revision,replacementDoc.revision);
+  assert.equal(h.mcpRuntime.sessions.has(id),false,"the rejected operation must not create an internal session");
+  assert.equal(h.canvasDocuments.records.get(replacement.documentId).stored.item.widgets.length,0,"the replacement document must remain untouched");
+  assert.equal(h.state.widgets.length,0,"the original visible state must remain untouched");
+});
+
+test("HTML patches retain canonical copy source above the independent source limit", async () => {
+  const h=harness();
+  const core=fs.readFileSync(path.join(ROOT,"src/client/app/core.js"),"utf8");
+  for(const name of ["MAX_WIDGET_HTML_LENGTH","MAX_WIDGET_COPY_TEXT_LENGTH","MAX_WIDGET_CONTENT_DIMENSION"])
+    h.context[name]=Number(core.match(new RegExp(`${name} = (\\d+)`))[1]);
+  Object.assign(h.context,{diagramRuntime:()=>null,n:(v,min=0,max=32768)=>Number.isFinite(v)&&v>=min&&v<=max,
+    PRIVATE_WIDGET_FAVORITE_ID:/^[0-9a-f-]{36}$/i,newPrivateWidgetFavoriteId:()=>crypto.randomUUID()});
+  vm.runInContext(["widgetRecord","normalizedWidgetSource","widgetSourceMirrorsHtml","widgetUsesHtmlCopySource","widgetCopySource"].map(name=>clientFunction("canvas-runtime.js",name)).join("\n"),h.context);
+  const opened=await createHidden(h,"large-html","Large HTML");
+  await startHidden(h,opened.documentId,"large-html-session");
+  const html=`<p>${"a".repeat(17000)}</p>`;
+  const shown=await h.canvasDocumentsExecute("mcp_present_widget",{sessionId:"large-html-session",artifactId:"large",title:"Large",html},{});
+  const doc=h.canvasDocuments.records.get(opened.documentId),item=doc.stored.item.widgets.find(w=>w.id===shown.objectId);
+  const geometry=JSON.stringify([item.x,item.y,item.w,item.h,item.contentW,item.contentH]);
+  const file=`objects/${item.id}/widget.html`;
+  async function patch(content,id) {
+    const read=await h.canvasDocumentsExecute("mcp_read_file",{sessionId:"large-html-session",path:file},{});
+    const result=await h.canvasDocumentsExecute("mcp_apply_patch",{sessionId:"large-html-session",path:file,expectedHash:read.contentHash,content,requestId:id},{});
+    assert.equal(result.contentHash,await h.context.canvasAgentHash(content));
+    assert.equal(JSON.stringify([item.x,item.y,item.w,item.h,item.contentW,item.contentH]),geometry);
+    return read.contentHash;
+  }
+  const next=html.replace("<p>","<p lang=\"en\">");
+  const oldHash=await patch(next,"large-first");
+  assert.equal(h.context.widgetCopySource(item),next);
+  assert.equal(item.copyText,undefined);
+  await assert.rejects(h.canvasDocumentsExecute("mcp_apply_patch",{sessionId:"large-html-session",path:file,expectedHash:oldHash,content:html,requestId:"large-stale"},{}),{code:"SOURCE_CONFLICT"});
+  item.copyText=next; // Legacy HTML mirrors must also be cleared on merge.
+  await patch(html,"large-legacy");
+  assert.equal(item.copyText,undefined);
+  assert.equal(h.context.widgetCopySource(item),html);
+  item.copyText="Independent source";item.copyLabel="Copy original";
+  await patch(next,"large-distinct");
+  assert.equal(h.context.widgetCopySource(item),"Independent source");
+  assert.equal(item.copyLabel,"Copy original");
+  assert.equal(h.context.widgetRecord({...item,copyText:"x".repeat(16001)}),null);
+  assert.ok(h.context.widgetRecord({...item,copyText:"x".repeat(16000)}));
 });

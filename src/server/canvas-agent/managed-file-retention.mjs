@@ -92,7 +92,7 @@ export class ManagedFileRetention {
       await this.reset()
       if (error?.code !== 'ENOENT') throw error
     }
-    return result
+    return { ...result, pending:this.stack.length>0 }
   }
 
   async reset() {

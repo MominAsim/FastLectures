@@ -817,6 +817,37 @@ test("authenticated LAN WebSocket participates in local RPC discovery and routin
   } finally { await service.close(); await closeServer(server); }
 });
 
+test("open accepts absent storage locators and caches successful creation receipts without weakening locator validation", async () => {
+  const service = createMcpService({server:http.createServer(),authorizeBrowser:() => "Forbidden",stateDirectory:tempDirectory()});
+  const execute = service.executeRemote;
+  try {
+    const {channelId} = await execute({operation:"canvas.mcp.open"});
+    await execute({operation:"canvas.mcp.frame",channelId,frame:JSON.stringify({type:"hello",canvasId:"locator-canvas",title:"Canvas"})});
+    await execute({operation:"canvas.mcp.pull",channelId});
+    const owner = crypto.randomUUID();
+    let sequence = 0;
+    for (const locator of [null,undefined,{location:"device",id:"saved"},false,[],{}, {location:"unknown",id:"saved"}, {location:"device",id:""}]) {
+      const args = {instanceId:service.instanceId,canvasId:"locator-canvas",create:true,show:false,title:"Unsaved",requestId:`locator-${++sequence}`};
+      const pending = service.callTool(owner,"penecho_open_canvas",args);
+      const valid = locator == null || locator.location === "device" && locator.id === "saved";
+      const checked = valid ? pending : assert.rejects(pending,error=>["invalid_browser_result","invalid_browser_message"].includes(error.code));
+      const pulled = await execute({operation:"canvas.mcp.pull",channelId});
+      assert.equal(pulled.frames.length,1);
+      const frame = JSON.parse(pulled.frames[0]);
+      assert.equal(frame.name,"mcp_open_canvas");
+      await execute({operation:"canvas.mcp.frame",channelId,frame:JSON.stringify({type:"result",requestId:frame.requestId,ok:true,result:{documentId:`document-${sequence}`,title:"Unsaved",active:false,locator}})});
+      const result = await checked;
+      if (valid) {
+        assert.equal(result.documentId,`document-${sequence}`);
+        assert.equal(result.active,false);
+        assert.deepEqual(result.locator,locator == null ? undefined : locator);
+        const replay = await service.callTool(owner,"penecho_open_canvas",args);
+        assert.deepEqual(replay,{...result,reused:true});
+      }
+    }
+  } finally { await service.close(); }
+});
+
 test("remote channels register canvases, route tools, replace and revoke pending calls", async () => {
   const service = createMcpService({server:http.createServer(),authorizeBrowser:() => "Forbidden",stateDirectory:tempDirectory()});
   const execute = service.executeRemote;

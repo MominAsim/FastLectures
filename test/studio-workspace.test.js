@@ -41,7 +41,7 @@ test("unread dots update in place and opening the sidebar does not acknowledge u
 test("workspace navigation is in the sidebar and MCP activity has no blurred wash",()=>{
   const html=fs.readFileSync(path.join(root,"public/index.html"),"utf8"),css=fs.readFileSync(path.join(root,"public/style.css"),"utf8");
   const sidebar=html.slice(html.indexOf('<aside id="studioNavigator"'),html.indexOf('</aside>',html.indexOf('<aside id="studioNavigator"')));
-  assert.match(sidebar,/id="canvasWorkspaceClose"/);assert.match(sidebar,/id="canvasWorkspaceCloseAll"/);assert.match(sidebar,/id="canvasWorkspaceRetry"/);
+  assert.match(sidebar,/id="canvasWorkspaceClose"/);assert.match(sidebar,/id="studioMcpCloseAll"/);assert.match(sidebar,/id="studioMcpCloseOthers"/);assert.match(sidebar,/id="canvasWorkspaceRetry"/);
   assert.doesNotMatch(sidebar,/id="canvasWorkspaceNew"/);
   assert.doesNotMatch(html,/canvasWorkspaceSelect/);
   const ring=css.match(/\.mcp-canvas-ring \{[^}]*\}/)[0];
@@ -69,10 +69,10 @@ test("background MCP activity does not highlight the visible Canvas",()=>{
   runtime.mutationDocumentId="visible";context.mcpRenderCanvasStatus();assert.equal(ring["data-state"],"updating");
 });
 
-test("MCP connection opens its tab once, enables Follow latest, closes Agent permanently and resets on disconnect",()=>{
+test("MCP connection opens its tab once, preserves Follow latest and clears pending on disconnect",()=>{
   const actions=[],search={value:"stale"},tab={hidden:true};
   const context=vm.createContext({studioNavigatorMcpEnabled:false,studioNavigatorSuspendedAgent:true,studioNavigatorActiveTab:"agent",studioNavigatorMcpTab:tab,studioNavigatorSearch:search,
-    studioMcpFollowLatest:false,studioMcpPendingDocumentId:"stale",studioMcpPendingRegion:{x:1,y:2,w:3,h:4},
+    studioMcpFollowLatest:true,studioMcpLatestDocumentId:null,studioMcpLatestRegion:null,studioMcpPendingDocumentId:"stale",studioMcpPendingRegion:{x:1,y:2,w:3,h:4},
     syncStudioMcpActions:()=>actions.push(["follow",context.studioMcpFollowLatest]),
     selectCanvasToolMode:mode=>actions.push(["tool",mode]),
     closeCanvasAgent:options=>actions.push(["close",options.focus]),setStudioNavigatorTab:value=>{context.studioNavigatorActiveTab=value;actions.push(["tab",value]);},setStudioNavigatorOpen:value=>actions.push(["open",value]),
@@ -83,7 +83,7 @@ test("MCP connection opens its tab once, enables Follow latest, closes Agent per
   assert.equal(context.studioMcpFollowLatest,true,"Follow latest is on by default for a live MCP connection");
   assert.equal(context.studioMcpPendingDocumentId,null);assert.equal(context.studioMcpPendingRegion,null);
   context.syncStudioNavigatorMcp(true);assert.equal(actions.length,5,"heartbeat/status renders must not reopen navigation");
-  context.syncStudioNavigatorMcp(false);assert.equal(tab.hidden,true);assert.equal(context.studioNavigatorActiveTab,"all");assert.equal(context.studioMcpFollowLatest,false);
+  context.syncStudioNavigatorMcp(false);assert.equal(tab.hidden,true);assert.equal(context.studioNavigatorActiveTab,"all");assert.equal(context.studioMcpFollowLatest,true);
 });
 test("MCP list contains only participating canvases, including retained and live sessions",()=>{
   const docs=[{id:"ordinary"},{id:"bound",bindings:[{}]},{id:"retained",sessions:[{}]},{id:"live"}];

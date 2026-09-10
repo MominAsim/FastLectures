@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
+import { validateDocumentToolArguments } from './document-tools.mjs'
 import { BlockAssembler, CallId } from '@deepseek-ai/dsh-llm'
 import { MAX_CANVAS_DECISION_TOOLS, registerCanvasDecisionBatch } from './tool-batch.mjs'
 
 export const CANVAS_DECISION_FEEDBACK_TOOL = 'penecho_canvas_decision_feedback'
-export const CANVAS_DECISION_PROTOCOL_SUMMARY = 'Batch up to 16 known calls. Canvas calls run in order. Sibling writes use the same observed baseRevision; the host forwards only successful batch revisions. Keep each Widget sourceHash exact; combine same-object edits. Never guess prior results/IDs. Put required capture after edits in the same step. A failed write stops later writes, preserving successes. Correct errors and continue; finish when done/blocked.'
+export const CANVAS_DECISION_PROTOCOL_SUMMARY = 'Batch up to 16 known calls. Canvas calls run in order. Keep file contentHash and observed baseRevision exact; combine same-file edits. Never guess prior results, paths, or IDs. Combine creation and capture when supported. A failed write stops later writes, preserving successes. Correct errors using the advertised schema and continue; finish when done/blocked.'
 
 function decisionError(code, message, details = null) {
   const error = new Error(message)
@@ -38,13 +39,14 @@ function stageFeedback(session, feedback) {
   return { type:'tool-call', id, name:CANVAS_DECISION_FEEDBACK_TOOL, arguments:JSON.stringify({ code:feedback.code }) }
 }
 
-function validateToolCall(block, availableTools) {
+function validateToolCall(block, availableTools, session) {
   const name=String(block?.name||'')
   if(!availableTools.has(name))throw decisionError('CANVAS_TOOL_UNAVAILABLE',`PenEcho Agent requested an unavailable tool: ${name||'(empty)'}.`)
   let args
-  try{args=JSON.parse(String(block?.arguments||'{}'))}
+  try{args=JSON.parse(String(block?.arguments??''))}
   catch(error){throw decisionError('CANVAS_TOOL_ARGUMENTS_INVALID',`${name} arguments are not valid complete JSON: ${error.message}`)}
   if(!isObject(args))throw decisionError('CANVAS_TOOL_ARGUMENTS_INVALID',`${name} arguments must be one JSON object.`)
+  validateDocumentToolArguments(name,args,session)
 }
 
 export function admitCanvasDecision({ session, blocks, availableTools = [] }) {
@@ -60,7 +62,7 @@ export function admitCanvasDecision({ session, blocks, availableTools = [] }) {
   try{
     const names=new Set(availableTools),ids=new Set()
     for(const call of toolCalls){
-      validateToolCall(call,names)
+      validateToolCall(call,names,session)
       if(!call.id||ids.has(String(call.id)))throw decisionError('CANVAS_TOOL_CALL_ID_INVALID','Tool call IDs must be nonempty and unique within a decision.')
       ids.add(String(call.id))
     }

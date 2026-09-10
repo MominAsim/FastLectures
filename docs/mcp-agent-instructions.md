@@ -241,3 +241,8 @@ ambiguous.
 别的文档，使用独立且稳定的附加 sessionKey，并保留原会话句柄。
 
 For freehand annotation use penecho_edit_canvas action:"draw_ink" with the current baseRevision and strokes:[{color:"#E63946",width:6,points:[{x:120,y:140},{x:220,y:140}]}]. Coordinates and width are Canvas world units. Choose any explicit #RRGGBB color; each stroke is an open round brush polyline (repeat the first point to close a circle; add separate strokes for arrowheads; use a wider stroke for an underline/highlight). Ink may overlap existing content intentionally. Limits: 1–16 strokes, 1–256 points per stroke, 1024 points total, width 1–64; all points fit a 2048 × 2048 region and the brush radius stays inside the Canvas. The operation preserves the user’s brush selection and creates one undoable edit. Background documents reject before mutation: use show only when making that document visible is intended, reread its revision, then draw. Retry the same requestId only with identical arguments.
+
+
+## Shared on-demand authoring guidance
+
+Use `penecho_get_guidance` for `visual-explorer`, `general-html`, `math-2d`, `physics-2d`, or `math-3d` when relevant. This returns the same design document, version, and hash as PenEcho Agent. UI pages and live tools use General HTML; explanation and analysis use Visual Explorer. The full documents are not loaded into routine requests. Scientific HTML with one supported `penecho-visual-skill` marker uses the shared scientific Widget runtime. Professional Diagram and private-plugin source authoring are unavailable; saved content remains readable.

@@ -6492,7 +6492,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       dragging = state.widgetGesture?.widget === widget,
       intersectsViewport = viewportWidth <= 0 || viewportHeight <= 0
         || (screenX < viewportWidth && screenY < viewportHeight && screenX + displayWidth > 0 && screenY + displayHeight > 0),
-      active = dragging || intersectsViewport;
+      active = widget.snapshotCaptureActive === true || dragging || intersectsViewport;
     widget.renderActive = active;
     widget.shell.classList.toggle("widget-offscreen", !active);
     if (active) sendWidgetInit(widget);
@@ -6635,6 +6635,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         deadline = performance.now() + timeoutMs,
         remaining = () => Math.max(1, deadline - performance.now()),
         captureFailure=(code,stage)=>Object.assign(Error("Widget snapshot timed out"),{code,details:{widgetId:widget.id,stage,elapsedMs:Math.round(timeoutMs-remaining())}});
+      widget.snapshotCaptureActive = true;
       try {
         if (!widget.frame?.contentWindow) throw Error(t("widgetExportFailed"));
         if (!widget.hostReady) {
@@ -6671,6 +6672,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
           widget.frame.contentWindow.postMessage({ type:"penecho-widget-snapshot-request", requestId, width:widget.contentW, height:widget.contentH, timeoutMs:remaining(), highResolution }, widget.hostOrigin || location.origin);
         });
       } finally {
+        widget.snapshotCaptureActive = false;
         if (previousActive === false) {
           widget.renderActive = false;
           widget.shell?.classList.add("widget-offscreen");
@@ -6741,9 +6743,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       return;
     }
     if (message.type === "penecho-widget-updated") {
-      widget.mcpDocumentLoaded = true;
-      for(const resolve of widget.mcpLoadWaiters||[])resolve();
-      widget.mcpLoadWaiters?.clear();
+      if(message.loaded===true){
+        widget.mcpDocumentLoaded = true;
+        for(const resolve of widget.mcpLoadWaiters||[])resolve();
+        widget.mcpLoadWaiters?.clear();
+      }
       widget.contentVersion++;
       widget.snapshotDataUrl = "";
       return;
@@ -11625,7 +11629,13 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   async function renderExportCanvas() {
     const region = exportRegion();
     if (!region) return null;
-    await prepareVisibleWidgetSnapshots(null, false, null, true);
+    try { await prepareVisibleWidgetSnapshots(null, false, null, true); }
+    catch (error) {
+      // A fresh raster is optional when every Widget already has usable pixels.
+      // Never silently omit a Widget from an image download.
+      if (capturableWidgets(region).some(widget => !widget.snapshotImage || widget.snapshotVersion < widget.contentVersion)) throw error;
+      debug("widget-export-cached", {error:String(error?.message || error).slice(0,300)});
+    }
     const scale = Math.min(CANVAS_DOWNLOAD_RESOLUTION_SCALE, EXPORT_MAX_DIMENSION / region.w, EXPORT_MAX_DIMENSION / region.h, Math.sqrt(EXPORT_MAX_PIXELS / (region.w * region.h))),
       canvas = offscreen(Math.max(1, Math.ceil(region.w * scale)), Math.max(1, Math.ceil(region.h * scale))),
       context = canvas.getContext("2d");
@@ -12127,7 +12137,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       setStatusKey("emptyCanvas");
       return null;
     }
-    await prepareVisibleWidgetSnapshots(null, false);
+    // Widget source is authoritative; preview failure must not prevent saving it.
+    await prepareVisibleWidgetSnapshots(null, true);
     const savedUserRevision = state.userRevision;
     const nameInput = document.querySelector("#historyName"),
       existing = overwriteId ? snapshotItems.find((item) => item.id === overwriteId) : null,
@@ -18963,6 +18974,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       && execution.socket?.readyState===WebSocket.OPEN
       && execution.sessionId===canvasAgent.sessionId
       && execution.generation===canvasAgent.sessionGeneration
+      && (execution.documentEpoch===undefined || execution.documentEpoch===canvasDocuments.epoch && execution.activeDocumentId===canvasDocuments.activeId)
       && !execution.controller.signal.aborted;
   }
   function canvasAgentAssertToolExecution(execution) {
@@ -20549,6 +20561,20 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(name==="load_widget_contract"&&widgetContractKey)return t(widgetContractKey);
     if(name==="load_project_plugin"&&projectPluginKey)return t(projectPluginKey);
     const key = {
+      penecho_list_files:"canvasAgentToolInspect",
+      penecho_read_file:"canvasAgentToolRead",
+      penecho_get_guidance:"canvasAgentToolRead",
+      penecho_present_widget:"canvasAgentToolCreate",
+      penecho_draw:"canvasAgentToolCreate",
+      penecho_plot:"canvasAgentToolCreate",
+      penecho_patch_file:"canvasAgentToolPatchWidget",
+      penecho_edit_canvas:"canvasAgentToolEdit",
+      penecho_capture_canvas:"canvasAgentToolCapture",
+      penecho_capture_widget:"canvasAgentToolCapture",
+      penecho_inspect_session:"canvasAgentToolInspect",
+      penecho_read_feedback:"canvasAgentToolRead",
+      penecho_read_messages:"canvasAgentToolRead",
+      penecho_ack_messages:"canvasAgentToolEdit",
       canvas_inspect:"canvasAgentToolInspect",
       canvas_read:"canvasAgentToolRead",
       canvas_capture:"canvasAgentToolCapture",
@@ -20582,6 +20608,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       name==="bash"?quoted(args?.command):
       ["glob","grep"].includes(name)?quoted(args?.pattern):
       fileReader?compact(args?.file_path):
+      ["penecho_read_file","penecho_patch_file"].includes(name)?compact(args?.path):
+      name==="penecho_get_guidance"?compact(args?.id):
+      ["penecho_present_widget","penecho_draw","penecho_plot"].includes(name)?compact(args?.title):
       name==="read_database"?[compact(args?.file_path),quoted(args?.query)].filter(Boolean).join(" · "):
       name==="list_directory"?compact(args?.path||"."):
       ["canvas_create","canvas_edit"].includes(name)?compact(args?.summary):
@@ -20859,8 +20888,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (showEmpty) canvasAgentRenderEmpty();
   }
   async function canvasAgentCurrentWidgetCapabilities() {
-    if (!state.pluginCatalogLoaded) await loadPluginDocuments();
-    return canvasAgentWidgetCapabilities();
+    return {version:1,professionalEnabled:false,privatePluginIds:[]};
   }
   async function canvasAgentStartNewConversation(connectionId = selectedAiConnectionId(), {resetProjection=true,submitExecution=null,preserveDraft=false,preserveConversation=false}={}) {
     connectionId=String(connectionId||"");
@@ -21690,7 +21718,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function canvasAgentFramePlan(region,padding=80) {
     const width=Math.max(0,view.clientWidth),height=Math.max(0,view.clientHeight),full={x:0,y:0,w:width,h:height},stages=[full],panelGap=12;
-    if(!canvasAgentPanel.hidden&&width>0&&height>0){
+    if(!canvasAgentPanel.hidden&&document.body.classList.contains("canvas-agent-open")&&!document.body.classList.contains("canvas-agent-navigation-hidden")&&width>0&&height>0){
       const panel=canvasElementLayoutRect(canvasAgentPanel),left=Math.max(0,panel.left-panelGap),top=Math.max(0,panel.top-panelGap),right=Math.min(width,panel.right+panelGap),bottom=Math.min(height,panel.bottom+panelGap);
       if(right>left&&bottom>top){
         const unobscured=[{x:0,y:0,w:left,h:height},{x:right,y:0,w:width-right,h:height},{x:0,y:0,w:width,h:top},{x:0,y:bottom,w:width,h:height-bottom}].filter(stage=>stage.w>0&&stage.h>0);
@@ -21753,7 +21781,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       }
       let result;
       canvasAgentAssertToolExecution(execution);
-      if (name === "project_approval") result = await canvasAgentRequestApproval(args);
+      if (name === "canvas_document") result = await canvasAgentDocumentOperation(args,execution);
+      else if (name === "project_approval") result = await canvasAgentRequestApproval(args);
       else {
         canvasAgentAssertToolKeys(name,args);
         if (name === "canvas_inspect") result = await canvasAgentInspect(args);
@@ -22581,37 +22610,48 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(!mcpRuntime)return;
     if(typeof canvasDocuments!=="undefined"&&canvasDocuments.activeId) {
       const active=canvasDocumentsCurrent();active.feedback=mcpRuntime.feedback;active.feedbackSequence=mcpRuntime.feedbackSequence;
-      for(const doc of canvasDocuments.records.values())doc.sessions=canvasDocumentsWorkspaceData(doc).sessions;
+      for(const doc of canvasDocuments.records.values()){const saved=canvasDocumentsWorkspaceData(doc);doc.sessions=saved.sessions;doc.internalSessions=saved.internalSessions||[];}
       canvasDocumentsSyncExtension(active);
     }
     mcpRuntime.generation++;
-    clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;mcpRuntime.layoutSince=0;mcpRuntime.pendingView.clear();mcpRuntime.viewPaused=false;
+    clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;mcpRuntime.layoutSince=0;
+    for(const [id] of mcpRuntime.pendingView)if(!mcpRuntime.sessions.get(id)?.internalAgent)mcpRuntime.pendingView.delete(id);
+    if(!mcpRuntime.pendingView.size)mcpRuntime.viewPaused=false;
     clearTimeout(mcpRuntime.heartbeatTimer);clearTimeout(mcpRuntime.glowTimer);
     mcpRuntime.heartbeatTimer=0;mcpRuntime.glowTimer=0;mcpRuntime.ready=false;mcpRuntime.heartbeatSupported=false;mcpRuntime.connectionLost=lost;mcpRuntime.activeMutation=null;mcpRuntime.mutationDocumentId=null;mcpRuntime.glowing=false;
     for (const controller of mcpRuntime.controllers.values()) controller.abort();
     mcpRuntime.controllers.clear();
-    for(const widget of mcpRuntime.previews.values())unmountWidget(widget);mcpRuntime.previews.clear();
+    for(const [id,widget] of mcpRuntime.previews)if(!widget.internalAgent){unmountWidget(widget);mcpRuntime.previews.delete(id);}
     const socket=mcpRuntime.socket; mcpRuntime.socket=null; socket?.close();
-    mcpRuntime.sessions.clear();
-    mcpRuntime.feedback=[];
+    for(const [id,session] of mcpRuntime.sessions)if(!session.internalAgent)mcpRuntime.sessions.delete(id);
+    if(!mcpRuntime.sessions.size)mcpRuntime.feedback=[];
+    if(mcpRuntime.pendingView.size&&!mcpRuntime.viewPaused)mcpRuntime.layoutTimer=setTimeout(()=>mcpFlushView(false),900);
     mcpRenderSettings();
     if(mcpRuntime.toolbarManaged&&(!mcpRuntime.toolbarPending||lost))setStatus(mcpText(lost?"toolbarRetry":"disconnected"));
   }
   function mcpRenderCanvasStatus() {
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,
-      sessions=[...mcpRuntime.sessions.values()].filter(session=>!session.closed&&mcpSessionVisible(session)),
+      sessions=[...mcpRuntime.sessions.values()].filter(session=>!session.internalAgent&&!session.closed&&mcpSessionVisible(session)),
       clients=[...new Set(sessions.map(session=>session.client||"AI"))],
       mutationVisible=!mcpRuntime.mutationDocumentId||typeof canvasDocuments==="undefined"||mcpRuntime.mutationDocumentId===canvasDocuments.activeId,
-      notice=mcpEl("mcpCanvasNotice"),ring=mcpEl("mcpCanvasRing"),button=mcpEl("mcpCanvasNoticeButton");
-    if(notice)notice.hidden=!mcpLocal()||(!connected&&!mcpRuntime.connectionLost);
+      notice=mcpEl("mcpCanvasNotice"),ring=mcpEl("mcpCanvasRing"),button=mcpEl("mcpCanvasNoticeButton"),
+      newButton=mcpEl("mcpShowNewContent"),count=[...mcpRuntime.pendingView].filter(([id])=>mcpSessionTransportActive(mcpRuntime.sessions.get(id))&&mcpSessionVisible(mcpRuntime.sessions.get(id))).reduce((sum,[,ids])=>sum+ids.size,0);
+    if(notice)notice.hidden=!count&&(!mcpLocal()||(!connected&&!mcpRuntime.connectionLost));
+    if(button)button.hidden=!mcpLocal()||(!connected&&!mcpRuntime.connectionLost);
     if(ring){ring.hidden=!connected;ring.setAttribute("data-state",mcpRuntime.glowing&&mutationVisible?"updating":"open");}
-    const newButton=mcpEl("mcpShowNewContent"),count=[...mcpRuntime.pendingView].filter(([id])=>mcpSessionVisible(mcpRuntime.sessions.get(id))).reduce((sum,[,ids])=>sum+ids.size,0);
-    if(newButton){newButton.hidden=!connected||!count;newButton.textContent=mcpText("newContent");}
+    if(newButton){newButton.hidden=!count;newButton.textContent=mcpText("newContent");}
     let label=mcpText("canvasLost");
     if(connected)label=mcpRuntime.activeMutation&&mutationVisible?`${mcpRuntime.activeMutation} ${mcpText("canvasApplying")}`:sessions.length?`MCP · ${clients.slice(0,2).join(" / ")}${clients.length>2?" +":""} · ${sessions.length} ${mcpText(sessions.length===1?"canvasSession":"canvasSessions")}`:mcpText("canvasWaiting");
     if(button){if(button.textContent!==label)button.textContent=label;button.title=mcpText("canvasNoticeHelp");}
   }
   // PenEcho owns deterministic placement and camera batching; MCP clients provide only content.
+  function mcpSessionTransportActive(session) {
+    return Boolean(session&&!session.closed&&(session.internalAgent||mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN));
+  }
+  function mcpHasInternalSession() {
+    for(const session of mcpRuntime.sessions.values())if(session.internalAgent&&!session.closed&&mcpSessionVisible(session))return true;
+    return false;
+  }
   function mcpSessionVisible(session) {
     return Boolean(session)&&(!session.documentId||typeof canvasDocuments==="undefined"||session.documentId===canvasDocuments.activeId);
   }
@@ -22693,12 +22733,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return {pendingObjects:mcpRuntime.pendingView.get(session.sessionId)?.size||0,paused:mcpRuntime.viewPaused,blockedBy:mcpRuntime.queued>1?"canvas-queue":mcpViewBlockedBy(),canvasScale:state.scale||1};
   }
   function mcpPauseView() {
-    if(!mcpRuntime.socket)return;
+    if(!mcpRuntime.socket&&!mcpHasInternalSession())return;
     mcpRuntime.viewPaused=true;clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;mcpRenderCanvasStatus();
   }
   function mcpQueueView(session,widget,presentation=null) {
     if(presentation?.attention==="quiet"||presentation?.intent==="inspect")return;
-    if(!mcpRuntime.ready||mcpRuntime.socket?.readyState!==WebSocket.OPEN)return;
+    if(!mcpSessionTransportActive(session))return;
     let pending=mcpRuntime.pendingView.get(session.sessionId);
     if(!pending){pending=new Set();mcpRuntime.pendingView.set(session.sessionId,pending);}
     pending.add(widget.id);
@@ -22709,10 +22749,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function mcpFlushView(explicit=false) {
     clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;
-    if(!mcpRuntime.ready||!mcpRuntime.pendingView.size)return;
+    if(!mcpRuntime.pendingView.size)return;
     if(mcpRuntime.queued){mcpRuntime.layoutTimer=setTimeout(()=>mcpFlushView(explicit),150);return;}
     if(mcpViewBusy()||(!explicit&&mcpRuntime.viewPaused)){mcpRuntime.viewPaused=true;mcpRenderCanvasStatus();return;}
-    const groups=[...mcpRuntime.pendingView].filter(([id])=>mcpSessionVisible(mcpRuntime.sessions.get(id)));
+    const groups=[...mcpRuntime.pendingView].filter(([id])=>mcpSessionTransportActive(mcpRuntime.sessions.get(id))&&mcpSessionVisible(mcpRuntime.sessions.get(id)));
     if(!groups.length){mcpRenderCanvasStatus();return;}
     const candidates=groups.flatMap(([id,ids])=>{
       const session=mcpRuntime.sessions.get(id),seen=new Set(),items=[];
@@ -22734,7 +22774,6 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     // An explicit reveal is a request to focus, even if an overview already
     // contains the artifact at a scale too small for reading its content.
     if(explicit||!alreadyVisible) {
-      if(!explicit&&canvasAgentFramePlan(region,96).scale<.5){mcpRuntime.viewPaused=true;mcpRenderCanvasStatus();return;}
       canvasAgentFrameRegion(region,96);
     }
     for(const item of shown){const ids=mcpRuntime.pendingView.get(item.id);for(const objectId of item.objectIds)ids?.delete(objectId);if(!ids?.size)mcpRuntime.pendingView.delete(item.id);}
@@ -22909,7 +22948,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function mcpEscape(text) { return String(text??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
   // Record committed user input only. Never scan pixels or consume Canvas dirty state here.
   function mcpRecordFeedback(kind,bounds,item=null) {
-    if(!mcpRuntime||(!mcpRuntime.socket&&!(typeof canvasDocumentsExternal==="function"&&canvasDocumentsExternal()))||!bounds)return;
+    if(!mcpRuntime||!bounds||(!mcpRuntime.socket&&!mcpHasInternalSession()&&!(typeof canvasDocumentsExternal==="function"&&canvasDocumentsExternal())))return;
     if(![bounds.x,bounds.y,bounds.w,bounds.h].every(Number.isFinite))return;
     const entry={cursor:++mcpRuntime.feedbackSequence,kind,bounds:{x:bounds.x,y:bounds.y,w:Math.max(1,bounds.w),h:Math.max(1,bounds.h)},createdAt:Date.now()};
     if(item?.id)entry.objectId=String(item.id);
@@ -22961,7 +23000,17 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   async function mcpWaitForWidgetLoad(widget,execution) {
     const signal=execution.controller.signal;
-    if(!widget.hostReady)await waitForWidgetSnapshot(widget.hostReadyPromise,signal);
+    if(!widget.hostReady){
+      let timer;
+      try {
+        await waitForWidgetSnapshot(Promise.race([
+          widget.hostReadyPromise,
+          new Promise((_,reject)=>{timer=setTimeout(()=>reject(Object.assign(Error("Widget snapshot timed out"),{
+            code:"WIDGET_READY_TIMEOUT",details:{widgetId:widget.id,stage:"host-ready",elapsedMs:WIDGET_SNAPSHOT_TIMEOUT_MS},
+          })),WIDGET_SNAPSHOT_TIMEOUT_MS);}),
+        ]),signal);
+      } finally { clearTimeout(timer); }
+    }
     canvasAgentAssertToolExecution(execution);
     widget.renderActive=true;widget.shell?.classList.remove("widget-offscreen");sendWidgetInit(widget);sendWidgetHostState(widget,undefined,undefined,true);
     if(widget.mcpDocumentLoaded)return;
@@ -22994,7 +23043,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   async function mcpInspectHtml(args,execution) {
     const size=mcpPresentationSize(args),id=`mcp-preview-${canvasClientId()}`,
-      widget={id,widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:0,y:0,w:size.width,h:size.height,contentW:size.width,contentH:size.height,contentVersion:0,refreshSeconds:0,mcpEphemeral:true};
+      widget={id,widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:0,y:0,w:size.width,h:size.height,contentW:size.width,contentH:size.height,contentVersion:0,refreshSeconds:0,mcpEphemeral:true,internalAgent:mcpRuntime.sessions.get(args.sessionId)?.internalAgent===true};
     mcpRuntime.previews.set(id,widget);
     try {
       canvasAgentAssertToolExecution(execution);mountWidget(widget);
@@ -23846,6 +23895,16 @@ var canvasDocumentIdentity = (() => {
       sessions.push(session);
     }
     const deduplicatedSessions = sessions.filter(Boolean);
+    // Internal state is a bounded restoration cache, not external MCP authority.
+    const internalByKey = new Map();
+    for (const raw of arrayTail(ownValue(value, "internalSessions"), MAX_WORKSPACE_SESSIONS)) {
+      const key = ownValue(raw, "sessionKey");
+      if (typeof key !== "string" || !/^agent-[a-f0-9]{64}$/.test(key) || ownValue(raw,"client") !== "PenEcho Agent") continue;
+      const session = documentId ? normalizeSession(raw,new Map([[key,"PenEcho Agent"]]),documentId) : null;
+      if(session)internalByKey.set(key,session);
+    }
+    const internalSessions = [...internalByKey.values()];
+    for(const session of internalSessions)if(!metadataBindings.has(session.sessionKey))metadataBindings.set(session.sessionKey,session.client);
     const messages = [];
     const messagePositions = new Map();
     for (const raw of arrayTail(ownValue(value, "messages"), MAX_WORKSPACE_MESSAGES)) {
@@ -23874,6 +23933,7 @@ var canvasDocumentIdentity = (() => {
     return {
       version: 1,
       sessions: deduplicatedSessions,
+      ...(internalSessions.length ? {internalSessions} : {}),
       feedback,
       feedbackSequence: Math.max(safeSequence(ownValue(value, "feedbackSequence")), ...feedback.map((entry) => entry.cursor), 0),
       messages: deduplicatedMessages,
@@ -24030,7 +24090,7 @@ var canvasDocumentIdentity = (() => {
   }
   function canvasDocumentsRecord(meta,stored=null) {
     return {id:meta.documentId,title:meta.title||canvasDocumentsCopy("Untitled Canvas","未命名画布"),context:meta.context||"",bindings:meta.bindings||[],locators:meta.locators||[],processor:meta.processor||{kind:"penecho"},stored,
-      revision:1,savedRevision:0,feedback:[],feedbackSequence:0,messages:[],messageSequence:0,changes:[],changeSequence:0,sessions:[],unseen:0,undo:[],redo:[],receipts:new Map()};
+      revision:1,savedRevision:0,feedback:[],feedbackSequence:0,messages:[],messageSequence:0,changes:[],changeSequence:0,sessions:[],internalSessions:[],unseen:0,undo:[],redo:[],receipts:new Map()};
   }
   function canvasDocumentsUnseen(value) { return Number.isSafeInteger(value) && value >= 0 ? value : 0; }
   function canvasDocumentsIsActive(doc) { return doc.id === canvasDocuments.activeId; }
@@ -24054,12 +24114,14 @@ var canvasDocumentIdentity = (() => {
     const current=[...new Map(runtime.map(s=>[s.sessionKey?binding(s):s.sessionId,s])).values()];
     const live=current.filter(s=>!s.closed).map(s=>({sessionKey:s.sessionKey||"",client:s.client||"",title:s.title,status:s.status,summary:s.summary,steps:s.steps,events:s.events,boardObjectId:s.boardObjectId,layout:s.layout,artifacts:[...s.artifacts],feedbackStart:s.feedbackStart}));
     // Keyless sessions remain transient and never acquire a reconnect binding.
-    const sessions=[...retained,...live].slice(-64);
-    return {version:1,sessions,feedback:doc.feedback.slice(-200),feedbackSequence:doc.feedbackSequence,messages:doc.messages.slice(-100),messageSequence:doc.messageSequence,changes:doc.changes.slice(-200),changeSequence:doc.changeSequence};
+    const internalBindings=new Set(runtime.filter(s=>s.internalAgent).map(binding));
+    const sessions=[...retained,...live.filter(s=>!internalBindings.has(binding(s)))].slice(-64);
+    const internalSessions=[...(doc.internalSessions||[]).filter(s=>!overridden.has(binding(s))),...live.filter(s=>internalBindings.has(binding(s)))].slice(-64);
+    return {version:1,sessions,...(internalSessions.length?{internalSessions}:{}),feedback:doc.feedback.slice(-200),feedbackSequence:doc.feedbackSequence,messages:doc.messages.slice(-100),messageSequence:doc.messageSequence,changes:doc.changes.slice(-200),changeSequence:doc.changeSequence};
   }
   function canvasDocumentsRestoreWorkspace(doc,value) {
     const normalized=canvasDocumentIdentity.normalizeWorkspace(value,canvasDocumentsMetadata(doc));if(!normalized)return;
-    for(const field of ["feedback","messages","changes","sessions","feedbackSequence","messageSequence","changeSequence"])doc[field]=normalized[field];
+    for(const field of ["feedback","messages","changes","sessions","internalSessions","feedbackSequence","messageSequence","changeSequence"])doc[field]=normalized[field];
   }
   async function canvasDocumentsDb() {
     if(canvasDocuments.db)return canvasDocuments.db;
@@ -24196,13 +24258,14 @@ var canvasDocumentIdentity = (() => {
   }
   function canvasDocumentsBounds(object) { const {x,y,w,h}=object.item;return {x,y,w,h}; }
   function canvasDocumentsObject(doc,id) {return canvasDocumentsObjects(doc).find(o=>o.item.id===id);}
+  function canvasDocumentsSourceEditable(object) {return object.kind!=="widget"||object.item.widgetType==="html_widget"&&(!object.item.pluginId||object.item.pluginId==="general");}
   function canvasDocumentsFilePaths(doc) {
     const entries=[{path:"canvas.json",writable:false},{path:"context.md",writable:true},{path:"layout.json",writable:false},{path:"view.json",writable:false},{path:"objects/index.json",writable:false},{path:"runtime/viewport.json",writable:false},{path:"runtime/selection.json",writable:false},{path:"runtime/changes.json",writable:false},{path:"runtime/messages.json",writable:false},{path:"ink/index.json",writable:false}];
     for(const object of canvasDocumentsObjects(doc)) {
       const root=`objects/${encodeURIComponent(object.item.id)}`,common={objectId:object.item.id,kind:object.kind,bounds:canvasDocumentsBounds(object)};
       entries.push({...common,path:`${root}/geometry.json`,writable:true});
       const names=object.kind==="widget"?["widget.json",...(object.item.widgetType==="diagram_source"?["widget.source"]:["widget.html",...(object.item.copyText&&object.item.copyText!==object.item.html?["widget.source"]:[])])]:object.kind==="text"?["content.txt"]:["image.json"];
-      for(const name of names)entries.push({...common,path:`${root}/${name}`,writable:object.kind!=="image"});
+      for(const name of names)entries.push({...common,path:`${root}/${name}`,writable:object.kind!=="image"&&canvasDocumentsSourceEditable(object)});
     }
     return entries;
   }
@@ -24299,6 +24362,7 @@ var canvasDocumentIdentity = (() => {
     if(!object)throw canvasDocumentsError("READ_ONLY_FILE","This is a derived runtime file. Use a Canvas action instead.");
     if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
     const field=parts[2],item=object.item;let replacement={...item};
+    if(field!=="geometry.json"&&!canvasDocumentsSourceEditable(object))throw canvasDocumentsError("READ_ONLY_FILE","Professional Diagram and private plugin source editing is unavailable. Existing content is preserved.");
     if(field==="geometry.json") {
       let geometry;try{geometry=JSON.parse(args.content);}catch{throw canvasDocumentsError("INVALID_JSON","Geometry must be valid JSON.");}
       if(Object.keys(geometry).some(k=>!["x","y","w","h"].includes(k)))throw canvasDocumentsError("INVALID_GEOMETRY","Geometry contains unsupported fields.");
@@ -24309,7 +24373,8 @@ var canvasDocumentIdentity = (() => {
       const made=await renderedTextBoxRecord({...item,text:args.content});if(!made)throw canvasDocumentsError("INVALID_TEXT","Text could not be rendered. Shorten it and retry.");replacement=made;
       canvasDocumentsValidateGeometry(doc,canvasDocumentsBounds({item:replacement}),item.id);
     } else if(object.kind==="widget"&&["widget.html","widget.source","widget.json"].includes(field)) {
-      if(field==="widget.html") {replacement.html=args.content;if(widgetUsesHtmlCopySource(item))replacement.copyText=args.content;}
+      const htmlCopySource=field==="widget.html"&&widgetUsesHtmlCopySource(item);
+      if(field==="widget.html") {replacement.html=args.content;if(htmlCopySource)delete replacement.copyText;}
       else if(field==="widget.source") {if(item.widgetType==="diagram_source")replacement.source=args.content;else replacement.copyText=args.content;}
       else {
         let value;try{value=JSON.parse(args.content);}catch{throw canvasDocumentsError("INVALID_JSON","widget.json must remain valid JSON.");}
@@ -24319,6 +24384,9 @@ var canvasDocumentIdentity = (() => {
       }
       const validated=canvasDocumentsWidgetRecord(replacement);if(!validated)throw canvasDocumentsError("INVALID_WIDGET","Patched Widget source was rejected. Check its format and retry.");
       replacement=validated;
+      // HTML remains the canonical copy source. Clear any old mirrored field
+      // when merging into an inactive record without duplicating large HTML.
+      if(htmlCopySource)replacement.copyText=undefined;
       if(canvasDocumentsIsActive(doc)) {
         if(canvasDocumentsFile(doc,path)!==before)throw canvasDocumentsError("SOURCE_CONFLICT","Source changed before applying. Read it again and retry.");
         const edit=widgetEditContext(item,"agent"),sourceHash=await canvasAgentHash(canvasAgentWidgetSourceState(edit));
@@ -24411,17 +24479,18 @@ var canvasDocumentIdentity = (() => {
     if(doc.stored?.item)doc.stored.item.name=title;
     return true;
   }
-  function canvasDocumentsSession(doc,args) {
-    const existing=(doc.sessions||[]).find(s=>args.sessionKey&&s.sessionKey===args.sessionKey&&(s.client||"")===(args.client||""));
+  function canvasDocumentsSession(doc,args,{internalAgent=false}={}) {
+    const existing=(internalAgent?doc.internalSessions||[]:doc.sessions||[]).find(s=>args.sessionKey&&s.sessionKey===args.sessionKey&&(s.client||"")===(args.client||""));
     const session={sessionId:args.sessionId,documentId:doc.id,slotIndex:args.slotIndex||0,title:args.title,client:args.client||"",sessionKey:args.sessionKey||"",status:"working",summary:"",steps:[],events:[],artifacts:new Map(),feedbackStart:doc.feedbackSequence,createdAt:Date.now(),...existing};
     session.sessionId=args.sessionId;session.artifacts=new Map(existing?.artifacts||[]);session.closed=false;
-    if(args.sessionKey) {
+    if(args.sessionKey&&!internalAgent) {
       if(doc.bindings.some(b=>b.key===args.sessionKey&&b.client!==(args.client||"")))throw canvasDocumentsError("BINDING_CONFLICT","This conversation key belongs to a different client. Use that client or a new key.");
       if(doc.bindings.length>=64&&!doc.bindings.some(b=>b.key===args.sessionKey))throw canvasDocumentsError("BINDING_LIMIT","This Canvas has 64 conversation bindings. Use another Canvas.");
       const conflict=[...canvasDocuments.records.values()].find(d=>d.id!==doc.id&&d.bindings.some(b=>b.key===args.sessionKey&&b.client===(args.client||"")));
       if(conflict)throw canvasDocumentsError("BINDING_CONFLICT","This conversation is bound to another Canvas. Reopen its documentId or use a new conversation key.",{documentId:conflict.id});
       if(!doc.bindings.some(b=>b.key===args.sessionKey&&b.client===(args.client||"")))doc.bindings.push({key:args.sessionKey,client:args.client||"",documentId:doc.id});
     }
+    session.internalAgent=internalAgent;
     return session;
   }
   async function canvasDocumentsBackground(doc,name,args,execution) {
@@ -24583,6 +24652,33 @@ var canvasDocumentIdentity = (() => {
     else throw canvasDocumentsError("UNSUPPORTED_OPERATION","This Canvas action is not supported.");
     canvasDocumentsEndEdit(doc,args.action,args.objectId);return {applied:true,objectId:args.objectId,revision:doc.revision};
   }
+  // First-party Agent calls enter the same document executor as MCP. The
+  // existing Agent socket is the authority: this does not opt in a public MCP
+  // connection, allocate a new Canvas, or give access to other documents.
+  async function canvasAgentDocumentOperation(input,execution) {
+    const allowed=new Set(["mcp_list_files","mcp_read_file","mcp_prepare_patch","mcp_apply_patch","mcp_edit_canvas","mcp_present_widget","mcp_draw","mcp_plot","mcp_capture_canvas","mcp_capture_widget","mcp_capture_primitives","mcp_read_feedback","mcp_inspect_session","mcp_read_messages","mcp_ack_messages"]);
+    if(!input||Object.keys(input).some(key=>!["operation","arguments","bindingKey"].includes(key))||!allowed.has(input.operation))throw canvasDocumentsError("UNSUPPORTED_OPERATION","This Agent document operation is unavailable.");
+    const key=input.bindingKey,args=input.arguments;
+    if(typeof key!=="string"||!/^agent-[a-f0-9]{64}$/.test(key)||!args||args.sessionId!==key)throw canvasDocumentsError("BINDING_CONFLICT","The Agent document binding is invalid.");
+    const activeId=canvasDocumentsCurrent().id,epoch=canvasDocuments.epoch;
+    await canvasDocumentsReady();
+    canvasAgentAssertToolExecution(execution);
+    if(activeId!==canvasDocuments.activeId||epoch!==canvasDocuments.epoch)throw canvasDocumentsError("CANVAS_BUSY","The Canvas changed while preparing this operation.");
+    let session=mcpRuntime.sessions.get(key);
+    if(session&&(session.closed||!session.internalAgent||session.documentId!==activeId||session.client!=="PenEcho Agent"))throw canvasDocumentsError("BINDING_CONFLICT","This conversation belongs to a different Canvas.");
+    if(!session){
+      const doc=canvasDocuments.records.get(activeId);
+      const conflict=[...canvasDocuments.records.values()].find(other=>other.id!==activeId&&(other.internalSessions||[]).some(saved=>saved.sessionKey===key));
+      if(conflict)throw canvasDocumentsError("BINDING_CONFLICT","This conversation belongs to a different Canvas.");
+      session=canvasDocumentsSession(doc,{sessionId:key,sessionKey:key,client:"PenEcho Agent",title:"PenEcho Agent",target:"current"},{internalAgent:true});
+      // Retain recent identities without consuming external MCP binding slots.
+      const prior=[...mcpRuntime.sessions.values()].filter(s=>s.internalAgent&&s.documentId===activeId);
+      if(prior.length>=64){doc.internalSessions=canvasDocumentsWorkspaceData(doc).internalSessions||[];for(const old of prior.slice(0,prior.length-63)){mcpRuntime.sessions.delete(old.sessionId);mcpRuntime.pendingView?.delete(old.sessionId);}}
+      mcpRuntime.sessions.set(key,session);
+    }
+    execution.documentEpoch=epoch;execution.documentId=activeId;execution.activeDocumentId=activeId;
+    return canvasDocumentsExecute(input.operation,args,execution);
+  }
   async function canvasDocumentsExecute(name,args,execution) {
     if(name==="mcp_start_session"&&!args.client)args={...args,client:"External AI"};
     if(name==="mcp_find_canvases")return canvasDocumentsFind(args);
@@ -24624,6 +24720,10 @@ var canvasDocumentIdentity = (() => {
       return canvasDocumentsReadFile(doc,args,true);
     }
     if(name==="mcp_present_widget"&&args.presentation?.intent==="inspect")return {...await mcpInspectHtml(args,execution),revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision,documentId:doc.id};
+    if(name==="mcp_present_widget") {
+      const artifact=session.artifacts.get(args.artifactId),object=artifact&&canvasDocumentsObject(doc,artifact.objectId);
+      if(object&&!canvasDocumentsSourceEditable(object))throw canvasDocumentsError("READ_ONLY_FILE","Professional Diagram and private plugin source editing is unavailable. Existing content is preserved.");
+    }
     const work=async()=>{
       let result;
       if(name==="mcp_list_files") {
@@ -25272,16 +25372,8 @@ var canvasDocumentIdentity = (() => {
         void runSnapshotLoadAction(heading,()=>requestLoadSnapshot(identity.id,identity.location));
       });
       section.append(heading);
-      if(group.current&&group.documentId){
-        section.classList.add("has-current-close");
-        const close=document.createElement("button");close.type="button";
-        close.className="studio-navigator-current-close";peButton(close,"icon","compact");
-        close.title=canvasDocumentsCopy("Close current canvas","关闭当前画布");close.setAttribute("aria-label",close.title);
-        close.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>';
-        close.disabled=canvasDocuments.switching;
-        close.addEventListener("click",()=>canvasDocumentsUiAction(()=>requestCanvasTransition({type:"close",documentId:group.documentId})));
-        section.append(close);
-      }
+      if(group.documentId)appendStudioCanvasClose(section,group.documentId,group.current,group.name);
+
       if(includeConversations&&group.conversations.length){
         const list=document.createElement("div");
         list.className="studio-navigator-group-conversations";
@@ -25289,6 +25381,20 @@ var canvasDocumentIdentity = (() => {
         section.append(list);
       }
       return section;
+    }
+    function appendStudioCanvasClose(section,documentId,current,name) {
+      section.classList.add("has-current-close");
+      section.classList.toggle("current",current);
+      const close=document.createElement("button");close.type="button";
+      close.className="studio-navigator-current-close";peButton(close,"ghost","compact");
+      close.title=canvasDocumentsCopy(`Close ${name}`,`关闭 ${name}`);close.setAttribute("aria-label",close.title);
+      close.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>';
+      close.disabled=canvasDocuments.switching;
+      close.addEventListener("click",()=>canvasDocumentsUiAction(async()=>{
+        if(canvasDocuments.activeId!==documentId)await canvasDocumentsShow(documentId);
+        return requestCanvasTransition({type:"close",documentId});
+      }));
+      section.append(close);
     }
     async function openStudioConversationOnCurrentCanvas(pending) {
       if(!pending||pending.canvasKey!==state.canvasAgentCanvasKey)return false;
@@ -25481,47 +25587,44 @@ var canvasDocumentIdentity = (() => {
           closeStudioNavigatorAfterCompactAction();
           void runSnapshotLoadAction(row, () => requestLoadSnapshot(item.id, item.location));
         });
-        studioCanvasRecentList.append(row);
+        if(workspaceDoc){
+          const entry=document.createElement("section");entry.className="studio-navigator-group";entry.append(row);
+          appendStudioCanvasClose(entry,workspaceDoc.id,current,snapshotName(item));studioCanvasRecentList.append(entry);
+        }else studioCanvasRecentList.append(row);
       }
       renderStudioNavigatorSourceStates(studioCanvasRecentList,query);
       if(!studioCanvasRecentList.childElementCount)studioNavigatorEmpty(studioCanvasRecentList,items.length?"studioNavigatorCanvasNoMatch":"studioNavigatorCanvasEmpty");
     }
-    let studioMcpFollowLatest=false,studioMcpLatestDocumentId=null,studioMcpPendingDocumentId=null,studioMcpFollowing=false,studioMcpCloseQueue=null;
-    let studioMcpLatestRegion=null,studioMcpPendingRegion=null;
+    let studioMcpFollowLatest=true,studioMcpLatestDocumentId=null,studioMcpPendingDocumentId=null,studioMcpFollowing=false,studioMcpCloseQueue=null;
+    let studioMcpLatestRegion=null,studioMcpPendingRegion=null,studioMcpUpdateRevision=0;
     function studioMcpOpenDocumentIds() {
       const live=new Set([...mcpRuntime.sessions.values()].filter(session=>!session.closed).map(session=>session.documentId));
       return [...canvasDocuments.records.values()].filter(doc=>doc.bindings?.length||doc.sessions?.length||live.has(doc.id)).map(doc=>doc.id);
     }
     function syncStudioMcpActions() {
       const follow=document.getElementById("studioMcpFollowLatest"),close=document.getElementById("studioMcpCloseAll"),group=document.getElementById("studioMcpActions");
-      const closeOthers=document.getElementById("canvasWorkspaceCloseAll");
-      if(closeOthers){
-        closeOthers.textContent=canvasDocumentsCopy("Close all","关闭其他");
-        closeOthers.title=canvasDocumentsCopy("Close all other canvases and keep the current canvas open. Saved canvases stay in the library.","关闭其他所有画布，保留当前画布。已保存画布仍保留在画布库中。");
-        closeOthers.setAttribute("aria-label",closeOthers.title);
-        closeOthers.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching||canvasDocuments.records.size<=1;
-        closeOthers.setAttribute("aria-busy",String(Boolean(studioMcpCloseQueue)));
-      }
       const mcpTab=studioNavigatorActiveTab==="mcp";
-      if(closeOthers)closeOthers.hidden=mcpTab;
+      const actionIds=mcpTab?studioMcpOpenDocumentIds():[...canvasDocuments.records.keys()];
       const count=document.getElementById("canvasWorkspaceCount");
       if(count){
-        count.textContent=canvasDocumentsCopy(`${canvasDocuments.records.size} open`,`${canvasDocuments.records.size} 个已打开`);
+        count.textContent=canvasDocumentsCopy(`${actionIds.length} open`,`${actionIds.length} 个已打开`);
         count.setAttribute("aria-busy",String(canvasDocuments.switching));
       }
       const menuOthers=document.getElementById("studioMcpCloseOthers"),more=document.getElementById("studioMcpMore");
-      if(menuOthers){menuOthers.textContent=canvasDocumentsCopy("Close other MCP canvases","关闭其他 MCP 画布");menuOthers.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching||!studioMcpOpenDocumentIds().some(id=>id!==canvasDocuments.activeId);}
-      if(more){more.setAttribute("aria-label",canvasDocumentsCopy("MCP canvas actions","MCP 画布操作"));more.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching;}
+      if(menuOthers){menuOthers.textContent=canvasDocumentsCopy("Close others","关闭其他画布");menuOthers.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching||!actionIds.some(id=>id!==canvasDocuments.activeId);}
+      if(more){more.setAttribute("aria-label",canvasDocumentsCopy("Canvas actions","画布操作"));more.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching;}
       if(!follow||!close)return;
       const busy=Boolean(studioMcpCloseQueue)||canvasDocuments.switching;
       group?.setAttribute("aria-label",canvasDocumentsCopy("MCP canvas actions","MCP 画布操作"));
       const followLabel=document.getElementById("studioMcpFollowLabel");
       if(followLabel)followLabel.textContent=canvasDocumentsCopy("Follow latest","跟随最新");
+      const description=document.getElementById("studioMcpFollowDescription");
+      if(description)description.textContent=canvasDocumentsCopy("Auto-focus new content","自动定位到最新内容");
       follow.setAttribute("aria-checked",String(studioMcpFollowLatest));follow.disabled=busy;
       follow.title=canvasDocumentsCopy("Follow the latest updated content, switching canvases when needed. Pauses while you edit or navigate.","跟随最新更新的内容，必要时切换画布；编辑或移动视野时暂停。");
-      close.textContent=canvasDocumentsCopy("Close all MCP canvases","关闭全部 MCP 画布");close.disabled=busy||!studioMcpOpenDocumentIds().length;
+      close.textContent=canvasDocumentsCopy("Close all","关闭全部画布");close.disabled=busy||!actionIds.length;
       close.setAttribute("aria-busy",String(Boolean(studioMcpCloseQueue)));
-      close.title=canvasDocumentsCopy("Close all open MCP canvases. Saved canvases stay in the library.","关闭所有已打开的 MCP 画布，已保存画布仍保留在画布库中。");
+      close.title=mcpTab?canvasDocumentsCopy("Close all open MCP canvases. Saved canvases stay in the library.","关闭所有已打开的 MCP 画布，已保存画布仍保留在画布库中。"):canvasDocumentsCopy("Close all open canvases. Saved canvases stay in the library.","关闭所有已打开的画布，已保存画布仍保留在画布库中。");
     }
     function cancelStudioMcpCloseAll() {studioMcpCloseQueue=null;syncStudioMcpActions();}
     async function continueStudioMcpCloseAll(batch) {
@@ -25549,27 +25652,28 @@ var canvasDocumentIdentity = (() => {
       const batch=[...canvasDocuments.records.keys()].filter(id=>id!==retainedDocumentId);
       if(!batch.length)return;
       batch.retainedDocumentId=retainedDocumentId;
-      studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
       await continueStudioMcpCloseAll(batch);
     }
     async function closeOtherStudioMcpCanvases() {
       if(studioMcpCloseQueue||canvasDocuments.switching)return;
       const retainedDocumentId=canvasDocumentsCurrent().id;
-      const batch=studioMcpOpenDocumentIds().filter(id=>id!==retainedDocumentId);
+      const batch=(studioNavigatorActiveTab==="mcp"?studioMcpOpenDocumentIds():[...canvasDocuments.records.keys()]).filter(id=>id!==retainedDocumentId);
       if(!batch.length)return;
       batch.retainedDocumentId=retainedDocumentId;
-      studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
       await continueStudioMcpCloseAll(batch);
     }
     async function closeAllStudioMcpCanvases() {
       if(studioMcpCloseQueue)return;
-      const batch=studioMcpOpenDocumentIds();
+      const batch=studioNavigatorActiveTab==="mcp"?studioMcpOpenDocumentIds():[...canvasDocuments.records.keys()];
       if(!batch.length)return;
-      studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
       await continueStudioMcpCloseAll(batch);
     }
     function noteStudioMcpContentUpdate(documentId,region=null) {
       if(!documentId||!canvasDocuments.records.has(documentId))return;
+      studioMcpUpdateRevision++;
       studioMcpLatestDocumentId=documentId;
       studioMcpLatestRegion=region;
       if(studioMcpFollowLatest){studioMcpPendingDocumentId=documentId;studioMcpPendingRegion=region;}
@@ -25578,8 +25682,8 @@ var canvasDocumentIdentity = (() => {
       if(!studioMcpFollowLatest||!studioMcpPendingDocumentId||studioMcpFollowing||studioMcpCloseQueue||canvasDocuments.switching||mcpRuntime.queued||!mcpRuntime.ready)return;
       const active=document.activeElement;
       if(mcpViewBlockedBy()||document.querySelector("dialog[open]")||active?.matches?.("input,textarea,select,[contenteditable='true']"))return;
-      const id=studioMcpPendingDocumentId;
-      if(!canvasDocuments.records.has(id)){studioMcpPendingDocumentId=null;return;}
+      const id=studioMcpPendingDocumentId,updateRevision=studioMcpUpdateRevision;
+      if(!canvasDocuments.records.has(id)){studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;return;}
       studioMcpFollowing=true;
       try {
         if(id!==canvasDocuments.activeId)await canvasDocumentsShow(id);
@@ -25598,11 +25702,12 @@ var canvasDocumentIdentity = (() => {
       } catch(error) {
         // Busy work keeps just the newest target until the next real checkpoint.
         if(!["CANVAS_BUSY","CANVAS_CHANGED"].includes(error.code)){
-          studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;canvasDocumentsReport(error);
+          if(studioMcpPendingDocumentId===id&&studioMcpUpdateRevision===updateRevision){studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;}
+          canvasDocumentsReport(error);
         }
       } finally {
         studioMcpFollowing=false;syncStudioMcpActions();
-        if(studioMcpFollowLatest&&studioMcpPendingDocumentId&&studioMcpPendingDocumentId!==id)queueMicrotask(()=>void flushStudioMcpFollowLatest());
+        if(studioMcpFollowLatest&&studioMcpPendingDocumentId&&(studioMcpPendingDocumentId!==id||studioMcpUpdateRevision!==updateRevision))queueMicrotask(()=>void flushStudioMcpFollowLatest());
       }
     }
     const studioMcpOrder=new Map();
@@ -25633,7 +25738,7 @@ var canvasDocumentIdentity = (() => {
       enabled=Boolean(enabled);
       if(enabled===studioNavigatorMcpEnabled)return;
       studioNavigatorMcpEnabled=enabled;
-      if(!enabled){studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;}
+      if(!enabled){studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;studioMcpLatestDocumentId=null;studioMcpLatestRegion=null;}
       studioNavigatorMcpTab.hidden=!enabled;
       if(enabled){
         selectCanvasToolMode("hand");
@@ -25643,9 +25748,8 @@ var canvasDocumentIdentity = (() => {
         studioNavigatorSearch.value="";
         setStudioNavigatorTab("mcp",{persist:false});
         setStudioNavigatorOpen(true);
-        // Each live MCP connection starts with Follow latest on; a later
-        // manual off stays off for the rest of that connection.
-        studioMcpFollowLatest=true;studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;
+        // Connection changes preserve the user’s Follow latest preference.
+        studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;
         syncStudioMcpActions();
       }else if(studioNavigatorActiveTab==="mcp")setStudioNavigatorTab("all",{persist:false});
     }
@@ -25846,7 +25950,6 @@ var canvasDocumentIdentity = (() => {
     studioNavigatorScrim.addEventListener("click", () => setStudioNavigatorOpen(false));
     studioNavigatorSearch.addEventListener("input", renderActiveStudioNavigatorHistory);
     studioNavigatorMcpTab.addEventListener("click",()=>setStudioNavigatorTab("mcp"));
-    document.getElementById("canvasWorkspaceCloseAll")?.addEventListener("click",()=>canvasDocumentsUiAction(closeOtherStudioCanvases));
     document.getElementById("studioMcpCloseAll")?.addEventListener("click",()=>canvasDocumentsUiAction(closeAllStudioMcpCanvases));
     document.getElementById("studioMcpFollowLatest")?.addEventListener("click",()=>{
       studioMcpFollowLatest=!studioMcpFollowLatest;

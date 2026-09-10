@@ -91,37 +91,48 @@
     if(!mcpRuntime)return;
     if(typeof canvasDocuments!=="undefined"&&canvasDocuments.activeId) {
       const active=canvasDocumentsCurrent();active.feedback=mcpRuntime.feedback;active.feedbackSequence=mcpRuntime.feedbackSequence;
-      for(const doc of canvasDocuments.records.values())doc.sessions=canvasDocumentsWorkspaceData(doc).sessions;
+      for(const doc of canvasDocuments.records.values()){const saved=canvasDocumentsWorkspaceData(doc);doc.sessions=saved.sessions;doc.internalSessions=saved.internalSessions||[];}
       canvasDocumentsSyncExtension(active);
     }
     mcpRuntime.generation++;
-    clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;mcpRuntime.layoutSince=0;mcpRuntime.pendingView.clear();mcpRuntime.viewPaused=false;
+    clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;mcpRuntime.layoutSince=0;
+    for(const [id] of mcpRuntime.pendingView)if(!mcpRuntime.sessions.get(id)?.internalAgent)mcpRuntime.pendingView.delete(id);
+    if(!mcpRuntime.pendingView.size)mcpRuntime.viewPaused=false;
     clearTimeout(mcpRuntime.heartbeatTimer);clearTimeout(mcpRuntime.glowTimer);
     mcpRuntime.heartbeatTimer=0;mcpRuntime.glowTimer=0;mcpRuntime.ready=false;mcpRuntime.heartbeatSupported=false;mcpRuntime.connectionLost=lost;mcpRuntime.activeMutation=null;mcpRuntime.mutationDocumentId=null;mcpRuntime.glowing=false;
     for (const controller of mcpRuntime.controllers.values()) controller.abort();
     mcpRuntime.controllers.clear();
-    for(const widget of mcpRuntime.previews.values())unmountWidget(widget);mcpRuntime.previews.clear();
+    for(const [id,widget] of mcpRuntime.previews)if(!widget.internalAgent){unmountWidget(widget);mcpRuntime.previews.delete(id);}
     const socket=mcpRuntime.socket; mcpRuntime.socket=null; socket?.close();
-    mcpRuntime.sessions.clear();
-    mcpRuntime.feedback=[];
+    for(const [id,session] of mcpRuntime.sessions)if(!session.internalAgent)mcpRuntime.sessions.delete(id);
+    if(!mcpRuntime.sessions.size)mcpRuntime.feedback=[];
+    if(mcpRuntime.pendingView.size&&!mcpRuntime.viewPaused)mcpRuntime.layoutTimer=setTimeout(()=>mcpFlushView(false),900);
     mcpRenderSettings();
     if(mcpRuntime.toolbarManaged&&(!mcpRuntime.toolbarPending||lost))setStatus(mcpText(lost?"toolbarRetry":"disconnected"));
   }
   function mcpRenderCanvasStatus() {
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,
-      sessions=[...mcpRuntime.sessions.values()].filter(session=>!session.closed&&mcpSessionVisible(session)),
+      sessions=[...mcpRuntime.sessions.values()].filter(session=>!session.internalAgent&&!session.closed&&mcpSessionVisible(session)),
       clients=[...new Set(sessions.map(session=>session.client||"AI"))],
       mutationVisible=!mcpRuntime.mutationDocumentId||typeof canvasDocuments==="undefined"||mcpRuntime.mutationDocumentId===canvasDocuments.activeId,
-      notice=mcpEl("mcpCanvasNotice"),ring=mcpEl("mcpCanvasRing"),button=mcpEl("mcpCanvasNoticeButton");
-    if(notice)notice.hidden=!mcpLocal()||(!connected&&!mcpRuntime.connectionLost);
+      notice=mcpEl("mcpCanvasNotice"),ring=mcpEl("mcpCanvasRing"),button=mcpEl("mcpCanvasNoticeButton"),
+      newButton=mcpEl("mcpShowNewContent"),count=[...mcpRuntime.pendingView].filter(([id])=>mcpSessionTransportActive(mcpRuntime.sessions.get(id))&&mcpSessionVisible(mcpRuntime.sessions.get(id))).reduce((sum,[,ids])=>sum+ids.size,0);
+    if(notice)notice.hidden=!count&&(!mcpLocal()||(!connected&&!mcpRuntime.connectionLost));
+    if(button)button.hidden=!mcpLocal()||(!connected&&!mcpRuntime.connectionLost);
     if(ring){ring.hidden=!connected;ring.setAttribute("data-state",mcpRuntime.glowing&&mutationVisible?"updating":"open");}
-    const newButton=mcpEl("mcpShowNewContent"),count=[...mcpRuntime.pendingView].filter(([id])=>mcpSessionVisible(mcpRuntime.sessions.get(id))).reduce((sum,[,ids])=>sum+ids.size,0);
-    if(newButton){newButton.hidden=!connected||!count;newButton.textContent=mcpText("newContent");}
+    if(newButton){newButton.hidden=!count;newButton.textContent=mcpText("newContent");}
     let label=mcpText("canvasLost");
     if(connected)label=mcpRuntime.activeMutation&&mutationVisible?`${mcpRuntime.activeMutation} ${mcpText("canvasApplying")}`:sessions.length?`MCP · ${clients.slice(0,2).join(" / ")}${clients.length>2?" +":""} · ${sessions.length} ${mcpText(sessions.length===1?"canvasSession":"canvasSessions")}`:mcpText("canvasWaiting");
     if(button){if(button.textContent!==label)button.textContent=label;button.title=mcpText("canvasNoticeHelp");}
   }
   // PenEcho owns deterministic placement and camera batching; MCP clients provide only content.
+  function mcpSessionTransportActive(session) {
+    return Boolean(session&&!session.closed&&(session.internalAgent||mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN));
+  }
+  function mcpHasInternalSession() {
+    for(const session of mcpRuntime.sessions.values())if(session.internalAgent&&!session.closed&&mcpSessionVisible(session))return true;
+    return false;
+  }
   function mcpSessionVisible(session) {
     return Boolean(session)&&(!session.documentId||typeof canvasDocuments==="undefined"||session.documentId===canvasDocuments.activeId);
   }
@@ -203,12 +214,12 @@
     return {pendingObjects:mcpRuntime.pendingView.get(session.sessionId)?.size||0,paused:mcpRuntime.viewPaused,blockedBy:mcpRuntime.queued>1?"canvas-queue":mcpViewBlockedBy(),canvasScale:state.scale||1};
   }
   function mcpPauseView() {
-    if(!mcpRuntime.socket)return;
+    if(!mcpRuntime.socket&&!mcpHasInternalSession())return;
     mcpRuntime.viewPaused=true;clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;mcpRenderCanvasStatus();
   }
   function mcpQueueView(session,widget,presentation=null) {
     if(presentation?.attention==="quiet"||presentation?.intent==="inspect")return;
-    if(!mcpRuntime.ready||mcpRuntime.socket?.readyState!==WebSocket.OPEN)return;
+    if(!mcpSessionTransportActive(session))return;
     let pending=mcpRuntime.pendingView.get(session.sessionId);
     if(!pending){pending=new Set();mcpRuntime.pendingView.set(session.sessionId,pending);}
     pending.add(widget.id);
@@ -219,10 +230,10 @@
   }
   function mcpFlushView(explicit=false) {
     clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;
-    if(!mcpRuntime.ready||!mcpRuntime.pendingView.size)return;
+    if(!mcpRuntime.pendingView.size)return;
     if(mcpRuntime.queued){mcpRuntime.layoutTimer=setTimeout(()=>mcpFlushView(explicit),150);return;}
     if(mcpViewBusy()||(!explicit&&mcpRuntime.viewPaused)){mcpRuntime.viewPaused=true;mcpRenderCanvasStatus();return;}
-    const groups=[...mcpRuntime.pendingView].filter(([id])=>mcpSessionVisible(mcpRuntime.sessions.get(id)));
+    const groups=[...mcpRuntime.pendingView].filter(([id])=>mcpSessionTransportActive(mcpRuntime.sessions.get(id))&&mcpSessionVisible(mcpRuntime.sessions.get(id)));
     if(!groups.length){mcpRenderCanvasStatus();return;}
     const candidates=groups.flatMap(([id,ids])=>{
       const session=mcpRuntime.sessions.get(id),seen=new Set(),items=[];
@@ -244,7 +255,6 @@
     // An explicit reveal is a request to focus, even if an overview already
     // contains the artifact at a scale too small for reading its content.
     if(explicit||!alreadyVisible) {
-      if(!explicit&&canvasAgentFramePlan(region,96).scale<.5){mcpRuntime.viewPaused=true;mcpRenderCanvasStatus();return;}
       canvasAgentFrameRegion(region,96);
     }
     for(const item of shown){const ids=mcpRuntime.pendingView.get(item.id);for(const objectId of item.objectIds)ids?.delete(objectId);if(!ids?.size)mcpRuntime.pendingView.delete(item.id);}
@@ -419,7 +429,7 @@
   function mcpEscape(text) { return String(text??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
   // Record committed user input only. Never scan pixels or consume Canvas dirty state here.
   function mcpRecordFeedback(kind,bounds,item=null) {
-    if(!mcpRuntime||(!mcpRuntime.socket&&!(typeof canvasDocumentsExternal==="function"&&canvasDocumentsExternal()))||!bounds)return;
+    if(!mcpRuntime||!bounds||(!mcpRuntime.socket&&!mcpHasInternalSession()&&!(typeof canvasDocumentsExternal==="function"&&canvasDocumentsExternal())))return;
     if(![bounds.x,bounds.y,bounds.w,bounds.h].every(Number.isFinite))return;
     const entry={cursor:++mcpRuntime.feedbackSequence,kind,bounds:{x:bounds.x,y:bounds.y,w:Math.max(1,bounds.w),h:Math.max(1,bounds.h)},createdAt:Date.now()};
     if(item?.id)entry.objectId=String(item.id);
@@ -471,7 +481,17 @@
   }
   async function mcpWaitForWidgetLoad(widget,execution) {
     const signal=execution.controller.signal;
-    if(!widget.hostReady)await waitForWidgetSnapshot(widget.hostReadyPromise,signal);
+    if(!widget.hostReady){
+      let timer;
+      try {
+        await waitForWidgetSnapshot(Promise.race([
+          widget.hostReadyPromise,
+          new Promise((_,reject)=>{timer=setTimeout(()=>reject(Object.assign(Error("Widget snapshot timed out"),{
+            code:"WIDGET_READY_TIMEOUT",details:{widgetId:widget.id,stage:"host-ready",elapsedMs:WIDGET_SNAPSHOT_TIMEOUT_MS},
+          })),WIDGET_SNAPSHOT_TIMEOUT_MS);}),
+        ]),signal);
+      } finally { clearTimeout(timer); }
+    }
     canvasAgentAssertToolExecution(execution);
     widget.renderActive=true;widget.shell?.classList.remove("widget-offscreen");sendWidgetInit(widget);sendWidgetHostState(widget,undefined,undefined,true);
     if(widget.mcpDocumentLoaded)return;
@@ -504,7 +524,7 @@
   }
   async function mcpInspectHtml(args,execution) {
     const size=mcpPresentationSize(args),id=`mcp-preview-${canvasClientId()}`,
-      widget={id,widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:0,y:0,w:size.width,h:size.height,contentW:size.width,contentH:size.height,contentVersion:0,refreshSeconds:0,mcpEphemeral:true};
+      widget={id,widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:0,y:0,w:size.width,h:size.height,contentW:size.width,contentH:size.height,contentVersion:0,refreshSeconds:0,mcpEphemeral:true,internalAgent:mcpRuntime.sessions.get(args.sessionId)?.internalAgent===true};
     mcpRuntime.previews.set(id,widget);
     try {
       canvasAgentAssertToolExecution(execution);mountWidget(widget);

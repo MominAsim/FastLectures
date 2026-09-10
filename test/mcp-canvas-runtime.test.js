@@ -222,3 +222,55 @@ test('manual show focuses visible content but never bypasses view guards',async(
  for(const [label,setup] of guards){reset();setup();h.mcpFlushView(true);assert.equal(h.context.frames.length,0,`${label}: Show must not frame while blocked`);assert.equal(h.mcpRuntime.pendingView.get('one')?.size,1,`${label}: pending object must remain`);clearTimeout(h.mcpRuntime.layoutTimer);h.mcpRuntime.layoutTimer=0;}
  h.mcpDisconnect();
 });
+
+test("internal presentation works without MCP and survives external disconnect while respecting user navigation",async()=>{
+  const h=harness(),unmounted=[];
+  const statusNodes=Object.fromEntries(["mcpCanvasNotice","mcpCanvasNoticeButton","mcpShowNewContent","mcpCanvasRing"].map(id=>[id,{hidden:true,setAttribute(){}}]));
+  h.context.document.getElementById=id=>statusNodes[id]||null;
+  h.context.unmountWidget=widget=>unmounted.push(widget.id);
+  await h.mcpExecute("mcp_start_session",{sessionId:"internal",title:"Internal"},{});
+  const session=h.mcpRuntime.sessions.get("internal");session.internalAgent=true;
+  await h.mcpExecute("mcp_present_widget",{sessionId:"internal",artifactId:"page",title:"Page",html:"<p>Visible</p>"},{});
+  assert.equal(h.mcpRuntime.ready,false);assert.equal(h.mcpRuntime.pendingView.size,1);
+  assert.equal(statusNodes.mcpCanvasNotice.hidden,false);assert.equal(statusNodes.mcpShowNewContent.hidden,false);
+  assert.equal(statusNodes.mcpCanvasNoticeButton.hidden,true);assert.equal(statusNodes.mcpCanvasRing.hidden,true);
+  h.mcpPauseView();h.mcpFlushView();assert.equal(h.context.frames.length,0);
+  h.mcpRuntime.sessions.set("external",{sessionId:"external",artifacts:new Map()});
+  h.mcpRuntime.previews.set("internal-preview",{id:"internal-preview",internalAgent:true});
+  h.mcpRuntime.previews.set("external-preview",{id:"external-preview"});
+  h.mcpDisconnect();
+  assert.equal(h.mcpRuntime.sessions.get("internal"),session);
+  assert.equal(h.mcpRuntime.sessions.has("external"),false);
+  assert.deepEqual(unmounted,["external-preview"]);
+  assert.equal(h.mcpRuntime.previews.has("internal-preview"),true);
+  assert.equal(h.mcpRuntime.pendingView.size,1);assert.equal(h.mcpRuntime.viewPaused,true);
+  h.mcpFlushView(true);assert.equal(h.context.frames.length,1);assert.equal(h.mcpRuntime.pendingView.size,0);
+});
+
+test("internal user feedback is available without an external socket",async()=>{
+  const h=harness();
+  await h.mcpExecute("mcp_start_session",{sessionId:"internal-feedback",title:"Internal"},{});
+  h.mcpRuntime.sessions.get("internal-feedback").internalAgent=true;
+  h.mcpRecordFeedback("text",{x:10,y:20,w:100,h:40},{id:"annotation",text:"Please enlarge this label"});
+  h.mcpDisconnect();
+  const result=await h.mcpExecute("mcp_read_feedback",{sessionId:"internal-feedback",capture:false},{});
+  assert.equal(result.entries.length,1);assert.equal(result.entries[0].text,"Please enlarge this label");
+  assert.equal(result.nextCursor,1);
+});
+
+test('new page fits a small viewport instead of retaining a tiny camera',async()=>{
+ const h=harness();await h.mcpExecute('mcp_start_session',{sessionId:'page',title:'Page'},{});
+ h.mcpRuntime.ready=true;h.mcpRuntime.socket={readyState:1,close(){}};
+ const source=fs.readFileSync(path.join(__dirname,'../src/client/app/canvas-agent-runtime.js'),'utf8');
+ const start=source.indexOf('  function canvasAgentFramePlan('),end=source.indexOf('  function canvasAgentFrameRegion(',start);
+ Object.assign(h.context,{view:{clientWidth:640,clientHeight:480},canvasAgentPanel:{hidden:true}});
+ vm.runInContext(source.slice(start,end),h.context);
+ h.state.scale=.08;
+ h.context.canvasAgentFrameRegion=region=>{const plan=h.context.canvasAgentFramePlan(region,96);Object.assign(h.state,{scale:plan.scale,panX:plan.panX,panY:plan.panY});h.context.frames.push(region);};
+ const result=await h.mcpExecute('mcp_present_widget',{sessionId:'page',artifactId:'page',title:'Page',html:'<p>Report</p>',presentation:{size:'page'}},{});
+ const widget=h.widgets.get(result.objectId);widget.x=2000;widget.y=2000;h.mcpFlushView();
+ assert.equal(h.context.frames.length,1);assert.ok(h.state.scale>.4&&h.state.scale<.5);
+ assert.ok(Math.abs(h.state.panX+(widget.x+widget.w/2)*h.state.scale-320)<1e-8);
+ assert.ok(Math.abs(h.state.panY+(widget.y+widget.h/2)*h.state.scale-240)<1e-8);
+ assert.equal(h.mcpRuntime.pendingView.size,0);assert.equal(h.mcpRuntime.viewPaused,false);h.mcpDisconnect();
+});

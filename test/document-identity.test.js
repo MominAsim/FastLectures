@@ -501,3 +501,15 @@ test("virtual paths reject traversal and unsafe separators without decoding ids"
     assert.throws(() => api.parsePath(unsafe), error => error.code === "INVALID_PATH");
   }
 });
+
+test("internal restoration cache is bounded and never consumes external authority bindings",()=>{
+  const api=loadApi(),metadata={version:1,documentId:"doc",bindings:[{key:"external",client:"Codex",documentId:"doc"}]};
+  const internal=Array.from({length:70},(_,index)=>({sessionKey:`agent-${index.toString(16).padStart(64,"0")}`,client:"PenEcho Agent",artifacts:[["page",{objectId:`widget-${index}`,title:"Page"}]]}));
+  const normalized=api.normalizeWorkspace({version:1,sessions:[{sessionKey:"external",client:"Codex"}],internalSessions:internal},metadata);
+  assert.equal(normalized.sessions.length,1);assert.equal(normalized.internalSessions.length,64);
+  assert.equal(normalized.internalSessions[0].sessionKey,internal[6].sessionKey);
+  assert.equal(normalized.internalSessions.at(-1).artifacts[0][1].objectId,"widget-69");
+  assert.equal(metadata.bindings.length,1);
+  const invalid=api.normalizeWorkspace({version:1,internalSessions:[null,{sessionKey:"external",client:"PenEcho Agent"},{...internal[0],client:"Codex"},{...internal[0],documentId:"different"}]},metadata);
+  assert.equal(invalid.internalSessions,undefined);
+});

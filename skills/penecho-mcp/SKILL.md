@@ -153,7 +153,11 @@ bounded attention metadata; it is not a screenshot or proof of readable pixels.
 
 Ordinary presentation uses capture:false. For first UI review or a meaningful
 layout change, combine present_widget with capture:true at basic quality, read
-the returned image, and fix concrete defects. Reuse that evidence; request detail
+the returned image, and fix material defects. Stop once the requested answer is
+complete, readable and usable. Do not begin another read/patch/capture cycle for
+minor spacing, label shifts or optional cosmetic polish unless requested. Data
+errors, missing requirements, unreadable essential content and broken interaction
+remain reasons to continue. Reuse that evidence; request detail
 only for an unresolved visual question. Do not screenshot unchanged progress or
 every minor edit. A local screenshot does not call a model, but reading its image
 may consume image-input tokens. Never claim exact token savings from image bytes.
@@ -166,13 +170,18 @@ visible content (viewport/canvas/selection/region/object). Hidden content return
 CANVAS_NOT_VISIBLE; never show it implicitly. Only returned pixels with
 pixelVerified:true are pixel evidence; inspect or accepted/queued is not.
 
-The optional penecho_visual_explorer MCP prompt adds the full shared design
-standard when substantial authoring needs it. If the client exposes tools only,
-use these compact instructions; do not invent a prompt-retrieval tool or block
-on prompts. The server exposes Visual Explorer, explain selection, revise
-feedback and resume document through prompts/list and prompts/get; it never
-selects a prompt automatically. Skill installation also does not guarantee an
-existing conversation reloads it or changes the client's configuration.
+Load full authoring guidance only when needed with penecho_get_guidance({id}).
+Use visual-explorer for understanding, learning, explanations, analysis and
+organization; use general-html for new UI pages, product previews and ordinary
+interactive tools. New UI pages do not automatically use Visual Explorer.
+Existing page edits preserve their source and styling. Bare functions use plot.
+Load a science supplement only for calibrated mathematical geometry/curves
+(math-2d), physical simulation (physics-2d), or spatial 3-D mathematics (math-3d).
+Formulas, matrices, or complexity notation alone do not require a science
+renderer. Load only the closest needed supplement. Each document includes its version and
+content hash; reuse unchanged guidance rather than repeatedly loading it. This
+read-only tool needs no Canvas connection and works with tools-only clients.
+The optional penecho_visual_explorer prompt remains available through prompts/get.
 
 ## Feedback and inbox are separate
 

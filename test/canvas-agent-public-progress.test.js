@@ -88,7 +88,7 @@ test("Harness forwards CLI progress to the chat before the CLI decision resolves
       request.onText?.(JSON.stringify({ progress }).slice(0, -1) + ",");
       await pending;
       cliResolved = true;
-      return JSON.stringify({ progress, type:"tool_call", name:"canvas_inspect", arguments:{ detail:"summary" } });
+      return JSON.stringify({ progress, type:"tool_call", name:"penecho_read_file", arguments:{ path:"canvas.json" } });
     },
   });
   t.after(async () => { release(); await host.dispose(); fs.rmSync(stateDirectory, { recursive:true, force:true }); });
@@ -98,7 +98,13 @@ test("Harness forwards CLI progress to the chat before the CLI decision resolves
       events.push(payload);
       if (payload.kind === "assistant_delta" && payload.text.includes(progress)) sawProgress();
     }
-    if (type === "tool_request") queueMicrotask(() => host.resolveToolResult(session, { requestId:payload.requestId, ok:true, result:{ revision:1, objects:[] } }));
+    if (type === "tool_request") {
+      assert.equal(payload.name,"canvas_document");
+      assert.equal(payload.arguments.operation,"mcp_read_file");
+      assert.equal(payload.arguments.arguments.path,"/canvas.json");
+      assert.equal(payload.arguments.bindingKey,payload.arguments.arguments.sessionId);
+      queueMicrotask(() => host.resolveToolResult(session, { requestId:payload.requestId, ok:true, result:{ sessionId:payload.arguments.bindingKey, path:"/canvas.json", content:"{}", contentHash:"canvas-hash" } }));
+    }
   } });
   host.updateState(session, { revision:1, canvas:{ width:2048, height:2048 }, selection:{ objectIds:[] } });
   const submission = host.submit(session, "读取画布并说明结果。");

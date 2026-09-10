@@ -729,6 +729,16 @@ var canvasDocumentIdentity = (() => {
       sessions.push(session);
     }
     const deduplicatedSessions = sessions.filter(Boolean);
+    // Internal state is a bounded restoration cache, not external MCP authority.
+    const internalByKey = new Map();
+    for (const raw of arrayTail(ownValue(value, "internalSessions"), MAX_WORKSPACE_SESSIONS)) {
+      const key = ownValue(raw, "sessionKey");
+      if (typeof key !== "string" || !/^agent-[a-f0-9]{64}$/.test(key) || ownValue(raw,"client") !== "PenEcho Agent") continue;
+      const session = documentId ? normalizeSession(raw,new Map([[key,"PenEcho Agent"]]),documentId) : null;
+      if(session)internalByKey.set(key,session);
+    }
+    const internalSessions = [...internalByKey.values()];
+    for(const session of internalSessions)if(!metadataBindings.has(session.sessionKey))metadataBindings.set(session.sessionKey,session.client);
     const messages = [];
     const messagePositions = new Map();
     for (const raw of arrayTail(ownValue(value, "messages"), MAX_WORKSPACE_MESSAGES)) {
@@ -757,6 +767,7 @@ var canvasDocumentIdentity = (() => {
     return {
       version: 1,
       sessions: deduplicatedSessions,
+      ...(internalSessions.length ? {internalSessions} : {}),
       feedback,
       feedbackSequence: Math.max(safeSequence(ownValue(value, "feedbackSequence")), ...feedback.map((entry) => entry.cursor), 0),
       messages: deduplicatedMessages,

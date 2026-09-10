@@ -518,16 +518,8 @@
         void runSnapshotLoadAction(heading,()=>requestLoadSnapshot(identity.id,identity.location));
       });
       section.append(heading);
-      if(group.current&&group.documentId){
-        section.classList.add("has-current-close");
-        const close=document.createElement("button");close.type="button";
-        close.className="studio-navigator-current-close";peButton(close,"icon","compact");
-        close.title=canvasDocumentsCopy("Close current canvas","关闭当前画布");close.setAttribute("aria-label",close.title);
-        close.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>';
-        close.disabled=canvasDocuments.switching;
-        close.addEventListener("click",()=>canvasDocumentsUiAction(()=>requestCanvasTransition({type:"close",documentId:group.documentId})));
-        section.append(close);
-      }
+      if(group.documentId)appendStudioCanvasClose(section,group.documentId,group.current,group.name);
+
       if(includeConversations&&group.conversations.length){
         const list=document.createElement("div");
         list.className="studio-navigator-group-conversations";
@@ -535,6 +527,20 @@
         section.append(list);
       }
       return section;
+    }
+    function appendStudioCanvasClose(section,documentId,current,name) {
+      section.classList.add("has-current-close");
+      section.classList.toggle("current",current);
+      const close=document.createElement("button");close.type="button";
+      close.className="studio-navigator-current-close";peButton(close,"ghost","compact");
+      close.title=canvasDocumentsCopy(`Close ${name}`,`关闭 ${name}`);close.setAttribute("aria-label",close.title);
+      close.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>';
+      close.disabled=canvasDocuments.switching;
+      close.addEventListener("click",()=>canvasDocumentsUiAction(async()=>{
+        if(canvasDocuments.activeId!==documentId)await canvasDocumentsShow(documentId);
+        return requestCanvasTransition({type:"close",documentId});
+      }));
+      section.append(close);
     }
     async function openStudioConversationOnCurrentCanvas(pending) {
       if(!pending||pending.canvasKey!==state.canvasAgentCanvasKey)return false;
@@ -727,47 +733,44 @@
           closeStudioNavigatorAfterCompactAction();
           void runSnapshotLoadAction(row, () => requestLoadSnapshot(item.id, item.location));
         });
-        studioCanvasRecentList.append(row);
+        if(workspaceDoc){
+          const entry=document.createElement("section");entry.className="studio-navigator-group";entry.append(row);
+          appendStudioCanvasClose(entry,workspaceDoc.id,current,snapshotName(item));studioCanvasRecentList.append(entry);
+        }else studioCanvasRecentList.append(row);
       }
       renderStudioNavigatorSourceStates(studioCanvasRecentList,query);
       if(!studioCanvasRecentList.childElementCount)studioNavigatorEmpty(studioCanvasRecentList,items.length?"studioNavigatorCanvasNoMatch":"studioNavigatorCanvasEmpty");
     }
-    let studioMcpFollowLatest=false,studioMcpLatestDocumentId=null,studioMcpPendingDocumentId=null,studioMcpFollowing=false,studioMcpCloseQueue=null;
-    let studioMcpLatestRegion=null,studioMcpPendingRegion=null;
+    let studioMcpFollowLatest=true,studioMcpLatestDocumentId=null,studioMcpPendingDocumentId=null,studioMcpFollowing=false,studioMcpCloseQueue=null;
+    let studioMcpLatestRegion=null,studioMcpPendingRegion=null,studioMcpUpdateRevision=0;
     function studioMcpOpenDocumentIds() {
       const live=new Set([...mcpRuntime.sessions.values()].filter(session=>!session.closed).map(session=>session.documentId));
       return [...canvasDocuments.records.values()].filter(doc=>doc.bindings?.length||doc.sessions?.length||live.has(doc.id)).map(doc=>doc.id);
     }
     function syncStudioMcpActions() {
       const follow=document.getElementById("studioMcpFollowLatest"),close=document.getElementById("studioMcpCloseAll"),group=document.getElementById("studioMcpActions");
-      const closeOthers=document.getElementById("canvasWorkspaceCloseAll");
-      if(closeOthers){
-        closeOthers.textContent=canvasDocumentsCopy("Close all","关闭其他");
-        closeOthers.title=canvasDocumentsCopy("Close all other canvases and keep the current canvas open. Saved canvases stay in the library.","关闭其他所有画布，保留当前画布。已保存画布仍保留在画布库中。");
-        closeOthers.setAttribute("aria-label",closeOthers.title);
-        closeOthers.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching||canvasDocuments.records.size<=1;
-        closeOthers.setAttribute("aria-busy",String(Boolean(studioMcpCloseQueue)));
-      }
       const mcpTab=studioNavigatorActiveTab==="mcp";
-      if(closeOthers)closeOthers.hidden=mcpTab;
+      const actionIds=mcpTab?studioMcpOpenDocumentIds():[...canvasDocuments.records.keys()];
       const count=document.getElementById("canvasWorkspaceCount");
       if(count){
-        count.textContent=canvasDocumentsCopy(`${canvasDocuments.records.size} open`,`${canvasDocuments.records.size} 个已打开`);
+        count.textContent=canvasDocumentsCopy(`${actionIds.length} open`,`${actionIds.length} 个已打开`);
         count.setAttribute("aria-busy",String(canvasDocuments.switching));
       }
       const menuOthers=document.getElementById("studioMcpCloseOthers"),more=document.getElementById("studioMcpMore");
-      if(menuOthers){menuOthers.textContent=canvasDocumentsCopy("Close other MCP canvases","关闭其他 MCP 画布");menuOthers.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching||!studioMcpOpenDocumentIds().some(id=>id!==canvasDocuments.activeId);}
-      if(more){more.setAttribute("aria-label",canvasDocumentsCopy("MCP canvas actions","MCP 画布操作"));more.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching;}
+      if(menuOthers){menuOthers.textContent=canvasDocumentsCopy("Close others","关闭其他画布");menuOthers.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching||!actionIds.some(id=>id!==canvasDocuments.activeId);}
+      if(more){more.setAttribute("aria-label",canvasDocumentsCopy("Canvas actions","画布操作"));more.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching;}
       if(!follow||!close)return;
       const busy=Boolean(studioMcpCloseQueue)||canvasDocuments.switching;
       group?.setAttribute("aria-label",canvasDocumentsCopy("MCP canvas actions","MCP 画布操作"));
       const followLabel=document.getElementById("studioMcpFollowLabel");
       if(followLabel)followLabel.textContent=canvasDocumentsCopy("Follow latest","跟随最新");
+      const description=document.getElementById("studioMcpFollowDescription");
+      if(description)description.textContent=canvasDocumentsCopy("Auto-focus new content","自动定位到最新内容");
       follow.setAttribute("aria-checked",String(studioMcpFollowLatest));follow.disabled=busy;
       follow.title=canvasDocumentsCopy("Follow the latest updated content, switching canvases when needed. Pauses while you edit or navigate.","跟随最新更新的内容，必要时切换画布；编辑或移动视野时暂停。");
-      close.textContent=canvasDocumentsCopy("Close all MCP canvases","关闭全部 MCP 画布");close.disabled=busy||!studioMcpOpenDocumentIds().length;
+      close.textContent=canvasDocumentsCopy("Close all","关闭全部画布");close.disabled=busy||!actionIds.length;
       close.setAttribute("aria-busy",String(Boolean(studioMcpCloseQueue)));
-      close.title=canvasDocumentsCopy("Close all open MCP canvases. Saved canvases stay in the library.","关闭所有已打开的 MCP 画布，已保存画布仍保留在画布库中。");
+      close.title=mcpTab?canvasDocumentsCopy("Close all open MCP canvases. Saved canvases stay in the library.","关闭所有已打开的 MCP 画布，已保存画布仍保留在画布库中。"):canvasDocumentsCopy("Close all open canvases. Saved canvases stay in the library.","关闭所有已打开的画布，已保存画布仍保留在画布库中。");
     }
     function cancelStudioMcpCloseAll() {studioMcpCloseQueue=null;syncStudioMcpActions();}
     async function continueStudioMcpCloseAll(batch) {
@@ -795,27 +798,28 @@
       const batch=[...canvasDocuments.records.keys()].filter(id=>id!==retainedDocumentId);
       if(!batch.length)return;
       batch.retainedDocumentId=retainedDocumentId;
-      studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
       await continueStudioMcpCloseAll(batch);
     }
     async function closeOtherStudioMcpCanvases() {
       if(studioMcpCloseQueue||canvasDocuments.switching)return;
       const retainedDocumentId=canvasDocumentsCurrent().id;
-      const batch=studioMcpOpenDocumentIds().filter(id=>id!==retainedDocumentId);
+      const batch=(studioNavigatorActiveTab==="mcp"?studioMcpOpenDocumentIds():[...canvasDocuments.records.keys()]).filter(id=>id!==retainedDocumentId);
       if(!batch.length)return;
       batch.retainedDocumentId=retainedDocumentId;
-      studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
       await continueStudioMcpCloseAll(batch);
     }
     async function closeAllStudioMcpCanvases() {
       if(studioMcpCloseQueue)return;
-      const batch=studioMcpOpenDocumentIds();
+      const batch=studioNavigatorActiveTab==="mcp"?studioMcpOpenDocumentIds():[...canvasDocuments.records.keys()];
       if(!batch.length)return;
-      studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
       await continueStudioMcpCloseAll(batch);
     }
     function noteStudioMcpContentUpdate(documentId,region=null) {
       if(!documentId||!canvasDocuments.records.has(documentId))return;
+      studioMcpUpdateRevision++;
       studioMcpLatestDocumentId=documentId;
       studioMcpLatestRegion=region;
       if(studioMcpFollowLatest){studioMcpPendingDocumentId=documentId;studioMcpPendingRegion=region;}
@@ -824,8 +828,8 @@
       if(!studioMcpFollowLatest||!studioMcpPendingDocumentId||studioMcpFollowing||studioMcpCloseQueue||canvasDocuments.switching||mcpRuntime.queued||!mcpRuntime.ready)return;
       const active=document.activeElement;
       if(mcpViewBlockedBy()||document.querySelector("dialog[open]")||active?.matches?.("input,textarea,select,[contenteditable='true']"))return;
-      const id=studioMcpPendingDocumentId;
-      if(!canvasDocuments.records.has(id)){studioMcpPendingDocumentId=null;return;}
+      const id=studioMcpPendingDocumentId,updateRevision=studioMcpUpdateRevision;
+      if(!canvasDocuments.records.has(id)){studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;return;}
       studioMcpFollowing=true;
       try {
         if(id!==canvasDocuments.activeId)await canvasDocumentsShow(id);
@@ -844,11 +848,12 @@
       } catch(error) {
         // Busy work keeps just the newest target until the next real checkpoint.
         if(!["CANVAS_BUSY","CANVAS_CHANGED"].includes(error.code)){
-          studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;canvasDocumentsReport(error);
+          if(studioMcpPendingDocumentId===id&&studioMcpUpdateRevision===updateRevision){studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;}
+          canvasDocumentsReport(error);
         }
       } finally {
         studioMcpFollowing=false;syncStudioMcpActions();
-        if(studioMcpFollowLatest&&studioMcpPendingDocumentId&&studioMcpPendingDocumentId!==id)queueMicrotask(()=>void flushStudioMcpFollowLatest());
+        if(studioMcpFollowLatest&&studioMcpPendingDocumentId&&(studioMcpPendingDocumentId!==id||studioMcpUpdateRevision!==updateRevision))queueMicrotask(()=>void flushStudioMcpFollowLatest());
       }
     }
     const studioMcpOrder=new Map();
@@ -879,7 +884,7 @@
       enabled=Boolean(enabled);
       if(enabled===studioNavigatorMcpEnabled)return;
       studioNavigatorMcpEnabled=enabled;
-      if(!enabled){studioMcpFollowLatest=false;studioMcpPendingDocumentId=null;}
+      if(!enabled){studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;studioMcpLatestDocumentId=null;studioMcpLatestRegion=null;}
       studioNavigatorMcpTab.hidden=!enabled;
       if(enabled){
         selectCanvasToolMode("hand");
@@ -889,9 +894,8 @@
         studioNavigatorSearch.value="";
         setStudioNavigatorTab("mcp",{persist:false});
         setStudioNavigatorOpen(true);
-        // Each live MCP connection starts with Follow latest on; a later
-        // manual off stays off for the rest of that connection.
-        studioMcpFollowLatest=true;studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;
+        // Connection changes preserve the user’s Follow latest preference.
+        studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;
         syncStudioMcpActions();
       }else if(studioNavigatorActiveTab==="mcp")setStudioNavigatorTab("all",{persist:false});
     }
@@ -1092,7 +1096,6 @@
     studioNavigatorScrim.addEventListener("click", () => setStudioNavigatorOpen(false));
     studioNavigatorSearch.addEventListener("input", renderActiveStudioNavigatorHistory);
     studioNavigatorMcpTab.addEventListener("click",()=>setStudioNavigatorTab("mcp"));
-    document.getElementById("canvasWorkspaceCloseAll")?.addEventListener("click",()=>canvasDocumentsUiAction(closeOtherStudioCanvases));
     document.getElementById("studioMcpCloseAll")?.addEventListener("click",()=>canvasDocumentsUiAction(closeAllStudioMcpCanvases));
     document.getElementById("studioMcpFollowLatest")?.addEventListener("click",()=>{
       studioMcpFollowLatest=!studioMcpFollowLatest;

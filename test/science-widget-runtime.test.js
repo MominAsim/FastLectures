@@ -90,13 +90,17 @@ test("Widget initialization carries its authored source identity", () => {
   });
 });
 
-test("science mode requires both exact init metadata and one exact HTML skill marker", () => {
+test("shared and legacy science modes require supported init metadata and one exact HTML skill marker", () => {
   const host = read("public/widget-host.js"),
     gate = vm.runInNewContext(`(${functionSource(host, "scienceWidgetMode")})`),
     meta = (content, name = "penecho-visual-skill") => ({ getAttribute(attribute) { return attribute === "content" ? content : name; } }),
     parsedFor = (metas) => ({ querySelectorAll(selector) { assert.equal(selector, "meta"); return metas; } });
   for (const skill of ["math-2d", "physics-2d", "math-3d"]) {
     assert.equal(gate(parsedFor([meta(skill)]), "penecho-visual-explorer+html", "penecho-visual-explorer/1"), true);
+    assert.equal(gate(parsedFor([meta(skill)]), "penecho-mcp+html", undefined), true);
+  }
+  for (const markers of [[], [meta("math-4d")], [meta("math-2d"), meta("physics-2d")]]) {
+    assert.equal(gate(parsedFor(markers), "penecho-mcp+html", undefined), false);
   }
   assert.equal(gate(parsedFor([meta("math-2d")]), "penecho-visual-explorer+html", "penecho-visual-explorer/2"), false);
   assert.equal(gate(parsedFor([meta("math-2d")]), "penecho-widget+html", "penecho-visual-explorer/1"), false);

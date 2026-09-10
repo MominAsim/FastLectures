@@ -95,4 +95,4 @@ The source must contain exactly one capability marker, with this exact capitaliz
 <meta name="penecho-visual-skill" content="physics-2d">
 ```
 
-Do not add another visual-skill marker. The server rejects manim-web imports without this marker and rejects any manim-web import other than the exact pinned URL above.
+Do not add another visual-skill marker. The shared Widget host activates scientific rendering only for one supported marker and rewrites only the exact pinned Manim-Web URL above to the local packaged mirror. Keep the static fallback complete if enhancement cannot load.

@@ -9,7 +9,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { Context } from '@deepseek-ai/cordis'
 import { admitEncodedImages } from '@deepseek-ai/dsh-attachment'
 import { canvasAgentConversationContinuity } from './conversation-continuity.mjs'
-import { createCanvasDecisionBatch, MAX_CANVAS_DECISION_TOOLS } from './tool-batch.mjs'
+import { createCanvasDecisionBatch, MAX_CANVAS_DECISION_TOOLS, CANVAS_MUTATION_TOOLS } from './tool-batch.mjs'
 import PenEchoAttachmentStore from './image-attachments.mjs'
 import { NativeActivityDiagnostics } from './native-activity-diagnostics.mjs'
 import { DEFAULT_CANVAS_AGENT_IDLE_TIMEOUT_MS, canvasAgentTimeoutSeconds, createCanvasAgentModelTimeout } from './model-timeout.mjs'
@@ -18,6 +18,7 @@ import {
   acquireProjectRoot,
   admitInitialCanvasState,
   boundedText,
+  canvasBrowserToolError,
   canvasAgentHandwritingAdmissionDiagnostic,
   clearCanvasAgentTurnFiles,
   conversationLogEvent,
@@ -752,8 +753,7 @@ export class CodexNativeHost {
     const resolvedWebSearch = this.resolveWebSearch?.() || {}
     const requestedDeepSeekSearchProvider=String(resolvedWebSearch.deepseekProvider||''), deepseekSearchProvider=['deepseek-official','opencode-go'].includes(requestedDeepSeekSearchProvider)?requestedDeepSeekSearchProvider:'deepseek-official', deepseekSearchApiKey=String(resolvedWebSearch.deepseekApiKey||''), tavilySearchApiKey=String(resolvedWebSearch.tavilyApiKey??resolvedWebSearch.apiKey??'')
     const webSearchKeyHash=hash(`${deepseekSearchProvider}\0${deepseekSearchApiKey}\0${tavilySearchApiKey}`)
-    const resolvedWidgetCapabilities = await this.resolveWidgetCapabilities(widgetCapabilities || {})
-    const normalizedWidgetCapabilities = normalizeResolvedWidgetCapabilities(resolvedWidgetCapabilities)
+    const normalizedWidgetCapabilities = normalizeResolvedWidgetCapabilities({})
     const professionalDiagramsContract = normalizedWidgetCapabilities.professionalEnabled
       ? loadCanvasAgentContract(this.rootDirectory, 'professional-diagrams-contract.md', 8_000, 'Professional Diagrams')
       : null
@@ -2058,7 +2058,7 @@ export class CodexNativeHost {
         if(concludesTurn)this.concludeNativeTurnAfterTool(session,active,value)
         return response
       } catch (error) {
-        if(request.canvasDecisionBatch&&['canvas_create','canvas_edit','canvas_patch_widget','canvas_revert'].includes(name))request.canvasDecisionBatch.failed=true
+        if(request.canvasDecisionBatch&&CANVAS_MUTATION_TOOLS.has(name))request.canvasDecisionBatch.failed=true
         if (toolStillActive()) session.native.recordToolResult({ isError:true, error })
         const text = boundedText(redactPublicProjectValue(safeError(error, `PenEcho tool ${name} failed.`), session), 2_000)
         if (toolStillActive()) this.emitPublicEvent(session, { kind:'tool_result', turn:session.turnNumber, callId, text, error:{ code:'CODEX_TOOL_FAILED', message:text } })
@@ -2141,6 +2141,7 @@ export class CodexNativeHost {
   }
 
   callBrowserTool(session, name, args, callId, signal, timeoutMs = 45_000) {
+    if (signal?.aborted) return Promise.reject(signal.reason instanceof Error ? signal.reason : Object.assign(new Error(`Canvas tool ${name} was cancelled.`), {name:'AbortError'}))
     if (!session.connected) return Promise.reject(new Error('Canvas browser disconnected during tool execution.'))
     const requestId = randomUUID()
     return new Promise((resolve, reject) => {
@@ -2170,10 +2171,7 @@ export class CodexNativeHost {
     }
     session.pending.delete(requestId)
     if (payload.ok === false) {
-      const detail = payload.error && typeof payload.error === 'object'
-        ? JSON.stringify({ code:payload.error.code || 'CANVAS_TOOL_FAILED', message:payload.error.message || 'Canvas tool failed.', details:payload.error.details || null })
-        : boundedText(payload.error || 'Canvas tool failed.', 2_000)
-      pending.reject(new Error(boundedText(detail, 2_000)))
+      pending.reject(canvasBrowserToolError(payload.error))
     } else pending.resolve(payload.result)
     return true
   }

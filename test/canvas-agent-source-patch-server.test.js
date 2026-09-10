@@ -30,7 +30,7 @@ function widgetEdit(overrides = {}) {
 }
 
 async function sourcePatchRuntime(current, rpcCalls) {
-  const { createCanvasAgentNativeRuntime, freshCanvasAgentTurnBudget, freshVisualExplorerBudget } = await import("../src/server/canvas-agent/runtime.mjs");
+  const { createCanvasTools, freshCanvasAgentTurnBudget, freshVisualExplorerBudget } = await import("../src/server/canvas-agent/runtime.mjs");
   const visualExplorerBudget=freshVisualExplorerBudget();
   visualExplorerBudget.objectIds.add("widget-1");
   visualExplorerBudget.deliveryModes.set("widget-1","oneShot");
@@ -58,11 +58,17 @@ async function sourcePatchRuntime(current, rpcCalls) {
     if(name==="canvas_internal_replace_widget")return {ok:true,revision:100,changeId:"source-change",sourceHash:"browser-authoritative-new-source"};
     throw new Error(`Unexpected browser tool ${name}`);
   };
-  const runtime=await createCanvasAgentNativeRuntime({attachments:{saveImages:async()=>[]},session});
+  const tools=createCanvasTools(session,{saveImages:async()=>[]});
+  const runtime={
+    tools,
+    tool(name) { return tools.find(tool=>tool.name===name)||null; },
+    instructions() { return tools.map(tool=>tool.description).join("\n\n"); },
+    turnAdditionalContext() { return []; },
+  };
   return {runtime,session};
 }
 
-test("sourceHash dispatch preserves geometry, bypasses visual review, and returns bounded source receipts",async()=>{
+test("legacy kernel sourceHash dispatch preserves geometry, bypasses visual review, and returns bounded source receipts",async()=>{
   const edit=widgetEdit(), sourceHash=widgetSourceHash(edit), rpcCalls=[], {runtime}=await sourcePatchRuntime({
     revision:99,
     hash:"legacy-widget-hash",
@@ -82,10 +88,10 @@ test("sourceHash dispatch preserves geometry, bypasses visual review, and return
   assert.equal(result.afterWindows.length,1);
   assert.match(result.afterWindows[0].content,/<h1>New<\/h1>/);
   assert.equal(result.newSourceHash,"browser-authoritative-new-source");
-  assert.match(runtime.instructions(),/receipt\.newSourceHash[\s\S]*afterWindows[\s\S]*hashes ignore geometry[\s\S]*Re-read only for incomplete source, conflict, or mismatch/);
+  assert.match(runtime.instructions(),/sourceHash[\s\S]*receipt\.newSourceHash[\s\S]*afterWindows/);
 });
 
-test("sourceHash conflict stops before replacement and legacy baseRevision keeps the old dispatch",async()=>{
+test("legacy kernel sourceHash conflict stops before replacement and baseRevision keeps the old dispatch",async()=>{
   const edit=widgetEdit({sourceFormat:"",frameworkVersion:""}), currentSourceHash=widgetSourceHash(edit), conflictCalls=[], {runtime:conflictRuntime}=await sourcePatchRuntime({
     revision:7,hash:"legacy-hash",sourceHash:currentSourceHash,widgetEdit:edit,
   },conflictCalls);
@@ -102,7 +108,7 @@ test("sourceHash conflict stops before replacement and legacy baseRevision keeps
   assert.equal(Object.hasOwn(legacyCalls[1].args,"expectedSourceHash"),false);
 });
 
-test("sourceHash dispatch accepts the browser fallback fingerprint as an opaque capability",async()=>{
+test("legacy kernel sourceHash dispatch accepts the browser fallback fingerprint as an opaque capability",async()=>{
   const edit=widgetEdit({sourceFormat:"",frameworkVersion:""}), sourceHash="fallback-widget-source-123", rpcCalls=[], {runtime}=await sourcePatchRuntime({
     revision:7,hash:"legacy-hash",sourceHash,widgetEdit:edit,
   },rpcCalls);
@@ -110,7 +116,7 @@ test("sourceHash dispatch accepts the browser fallback fingerprint as an opaque 
   assert.equal(rpcCalls[1].args.expectedSourceHash,sourceHash);
 });
 
-test("same-target patch tracing does not impose the removed twenty-attempt terminal stop",async()=>{
+test("legacy kernel same-target patch tracing does not impose the removed twenty-attempt terminal stop",async()=>{
   const edit=widgetEdit({sourceFormat:"",frameworkVersion:""}), rpcCalls=[], {runtime,session}=await sourcePatchRuntime({revision:7,hash:"legacy-hash",widgetEdit:edit},rpcCalls);
   session.widgetPatchAttempts.set("widget-1\u0000",{attempt:20,lastError:{code:"OLD_FAILURE",message:"retry"}});
   const result=await runtime.tool("canvas_patch_widget").execute({objectId:"widget-1",baseRevision:7,patch:PATCH},{callId:"attempt-21",signal:new AbortController().signal});
@@ -118,13 +124,16 @@ test("same-target patch tracing does not impose the removed twenty-attempt termi
   assert.equal(session.widgetPatchAttempts.get("widget-1\u0000").attempt,21);
 });
 
-test("native contract loader returns the first-use document once and only durable identity after that",async()=>{
-  const edit=widgetEdit(), rpcCalls=[], {runtime}=await sourcePatchRuntime({revision:1,hash:"legacy",sourceHash:widgetSourceHash(edit),widgetEdit:edit},rpcCalls);
-  runtime.instructions();
-  const first=await runtime.tool("load_widget_contract").execute({route:"general-html"},{callId:"load-contract",signal:new AbortController().signal});
-  assert.equal(first.document,"general");
-  const repeated=await runtime.tool("load_widget_contract").execute({route:"general-html"},{callId:"load-contract-again",signal:new AbortController().signal});
-  assert.deepEqual(Object.keys(repeated).sort(),["alreadyLoaded","loaded","route","sha256"]);
-  assert.equal(repeated.alreadyLoaded,true);
-  assert.match(runtime.turnAdditionalContext().map(context=>context.value).join("\n"),/general/);
+test("native guidance is read on demand from the shared source without the old loader",async()=>{
+  const edit=widgetEdit(), rpcCalls=[], {runtime,session}=await sourcePatchRuntime({revision:1,hash:"legacy",sourceHash:widgetSourceHash(edit),widgetEdit:edit},rpcCalls);
+  const { createCanvasAgentNativeRuntime } = await import("../src/server/canvas-agent/runtime.mjs");
+  const native=await createCanvasAgentNativeRuntime({attachments:{saveImages:async()=>[]},session});
+  const { getAuthoringGuidance } = require("../src/server/mcp/authoring-guidance.js");
+  const expected=getAuthoringGuidance("general-html"), exec={callId:"guidance",signal:new AbortController().signal};
+  const first=await native.tool("penecho_get_guidance").execute({id:"general-html"},exec);
+  assert.deepEqual(first,expected);
+  const repeated=await native.tool("penecho_get_guidance").execute({id:"general-html"},{...exec,callId:"guidance-again"});
+  assert.deepEqual(repeated,expected);
+  assert.equal(native.tool("load_widget_contract"),null);
+  assert.equal(rpcCalls.length,0,"guidance is read from the shared source without a browser RPC");
 });

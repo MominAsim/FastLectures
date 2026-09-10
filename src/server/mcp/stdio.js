@@ -4,8 +4,10 @@
 const crypto = require("node:crypto");
 const http = require("node:http");
 const { discoverRecords } = require("./records.js");
-const { TOOLS } = require("./schema.js");
+const { TOOLS, validateToolArguments } = require("./schema.js");
 const { SESSION_INSTRUCTIONS, VISUAL_INSTRUCTIONS, visualExplorerPrompt } = require("./guidance.js");
+
+const { getAuthoringGuidance } = require("./authoring-guidance.js");
 
 const PROTOCOL_VERSION = "2025-11-25";
 const MAX_INPUT_LINE_BYTES = 3 * 1024 * 1024;
@@ -240,6 +242,10 @@ class PenEchoStdioServer {
       const controller = new AbortController(), key = responseKey(id);
       this.pending.set(key, controller);
       try {
+        if (name === "penecho_get_guidance") {
+          const { id:guidanceId } = validateToolArguments(name, args);
+          return this.send({ jsonrpc:"2.0", id, result:normalToolResult(getAuthoringGuidance(guidanceId)) });
+        }
         const record = name === "penecho_list_canvases" ? null : this.recordForCall(name, args);
         const value = name === "penecho_list_canvases"
           ? await this.listCanvases(controller.signal)

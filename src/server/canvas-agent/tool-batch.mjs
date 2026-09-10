@@ -3,7 +3,8 @@
 // may be forwarded. Never retry against an arbitrary latest browser revision.
 export const MAX_CANVAS_DECISION_TOOLS = 16
 const pendingBatches = new WeakMap()
-const mutations = new Set(['canvas_create', 'canvas_edit', 'canvas_patch_widget', 'canvas_revert'])
+export const CANVAS_MUTATION_TOOLS = new Set(['canvas_create', 'canvas_edit', 'canvas_patch_widget', 'canvas_revert','penecho_present_widget','penecho_draw','penecho_plot','penecho_patch_file','penecho_edit_canvas'])
+const mutations = CANVAS_MUTATION_TOOLS
 
 export function createCanvasDecisionBatch(session) {
   const known=[session?.stateDigest?.revision,session?.canvasCommittedRevision].filter(Number.isSafeInteger)
@@ -44,6 +45,12 @@ export async function executeCanvasBatchTool(session, name, args, exec, execute)
     const error = new Error('An earlier write in this decision failed or its revision could not be verified. Inspect the current state before submitting further writes; successful earlier changes are preserved.')
     error.code = 'CANVAS_BATCH_WRITE_STOPPED'
     throw error
+  }
+  // Shared document tools enforce their own source hashes, stable artifact IDs
+  // and request receipts. Never substitute a guessed revision into that API.
+  if(name.startsWith('penecho_')) {
+    try { return await commit(args) }
+    catch(error) { batch.failed=true; throw error }
   }
   let submitted = args
   // Source hashes are object-scoped and must never be rewritten, even when a

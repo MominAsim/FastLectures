@@ -796,10 +796,26 @@
     }
     function materializeSnapshotGeneratedContent() {
       const inserted = [],
+        customInputs = [],
         elements = [document.documentElement, ...document.querySelectorAll("*")];
+      const restore = () => {
+        for (const node of inserted) node.remove();
+        for (const [element, previous] of customInputs) {
+          if (previous === null) element.removeAttribute("data-penecho-snapshot-custom-input");
+          else element.setAttribute("data-penecho-snapshot-custom-input", previous);
+        }
+      };
       try {
         for (const element of elements) {
           if (!element || element.namespaceURI && element.namespaceURI !== "http://www.w3.org/1999/xhtml") continue;
+          const inputStyles = element.tagName === "INPUT" && ["checkbox", "radio"].includes(element.type)
+            ? getComputedStyle(element) : null,
+            customInput = inputStyles?.getPropertyValue("appearance") === "none";
+          let carrier = null;
+          if (customInput) {
+            customInputs.push([element, element.getAttribute("data-penecho-snapshot-custom-input")]);
+            element.setAttribute("data-penecho-snapshot-custom-input", "");
+          }
           for (const pseudo of SNAPSHOT_GENERATED_PSEUDOS) {
             let computed;
             try {
@@ -822,18 +838,64 @@
             node.style.setProperty("animation", "none", "important");
             node.style.setProperty("transition", "none", "important");
             node.style.setProperty("pointer-events", "none", "important");
-            if (pseudo.placement === "prepend") element.insertBefore(node, element.firstChild);
-            else element.appendChild(node);
+            if (customInput && !carrier) {
+              // Void inputs cannot render child nodes. Keep the live control in
+              // place and give its generated content an adjacent containing box.
+              carrier = document.createElement("penecho-snapshot-input");
+              carrier.setAttribute("aria-hidden", "true");
+              for (let index = 0; index < inputStyles.length; index++) {
+                const property = inputStyles.item(index), value = inputStyles.getPropertyValue(property);
+                if (value) carrier.style.setProperty(property, value, "important");
+              }
+              const styles = {
+                position:"absolute", left:`${element.offsetLeft}px`, top:`${element.offsetTop}px`,
+                right:"auto", bottom:"auto", margin:"0", "box-sizing":"border-box",
+                width:`${element.offsetWidth}px`, height:`${element.offsetHeight}px`,
+                "min-width":"0", "min-height":"0", "max-width":"none", "max-height":"none",
+                "background-color":"transparent", "background-image":"none", "border-color":"transparent",
+                "box-shadow":"none", outline:"none", "pointer-events":"none", animation:"none", transition:"none",
+              };
+              for (const [property, value] of Object.entries(styles)) carrier.style.setProperty(property, value, "important");
+              // Appending preserves author selectors such as input:checked + label.
+              element.parentNode.appendChild(carrier);
+              inserted.push(carrier);
+            }
+            const target = carrier || element;
+            if (pseudo.placement === "prepend") target.insertBefore(node, target.firstChild);
+            else target.appendChild(node);
             inserted.push(node);
           }
         }
       } catch (error) {
-        for (const node of inserted) node.remove();
+        restore();
         throw error;
       }
-      return () => {
-        for (const node of inserted) node.remove();
-      };
+      return restore;
+    }
+    function flushSnapshotAnimationFrame() {
+      // Offscreen iframes can have native rAF suspended even while active. Flush
+      // one existing frame for this explicit capture, never a recurring timer.
+      // Freeze the IDs so callbacks queued by this frame wait for the next one.
+      const ids = [...pendingAnimationFrames.keys()], timestamp = clock();
+      let flushed = 0;
+      for (const id of ids) {
+        const callback = pendingAnimationFrames.get(id);
+        if (!callback) continue; // An earlier callback may cancel a later one.
+        pendingAnimationFrames.delete(id);
+        const nativeId = nativeAnimationFrames.get(id);
+        if (nativeId !== undefined) {
+          nativeAnimationFrames.delete(id);
+          nativeCancelAnimationFrame(nativeId);
+        }
+        flushed++;
+        try { callback(timestamp); }
+        catch (error) {
+          // Match native rAF: report a callback error and continue the frame.
+          if (typeof globalThis.reportError === "function") globalThis.reportError(error);
+          else recordRuntimeError({ kind:"error", name:error?.name, message:error?.message || String(error), file:"widget.html", error });
+        }
+      }
+      snapshotDebugLog("snapshot-frame-flushed", { callbacks:flushed, runtimeActive });
     }
     function settleSnapshotFrame() {
       return new Promise((resolve) => {
@@ -842,10 +904,12 @@
           if (settled) return;
           settled = true;
           clearTimeout(timer);
+          nativeCancelAnimationFrame(frame);
+          if (!presented) flushSnapshotAnimationFrame();
           resolve(presented);
         },
           timer = setTimeout(() => finish(false), 50);
-        nativeRequestAnimationFrame(() => finish(true));
+        const frame = nativeRequestAnimationFrame(() => finish(true));
       });
     }
     function waitForSnapshotViewport(width, height, timeoutMs) {
@@ -1390,7 +1454,8 @@
   }
 
   function scienceWidgetMode(parsed, sourceFormat, frameworkVersion) {
-    if (sourceFormat !== "penecho-visual-explorer+html" || frameworkVersion !== "penecho-visual-explorer/1") return false;
+    const supportedSource = sourceFormat === "penecho-mcp+html" || sourceFormat === "penecho-visual-explorer+html" && frameworkVersion === "penecho-visual-explorer/1";
+    if (!supportedSource) return false;
     const skills = [...parsed.querySelectorAll("meta")].filter(meta => meta.getAttribute("name") === "penecho-visual-skill");
     return skills.length === 1 && ["math-2d", "physics-2d", "math-3d"].includes(skills[0].getAttribute("content"));
   }
@@ -1791,7 +1856,7 @@
       const now = Date.now();
       if (!message.loaded && now - lastUpdate < UPDATE_FORWARD_INTERVAL_MS) return;
       lastUpdate = now;
-      parent.postMessage({ type: "penecho-widget-updated" }, parentOrigin);
+      parent.postMessage({ type: "penecho-widget-updated", loaded:message.loaded===true }, parentOrigin);
     } else if (message.type === "penecho-widget-snapshot" && message.runtimeVersion === runtimeVersion && pendingSnapshots.has(message.requestId)) {
       const request = pendingSnapshots.get(message.requestId),
         targetScale = request.highResolution ? HIGH_RESOLUTION_SNAPSHOT_SCALE : 1,

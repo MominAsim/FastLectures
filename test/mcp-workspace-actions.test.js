@@ -17,7 +17,7 @@ function harness({documents=[],dirty=false}={}){
   const follow=button(),close=button(),closeOthers=button(),group={attrs:{},setAttribute(key,value){this.attrs[key]=value;}},dialog={open:false,showModal(){this.open=true;},close(){this.open=false;}},nameInput={value:""},settingsLayer={hidden:true};
   const state={theme:"studio",language:"en",navigationLocked:false,drawing:false,panGesture:null,touchGesture:null,widgetGesture:null,imageGesture:null,selectionGesture:null,animationGesture:null,canvasAgentNavigationPointerIds:new Set(),textEditors:new Map(),scale:1};
   const canvasDocuments={records,activeId:documents[0]?.id||null,switching:false};
-  const document={hidden:false,activeElement:null,dialogOpen:false,body:{},getElementById:id=>({studioMcpFollowLatest:follow,studioMcpCloseAll:close,canvasWorkspaceCloseAll:closeOthers,studioMcpActions:group,settingsLayer}[id]||null),querySelector(selector){
+  const document={hidden:false,activeElement:null,dialogOpen:false,body:{},getElementById:id=>({studioMcpFollowLatest:follow,studioMcpCloseAll:close,studioMcpCloseOthers:closeOthers,studioMcpActions:group,settingsLayer}[id]||null),querySelector(selector){
     if(selector==="#newCanvasDialog")return dialog;
     if(selector==="#newSnapshotName")return nameInput;
     if(selector==="dialog[open]")return this.dialogOpen?{open:true}:null;
@@ -41,7 +41,7 @@ function harness({documents=[],dirty=false}={}){
   const functions=["studioMcpOpenDocumentIds","syncStudioMcpActions","cancelStudioMcpCloseAll","continueStudioMcpCloseAll","closeOtherStudioCanvases","closeOtherStudioMcpCanvases","closeAllStudioMcpCanvases","noteStudioMcpContentUpdate","flushStudioMcpFollowLatest","syncStudioNavigatorMcp"].map(name=>extract(name,studioSource)).join("\n");
   vm.runInContext(`
     let pendingCanvasTransition=null;
-    let studioMcpFollowLatest=false,studioMcpLatestDocumentId=null,studioMcpLatestRegion=null,studioMcpPendingDocumentId=null,studioMcpPendingRegion=null,studioMcpFollowing=false,studioMcpCloseQueue=null;
+    let studioMcpFollowLatest=true,studioMcpLatestDocumentId=null,studioMcpLatestRegion=null,studioMcpPendingDocumentId=null,studioMcpPendingRegion=null,studioMcpFollowing=false,studioMcpCloseQueue=null,studioMcpUpdateRevision=0;
     let studioNavigatorMcpEnabled=false,studioNavigatorActiveTab="all",studioNavigatorSuspendedAgent=false,studioNavigatorRestoreAgentAfterManager=false;
     const studioNavigatorMcpTab={hidden:true},studioNavigatorSearch={value:""};
     function setStudioNavigatorTab(tab){studioNavigatorActiveTab=tab;}
@@ -57,6 +57,7 @@ function harness({documents=[],dirty=false}={}){
       setFollowLatest(value){studioMcpFollowLatest=Boolean(value);studioMcpPendingDocumentId=studioMcpFollowLatest?studioMcpLatestDocumentId:null;studioMcpPendingRegion=studioMcpFollowLatest?studioMcpLatestRegion:null;syncStudioMcpActions();},
       setCloseQueue(value){studioMcpCloseQueue=value;syncStudioMcpActions();},
       mcpState(){return {follow:studioMcpFollowLatest,latest:studioMcpLatestDocumentId,latestRegion:studioMcpLatestRegion,pending:studioMcpPendingDocumentId,pendingRegion:studioMcpPendingRegion,following:studioMcpFollowing,closeQueue:studioMcpCloseQueue,retainedDocumentId:studioMcpCloseQueue?.retainedDocumentId||null};},
+      setTab: setStudioNavigatorTab,
       pendingTransition(){return pendingCanvasTransition;},
     };
   `,context);
@@ -68,6 +69,7 @@ function mcpRegion(x,y,w,h){return {x,y,w,h};}
 
 test("Close all snapshots the startup MCP document list, pauses on unsaved work, and respects cancel/completion",async()=>{
   const h=harness({documents:[mcpDoc("first",{bindings:[{sessionId:"a"}]}),mcpDoc("second",{sessions:[{id:"b"}]}),mcpDoc("live"),mcpDoc("ordinary")]});
+  h.setTab("mcp");
   h.mcpRuntime.sessions.set("live-session",{documentId:"live",closed:false});
   h.noteStudioMcpContentUpdate("live");h.setFollowLatest(true);
   const closePromise=h.closeAllStudioMcpCanvases();
@@ -75,7 +77,7 @@ test("Close all snapshots the startup MCP document list, pauses on unsaved work,
   await closePromise;
   assert.deepEqual(h.calls.filter(call=>Array.isArray(call)&&["show","close"].includes(call[0])),[["show","first"],["close","first",undefined],["show","second"],["close","second",undefined],["show","live"],["close","live",undefined]]);
   assert.deepEqual(h.closed,["first","second","live"]);assert.ok(h.records.has("ordinary"));assert.ok(h.records.has("added-later"));
-  assert.equal(h.mcpState().follow,false);assert.equal(h.mcpState().pending,null);assert.equal(h.close.disabled,false);assert.equal(h.close.attrs["aria-busy"],"false");
+  assert.equal(h.mcpState().follow,true);assert.equal(h.mcpState().pending,null);assert.equal(h.close.disabled,false);assert.equal(h.close.attrs["aria-busy"],"false");
 
   const paused=harness({documents:[mcpDoc("dirty",{bindings:[{}]}),mcpDoc("next",{bindings:[{}]})],dirty:true});
   await paused.closeAllStudioMcpCanvases();
@@ -145,11 +147,11 @@ test("A live MCP connection turns Follow latest on so the next content update sw
   assert.equal(h.mcpState().follow,true);assert.equal(h.follow.attrs["aria-checked"],"true");assert.equal(h.mcpState().pending,null);
   h.noteStudioMcpContentUpdate("latest");await h.flushStudioMcpFollowLatest();
   assert.deepEqual(h.calls.filter(call=>Array.isArray(call)&&call[0]==="show"),[["show","latest"]]);assert.equal(h.canvasDocuments.activeId,"latest");
-  h.syncStudioNavigatorMcp(false);assert.equal(h.mcpState().follow,false);
+  h.syncStudioNavigatorMcp(false);assert.equal(h.mcpState().follow,true);
 });
 
 test("Follow latest keeps the newest update, waits for real idle state, and switches once unblocked",async()=>{
-  const off=harness({documents:[mcpDoc("active"),mcpDoc("latest")]});off.noteStudioMcpContentUpdate("latest");await off.flushStudioMcpFollowLatest();assert.equal(off.calls.length,0);assert.equal(off.mcpState().pending,null);off.setFollowLatest(true);await off.flushStudioMcpFollowLatest();assert.deepEqual(off.calls.filter(call=>Array.isArray(call)&&call[0]==="show"),[["show","latest"]]);
+  const off=harness({documents:[mcpDoc("active"),mcpDoc("latest")]});off.setFollowLatest(false);off.noteStudioMcpContentUpdate("latest");await off.flushStudioMcpFollowLatest();assert.equal(off.calls.length,0);assert.equal(off.mcpState().pending,null);off.setFollowLatest(true);await off.flushStudioMcpFollowLatest();assert.deepEqual(off.calls.filter(call=>Array.isArray(call)&&call[0]==="show"),[["show","latest"]]);
 
   const h=harness({documents:[mcpDoc("active"),mcpDoc("older"),mcpDoc("latest")]});h.canvasDocuments.activeId="active";
   h.setFollowLatest(true);h.noteStudioMcpContentUpdate("older");h.noteStudioMcpContentUpdate("latest");await h.flushStudioMcpFollowLatest();
@@ -211,8 +213,8 @@ test("Follow latest retains a pending region when navigation locks after show",a
   h.state.navigationLocked=false;await h.flushStudioMcpFollowLatest();assert.deepEqual(h.calls,[["show","latest"],["frame",region,96]]);assert.equal(h.mcpState().pending,null);
 });
 
-test("Follow latest disables itself after a non-retryable load error",async()=>{
-  const h=harness({documents:[mcpDoc("active"),mcpDoc("latest")]});h.controls.showError=()=>Object.assign(Error("load failed"),{code:"LOAD_FAILED"});h.setFollowLatest(true);h.noteStudioMcpContentUpdate("latest");await h.flushStudioMcpFollowLatest();assert.equal(h.calls.filter(call=>Array.isArray(call)&&call[0]==="show").length,1);assert.equal(h.mcpState().follow,false);assert.equal(h.mcpState().pending,null);assert.equal(h.reports.length,1);await h.flushStudioMcpFollowLatest();assert.equal(h.calls.filter(call=>Array.isArray(call)&&call[0]==="show").length,1,"failed follow must not retry itself");
+test("Follow latest discards a failed target and follows the next update",async()=>{
+  const h=harness({documents:[mcpDoc("active"),mcpDoc("latest")]});h.controls.showError=()=>Object.assign(Error("load failed"),{code:"LOAD_FAILED"});h.setFollowLatest(true);h.noteStudioMcpContentUpdate("latest");await h.flushStudioMcpFollowLatest();assert.equal(h.calls.filter(call=>Array.isArray(call)&&call[0]==="show").length,1);assert.equal(h.mcpState().follow,true);assert.equal(h.mcpState().pending,null);assert.equal(h.reports.length,1);await h.flushStudioMcpFollowLatest();assert.equal(h.calls.filter(call=>Array.isArray(call)&&call[0]==="show").length,1,"failed follow must not retry itself");h.controls.showError=null;h.noteStudioMcpContentUpdate("latest",mcpRegion(1,2,30,40));await h.flushStudioMcpFollowLatest();assert.equal(h.canvasDocuments.activeId,"latest");assert.equal(h.calls.filter(call=>call[0]==="frame").length,1);
 });
 
 test("Follow latest preserves a newer target after an in-flight show without looping on the same target",async()=>{
@@ -247,8 +249,121 @@ test("MCP completion hook only marks content producing tools and excludes reads/
 
 test("MCP close others keeps the current canvas and unrelated ordinary canvases",async()=>{
   const h=harness({documents:[mcpDoc("current",{bindings:[{}]}),mcpDoc("ordinary"),mcpDoc("other-mcp",{bindings:[{}]})]});
+  h.setTab("mcp");
   await h.closeOtherStudioMcpCanvases();
   assert.deepEqual(h.closed,["other-mcp"]);
   assert.equal(h.canvasDocuments.activeId,"current");
   assert.ok(h.records.has("ordinary"));assert.ok(h.records.has("current"));
+});
+
+for(const tab of ["all","canvas"]){
+  test(`${tab} menu close others closes every other open canvas and restores current`,async()=>{
+    const h=harness({documents:[mcpDoc("current"),mcpDoc("ordinary"),mcpDoc("mcp",{bindings:[{}]})]});
+    h.setTab(tab);
+    const closing=h.closeOtherStudioMcpCanvases();
+    h.records.set("later",mcpDoc("later"));
+    h.setTab("mcp");
+    await closing;
+    assert.deepEqual(h.closed,["ordinary","mcp"]);
+    assert.equal(h.canvasDocuments.activeId,"current");
+    assert.deepEqual([...h.records.keys()],["current","later"]);
+    assert.equal(h.mcpState().closeQueue,null);
+  });
+
+  test(`${tab} menu close all snapshots every open canvas despite later tab changes`,async()=>{
+    const h=harness({documents:[mcpDoc("ordinary"),mcpDoc("mcp",{bindings:[{}]})]});
+    h.setTab(tab);
+    const closing=h.closeAllStudioMcpCanvases();
+    h.records.set("later",mcpDoc("later"));
+    h.setTab("mcp");
+    await closing;
+    assert.deepEqual(h.closed,["ordinary","mcp"]);
+    assert.deepEqual([...h.records.keys()],["later"]);
+    assert.equal(h.mcpState().closeQueue,null);
+  });
+
+  for(const action of ["closeOtherStudioMcpCanvases","closeAllStudioMcpCanvases"]){
+    test(`${tab} ${action} honors unsaved ordinary canvas cancellation`,async()=>{
+      const h=harness({documents:[mcpDoc("current"),mcpDoc("dirty"),mcpDoc("remaining",{bindings:[{}]})],dirty:true});
+      h.setTab(tab);
+      await h[action]();
+      const expectedId=action==="closeOtherStudioMcpCanvases"?"dirty":"current";
+      assert.equal(h.dialog.open,true);
+      assert.deepEqual(h.closed,[]);
+      assert.equal(h.pendingTransition()?.documentId,expectedId);
+      h.pendingTransition().onCancel();
+      assert.equal(h.mcpState().closeQueue,null);
+      assert.deepEqual([...h.records.keys()],["current","dirty","remaining"]);
+    });
+  }
+}
+
+function canvasRowCloseHarness({activeId="current",show=async()=>{}}={}){
+  const calls=[],canvasDocuments={activeId,switching:false};
+  let click;
+  const close={setAttribute(){},addEventListener(event,handler){assert.equal(event,"click");click=handler;}};
+  const section={classList:{add(){},toggle(){}},append(control){assert.equal(control,close);}};
+  const context=vm.createContext({
+    document:{createElement:()=>close},canvasDocuments,peButton(){},canvasDocumentsCopy:text=>text,
+    canvasDocumentsUiAction:action=>action(),
+    canvasDocumentsShow:async id=>{calls.push(["show",id]);await show(id);canvasDocuments.activeId=id;calls.push(["shown",id]);},
+    requestCanvasTransition:transition=>{calls.push(["transition",transition.type,transition.documentId,canvasDocuments.activeId]);},
+  });
+  vm.runInContext(`${extract("appendStudioCanvasClose",studioSource)};globalThis.appendClose=appendStudioCanvasClose;`,context);
+  context.appendClose(section,"target",activeId==="target","Target");
+  return {calls,click:()=>click()};
+}
+
+test("Canvas row close awaits background activation before requesting the dirty-aware transition",async()=>{
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const h=canvasRowCloseHarness({show:()=>gate});
+  const closing=h.click();
+  assert.deepEqual(h.calls,[["show","target"]]);
+  release();await closing;
+  assert.deepEqual(h.calls,[["show","target"],["shown","target"],["transition","close","target","target"]]);
+});
+
+test("Canvas row close requests the current document transition without switching",async()=>{
+  const h=canvasRowCloseHarness({activeId:"target"});
+  await h.click();
+  assert.deepEqual(h.calls,[["transition","close","target","target"]]);
+});
+
+test("Canvas row close never requests a transition after background activation fails",async()=>{
+  const h=canvasRowCloseHarness({show:async()=>{throw Error("show failed");}});
+  await assert.rejects(h.click(),/show failed/);
+  assert.deepEqual(h.calls,[["show","target"]]);
+});
+
+test("Follow preference survives reconnect and every close action while obsolete targets are cleared",async()=>{
+  for(const enabled of [true,false]){
+    const h=harness({documents:[mcpDoc("active"),mcpDoc("latest")]});
+    h.setFollowLatest(enabled);h.syncStudioNavigatorMcp(true);h.noteStudioMcpContentUpdate("latest",mcpRegion(1,2,3,4));
+    h.syncStudioNavigatorMcp(false);
+    assert.equal(h.mcpState().follow,enabled);assert.equal(h.mcpState().pending,null);assert.equal(h.mcpState().pendingRegion,null);
+    h.syncStudioNavigatorMcp(true);assert.equal(h.mcpState().follow,enabled);
+    h.noteStudioMcpContentUpdate("latest",mcpRegion(1,2,3,4));await h.flushStudioMcpFollowLatest();
+    assert.equal(h.canvasDocuments.activeId,enabled?"latest":"active");
+    for(const method of ["closeOtherStudioCanvases","closeOtherStudioMcpCanvases","closeAllStudioMcpCanvases"]){
+      const closing=harness({documents:[mcpDoc("active",{bindings:[{}]}),mcpDoc("latest",{bindings:[{}]})]});
+      closing.setFollowLatest(enabled);closing.noteStudioMcpContentUpdate("latest",mcpRegion(1,2,3,4));await closing[method]();
+      assert.equal(closing.mcpState().follow,enabled,method);assert.equal(closing.mcpState().pending,null,method);assert.equal(closing.mcpState().pendingRegion,null,method);
+    }
+  }
+});
+
+test("A failed in-flight follow preserves a newer target including another update on the same document",async()=>{
+  for(const target of ["old","new"]){
+    let reject;
+    const promise=new Promise((resolve,fail)=>{reject=fail;});
+    const h=harness({documents:[mcpDoc("active"),mcpDoc("old"),mcpDoc("new")]});
+    h.controls.showGate={id:"old",promise};h.noteStudioMcpContentUpdate("old",mcpRegion(1,2,3,4));
+    const first=h.flushStudioMcpFollowLatest();
+    await new Promise(resolve=>setImmediate(resolve));
+    const newest=mcpRegion(10,20,30,40);h.noteStudioMcpContentUpdate(target,newest);h.controls.showGate=null;
+    reject(Object.assign(Error("load failed"),{code:"LOAD_FAILED"}));await first;await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(h.mcpState().follow,true);assert.equal(h.reports.length,1);assert.equal(h.canvasDocuments.activeId,target);
+    assert.deepEqual(h.calls.filter(call=>call[0]==="frame"),[["frame",newest,96]]);assert.equal(h.mcpState().pending,null);
+  }
 });

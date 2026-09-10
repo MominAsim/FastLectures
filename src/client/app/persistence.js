@@ -646,7 +646,13 @@
   async function renderExportCanvas() {
     const region = exportRegion();
     if (!region) return null;
-    await prepareVisibleWidgetSnapshots(null, false, null, true);
+    try { await prepareVisibleWidgetSnapshots(null, false, null, true); }
+    catch (error) {
+      // A fresh raster is optional when every Widget already has usable pixels.
+      // Never silently omit a Widget from an image download.
+      if (capturableWidgets(region).some(widget => !widget.snapshotImage || widget.snapshotVersion < widget.contentVersion)) throw error;
+      debug("widget-export-cached", {error:String(error?.message || error).slice(0,300)});
+    }
     const scale = Math.min(CANVAS_DOWNLOAD_RESOLUTION_SCALE, EXPORT_MAX_DIMENSION / region.w, EXPORT_MAX_DIMENSION / region.h, Math.sqrt(EXPORT_MAX_PIXELS / (region.w * region.h))),
       canvas = offscreen(Math.max(1, Math.ceil(region.w * scale)), Math.max(1, Math.ceil(region.h * scale))),
       context = canvas.getContext("2d");
@@ -1148,7 +1154,8 @@
       setStatusKey("emptyCanvas");
       return null;
     }
-    await prepareVisibleWidgetSnapshots(null, false);
+    // Widget source is authoritative; preview failure must not prevent saving it.
+    await prepareVisibleWidgetSnapshots(null, true);
     const savedUserRevision = state.userRevision;
     const nameInput = document.querySelector("#historyName"),
       existing = overwriteId ? snapshotItems.find((item) => item.id === overwriteId) : null,

@@ -1629,7 +1629,7 @@
       dragging = state.widgetGesture?.widget === widget,
       intersectsViewport = viewportWidth <= 0 || viewportHeight <= 0
         || (screenX < viewportWidth && screenY < viewportHeight && screenX + displayWidth > 0 && screenY + displayHeight > 0),
-      active = dragging || intersectsViewport;
+      active = widget.snapshotCaptureActive === true || dragging || intersectsViewport;
     widget.renderActive = active;
     widget.shell.classList.toggle("widget-offscreen", !active);
     if (active) sendWidgetInit(widget);
@@ -1772,6 +1772,7 @@
         deadline = performance.now() + timeoutMs,
         remaining = () => Math.max(1, deadline - performance.now()),
         captureFailure=(code,stage)=>Object.assign(Error("Widget snapshot timed out"),{code,details:{widgetId:widget.id,stage,elapsedMs:Math.round(timeoutMs-remaining())}});
+      widget.snapshotCaptureActive = true;
       try {
         if (!widget.frame?.contentWindow) throw Error(t("widgetExportFailed"));
         if (!widget.hostReady) {
@@ -1808,6 +1809,7 @@
           widget.frame.contentWindow.postMessage({ type:"penecho-widget-snapshot-request", requestId, width:widget.contentW, height:widget.contentH, timeoutMs:remaining(), highResolution }, widget.hostOrigin || location.origin);
         });
       } finally {
+        widget.snapshotCaptureActive = false;
         if (previousActive === false) {
           widget.renderActive = false;
           widget.shell?.classList.add("widget-offscreen");
@@ -1878,9 +1880,11 @@
       return;
     }
     if (message.type === "penecho-widget-updated") {
-      widget.mcpDocumentLoaded = true;
-      for(const resolve of widget.mcpLoadWaiters||[])resolve();
-      widget.mcpLoadWaiters?.clear();
+      if(message.loaded===true){
+        widget.mcpDocumentLoaded = true;
+        for(const resolve of widget.mcpLoadWaiters||[])resolve();
+        widget.mcpLoadWaiters?.clear();
+      }
       widget.contentVersion++;
       widget.snapshotDataUrl = "";
       return;

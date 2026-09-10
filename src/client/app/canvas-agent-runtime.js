@@ -1630,6 +1630,7 @@
       && execution.socket?.readyState===WebSocket.OPEN
       && execution.sessionId===canvasAgent.sessionId
       && execution.generation===canvasAgent.sessionGeneration
+      && (execution.documentEpoch===undefined || execution.documentEpoch===canvasDocuments.epoch && execution.activeDocumentId===canvasDocuments.activeId)
       && !execution.controller.signal.aborted;
   }
   function canvasAgentAssertToolExecution(execution) {
@@ -3216,6 +3217,20 @@
     if(name==="load_widget_contract"&&widgetContractKey)return t(widgetContractKey);
     if(name==="load_project_plugin"&&projectPluginKey)return t(projectPluginKey);
     const key = {
+      penecho_list_files:"canvasAgentToolInspect",
+      penecho_read_file:"canvasAgentToolRead",
+      penecho_get_guidance:"canvasAgentToolRead",
+      penecho_present_widget:"canvasAgentToolCreate",
+      penecho_draw:"canvasAgentToolCreate",
+      penecho_plot:"canvasAgentToolCreate",
+      penecho_patch_file:"canvasAgentToolPatchWidget",
+      penecho_edit_canvas:"canvasAgentToolEdit",
+      penecho_capture_canvas:"canvasAgentToolCapture",
+      penecho_capture_widget:"canvasAgentToolCapture",
+      penecho_inspect_session:"canvasAgentToolInspect",
+      penecho_read_feedback:"canvasAgentToolRead",
+      penecho_read_messages:"canvasAgentToolRead",
+      penecho_ack_messages:"canvasAgentToolEdit",
       canvas_inspect:"canvasAgentToolInspect",
       canvas_read:"canvasAgentToolRead",
       canvas_capture:"canvasAgentToolCapture",
@@ -3249,6 +3264,9 @@
       name==="bash"?quoted(args?.command):
       ["glob","grep"].includes(name)?quoted(args?.pattern):
       fileReader?compact(args?.file_path):
+      ["penecho_read_file","penecho_patch_file"].includes(name)?compact(args?.path):
+      name==="penecho_get_guidance"?compact(args?.id):
+      ["penecho_present_widget","penecho_draw","penecho_plot"].includes(name)?compact(args?.title):
       name==="read_database"?[compact(args?.file_path),quoted(args?.query)].filter(Boolean).join(" · "):
       name==="list_directory"?compact(args?.path||"."):
       ["canvas_create","canvas_edit"].includes(name)?compact(args?.summary):
@@ -3526,8 +3544,7 @@
     if (showEmpty) canvasAgentRenderEmpty();
   }
   async function canvasAgentCurrentWidgetCapabilities() {
-    if (!state.pluginCatalogLoaded) await loadPluginDocuments();
-    return canvasAgentWidgetCapabilities();
+    return {version:1,professionalEnabled:false,privatePluginIds:[]};
   }
   async function canvasAgentStartNewConversation(connectionId = selectedAiConnectionId(), {resetProjection=true,submitExecution=null,preserveDraft=false,preserveConversation=false}={}) {
     connectionId=String(connectionId||"");
@@ -4357,7 +4374,7 @@
   }
   function canvasAgentFramePlan(region,padding=80) {
     const width=Math.max(0,view.clientWidth),height=Math.max(0,view.clientHeight),full={x:0,y:0,w:width,h:height},stages=[full],panelGap=12;
-    if(!canvasAgentPanel.hidden&&width>0&&height>0){
+    if(!canvasAgentPanel.hidden&&document.body.classList.contains("canvas-agent-open")&&!document.body.classList.contains("canvas-agent-navigation-hidden")&&width>0&&height>0){
       const panel=canvasElementLayoutRect(canvasAgentPanel),left=Math.max(0,panel.left-panelGap),top=Math.max(0,panel.top-panelGap),right=Math.min(width,panel.right+panelGap),bottom=Math.min(height,panel.bottom+panelGap);
       if(right>left&&bottom>top){
         const unobscured=[{x:0,y:0,w:left,h:height},{x:right,y:0,w:width-right,h:height},{x:0,y:0,w:width,h:top},{x:0,y:bottom,w:width,h:height-bottom}].filter(stage=>stage.w>0&&stage.h>0);
@@ -4420,7 +4437,8 @@
       }
       let result;
       canvasAgentAssertToolExecution(execution);
-      if (name === "project_approval") result = await canvasAgentRequestApproval(args);
+      if (name === "canvas_document") result = await canvasAgentDocumentOperation(args,execution);
+      else if (name === "project_approval") result = await canvasAgentRequestApproval(args);
       else {
         canvasAgentAssertToolKeys(name,args);
         if (name === "canvas_inspect") result = await canvasAgentInspect(args);

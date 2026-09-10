@@ -114,7 +114,7 @@ export class PenEchoAttachmentStore extends LocalAttachmentStore {
     try {
       // A new upload of the same hash cannot race a deletion already issued to the filesystem.
       // This waits only for one unlink, never for a scan or another retention round.
-      await this.pendingDeletion
+      await this.pendingDeletion?.catch(()=>{})
       return await operation()
     } finally { this.activeOperations-- }
   }
