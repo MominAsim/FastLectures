@@ -381,6 +381,18 @@
       </form>
     </dialog>
 
+    <dialog id="mcpCertificateDialog" class="new-canvas-dialog mcp-certificate-dialog" aria-labelledby="mcpCertificateTitle" aria-describedby="mcpCertificateHelp">
+      <form method="dialog">
+        <header><h2 id="mcpCertificateTitle" data-mcp-label="certificateResetTitle">Reset connection certificate?</h2></header>
+        <p id="mcpCertificateHelp" data-mcp-label="certificateResetHelp"></p>
+        <p class="mcp-hint" data-mcp-label="certificateResetNote"></p>
+        <p id="mcpCertificateStatus" class="settings-save-status" role="status"></p>
+        <div class="mcp-certificate-actions">
+          <button id="mcpCertificateCancel" type="button" data-pe-button="secondary" data-mcp-label="cancel" autofocus>Cancel</button>
+          <button id="mcpCertificateConfirm" type="button" data-pe-button="secondary" data-mcp-label="certificateResetConfirm">Reset certificate</button>
+        </div>
+      </form>
+    </dialog>
     <dialog id="textHelpDialog" class="new-canvas-dialog text-help-dialog" aria-labelledby="textHelpTitle" aria-describedby="textHelpIntro">
       <form method="dialog">
         <header>
@@ -1073,8 +1085,8 @@
                 <span class="mcp-panel-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.3"/><circle cx="17.6" cy="5.6" r="2.3"/><circle cx="12" cy="17.4" r="2.3"/><path d="M8.1 8.3 10.6 15.3M15.7 7.2 13.5 15.6M8.3 6.5l7-.8"/></svg></span>
                 <div class="mcp-panel-title">
                   <p class="mcp-eyebrow" data-mcp-label="eyebrow">MCP Service</p>
-                  <h3 id="mcpHeading" data-mcp-label="heading">Give your AI a spatial workspace</h3>
-                  <p class="mcp-sub" data-mcp-label="description">Connect Codex or Claude. Show, annotate and iterate on Canvas.</p>
+                  <h3 id="mcpHeading" data-mcp-label="heading">Connect your AI Agent</h3>
+                  <p class="mcp-sub" data-mcp-label="description">Works with Codex, Claude Code, OpenCode, Pi and other MCP clients.</p>
                 </div>
                 <div class="mcp-panel-status">
                   <p id="mcpConnectionStatus" class="mcp-pill" role="status" aria-live="polite"></p>
@@ -1096,7 +1108,7 @@
               <section class="mcp-step" aria-labelledby="mcpSetupHeading">
                 <span class="mcp-step-badge" aria-hidden="true">2</span>
                 <div class="mcp-step-body">
-                  <h4 id="mcpSetupHeading" data-mcp-label="setup">Connect your AI client</h4>
+                  <h4 id="mcpSetupHeading" data-mcp-label="setup">AI on this computer</h4>
                   <p class="mcp-hint" data-mcp-label="setupHint">PenEcho writes the MCP entry on this computer. Other devices can view the canvas but cannot configure its clients.</p>
                   <div id="mcpClients" class="mcp-clients" role="radiogroup" aria-labelledby="mcpSetupHeading">
                     <label class="mcp-client">
@@ -1115,7 +1127,7 @@
                       <input type="radio" name="mcpClient" value="other">
                       <span class="mcp-client-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="8" cy="8.5" r="1.7"/><circle cx="12" cy="8.5" r="1.7"/><circle cx="16" cy="8.5" r="1.7"/><circle cx="8" cy="14.5" r="1.7"/><circle cx="12" cy="14.5" r="1.7"/><circle cx="16" cy="14.5" r="1.7"/></svg></span>
                       <span class="mcp-client-name">Other</span>
-                      <span class="mcp-client-hint" data-mcp-label="clientOtherHint">Kimi / ZCode / any MCP client</span>
+                      <span class="mcp-client-hint" data-mcp-label="clientOtherHint">OpenCode / Pi / other MCP clients</span>
                     </label>
                   </div>
                   <div class="mcp-step-actions">
@@ -1128,27 +1140,41 @@
 
               <details id="mcpManual" class="mcp-manual">
                 <summary>
+                  <span class="mcp-manual-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="7.5" cy="10" r="4"/><path d="M11.5 10H21m-3 0v4m-3-4v3"/></svg></span>
+                  <span class="mcp-manual-copy"><span data-mcp-label="manual">Auto configure failed, or your Agent is on another computer?</span><small data-mcp-label="manualHint">Copy the setup prompt and let your Agent connect.</small></span>
                   <svg class="mcp-manual-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg>
-                  <span data-mcp-label="manual">Manual setup &amp; details</span>
-                  <span class="mcp-manual-hint" data-mcp-label="manualHint">Config JSON · Skill · Guide</span>
                 </summary>
                 <div class="mcp-manual-body">
                   <p id="mcpManualSteps" class="mcp-hint" data-mcp-label="manualSteps"></p>
-                  <div class="mcp-actions"><button id="mcpCopyInstructions" type="button" data-pe-button="secondary" data-pe-density="compact" data-mcp-label="copyInstructions">Copy setup prompt</button><button id="mcpCopyConfig" type="button" data-pe-button="secondary" data-pe-density="compact" data-mcp-label="copyConfig">Copy config</button></div>
-                  <pre id="mcpConfig" class="mcp-config" tabindex="0"></pre>
-                  <div class="mcp-actions"><button id="mcpCopySkill" type="button" data-pe-button="secondary" data-pe-density="compact" data-mcp-label="copySkill">Copy skill</button><button id="mcpCopyGuide" type="button" data-pe-button="secondary" data-pe-density="compact" data-mcp-label="copyGuide">Copy guide</button></div>
-                  <p class="settings-help" data-mcp-label="accessHelp"></p>
-                  <p class="settings-help" data-mcp-label="howHelp"></p>
-                  <p id="mcpSetupStatus" class="settings-save-status" role="status" aria-live="polite"></p>
+                  <p id="mcpCertificateNotice" class="mcp-certificate-notice" role="status" data-mcp-label="certificateChanged" hidden></p>
+                  <div id="mcpSetupBlock" class="mcp-setup-block">
+                    <div class="mcp-setup-block-header"><span data-mcp-label="setupPromptLabel">Setup prompt</span><button id="mcpCopyInstructions" type="button" data-pe-button="primary" data-pe-density="compact" data-mcp-label="copyInstructions">Copy setup prompt</button></div>
+                    <pre id="mcpSetupPrompt" tabindex="0" aria-label="Setup prompt"><code id="mcpSetupPromptCode"></code></pre>
+                    <p id="mcpSetupStatus" class="settings-save-status" role="status" aria-live="polite" aria-atomic="true"></p>
+                  </div>
+                  <div id="mcpLan" class="mcp-certificate" hidden>
+                    <span class="mcp-manual-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z"/><path d="m8 12 3 3 5-6"/></svg></span>
+                    <div class="mcp-certificate-copy"><h4 data-mcp-label="certificate">Connection certificate</h4><p class="mcp-hint" data-mcp-label="certificateHelp">Saved automatically. Usually no reset is needed.</p></div>
+                    <button id="mcpResetCertificate" type="button" data-pe-button="ghost" data-pe-density="compact" data-mcp-label="certificateReset">Reset connection certificate…</button>
+                    <p id="mcpLanStatus" class="settings-save-status" role="status" aria-live="polite"></p>
+                  </div>
                 </div>
               </details>
 
               <section class="mcp-step" aria-labelledby="mcpSessionHeading">
                 <span class="mcp-step-badge" aria-hidden="true">3</span>
                 <div class="mcp-step-body">
-                  <h4 id="mcpSessionHeading" data-mcp-label="session">Start a session</h4>
-                  <p class="mcp-hint" data-mcp-label="sessionHint">Reload your AI client, then paste one of these prompts.</p>
-                  <div id="mcpExamples" class="mcp-examples">
+                  <h4 id="mcpSessionHeading" data-mcp-label="session">Start your Spatial Workspace</h4>
+                  <p class="mcp-hint" data-mcp-label="sessionHint">Copy the prompt, close Settings, and check that the MCP indicator on the right of the toolbar is green. Send it to your external Agent to start.</p>
+                  <div id="mcpExamples" class="mcp-start-prompts">
+                    <div class="mcp-starter">
+                      <strong data-mcp-label="starterTitle">Start with your current task</strong>
+                      <p data-mcp-label="starterPrompt">Use PenEcho as our spatial workspace for this task. Show the work with useful diagrams or an interactive view, and revise it from my feedback.</p>
+                      <button type="button" data-mcp-example="starterPrompt" data-mcp-label="copyPrompt" data-pe-button="primary">Copy prompt</button>
+                    </div>
+                    <details class="mcp-more-prompts">
+                      <summary data-mcp-label="morePrompts">More examples</summary>
+                      <div class="mcp-examples">
                     <div class="mcp-example">
                       <span class="mcp-example-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M9 4.5v15M15 4.5v15"/></svg></span>
                       <span class="mcp-example-text"><strong data-mcp-label="exampleDesignTitle">Three design options</strong><small data-mcp-label="exampleDesignPrompt"><b>Echo</b> this UI idea in <b>PenEcho</b> with three design options, then let me choose.</small></span>
@@ -1179,6 +1205,8 @@
                       <span class="mcp-example-text"><strong data-mcp-label="exampleFeedbackTitle">Revise from feedback</strong><small data-mcp-label="exampleFeedbackPrompt">Read my latest feedback and annotations on the current <b>PenEcho</b> <b>canvas</b>, then revise the existing UI in place.</small></span>
                       <button type="button" class="mcp-example-copy" data-mcp-example="exampleFeedbackPrompt" data-mcp-aria="copyPrompt" aria-label="Copy prompt" data-pe-button="icon" data-pe-density="compact"><svg class="mcp-copy-idle" viewBox="0 0 16 16"><rect x="5.6" y="5.6" width="8" height="8" rx="2.2"/><path d="M10.4 5.6V4.2a2.2 2.2 0 0 0-2.2-2.2H4.2A2.2 2.2 0 0 0 2 4.2v4a2.2 2.2 0 0 0 2.2 2.2h1.4"/></svg><svg class="mcp-copy-done" viewBox="0 0 16 16"><path d="m3.2 8.4 3.1 3.1 6.5-7.2"/></svg></button>
                     </div>
+                      </div>
+                    </details>
                   </div>
                   <p id="mcpExampleStatus" class="mcp-example-status" role="status" aria-live="polite"></p>
                 </div>

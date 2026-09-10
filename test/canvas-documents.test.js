@@ -27,6 +27,7 @@ function memoryDb(records, control) {
       const tx = { error: null };
       tx.objectStore = () => ({
         getAll: () => ({ value: [...records.values()] }),
+        get: id => ({ value: records.get(id) }),
         put: value => {
           queueMicrotask(() => {
             if (control.persistFailures > 0) {
@@ -62,7 +63,7 @@ function harness(options = {}) {
       penechoDocument: { version: 1, documentId: options.activeId || "visible-document", title: "Visible", bindings: [], locators: [], processor: { kind: "penecho" } },
     },
     currentSnapshotManifestExtensions: {}, currentSnapshotPreservedAssets: [],
-    widgets: [], textBoxes: [], images: [], history: [], future: [], historyBefore: new Map(),
+    widgets: [], textBoxes: [], images: [], preservedSnapshotAnimations: [], animations: [], history: [], future: [], historyBefore: new Map(),
     nextWidgetId: 1, nextTextBoxId: 1, nextImageId: 1, scale: 1, panX: 0, panY: 0,
     inkColor: "#111", aiFont: "sans-serif", inkBounds: new Map(),
   };
@@ -118,6 +119,7 @@ function harness(options = {}) {
     writeClipboardText: async () => true, peButton: () => {}, requestWidgetSnapshot: () => { throw Error("snapshot was not expected"); },
     stopActiveAutomaticAI: () => {}, schedule: () => {}, clearTextEditors: () => {}, invalidateRecognition: () => {}, cancelPendingForRevision: () => {}, cancelSelection: () => {}, clearSharpOverlays: () => {},
     enableSnapshotWidgetPlugins: async () => {}, decodeSnapshotTilesInBatches: async () => new Map(), decodeSnapshotImagesInBatches: async () => [], releaseSnapshotTileCanvases: () => {},
+    setCanvasMode: mode => { state.mode = mode; }, pluginEnabled: () => true, visibleWidgets: () => state.widgets,
     restoreAnimations: () => {},
     restoreWidgets: items => state.widgets.splice(0, state.widgets.length, ...items.map(item => ({ ...item }))),
     restoreImages: items => state.images.splice(0, state.images.length, ...items.map(item => ({ ...item }))),
@@ -127,7 +129,7 @@ function harness(options = {}) {
   });
   const scripts = ["document-identity.js", "mcp-runtime.js", "canvas-documents.js"]
     .map(file => fs.readFileSync(path.join(ROOT, "src/client/app", file), "utf8")).join("\n");
-  vm.runInContext(`${clientFunction("core.js", "canvasClientId")}\n${["snapshotCanvasObjectExtensions","restoreSnapshotCanvasObjectOrder","currentCanvasDisplayName","currentCanvasNeedsAgentName","applyCurrentCanvasGeneratedName"].map(name=>clientFunction("persistence.js",name)).join("\n")}\n${scripts}\nglobalThis.api={canvasDocumentIdentity,canvasDocuments,canvasDocumentsReady,canvasDocumentsCurrent,canvasDocumentsExternal,canvasDocumentsRecord,canvasDocumentsSaveMetadata,canvasDocumentsDidSave,canvasDocumentsExecute,canvasAgentDocumentOperation,canvasDocumentsQueueMessage,canvasDocumentsClose,mcpRuntime};`, context);
+  vm.runInContext(`${clientFunction("core.js", "canvasClientId")}\n${["resetCanvasDefaultMode","snapshotCanvasObjectExtensions","restoreSnapshotCanvasObjectOrder","currentCanvasDisplayName","currentCanvasNeedsAgentName","applyCurrentCanvasGeneratedName"].map(name=>clientFunction("persistence.js",name)).join("\n")}\n${scripts}\nglobalThis.api={canvasDocumentIdentity,canvasDocuments,canvasDocumentsReady,canvasDocumentsCurrent,canvasDocumentsExternal,canvasDocumentsRecord,canvasDocumentsSaveMetadata,canvasDocumentsDidSave,canvasDocumentsExecute,canvasAgentDocumentOperation,canvasDocumentsQueueMessage,canvasDocumentsClose,mcpRuntime};`, context);
   context.api.canvasDocuments.db = memoryDb(records, control);
   return { ...context.api, context, control, records, state, listeners };
 }
@@ -284,16 +286,16 @@ test("two documents route hidden sessions without changing or mounting the visib
 
 test("creating another Canvas stops at the open limit with a localized close-first hint", async () => {
   const h = harness();
-  for (let index = 0; index < 32; index++) h.canvasDocuments.records.set(`limit-${index}`, { id: `limit-${index}` });
+  for (let index = 0; index < 64; index++) h.canvasDocuments.records.set(`limit-${index}`, { id: `limit-${index}` });
   await assert.rejects(createHidden(h, "limit-create", "One too many"), error => {
     assert.equal(error.code, "DOCUMENT_LIMIT");
-    assert.match(error.message, /32 Canvases are already open/);
+    assert.match(error.message, /64 Canvases are already open/);
     assert.match(error.message, /Close an unused Canvas before opening another/);
     return true;
   });
   h.state.language = "zh";
   await assert.rejects(createHidden(h, "limit-create-zh", "One too many"), error => {
-    assert.match(error.message, /已打开 32 个画布/);
+    assert.match(error.message, /已打开 64 个画布/);
     assert.match(error.message, /请先关闭不用的画布/);
     return true;
   });
@@ -840,7 +842,9 @@ test("internal and external Agents use the same current-document source and pres
     await assert.rejects(invoke(h,builtin,"mcp_apply_patch",{...args,requestId:"stale-write",content:"Lost update"}),e=>e.code==="SOURCE_CONFLICT");
     assert.equal(h.state.widgets.length,1);
   }
-  assert.deepEqual(internal.state.widgets.map(w=>[w.x,w.y,w.w,w.h,w.html]),external.state.widgets.map(w=>[w.x,w.y,w.w,w.h,w.html]));
+  assert.deepEqual(internal.state.widgets.map(w=>[w.w,w.h,w.html]),external.state.widgets.map(w=>[w.w,w.h,w.html]));
+  assert.deepEqual(internal.state.widgets.map(w=>[w.x,w.y]),[[48,144]],"internal Agent retains viewport placement");
+  assert.deepEqual(external.state.widgets.map(w=>[w.x,w.y]),[[1000,1000]],"external MCP starts at the inset");
   assert.equal(internal.canvasDocuments.activeId,firstCanvas);
   assert.equal(internal.canvasDocuments.records.size,1,"binding internal Agent must not create a document");
   assert.equal(internal.canvasDocumentsExternal(),false,"binding internal Agent must not opt into an external processor");
@@ -1008,4 +1012,83 @@ test("HTML patches retain canonical copy source above the independent source lim
   assert.equal(item.copyLabel,"Copy original");
   assert.equal(h.context.widgetRecord({...item,copyText:"x".repeat(16001)}),null);
   assert.ok(h.context.widgetRecord({...item,copyText:"x".repeat(16000)}));
+});
+
+test("closed conversation Canvas restores the same document and artifacts after browser restart", async()=>{
+  const records=new Map(),first=harness({records});
+  const opened=await createHidden(first,"recover-closed","Original");
+  await startHidden(first,opened.documentId,"before-close","conversation-recovery");
+  const widget=await first.canvasDocumentsExecute("mcp_present_widget",{sessionId:"before-close",artifactId:"retained-widget",title:"Retained",html:"<p>Original content</p>"},{});
+  await first.canvasDocumentsExecute("mcp_open_canvas",{documentId:opened.documentId,show:true,requestId:"show-before-close"},{});
+  await first.canvasDocumentsClose(opened.documentId);
+  assert.equal(records.get(opened.documentId).closed,true);
+  assert.equal(first.canvasDocuments.records.has(opened.documentId),false);
+  const second=harness({records,activeId:"new-visible"});await second.canvasDocumentsReady();
+  assert.equal(second.canvasDocuments.records.has(opened.documentId),false,"closed canvases stay closed at boot");
+  const result=await startHidden(second,opened.documentId,"after-close","conversation-recovery");
+  assert.equal(result.documentId,opened.documentId);
+  assert.equal(result.recovery.restored,true);
+  assert.equal(result.reused,true);
+  assert.equal(second.mcpRuntime.sessions.get("after-close").artifacts.get("retained-widget").objectId,widget.objectId);
+  assert.equal(second.canvasDocuments.records.get(opened.documentId).stored.item.widgets[0].html,"<p>Original content</p>");
+  assert.equal(second.canvasDocuments.activeId,"new-visible","background restore preserves the user's current Canvas");
+  assert.equal(records.get(opened.documentId).closed,false);
+});
+
+test("session restore creates a replacement only for definitive missing documents",async()=>{
+  const h=harness();await h.canvasDocumentsReady();
+  const result=await startHidden(h,"missing-document","replacement","stable-key");
+  assert.notEqual(result.documentId,"missing-document");
+  assert.equal(result.recovery.reason,"DOCUMENT_NOT_FOUND");
+  const repeated=await startHidden(h,"missing-document","replacement-retry","stable-key");
+  assert.equal(repeated.documentId,result.documentId,"lost recovery response does not create duplicates");
+  await assert.rejects(h.canvasDocumentsExecute("mcp_start_session",{documentId:"another-missing",sessionId:"strict",sessionKey:"strict",title:"Strict",client:"Codex",restore:false},{}),{code:"DOCUMENT_NOT_FOUND"});
+  for(const code of ["STORAGE_UNAVAILABLE","DOCUMENT_AMBIGUOUS","DOCUMENT_CONFLICT"]){
+    const blocked=harness();await blocked.canvasDocumentsReady();
+    blocked.context.canvasDocumentsOpen=async()=>{throw Object.assign(Error(code),{code});};
+    const count=blocked.canvasDocuments.records.size;
+    await assert.rejects(startHidden(blocked,"unavailable-document","blocked",code),{code});
+    assert.equal(blocked.canvasDocuments.records.size,count);
+  }
+});
+
+test("server idle disposal releases browser session memory while retaining conversation artifacts",async()=>{
+  const h=harness(),opened=await createHidden(h,"idle-document","Idle recovery");
+  await startHidden(h,opened.documentId,"idle-before","idle-key");
+  const widget=await h.canvasDocumentsExecute("mcp_present_widget",{sessionId:"idle-before",artifactId:"idle-artifact",title:"Keep",html:"<p>Keep through idle</p>"},{});
+  h.context.mcpDisposeSession("idle-before");
+  assert.equal(h.mcpRuntime.sessions.has("idle-before"),false);
+  const resumed=await startHidden(h,opened.documentId,"idle-after","idle-key");
+  assert.equal(resumed.reused,true);
+  assert.equal(h.mcpRuntime.sessions.get("idle-after").artifacts.get("idle-artifact").objectId,widget.objectId);
+  assert.notEqual(resumed.progress.status,"done","garbage collection must not declare the task complete");
+});
+
+
+test("workspace reload restores more than 32 documents and respects the 64-document capacity", async () => {
+  const first = harness();
+  const ids=[];
+  for(let index=0;index<40;index++)ids.push((await createHidden(first, `restore-capacity-${index}`, `Restore ${index}`)).documentId);
+  const second=harness({records:first.records});
+  await second.canvasDocumentsReady();
+  assert.equal(second.canvasDocuments.records.size,41);
+  for(const id of ids)assert.ok(second.canvasDocuments.records.has(id));
+  const template=first.records.get(ids[0]),records=new Map();
+  for(let index=0;index<80;index++){
+    const id=`restore-${index}`;
+    records.set(id,{...structuredClone(template),id,metadata:{...structuredClone(template.metadata),documentId:id}});
+  }
+  records.set('closed',{...structuredClone(template),id:'closed',closed:true,metadata:{...structuredClone(template.metadata),documentId:'closed'}});
+  records.set('visible-document',{...structuredClone(template),id:'visible-document',metadata:{...structuredClone(template.metadata),documentId:'visible-document'}});
+  const bounded=harness({records});
+  const visible=bounded.canvasDocumentsCurrent();
+  await bounded.canvasDocumentsReady();
+  assert.equal(bounded.canvasDocuments.records.size,64);
+  assert.equal(bounded.canvasDocuments.records.get('visible-document'),visible);
+  assert.equal(bounded.canvasDocuments.records.has('closed'),false);
+  assert.equal(bounded.canvasDocuments.records.has('restore-16'),false);
+  for(let index=17;index<80;index++)assert.ok(bounded.canvasDocuments.records.has(`restore-${index}`));
+  bounded.canvasDocuments.ready=null;
+  await bounded.canvasDocumentsReady();
+  assert.equal(bounded.canvasDocuments.records.size,64);
 });

@@ -1,245 +1,50 @@
-# PenEcho MCP local bridge / PenEcho MCP 本地桥接
+# PenEcho MCP setup / 轻量 CLI 连接配置
 
-This guide configures an MCP client to reach the PenEcho instance running for the
-same desktop user. It covers the local stdio bridge and Canvas opt-in rules. It
-does not repeat the general PenEcho startup guide.
+PenEcho starts its built-in HTTPS MCP service with the application. The default AI configuration launches a small per-session stdio CLI which forwards directly to this HTTPS server. Each browser registers only after the user enables MCP in Settings. Local, LAN and authorized Linked Device browsers share the same document/session authorization rules. Starting the service does not authorize a browser or document.
 
-本文说明如何配置 MCP 客户端，让它连接到当前桌面用户运行的 PenEcho 实例，以及如何
-按规则选择 Canvas。这里只介绍本地 stdio 桥接，不重复 PenEcho 的常规启动说明。
+PenEcho 随应用启动 HTTPS MCP 服务。各 AI 客户端通过自己的标准 stdio 子进程调用小型 CLI，CLI 直连主机 HTTPS；没有共享 Gateway、开机服务或后台发现进程。浏览器须显式开启 MCP。
 
-## Browser connections: local, LAN and Cloud
+## Setup / 配置
 
-AI clients still run the local stdio bridge on the PenEcho host. An editable
-browser on that host, on the LAN, or in Cloud can explicitly enable MCP and
-register with the same host service. Existing Canvas access rules apply:
-password-protected pages must be unlocked; open-access pages need no password.
-Cloud uses the account-owned selected Linked Device and its authenticated relay.
-Both Cloud and host must support the MCP relay capability.
+Settings Auto configure and Copy setup prompt use the same transport. Download the supplied, SHA-256-verified `discover.js` and `client.js` into `~/.penecho/mcp` (Windows: `%USERPROFILE%\.penecho\mcp`). Node 18+ is required. Import the private host trust bundle once:
 
-Local AI discovers these live browser connections with `penecho_list_canvases`
-and selects the exact instanceId/canvasId. Calls travel through local RPC and
-the registered browser connection. This does not expose an HTTP MCP endpoint
-for AI clients on other computers. Automatic AI-client configuration remains
-available only on the host computer.
+```sh
+node /absolute/path/to/discover.js --import /absolute/path/to/trust.json
+```
 
-Heartbeat and relay leases remove disconnected browsers from discovery and fail
-pending work. The browser shows a connection problem and allows retry. Turning
-MCP off revokes that connection; it does not delete saved Canvas content.
+Discovery imports the host CA and Bearer credential, resolves an authenticated endpoint and exits. This command does not need `--client` and does not rewrite AI configuration. Remove only the temporary trust bundle after successful import. Configure the AI's existing PenEcho entry as standard stdio:
 
-本机、局域网和 Cloud 的可编辑浏览器都可以显式开放 MCP。AI 客户端仍通过
-PenEcho 主机的本地 stdio 发现这些浏览器。访问授权沿用密码或开放访问规则；
-Cloud 固定到当前账号选中的 Linked Device，通过现有中继传送消息。主机和
-Cloud 均须更新到支持 MCP 中继的版本。断线后退出发现列表并显示连接问题，
-关闭开关不会删除已保存的画布。其他电脑上的 AI 直接接入不在此功能范围内。
-
-## Status and scope / 状态与范围
-
-The bridge entry point is:
-
-~~~
-ABS_ROOT/src/server/mcp/stdio.js
-~~~
-
-Replace ABS_ROOT with the absolute PenEcho installation or checkout path. The
-installed CLI now exposes `penecho mcp`; use it when that binary is available.
-The explicit Node command below remains the portable fallback. The public names,
-fields, and limits in this guide match the current bridge implementation; when
-using a different build, inspect its installed schema before making tool calls.
-
-桥接入口是：
-
-~~~
-ABS_ROOT/src/server/mcp/stdio.js
-~~~
-
-请把 ABS_ROOT 换成 PenEcho 安装目录或代码 checkout 的绝对路径。已安装的 CLI 现在
-提供 `penecho mcp`；有该命令时优先使用它。下面的显式 Node 命令仍是可移植 fallback。
-本文的公共工具名、字段和限制与当前桥接实现一致；如果使用其他版本，请先查看该安装
-版本的 schema，再进行工具调用。
-
-The process uses stdio. It can start before the PenEcho app, discovers all live
-per-user instance records in the shared MCP discovery directory, and keeps each instance's
-dynamic HTTP/WebSocket port and secret internal. `penecho_list_canvases` combines
-the canvases exposed by those records; it may return canvases from more than one
-instance. Do not put a port, local URL, session token, or credential in an MCP
-configuration. A remote AI client cannot reach this local stdio bridge; Cloud browsers register
-through the Linked Device relay described above. No MCP registry entry or npm publication is
-needed for local use.
-
-进程使用 stdio 通信。它可以先于 PenEcho 应用启动，会发现统一 MCP 登记目录下当前
-用户的所有存活实例记录，并将每个实例的动态 HTTP/WebSocket 端口和 secret 保持在内部。
-`penecho_list_canvases` 会合并这些记录暴露的 Canvas，因此可能返回多个实例的 Canvas。
-MCP 配置中不要填写端口、本地 URL、session token 或任何凭据。远程 MCP 客户端无法连接
-这个本地桥接；Cloud 浏览器通过上述 Linked Device 中继注册。本地使用无需 MCP registry 条目，也无需
-发布 npm 包。
-
-Desktop and CLI hosts share `~/.penecho/mcp/instances/` on macOS and
-`%USERPROFILE%\.penecho\mcp\instances\` on Windows. Application configuration,
-credentials, plugins, and managed Codex installations keep their existing paths;
-sharing MCP discovery does not share those installations or settings.
-
-桌面版和 CLI 在 Mac 共用 `~/.penecho/mcp/instances/`，在 Windows 共用
-`%USERPROFILE%\.penecho\mcp\instances\`。应用配置、凭据、插件和托管 Codex
-工具仍使用各自原有目录；统一 MCP 发现不等于共享这些安装和设置。
-
-The default direct or generated entry scans every live record in the shared
-directory. The generated entry includes the shared state-directory argument, but it
-intentionally omits the volatile instance ID. Do not add an instance selector;
-select the exact instanceId and canvasId returned by `penecho_list_canvases`.
-The list is empty while no PenEcho instance is running, so the bridge may be
-started first and queried again after the app connects.
-
-默认的直接或生成条目会扫描统一目录中所有存活记录。生成条目包含指向统一目录根的
-state-directory 参数，但会刻意省略易变化的 instance ID。不要自行添加 instance
-selector；请使用 `penecho_list_canvases` 返回的准确 instanceId 和 canvasId。没有
-PenEcho 实例运行时列表为空，因此可以先启动桥接，待应用连接后再次查询。
-
-A current bridge launched with a legacy `--state-directory` also reads the shared
-directory, preferring shared records when an instance appears in both. An old
-bridge executable must be updated to gain this behavior. Existing client launch
-paths must remain installed and executable; discovery does not relocate the bridge.
-
-新版 bridge 收到旧 `--state-directory` 参数时，也会读取统一目录；同一实例重复登记时
-以统一目录为准。旧版本 bridge 本身需要升级才能支持此行为。第三方配置中的启动程序
-路径仍需有效，统一发现不会修复已移动或卸载的 bridge。
-
-## Add the server / 添加服务器
-
-Use the client's documented configuration mechanism. The following commands are
-the verified forms for the named clients:
-
-请使用客户端官方文档规定的配置方式。下面是已核对的两个客户端命令：
-
-If the installed PenEcho CLI is on PATH, its bridge subcommand is:
-
-如果已安装的 PenEcho CLI 在 PATH 中，可使用桥接子命令：
-
-~~~bash
-penecho mcp
-~~~
-
-Use that command as the configured stdio launch when the client accepts it. The
-absolute Node launch below is the fallback for a source checkout or a client
-that needs an explicit executable and script path.
-
-如果客户端接受该命令，就把它作为 stdio 启动命令。对于代码 checkout，或需要明确指定
-可执行文件和脚本路径的客户端，请使用下面的绝对 Node 启动方式作为 fallback。
-
-### Codex
-
-~~~bash
-codex mcp add penecho -- node "ABS_ROOT/src/server/mcp/stdio.js"
-~~~
-
-If the client accepts the command but does not show the server immediately,
-restart the Codex client and inspect its MCP server list using the client UI or
-the version of its official CLI that is installed locally.
-
-如果命令执行成功但 Codex 没有立即显示服务器，请重启 Codex，再用客户端界面或本机
-已安装版本对应的官方 CLI 查看 MCP 服务器列表。
-
-### Claude Code
-
-~~~bash
-claude mcp add --transport stdio --scope user penecho -- node "ABS_ROOT/src/server/mcp/stdio.js"
-~~~
-
-The user scope makes the entry available to the current user. Restart Claude Code
-when its tool list is cached.
-
-user scope 会让当前用户可以使用该配置。如果 Claude Code 的工具列表有缓存，请重启
-Claude Code。
-
-### Generic JSON configuration / 通用 JSON 配置
-
-Clients commonly use a shape like this; keep the actual key names required by
-that client:
-
-许多客户端使用下面这种结构；请以该客户端要求的字段名为准：
-
-~~~json
-{
-  "mcpServers": {
-    "penecho": {
-      "command": "node",
-      "args": ["/absolute/path/to/penecho/src/server/mcp/stdio.js"]
-    }
-  }
-}
-~~~
-
-On Windows, JSON needs escaped backslashes. The paths below are illustrative;
-replace both with the exact paths supplied by PenEcho Settings/status or the
-installed Node runtime:
-
-在 Windows 上，JSON 中的反斜杠必须转义。下面的路径只是格式示例；请替换为 PenEcho
-Settings/status 或已安装 Node runtime 提供的准确路径：
-
-~~~json
-{
-  "mcpServers": {
-    "penecho": {
-      "command": "C:\\Program Files\\nodejs\\node.exe",
-      "args": ["C:\\Users\\Alice\\PenEcho\\src\\server\\mcp\\stdio.js"]
-    }
-  }
-}
-~~~
-
-Do not replace the absolute path with a tilde, a relative path, or a path copied
-from another computer. Preserve every existing server entry. If the client calls
-this key mcp_servers, servers, or something else, follow its current official
-schema rather than copying this wrapper literally.
-
-请不要把绝对路径替换成波浪号、相对路径或另一台电脑上的路径。保留已有的所有服务器
-条目。如果客户端将该键命名为 mcp_servers、servers 或其他名称，应遵循它当前的
-官方 schema，不要机械照抄上面的外层结构。
-
-When PenEcho Settings offers automatic Configure for Codex or Claude, it first
-checks whether a `penecho` entry already exists. If it cannot add safely, it
-returns the generated command/config as a fallback and preserves the existing
-entry; it does not replace that entry automatically. Copy the generated config
-only after reviewing it and keep unrelated servers intact.
-
-如果 PenEcho Settings 为 Codex 或 Claude 提供自动 Configure，它会先检查是否已有
-`penecho` 条目。无法安全添加时，会返回生成的命令/配置作为 fallback，并保留已有
-条目；不会自动替换。复制生成配置前请先检查，并保留无关服务器。
-
-### Generic TOML configuration / 通用 TOML 配置
-
-For clients that document a TOML MCP section, the equivalent commonly looks like:
-
-对于官方文档使用 TOML MCP 配置段的客户端，等价形式通常类似：
-
-~~~toml
+```toml
 [mcp_servers.penecho]
 command = "node"
-args = ["/absolute/path/to/penecho/src/server/mcp/stdio.js"]
-~~~
+args = ["/absolute/path/to/.penecho/mcp/client.js", "--host-id", "<hostId>"]
+```
 
-The surrounding table name is client-specific. Keep unrelated tables and servers
-intact, and do not add an invented timeout, port, or authentication flag.
+The example is Codex TOML; Claude and other stdio clients use their supported `command`/`args` configuration. Use absolute executable and script paths when the AI launch environment cannot resolve Node. Preserve other MCP servers and replace the existing PenEcho HTTP entry, removing its obsolete URL and authorization fields. Hermes configuration is returned as a manual fragment rather than rewritten without a YAML parser. Saving configuration does not prove a running AI has reloaded it; verify actual tools after the client's supported reload.
 
-外层表名由客户端决定。请保留无关配置段和服务器，不要自行添加未经官方文档确认的
-timeout、port 或认证参数。
+The CLI remains available while stdin is open. Thirty minutes without useful work and no request in progress releases only its HTTP session. The next tool call reconnects automatically and restores its Canvas binding. EOF or termination signals close the child and attempt DELETE. Ping does not reset useful-work idle. Never include `--idle-exit-ms` in normal setup: it is an explicit diagnostic option that really exits the process, and the AI host may not relaunch it.
 
-### PenEcho Desktop / PenEcho Desktop
+## Address discovery and shared state / 地址发现
 
-Do not assume that the desktop machine has a global node executable. PenEcho
-Desktop Settings/status supplies the actual launch command and environment for
-the installed app; prefer the generated MCP configuration. When the desktop
-uses its Electron runtime, the generated entry may include the Electron
-executable and ELECTRON_RUN_AS_NODE=1. Copy that generated command and
-environment exactly. The generated entry may include the state directory but
-does not include a volatile instance ID. Do not replace it with a guessed
-Electron path or add ELECTRON_RUN_AS_NODE=1 to an ordinary Node launch unless
-the generated settings say so.
+Each connection first tries the last successful numeric IP + port (or imported `initialUrl` at first connection), then freshly reads and probes the shared endpoint cache, then runs one-shot LAN discovery. Missing, malformed or unreachable cache triggers discovery. This full sequence applies after idle HTTP release too: if the previous address stopped working, another process's cached update or discovered address can restore service without restarting the CLI. Failed endpoints are deduplicated within an attempt. New addresses still require the imported host CA, TLS IP validation, Bearer authorization and matching hostId. Discovery hints never replace trust.
 
-不要假定桌面机器一定有全局 node。PenEcho Desktop 的 Settings/status 会为已安装应用
-提供实际启动命令和环境变量；优先使用它生成的 MCP 配置。桌面使用 Electron 运行时
-时，生成条目可能包含 Electron 可执行文件和 ELECTRON_RUN_AS_NODE=1。请逐字复制生成
-的命令与环境。生成条目可以包含 state directory，但不包含易变化的 instance ID。不要
-猜测 Electron 路径，也不要在普通 Node 启动中自行添加 ELECTRON_RUN_AS_NODE=1。
+The server prefers port 3922 and falls back to an available advertised port when occupied. Hostname URLs remain compatibility metadata; the default numeric-IP path does not wait for operating-system hostname resolution.
+
+State is shared per machine/login user at `~/.penecho/mcp/hosts/<hostId>/`: `credentials.json`, `ca.pem`, `endpoint.json`. Windows uses the same structure below `%USERPROFILE%`. `--state-directory` overrides the MCP root. The cache contains no conversation or protocol session ID. A cross-process lock merges discovery; successful refresh updates this cache, never the AI launch configuration. `discover.js --host-id <hostId>` is an optional diagnostic refresh; `--force` bypasses initial/cache probes. No idle discovery loop runs.
+
+The CLI itself loads the CA; default stdio setup does not require changing the AI process's global trust environment or the system trust store. Never disable TLS or print trust bundles, tokens or PEM in ordinary results. Historical `discover.js --client` remains an explicit native HTTP configurator; it is not part of discovery-only or the default stdio setup.
+
+## Certificate lifetime / 证书有效期
+
+New direct HTTPS root and server certificates use `9999-12-31T23:59:59Z`, the [RFC 5280 §4.1.2.5](https://www.rfc-editor.org/rfc/rfc5280#section-4.1.2.5) representation of no well-defined expiration date. There is no monthly certificate renewal timer. IP changes still issue a matching server certificate under the same trusted root. Bearer credentials have no scheduled expiration. Upgrades preserve existing roots byte-for-byte; an older 10-year root retains its original validity. Explicitly resetting the certificate generates the new no-expiry root and token and requires distributing the new trust bundle to previously configured clients.
+
+新生成的根证书和连接证书采用“无明确到期日”，不再按月续签。升级不会偷偷替换已有根证书：旧的 10 年根证书仍保留原有效期；主动重置后会换成新规则，但原有客户端需更新一次配置。
+
+## Native HTTP and legacy compatibility / 兼容
+
+Clients may still use native HTTP with a fixed URL and authorization header when their own endpoint and CA handling is suitable. Those clients must trust the CA in their actual HTTP runtime and arrange address refresh themselves; they cannot implicitly read `.penecho` just because it exists. For Codex this includes CODEX_CA_CERTIFICATE (SSL_CERT_FILE fallback); Node-based clients may use NODE_EXTRA_CA_CERTS. Preserve enterprise trust requirements.
+
+Existing `penecho mcp`, `stdio.js` and LAN pairing/`remote-client.js` are older compatibility paths. The new default is bundled `client.js` from `session-client.js`, with direct HTTPS credentials rather than `/pair` slots. Do not configure duplicate PenEcho transports.
 
 ## Optional workflow skill / 可选工作流 skill
 
@@ -267,47 +72,13 @@ Kimi 和 zcode 可能使用不同的 skill 目录；请查阅各自当前官方�
 路径。如果客户端不能加载 skills，请让 LLM 直接读取绝对路径下的 `SKILL.md`，作为
 可移植 fallback。普通 MCP 配置不应顺带安装 skill 或修改客户端全局设置。
 
-## Enable and select a Canvas / 启用并选择 Canvas
+## Browser and conversation binding / 浏览器与对话绑定
 
-Discovery and authorization are separate steps:
+Enable MCP in at least one authorized browser. For a new conversation, call `penecho_start_session` with required `title`, a stable `client`, and a unique, stable `sessionKey`. `canvasId` and `instanceId` may be omitted: the direct HTTP service chooses the most recently registered opted-in browser. Explicit targets still use exact IDs returned by `penecho_list_canvases`; do not guess a document by its title.
 
-发现实例与授权 Canvas 是两个步骤：
+Retain the returned `documentId` and `sessionId`. Reuse `client` plus `sessionKey` across turns and reconnects; an old conversation restores its original document instead of moving to the newest browser document. A closed saved document may reopen in the background. `restore` defaults true: only confirmed `DOCUMENT_NOT_FOUND` permits creating a replacement; permission, unavailable storage and other provider errors must remain errors. `restore:false` disables replacement; `show` defaults false. New unbound conversations create a named document.
 
-1. In PenEcho Settings → MCP service, enable the current Canvas. A Canvas that is
-   closed or whose instance is disconnected is unavailable to MCP.
-2. Call penecho_list_canvases and use only the exact instanceId and canvasId
-   returned for an enabled, connected Canvas. The result may contain canvases
-   from multiple live instances; choose the intended exact pair.
-3. Every later tool call must keep the returned IDs. Do not manufacture an ID,
-   address a different user's instance, or select an arbitrary Canvas by title.
-
-1. 在 PenEcho 设置 → MCP 服务中启用当前 Canvas。已关闭的 Canvas 或已断开连接的实例
-   对 MCP 不可用。
-2. 调用 penecho_list_canvases，只使用其中返回且已启用、已连接 Canvas 的准确
-   instanceId 和 canvasId。结果可能包含多个存活实例的 Canvas；请选择目标的准确
-   ID 对。
-3. 后续每次调用都必须继续使用返回的 ID。不要自行编造 ID，不要访问其他用户的实例，
-   也不要按标题选择任意 Canvas。
-
-The bridge does not turn "visible in a browser" into permission. The explicit
-Canvas enablement and the live instance record are both required.
-
-For multiple conversations using one MCP connection, give each logical
-conversation its own `sessionKey` when calling `penecho_start_session`. Never
-reuse a key across independent conversations or canvases; the returned
-`sessionId` remains the handle for all later calls. Only a new, unbound conversation
-gets a new Canvas by default, even if the visible Canvas is empty. Give it a concise
-descriptive name through `title`. Existing bindings continue across turns and
-reconnects; explicit requests to continue on the current Canvas use `target:"current"`.
-
-桥接不会把“浏览器里可见”当成授权。显式启用 Canvas 和实例保持连接两个条件都必须
-满足。
-
-同一个 MCP 连接承载多个对话时，每个逻辑对话调用 `penecho_start_session` 都应使用
-独立的 `sessionKey`。不要在独立对话或不同 Canvas 之间复用 key；后续调用始终使用返回
-的 `sessionId`。仅新的未绑定会话默认新建画布，即使当前画布为空；通过 `title` 为新画布
-设置简洁明确的名称。已绑定会话在后续轮次及重连时继续原画布；用户明确要求在当前画布
-继续时使用 `target:"current"`。
+要修改用户明确指出的当前画布，使用 `target:"current"`，省略 `documentId`；先读取文件和 revision。若已有对话绑定其他文档，使用另一个稳定的 attachment sessionKey 并保留两个句柄。普通重连继续原 documentId，不把连接错误误当作文档不存在。MCP opt-out/浏览器断开撤销当前连接；持久文档不会因此被删除。
 
 ## Tool contract / 工具契约
 
@@ -323,7 +94,7 @@ the current bridge contract for adapters and documentation.
 | penecho_list_canvases | `{}` | List connected, MCP-enabled canvases and their exact IDs across live instances in shared discovery. |
 | penecho_open_canvas | `instanceId`, `canvasId`, required `requestId`; either exclusive `create:true`, or `documentId`, `locator`, or both; optional `title` for create and `show` (default false) | Create or open a persistent document through that exact opted-in connection. Supplying ID plus locator verifies an exact saved copy. It does not change the visible document unless `show:true`. |
 | penecho_find_canvases | `instanceId`, `canvasId`; optional `documentId` | Return authorized document candidates and per-provider statuses from that connection, without cross-host guessing. |
-| penecho_start_session | `instanceId`, `canvasId`, `title`; optional `target:"current"` (exclusive with `documentId`), `documentId`, `takeover` (default false), `client`, `sessionKey` | Start session metadata bound to the browser-selected document. No progress board is created automatically; `boardObjectId` may be null. The returned session ID owns all later document routing. |
+| penecho_start_session | `title`; optional `instanceId`, `canvasId`, `restore` (default true), `show` (default false), `target:"current"` (exclusive with `documentId`), `documentId`, `takeover` (default false), `client`, `sessionKey` | Start session metadata bound to the browser-selected document. No progress board is created automatically; `boardObjectId` may be null. The returned session ID owns all later document routing. |
 | penecho_list_files / penecho_read_file | `sessionId`; virtual path and bounded pagination/line range | List or read public virtual Canvas sources. These tools never access the host filesystem. `context.md` is user-editable document context appended to the internal Agent's local user turn. |
 | penecho_patch_file | `sessionId`, virtual `path`, `contentHash`, one-file unified `patch`, `requestId` | Apply a zero-fuzz source-only edit after a read. SOURCE_CONFLICT requires a reread and new request; retry unknown outcomes with the same request ID. |
 | penecho_edit_canvas | `sessionId`, `requestId`, action-specific edit fields; `baseRevision` for move/resize/delete/erase/replace | Create/move/resize/delete/show Canvas objects, erase ink, or replace an image without overwriting a newer user revision. Geometry is separate from source; image input is a bounded data URL or same-document `penecho-ref:objects/<encoded-id>/image`. |
@@ -341,7 +112,7 @@ the current bridge contract for adapters and documentation.
 | penecho_list_canvases | `{}` | 列出同一 state directory 下存活实例的已连接、已启用 MCP Canvas 及准确 ID。 |
 | penecho_open_canvas | `instanceId`、`canvasId`、必填 `requestId`；使用独占的 `create:true`，或 `documentId`、`locator`、二者组合；创建时可选 `title`，`show` 默认 false | 通过准确的已授权连接创建或打开持久文档；ID 与 locator 同时提供时验证准确保存副本；仅 `show:true` 会切换当前视图。 |
 | penecho_find_canvases | `instanceId`、`canvasId`；可选 `documentId` | 返回该连接授权的文档候选和各存储提供方状态，不跨主机猜测。 |
-| penecho_start_session | `instanceId`、`canvasId`、`title`；可选 `target:"current"`（与 `documentId` 互斥）、`documentId`、`takeover`（默认 false）、`client`、`sessionKey` | 为浏览器选定文档建立 session 元数据；不会自动创建进度板，`boardObjectId` 可以是 null；后续文档路由完全由返回的 sessionId 负责。 |
+| penecho_start_session | `title`；可选 `instanceId`、`canvasId`、`restore`（默认 true）、`show`（默认 false）、`target:"current"`（与 `documentId` 互斥）、`documentId`、`takeover`（默认 false）、`client`、`sessionKey` | 为浏览器选定文档建立 session 元数据；不会自动创建进度板，`boardObjectId` 可以是 null；后续文档路由完全由返回的 sessionId 负责。 |
 | penecho_list_files / penecho_read_file | `sessionId`、虚拟路径及有界分页/行范围 | 列出或读取公开的 Canvas 虚拟源文件，不访问主机文件系统；`context.md` 是用户可编辑的文档上下文，会附加到内部 Agent 的本地 user turn。 |
 | penecho_patch_file | `sessionId`、虚拟 `path`、`contentHash`、单文件 unified diff、`requestId` | 在先读后写基础上执行 fuzz=0 的源码编辑；SOURCE_CONFLICT 要重新读取并换 requestId，结果未知时用相同 requestId 重试。 |
 | penecho_edit_canvas | `sessionId`、`requestId` 和 action 对应字段；move/resize/delete/erase/replace 还需要 `baseRevision` | 创建、移动、缩放、删除或定位对象，擦除墨迹或替换图片，并避免覆盖较新的用户版本。几何与源码分离；图片只接受有界 data URL 或同文档 `penecho-ref:objects/<encoded-id>/image`。 |
@@ -360,15 +131,15 @@ The current result shapes are also useful when writing an adapter:
 
 | Tool | Current result (abbreviated) |
 | --- | --- |
-| penecho_list_canvases | `{canvases:[{canvasId,instanceId,title,connectedAt}]}`; each Canvas record carries the instanceId needed for start_session. |
+| penecho_list_canvases | `{canvases:[{canvasId,instanceId,title,connectedAt}]}`; each Canvas record carries instanceId for explicit connection selection. |
 | penecho_open_canvas | `{documentId,title,active,locator?,timing}`. `documentId` is independent from the opted-in bridge `canvasId`. |
 | penecho_find_canvases | Authorized metadata candidates and per-provider availability/error statuses. Ambiguity and cross-storage failures retain bounded structured details. |
 | penecho_start_session | A session snapshot with `sessionId`, exact Canvas and instance IDs, optional actual returned `documentId`, title, status, progress fields, render state, `boardObjectId` (possibly null), and revision metadata. |
 | file/message/edit tools | Bounded browser-owned public results plus timing. Virtual file reads include `contentHash`; patch and edit mutations are idempotent by request ID. |
-| penecho_capture_canvas | `{sessionId,target,image:{mimeType,data,bytes},pixelVerified:true,width,height,encodedBytes,revision,timing}` after a real image capture; stdio emits MCP image content. |
+| penecho_capture_canvas | `{sessionId,target,image:{mimeType,data,bytes},pixelVerified:true,width,height,encodedBytes,revision,timing}` after a real image capture; the transport emits MCP image content. |
 | penecho_update_session | `{accepted:true, applied:false, pixelVerified:false, queuedAt, sessionId}`; this is an acceptance/queue acknowledgement. Use inspect to observe `render.state` and application/visibility status. |
 | penecho_present_widget | Without capture: `{sessionId, artifactId, objectId, revision, feedbackCursor, applied:true, pixelVerified:false, timing}`. With `capture:true`, the same result also contains `image`, `pixelVerified:true`, capture dimensions/revision, browser metadata, and nested presentation/capture timing. `feedbackCursor` is after presentation application. |
-| penecho_capture_widget | `{sessionId, artifactId, image:{mimeType,data,bytes}, width?, height?, revision?, timing}`; the stdio adapter exposes the image as MCP image content. |
+| penecho_capture_widget | `{sessionId, artifactId, image:{mimeType,data,bytes}, width?, height?, revision?, timing}`; the MCP transport exposes the image as MCP image content. |
 | penecho_read_feedback | `{sessionId,after,nextCursor,latestCursor,hasMore,truncated,hasFeedback,changeCount,pixelVerified,image?,width?,height?,...}`. There are no public `entries`, feedback `kind`, or text fields. With changes and default capture, `image` is one current screenshot with nearby Canvas design and all user layers; empty or `capture:false` results have no image. |
 | penecho_inspect_session | A session snapshot plus browser state and timing. `render.state` is `queued`, `applied`, `accepted`, or `error`; `applied`, `visible`, and `pixelVerified:false` describe application/visibility state, not painted pixels. |
 | penecho_close_session | `{sessionId, closed:true, revision?, timing}`. |
@@ -377,15 +148,15 @@ The current result shapes are also useful when writing an adapter:
 
 | 工具 | 当前结果 |
 | --- | --- |
-| penecho_list_canvases | `{canvases:[{canvasId,instanceId,title,connectedAt}]}`；每个 Canvas 记录都带有 start_session 所需的 instanceId。 |
+| penecho_list_canvases | `{canvases:[{canvasId,instanceId,title,connectedAt}]}`；每个 Canvas 记录都带有显式选择连接时使用的 instanceId。 |
 | penecho_open_canvas | `{documentId,title,active,locator?,timing}`；`documentId` 与桥接授权用的 `canvasId` 相互独立。 |
 | penecho_find_canvases | 授权的元数据候选与各提供方可用/错误状态；歧义和跨存储失败保留有界结构化 details。 |
 | penecho_start_session | session snapshot，包含 `sessionId`、准确的 Canvas/instance ID、浏览器实际返回时的 `documentId`、title、status、进度字段、render 状态、可能为 null 的 `boardObjectId` 及 revision 元数据。 |
 | 文件/消息/编辑工具 | 浏览器拥有的有界公开结果与 timing；虚拟文件读取包含 `contentHash`，patch/edit 通过 requestId 幂等。 |
-| penecho_capture_canvas | 真实图片捕获后返回 `{sessionId,target,image:{mimeType,data,bytes},pixelVerified:true,width,height,encodedBytes,revision,timing}`；stdio 会输出 MCP image content。 |
+| penecho_capture_canvas | 真实图片捕获后返回 `{sessionId,target,image:{mimeType,data,bytes},pixelVerified:true,width,height,encodedBytes,revision,timing}`；MCP transport 会输出 MCP image content。 |
 | penecho_update_session | `{accepted:true, applied:false, pixelVerified:false, queuedAt, sessionId}`；这是接受/排队确认。使用 inspect 观察 `render.state` 及应用/可见状态。 |
 | penecho_present_widget | capture=false 时为 `{sessionId, artifactId, objectId, revision, feedbackCursor, applied:true, pixelVerified:false, timing}`；capture=true 时还包含 `image`、`pixelVerified:true`、捕获尺寸/版本、browser metadata，以及嵌套的 present/capture timing；`feedbackCursor` 位于呈现应用之后。 |
-| penecho_capture_widget | `{sessionId, artifactId, image:{mimeType,data,bytes}, width?, height?, revision?, timing}`；stdio adapter 会将图片暴露为 MCP image content。 |
+| penecho_capture_widget | `{sessionId, artifactId, image:{mimeType,data,bytes}, width?, height?, revision?, timing}`；MCP transport 会将图片暴露为 MCP image content。 |
 | penecho_read_feedback | `{sessionId,after,nextCursor,latestCursor,hasMore,truncated,hasFeedback,changeCount,pixelVerified,image?,width?,height?,...}`；不会返回公共 `entries`、反馈 `kind` 或文本字段。有变化且使用默认 capture 时，`image` 是包含附近 Canvas 设计和所有用户图层的一张当前截图；空结果或 `capture:false` 不返回图片。 |
 | penecho_inspect_session | session snapshot 加 browser state 和 timing。`render.state` 为 `queued`、`applied`、`accepted` 或 `error`；`applied`、`visible` 和 `pixelVerified:false` 表示应用/可见状态，不证明像素已经绘制。 |
 | penecho_close_session | `{sessionId, closed:true, revision?, timing}`。 |
@@ -420,9 +191,9 @@ Use one session for one coherent unit of work and keep its updates meaningful:
 ~~~text
 penecho_list_canvases {}
 penecho_start_session {
-  instanceId: "<exact returned instanceId>",
-  canvasId: "<exact returned canvasId>",
-  title: "Prepare report preview"
+  title: "Prepare report preview",
+  client: "my-ai-client",
+  sessionKey: "stable-conversation-key"
 }
 penecho_update_session {
   sessionId: "<returned sessionId>",
@@ -637,125 +408,17 @@ token 或每个内部工具步骤。普通 Widget 呈现使用 `capture:false`�
 以及所属 session/client/key 放入拉取 inbox；它不会自动调用模型、序列化任意表单或密码，
 也不代表对外部或不可逆动作的批准，客户端仍需读取并显式确认。
 
-## Troubleshooting / 故障排查
+## Troubleshooting and verification / 排查与验证
 
-### node is not found / 找不到 node
+- `HOST_UNREACHABLE`: open PenEcho and check private-network reachability; rerun discovery. No runtime or browser is launched by the CLI.
+- `AUTH_REJECTED`: import the current host trust bundle. `TLS_CA` or `TLS_HOSTNAME`: verify the intended host, CA and certificate IP coverage; never bypass TLS checks.
+- `PERMISSION_DENIED` or `CONFIG_CONFLICT`: resolve file access or retry after the concurrent edit; unrelated configuration must remain intact.
+- No browser: enable MCP on an authorized browser and reconnect it. A closed document differs from a disconnected browser: an authorized live browser can restore saved documents in the background.
+- After writing configuration, load the real AI client's tools and verify a session with its stable client/sessionKey. A successful setup/status probe alone does not prove the AI process trusts the CA.
+- Address change: run the short CLI again and reload the actual client if needed. Native MCP provides no universal CLI launcher or hot reload contract.
+- Capture failure: preserve artifact IDs and unread cursors. Pixel verification requires returned pixels; hidden documents may require an explicitly authorized show action.
 
-For a terminal client, use an installed Node executable and the absolute bridge
-path. For PenEcho Desktop, return to Settings and use its generated launch entry;
-the app may launch through Electron with ELECTRON_RUN_AS_NODE=1. Do not ask the
-MCP client to discover a dynamic port.
-
-终端客户端需要使用已安装的 Node 可执行文件和桥接绝对路径。PenEcho Desktop 请回到
-Settings，使用它生成的启动条目；应用可能通过带有 ELECTRON_RUN_AS_NODE=1 的
-Electron 启动。不要让 MCP 客户端尝试发现动态端口。
-
-### The server entry is stale / 服务器条目过期
-
-Check that ABS_ROOT/src/server/mcp/stdio.js exists in the current installation,
-or that the installed `penecho mcp` command resolves to the intended PenEcho
-version. Regenerate the client entry with the current absolute path when needed;
-the generated entry should not contain a volatile instance selector. Restart the
-client only when its documented behavior requires it. Do not silently point at a
-second checkout.
-
-确认当前安装中的 ABS_ROOT/src/server/mcp/stdio.js 确实存在，或确认 `penecho mcp`
-解析到目标 PenEcho 版本。需要时用当前绝对路径重新生成客户端条目；生成条目不应包含
-易变化的 instance selector。只有客户端官方行为要求时才重启。不要静默指向另一份
-checkout。
-
-### Permission or forbidden / 权限或 forbidden
-
-Configure the client on the computer running PenEcho. A browser on that computer
-may use localhost, 127.0.0.1, or the computer's own LAN address; another device on
-the same network cannot manage these local clients. Existing page authentication
-still applies. The private stdio bridge remains restricted to authenticated
-loopback requests and the exact instance record.
-
-Configuration does not require the Canvas access switch to be on. Enable the
-Canvas in Settings → MCP service when the external AI needs to discover it and
-start a session. If configuration buttons are disabled, read the separate
-configuration notice and select Check connection. An older running backend can
-serve updated frontend files without having the new MCP endpoints; restart
-PenEcho to load that backend update. Copying a guide does not confirm that MCP
-configuration succeeded.
-
-请在运行 PenEcho 的电脑上配置客户端。同一台电脑的浏览器可以使用 localhost、
-127.0.0.1 或这台电脑自身的局域网地址；同网络的其他设备不能管理这些本地客户端。
-页面仍须通过现有认证。私有 stdio 桥接仍只接受带凭据、绑定准确实例的回环请求。
-
-配置客户端不要求先打开画布访问开关。外部 AI 需要发现画布、创建会话时，再在设置
-→ MCP 服务中启用画布。配置按钮灰掉时，请查看独立的配置提示并点击“检查连接”。
-旧的运行中后端可能已读取更新的前端文件，却尚未加载 MCP 接口；这种情况需要重启
-PenEcho 来加载后端更新。复制文档成功不表示 MCP 已配置成功。
-
-### No Canvas is listed / 没有列出 Canvas
-
-The bridge can be running before the app. If the list is empty, open PenEcho and
-wait for its live instance record, then open PenEcho Settings → MCP service and
-enable the current Canvas. A closed Canvas or disconnected instance is deliberately
-unavailable. With multiple instances or canvases, use the exact IDs returned by
-penecho_list_canvases; titles and recency are not target selectors.
-
-桥接可以先于应用运行。如果列表为空，请打开 PenEcho，等待存活实例记录出现，再进入
-PenEcho 设置 → MCP 服务并启用当前 Canvas。已关闭 Canvas 或已断开的实例按设计不可用。
-存在多个实例或 Canvas 时，只能使用 penecho_list_canvases 返回的准确 ID；标题和最近
-使用时间不能作为目标选择器。
-
-### Widget capture is unsupported / Widget 无法捕获
-
-Confirm that the artifact was presented in the same session and that its stable
-artifactId is correct. Wait for the existing Widget runtime to finish DOM, font,
-and layout readiness, then request a bounded capture. A target that is not an
-active PenEcho Widget, or a runtime that has gone away, cannot be made captureable
-by browser navigation.
-
-确认 artifact 是在同一 session 中呈现的，且使用了正确的稳定 artifactId。等待现有
-Widget runtime 完成 DOM、字体和布局准备后，再请求有界捕获。非活动 PenEcho Widget
-或已经退出的 runtime 无法通过浏览器导航变成可捕获目标。
-
-### A remote client cannot connect / 远程客户端无法连接
-
-That is expected for this bridge. It is a local stdio process and does not expose
-the dynamic PenEcho port. Use a client running on the same host. Cloud transport
-for remote clients is future work and is not part of this setup.
-
-这是本地桥接的预期行为。它是本地 stdio 进程，不会暴露 PenEcho 动态端口。请在同一
-主机运行客户端。面向远程客户端的 Cloud transport 属于后续工作，不包含在本配置中。
-
-## Verification checklist / 验收清单
-
-Before calling the setup complete:
-
-完成配置前请检查：
-
-- The MCP client discovers a server named penecho without printing credentials.
-- penecho_list_canvases returns only connected, explicitly enabled canvases.
-- A session starts only with exact returned instanceId and canvasId.
-- Reusing an artifactId updates one Widget preview, and capture is on demand and bounded; only an actual capture result with `pixelVerified:true` is pixel evidence.
-- `penecho_read_feedback` reads only committed events after the session baseline; pagination uses `nextCursor` after processing, retries reread the same `after`, and `truncated:true` is reported as incomplete history.
-- Feedback defaults to a compressed current Canvas screenshot with nearby design context; it is not OCR or a historical screenshot, and reading does not clear dirty state or acknowledge another session.
-- Inspect reports application/visibility state (`render.state`, `applied`, `visible`); it does not prove painted pixels.
-- Public updates contain concise plans, decisions, evidence, and results, with no private reasoning.
-- The client preserves unrelated MCP servers and uses the current absolute launch path.
-- Before using a tool from a different installation, its installed schema has been inspected for any contract differences.
-
-- MCP 客户端能发现名为 penecho 的服务器，且不会打印凭据。
-- penecho_list_canvases 只返回已连接且显式启用的 Canvas。
-- session 只能使用返回的准确 instanceId 和 canvasId 启动。
-- 复用 artifactId 会更新同一个 Widget 预览，捕获按需执行且有界；只有带 `pixelVerified:true` 的实际捕获结果才是像素证据。
-- `penecho_read_feedback` 只读取 session 基线后提交的事件；分页须在处理后使用 `nextCursor`，重试时重新读取相同的 `after`，并将 `truncated:true` 报告为历史不完整。
-- 反馈默认返回含附近设计上下文的压缩画布截图，不是 OCR 或历史截图；读取不会清除 dirty 状态，也不会确认其他 session 的反馈。
-- Inspect 报告应用/可见状态（`render.state`、`applied`、`visible`），不证明像素已经绘制。
-- 公共更新只有简洁的计划、决策、证据和结果，不包含私有推理。
-- 客户端保留无关 MCP 服务器，并使用当前绝对启动路径。
-- 使用其他安装版本前，已查看该版本的 schema，确认工具调用没有契约差异。
-
-For a ready-to-paste instruction for zcode, Kimi, or another LLM, see
-[mcp-agent-instructions.md](mcp-agent-instructions.md).
-
-如需把配置任务交给 zcode、Kimi 或其他 LLM，请使用
-[mcp-agent-instructions.md](mcp-agent-instructions.md) 中的可直接粘贴提示词。
+For a portable setup prompt, see [agent instructions](mcp-agent-instructions.md).
 
 ### Prompt integration / 提示词集成
 
@@ -839,3 +502,34 @@ ambiguous.
 用户要求整理或修改“当前画布”时，直接以 `target:"current"` 绑定用户正在查看的画布，
 先读取已有内容再修改，不创建或打开新画布。绑定后保持文档不变；如果同一对话原本绑定了
 别的文档，使用独立且稳定的附加 sessionKey，并保留原会话句柄。
+
+MCP creation default: when size and dimensions are omitted, new Widgets and plots use `page` (1200×800). Explicit `base` remains 480×360; source updates preserve existing geometry.
+
+### Direct HTTP lifecycle
+
+The host owns HTTPS; the AI application owns the stdio child, and that child owns its HTTP protocol session. After HTTP release, the still-running CLI initializes again and restores known Canvas handles. Across a real CLI exit, the AI must retain and supply the original client/sessionKey/documentId to penecho_start_session after its host launches a replacement. Never substitute a random key, process ID or latest Canvas. Retaining document identity and relaunching a dead child are separate recovery requirements. PenEcho cannot wake a stopped AI application.
+
+## Lifetime and capacity / 生命周期与容量
+
+These limits count different resources; none counts historical paired clients for native HTTPS:
+
+| Resource | Default | Release/recovery |
+| --- | --- | --- |
+| TCP sockets | 512 | Idle keep-alive closes after 5 seconds; a later request opens a socket. |
+| MCP 2025-11-25 protocol sessions | 256 | DELETE releases immediately; 30 minutes idle expires. At capacity, reclaim the oldest session idle at least 60 seconds with no active request. |
+| Concurrent HTTP requests | 32 total, 8 per protocol session | Released when the operation settles; cancellation cannot free a still-running operation's slot early. |
+| Live Canvas conversation handles | 4096 total, 16 per protocol session | Explicit close, protocol-owner disposal, or 30-minute business inactivity releases them. Capacity pressure may reclaim an inactive handle idle at least 60 seconds. Active calls and queued updates are protected. |
+| Registered browser surfaces | 64 | Opt-out, page closure, or missed heartbeat removes registration. |
+| Open documents per browser | 64 | Closing a document releases its open slot; MCP-bound documents retain recoverable storage. |
+| Stored conversation bindings per document | 64 | This is bounded document metadata, not a network connection quota; content is not deleted to free connection slots. |
+
+HTTP ping does not keep unused Canvas business handles alive. Server cleanup sends `dispose-session` to release the matching browser runtime object while retaining its document and artifact identity. Server restart drops transient protocol sessions, not the persistent CA, authorization credential, or conversation-to-document records. If every candidate is recently active, admission returns a bounded busy/limit response; no implementation can promise unlimited simultaneous work.
+
+[MCP 2025-11-25 session management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) says clients should send DELETE when no longer using a session, and must initialize a new session after an expired session returns 404. This does not define when a particular AI application's chat ends. A tool call, HTTP socket, protocol session and logical conversation have separate lifetimes. After a Canvas handle expires, call `penecho_start_session` with the same client/sessionKey/documentId before further Canvas edits.
+
+Isolated validation on installed Codex CLI 0.153.0 observed separate HTTP owners for two tasks, owner reuse within one task, automatic 404 → initialize → retry of the pending call, and DELETE on graceful app-server shutdown. `thread/unsubscribe` did not immediately send DELETE. No model requests were made. These observations do not claim identical lifecycle behavior for every client/version or automatic discovery after an IP/port change.
+
+
+### Automated acceptance
+
+See [the automated acceptance record and commands](mcp-acceptance.md). The live Codex harness defaults to 40 tasks and a 60-second **HTTP** idle timeout in an isolated CODEX_HOME; the CLI remains alive. Do not put `--idle-exit-ms` into everyday configuration. Discovery fault cases and changed-port LAN recovery use disposable state, while the capacity harness starts only an isolated HTTP service. Live Canvas tests intentionally create named test documents. A passing HTTP preflight alone is not a passing Canvas test.

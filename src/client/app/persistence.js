@@ -1430,6 +1430,7 @@
       state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       state.snapshotSavedRevision = state.userRevision;
       if(typeof canvasDocumentsAdopt==="function")await canvasDocumentsAdopt(item,location);
+      resetCanvasDefaultMode();
       const restoreStudioConversation=window.PenEchoStudioNavigator?.wantsConversationForCanvas?.({ id:item.id, location })===true;
       canvasAgentCanvasDidChange({ id:item.id, location },{clearProject:true,deferConversationStart:restoreStudioConversation});
       window.PenEchoStudioNavigator?.canvasDidLoad?.({ id:item.id, location });
@@ -1603,6 +1604,14 @@
     dialog.querySelectorAll("button, input, select").forEach((control) => (control.disabled = busy));
     if (!busy) updateNewCanvasDialog();
   }
+  function resetCanvasDefaultMode() {
+    const hasContent = tiles.size || state.images.length || state.textBoxes.length || state.preservedSnapshotAnimations.length || (pluginEnabled("animation") && state.animations.length) || visibleWidgets().length;
+    setCanvasMode(hasContent ? "hand" : "pen", {
+      preserveSelection:true,
+      skipDraftFinalize:true,
+      preserveWidgetRefinement:true,
+    });
+  }
   function startBlankCanvas() {
     const dialog = document.querySelector("#newCanvasDialog");
     if (state.selection) cancelSelection(true);
@@ -1643,11 +1652,7 @@
     state.aiDraftReturnMode = null;
     state.pendingHistoryRestored = false;
     setCanvasNavigationLocked(false);
-    setCanvasMode("pen", {
-      preserveSelection:true,
-      skipDraftFinalize:true,
-      preserveWidgetRefinement:true,
-    });
+    resetCanvasDefaultMode();
     state.snapshotSavedRevision = state.userRevision;
     pendingCanvasTransition = null;
     document.querySelector("#newSnapshotName").value = "";

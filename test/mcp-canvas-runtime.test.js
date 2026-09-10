@@ -97,7 +97,8 @@ test("ordinary work flows down and comparisons stay related without moving user 
   const h=harness();await h.mcpExecute("mcp_start_session",{sessionId:"one",title:"Design"},{});
   const create=(id,presentation)=>h.mcpExecute("mcp_present_widget",{sessionId:"one",artifactId:id,title:id,html:"<p>Preview</p>",presentation},{});
   const a=await create("a"),b=await create("b"),wa=h.widgets.get(a.objectId),wb=h.widgets.get(b.objectId);
-  assert.ok(wa.y>=128);assert.equal(wa.w,480);assert.equal(wa.h,360);assert.equal(wa.x,wb.x);assert.equal(wb.y,wa.y+wa.h+32);
+  assert.ok(wa.y>=128);assert.equal(wa.w,1200);assert.equal(wa.h,800);assert.equal(wa.x,wb.x);assert.equal(wb.y,wa.y+wa.h+32);
+  h.context.viewportRect=()=>({x:0,y:0,w:3000,h:2000});
   const c=await create("c",{intent:"compare",relativeTo:"a",relation:"beside"}),wc=h.widgets.get(c.objectId);
   assert.equal(wc.x,wa.x+wa.w+32);assert.equal(wc.y,wa.y);
   const old={x:wb.x,y:wb.y};wa.x+=25;await create("d");assert.deepEqual({x:wb.x,y:wb.y},old);
@@ -107,7 +108,7 @@ test("new previews frame once as a batch, user navigation pauses following, disc
   const h=harness();await h.mcpExecute("mcp_start_session",{sessionId:"one",title:"Design"},{});
   h.mcpRuntime.ready=true;h.mcpRuntime.socket={readyState:1,close(){}};
   for(const id of ["a","b","c"])await h.mcpExecute("mcp_present_widget",{sessionId:"one",artifactId:id,title:id,html:"<p>Preview</p>"},{});
-  assert.equal(h.context.frames.length,0);h.mcpFlushView();assert.equal(h.context.frames.length,1);assert.equal(h.context.frames[0].w,480);assert.equal(h.context.frames[0].h,1144);
+  assert.equal(h.context.frames.length,0);h.mcpFlushView();assert.equal(h.context.frames.length,1);assert.equal(h.context.frames[0].w,1200);assert.equal(h.context.frames[0].h,2464);
   h.mcpPauseView();await h.mcpExecute("mcp_present_widget",{sessionId:"one",artifactId:"d",title:"D",html:"<p>D</p>"},{});h.mcpFlushView();assert.equal(h.context.frames.length,1);assert.equal(h.mcpRuntime.pendingView.size,1);
   h.mcpFlushView(true);assert.equal(h.context.frames.length,2);assert.equal(h.mcpRuntime.pendingView.size,0);
   h.mcpQueueView(h.mcpRuntime.sessions.get("one"),h.widgets.values().next().value);h.mcpDisconnect();assert.equal(h.mcpRuntime.pendingView.size,0);assert.equal(h.mcpRuntime.layoutTimer,0);
@@ -131,13 +132,15 @@ test("quiet supporting updates never frame and review requests win bounded frami
   assert.equal(h.context.frames.length,1);assert.equal(h.context.frames[0].y,h.widgets.get(review.objectId).y);assert.equal(h.mcpRuntime.pendingView.get("one").size,1);
   h.mcpDisconnect();
 });
-test("narrow comparisons fall below and viewport anchoring follows current reading space",()=>{
+test("narrow comparisons fall below and external first placement uses a stable inset",()=>{
   const h=harness(),session={artifacts:new Map([["a",{objectId:"a"}]])};
   const bounds={x:1050,y:2120,w:480,h:360};
   const plan=h.context.mcpArrange(480,360,session,{intent:"compare",relativeTo:"a"},{x:1000,y:2000,w:700,h:800},()=>bounds,()=>[]);
   assert.equal(plan.placement.x,1050);assert.equal(plan.placement.y,2512);
   const first=h.context.mcpArrange(480,360,{artifacts:new Map()},null,{x:1000,y:2000,w:1000,h:800},()=>null,()=>[]);
-  assert.equal(first.placement.x,1260);assert.equal(first.placement.y,2144);
+  assert.equal(first.placement.x,1000);assert.equal(first.placement.y,1000);
+  const internal=h.context.mcpArrange(480,360,{internalAgent:true,artifacts:new Map()},null,{x:1000,y:2000,w:1000,h:800},()=>null,()=>[]);
+  assert.equal(internal.placement.x,1260);assert.equal(internal.placement.y,2144);
 });
 test("source updates preserve user geometry and presentation identity",async()=>{
   const h=harness();h.context.widgetEditContext=w=>({...w});h.context.canvasAgentHash=async()=>"hash";h.context.canvasAgentReplaceWidget=async({command,objectId})=>Object.assign(h.widgets.get(objectId),{html:command.html});
@@ -273,4 +276,15 @@ test('new page fits a small viewport instead of retaining a tiny camera',async()
  assert.ok(Math.abs(h.state.panX+(widget.x+widget.w/2)*h.state.scale-320)<1e-8);
  assert.ok(Math.abs(h.state.panY+(widget.y+widget.h/2)*h.state.scale-240)<1e-8);
  assert.equal(h.mcpRuntime.pendingView.size,0);assert.equal(h.mcpRuntime.viewPaused,false);h.mcpDisconnect();
+});
+
+test("external initial placement avoids occupied inset and stays within Canvas bounds",()=>{
+  const h=harness(),arrange=(w,height,collisions)=>h.context.mcpArrange(w,height,{artifacts:new Map()},null,null,()=>null,collisions);
+  const empty=arrange(1200,800,()=>[]);
+  assert.deepEqual([empty.placement.x,empty.placement.y],[1000,1000]);
+  const occupied={x:1000,y:1000,w:1200,h:800};
+  const avoided=arrange(1200,800,box=>h.context.intersection(box,occupied)?[occupied]:[]);
+  assert.deepEqual([avoided.placement.x,avoided.placement.y],[1000,1832]);
+  const large=arrange(32000,32000,()=>[]);
+  assert.deepEqual([large.placement.x,large.placement.y],[720,720]);
 });

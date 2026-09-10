@@ -11,7 +11,7 @@ const { registryStateDirectory, recordsDirectory, readRecords, writeRecord, disc
 const { PenEchoStdioServer, selectRecord } = require("../src/server/mcp/stdio.js");
 
 test("desktop and CLI share home registry across application state directories", async t => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-shared-registry-"));
+  const home = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "penecho-shared-registry-"));
   t.mock.method(os, "homedir", () => home);
   const desktopState = path.join(home, "AppData", "PenEcho");
   const cliState = path.join(home, "cli-state");

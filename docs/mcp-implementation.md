@@ -1,17 +1,40 @@
 # PenEcho MCP 实现与验收
 
-入口为 **设置 → MCP 服务**。本机客户端通过稳定的 stdio 启动配置连接；桥接按需发现同一状态目录中的存活实例，端口和凭据留在内部。无需单独发布 MCP 包或注册服务。
+## 当前默认架构：会话级小型 CLI → HTTPS
 
-使用说明见 [设置文档](mcp-setup.md)，给其他 LLM 的中英文安装提示词见 [配置指引](mcp-agent-instructions.md)，便携工作流见 [penecho-mcp skill](../skills/penecho-mcp/SKILL.md)。设置页面也可以直接复制配置、指引、skill 和文档。
+PenEcho 启动 HTTPS，优先监听 3922，被占用时回退可用端口并通过 DNS-SD 广播。叶证书包含本机名字及私网地址；发现候选必须通过 CA、hostname/IP、hostId 和授权验证。浏览器独立 opt-in，新对话默认最近启用的浏览器。
 
-## 工作方式
+AI 的标准 stdio 配置启动 `session-client.js`（打包为 `client.js`）。CLI 先试上次成功的 IP＋端口（首次使用 initialUrl），失败后重读共享 endpoint 缓存，最后按需发现一次；空闲 HTTP 释放后重连也走完整流程。`discovery-client.js` 单独负责导入/发现；重连不改 AI 配置。跨进程锁合并发现，每个登录用户共享 `.penecho/mcp/hosts/<hostId>`，没有 Gateway、开机服务或常驻发现进程。
 
-- 每个外部会话绑定明确的实例、已启用画布和独立 session。启动只建立 session 元数据，不强制创建进度板，`boardObjectId` 可以为 null。同一会话的作品使用稳定 artifact ID 原位更新。
-- 外部 AI 主动提交公开的计划、决策摘要、进展、证据和结果。MCP 不会自动读取客户端中的所有对话，也不展示隐藏推理。
-- 有意义的进度在服务端合并后推送，并立即返回入队确认。普通更新不调用模型、不截图、不重建 iframe；没有默认进度板或周期心跳。inspect_session 报告应用状态，截图才提供像素证据。
-- HTML/SVG 流程图和交互 UI 使用现有 Widget 沙箱。MCP 预览保留代码指定的字号、背景和表单结构。连续改源码和尺寸后，截图等待当前文档加载和真实视口尺寸就绪。
-- `penecho_present_widget` 的 `capture:true` 把呈现和截图合为一次工具调用；其他呈现默认不截图。截图只包含该会话自己的预览，并沿用压缩与尺寸上限。
-- 关闭画布、切换画布或关闭开关会撤销连接并取消排队操作；画布上的已有作品保留。Codex/Claude 自动配置检查已有条目，无法安全添加时保留原配置并提供手动路径。
+`http-client-config.js` 原子更新 PenEcho 的 stdio 或兼容 HTTP 条目，保留其他服务/scope，检测并发修改。CLI 自己加载 CA；默认 stdio 不需要修改 AI 全局证书环境。保存配置与真实连接分别验证。
+
+当前 Settings 默认不带进程闲置退出参数。30 分钟只释放 HTTP，保留 stdin，在途工作受保护。EOF/signals 退出并尽力 DELETE。AI host 决定子进程启动/重启，通用协议不保证死进程自动重启。进程内保留的绑定支持 HTTP 重建；跨进程需要 AI 使用原 client/sessionKey/documentId 调用 start_session。64 个打开文档和 64 个注册浏览器上限不变。
+
+Windows 生命周期脚本 `scripts/mcp-codex-session-lifecycle.cjs` 默认测试 40 个真实 Codex 任务、1 分钟 HTTP 空闲释放及原任务自动恢复，不调用模型；使用隔离 CODEX_HOME，不修改日常配置。只有显式 `--idle-exit-ms` 才测试真正退出进程，手动 reload 恢复单独记录，不能计入自动恢复。当前 Windows / 真实 Edge 验收见 [自动验收记录](mcp-acceptance.md)。此前真正退出 CLI 的诊断得到自动恢复 0/2、手动 reload 恢复原模拟文档 2/2，因此默认仅释放 HTTP。
+
+`penecho_start_session` 的 title 必填，instanceId/canvasId 可省。新对话可使用最新注册的授权浏览器；显式目标仍使用准确 ID。稳定 client + sessionKey 保持 documentId；重连恢复原对话，不改投当前最新文档。已关闭的持久文档可后台恢复，restore 默认 true，show 默认 false；仅明确 DOCUMENT_NOT_FOUND 时允许替代新建，restore:false 禁止替代，权限/存储失败不得降级成 missing。
+
+入口仍为设置 → MCP 服务。设置展示配置、信任及重载要求，浏览器授权与服务器运行分开。用法见 [设置文档](mcp-setup.md)、[配置提示词](mcp-agent-instructions.md) 和 [可选工作流](../skills/penecho-mcp/SKILL.md)。页面呈现规则保持不变：新 Widget/plot 默认 page 1200×800，显式 base 480×360，源码更新保留几何。
+
+## 当前轻量 CLI 验证（2026-09-10）
+
+- 344 项 MCP/Canvas 回归通过；随后补充缓存读取 EACCES/EPERM 的回退测试，发现模块 14 项全部通过。缓存权限问题不阻止尝试发现，凭据/CA 权限与 symlink 保护保持严格。
+- 隔离真实 HTTPS：同一 CLI 经历空闲释放 → 旧 IP 失效 → 使用其他进程更新的缓存 → 再次空闲 → 缓存失效 → 发现新端点；两次均恢复原文档和客户端可见句柄，未退出 CLI。
+- 本机安装的真实 Codex app-server、两个任务、测试 HTTP 空闲 150ms：等待 850ms 后旧 HTTP owner 均释放、两个 CLI PID 不变；同一任务继续调用，无需 reload，恢复两个原始模拟文档 ID，使用新的 HTTP owner。未调用模型或真实浏览器；进程与临时文件已清理。
+- Settings 默认命令不带闲置退出参数，自动配置迁移可移除旧参数；Copy setup prompt 和 portable skill 保留旧关键词与 one-shot 示例。隔离 Electron 检查了宽/窄屏和 200% 缩放，手动区自动展开、复制可用、无区域横向溢出；生成文件和 diff 检查通过。
+- Windows Codex 0.149.0 的 40 个真实任务通过 SSH 验收：40 个独立真实文档、HTTP 空闲 60 秒后自动恢复 40/40、无需 reload、串线 0、结束残留客户端进程 0。测试页面刷新加载 64 上限；完整 PenEcho 主进程未重启。详细发现/并发/限额结果见自动验收记录。
+
+## 前一轮原生 HTTPS 验证（2026-09-10；不代表新的 CLI 验收）
+
+- `node --test test/mcp-*.test.js test/canvas-documents.test.js test/canvas-fit-viewport.test.js`：307/307 通过。覆盖 TLS 信任、共享证书、独立协议 owner、发现缓存、配置冲突、重启绑定、关闭 Canvas 恢复、并发隔离、闲置与压力回收，以及 legacy 回归。
+- 安装的 Codex 0.153.0 隔离验证：两个 task 独立 owner；同 task 复用；过期 404 后自动 initialize 并重试原调用成功；app-server 正常退出发送 DELETE，服务 session/socket 均清零。未发模型请求，未修改真实客户端配置；`thread/unsubscribe` 没有立即发 DELETE。
+- HTTP 协议会话 256；总并发 32、单会话并发 8；TCP 512、空闲 keep-alive 约 5 秒。画布业务句柄总计 4096、每协议 owner 16；两层闲置 30 分钟回收，容量压力仅回收闲置至少 60 秒且无在途工作的候选。浏览器接收 dispose-session 后释放临时句柄，保留文档和作品绑定。完整分层限制见设置文档。
+- 客户端生成文件检查与 diff whitespace 检查通过。当前运行的完整 PenEcho 未重启；新建浏览器验证标签页停在访问码页面，未完成本次新增状态的完整视觉验收。Windows 已检查公共启动路径和平台目录处理，尚未运行 Windows 应用验收。
+- 主任务负责架构、UI、集成审查；两个子任务请求模型为 Astra / low，分别负责 HTTP 服务和发现/配置。模型分工依据工具调用参数，未另行验证运行时模型身份。
+
+## 历史实现记录与 legacy 兼容
+
+以下按日期保留旧版本设计、验收样本与功能演进记录；其中 stdio 启动、LAN 配对/lease、远端桥接下载和启动命令属于旧配置兼容说明，不是当前默认架构。旧记录中的测试数量和浏览器截图是当时证据，不代表本次 HTTPS 变更已完成视觉验收。当前连接与恢复契约以上文和实时 tools/list 为准。
 
 ## 设计来源映射
 
@@ -256,3 +279,61 @@ this change does not wake stopped conversations or guarantee compliance.
 生成图或截图。复用有用的已有成果，必要时再制作空间图解。Visual Explorer 完整设计规范
 通过可选 prompt 按需读取一次，默认仅附简短原则。客户端刷新连接后获得新指引；MCP
 无法强制客户端执行或唤醒已停止的会话。
+
+
+### MCP 设置方案 A 与持久局域网身份（2026-09-10）
+
+“连接你的 AI Agent”保留本机自动配置，失败或跨机时展开一个复制入口。指引同时携带
+本机配置和远端身份、下载校验、发现参数；要求更新已有配置，禁止重复条目与网络广播
+自动替换信任。低强调证书重置按钮经确认执行，完成后提示所有旧远端配置更新。
+
+证书和邀请原子保存于状态目录，正常重启保持身份；DNS-SD 公布当前私网地址和端口，
+远端 TLS 校验通过后才发送凭据。断网优先复用授权，失效时凭已保存的连接密钥自动重新认证；不重放结果未知的
+修改。Windows 多网卡 UDP 发送必须等回调后切换接口，覆盖 Hyper-V 虚拟网卡场景。
+
+主任务完成 UI、整合和最终检查；两个子代理按 Astra/low 请求承担身份/发现及重连模块。
+89 项针对性测试通过；实际 Windows→Mac 验证发现、重启换端口、画布读写、证书重置后
+旧配置拒绝；中英文、125% 与窄窗口检查完成。Canvas 镜像通过官方同步脚本更新，未部署。
+
+
+### 局域网免 Allow 连接
+
+按最新交互要求，复制指引中的秘密连接密钥直接授权，证书指纹仅验证主机身份。
+删除主机 Allow/拒绝/阻止配对弹窗和队列；有效密钥立即换取运行期令牌，重启自动
+重新认证。无效密钥、公有证书指纹不能授权。证书重置同时更换密钥并撤销运行期令牌。
+
+本轮 92 项针对性测试通过。Windows→Mac 下载校验后的桥接无需任何主机确认，完成工具、
+指引、画布和 Widget 读写验收；英文长文案在宽/窄窗口与 125% 缩放下无横向溢出。
+
+
+### Auto configure 更新已有配置
+
+再次点击自动配置时，Codex 通过官方 CLI upsert 写入当前启动信息；Claude 只原子
+替换用户配置中的 PenEcho 条目，保留其他服务及项目级配置。更新失败不先删除旧条目。
+界面显示“配置已更新”，提示重载 Agent，不将配置保存表述为连接验证成功。
+主任务完成 UI 与集成验收，按 Astra/low 调用的子代理负责配置实现并经主任务复核。
+真实 Codex/Claude CLI 在隔离配置目录验证新建和覆盖；真实浏览器验证按钮更新、
+宽/窄窗口与 125% 英文文案，未修改用户的实际 Agent 配置。
+
+
+### 第三步：开始使用 Spatial Workspace
+
+第三步给出关闭设置、检查工具栏 MCP 绿灯、发送给外部 Agent 的简短引导。默认突出
+一条可直接复制的当前任务提示词，原有六个示例保留在默认折叠的“更多示例”。复用
+现有设置步骤、提示词卡片、复制事件与原生 disclosure；主任务直接完成，无额外代理。
+设计来源沿用 penecho_design 的 settings-content、prompt surface 与渐进展开规则。
+34 项设置回归通过；真实浏览器检查中英文、宽/窄窗口、125% 缩放、一键复制和展开。
+
+### Live MCP discovery resources
+
+Both stdio and LAN expose `resources/list`, `resources/read`, and an empty
+`resources/templates/list`. `penecho://guidance/discovery` directs clients to the
+current tools, prompts and resource catalogs; `penecho://guidance/skill` supplies
+live workspace guidance. The optional setup skill is a small bootstrap pointing
+to these resources, with separate PenEcho, echo, canvas and 画布 examples.
+Ordinary server catalog upgrades do not require rewriting remote launch settings:
+the bridge forwards methods without a catalog allow-list or cached tool schema.
+Clients may still need to refresh/reconnect to replace their own tool snapshot.
+Reading live guidance does not silently rewrite an installed skill file.
+
+MCP creation default: when size and dimensions are omitted, new Widgets and plots use `page` (1200×800). Explicit `base` remains 480×360; source updates preserve existing geometry.

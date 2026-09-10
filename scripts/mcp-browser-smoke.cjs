@@ -24,12 +24,12 @@ app.whenReady().then(async()=>{
     await waitFor(()=>js("!!document.querySelector('#settingsBtn')"),"canvas startup");
     await js("document.querySelector('#tourSkip')?.click();document.querySelector('#changelogClose')?.click()");
     await js("document.querySelector('#settingsBtn').click();document.querySelector('#settingsNavMcp').click()");
-    await waitFor(()=>js("document.querySelector('#mcpConfig').textContent.includes('stdio.js')"),"MCP configuration");
+    await waitFor(()=>js("!document.querySelector('#mcpCopyInstructions').disabled"),"MCP configuration");
     assert.equal(await js("document.querySelector('#mcpConfigure').disabled"),false,"configuration works before opting in the canvas");
     if(useLan){
       await js("window.mcpTestFetch=window.fetch;window.fetch=(input,options)=>String(input)==='/api/mcp/status'?Promise.resolve(new Response(JSON.stringify({error:{code:'forbidden'}}),{status:403,headers:{'Content-Type':'application/json'}})):window.mcpTestFetch(input,options);document.querySelector('#mcpRefresh').click()");
       await waitFor(()=>js("document.querySelector('#mcpConfigure').disabled&&!document.querySelector('#mcpConfigStatus').hidden"),"visible configuration failure");
-      await js("document.querySelector('#mcpCopySkill').click()");await waitFor(()=>js("document.querySelector('#mcpSetupStatus').textContent.length>0"),"copy result");
+      assert.equal(await js("document.querySelector('#mcpCopyInstructions').disabled"),true,"incomplete setup cannot be copied");
       assert.equal(await js("document.querySelector('#mcpConfigStatus').hidden"),false,"copying must not hide the configuration failure");
       window.setSize(700,900);await pause(150);
       await js("document.querySelector('#tourSkip')?.click();document.querySelector('#changelogClose')?.click();document.querySelector('#mcpConfigStatus').scrollIntoView({block:'center'})");await pause(150);
@@ -178,11 +178,11 @@ app.whenReady().then(async()=>{
       report.checks.push({name,overflow:await js("[...document.querySelectorAll('#settingsPageMcp button,#settingsPageMcp pre,#settingsPageMcp .settings-group')].filter(e=>e.getBoundingClientRect().width>0&&e.scrollWidth>e.clientWidth+1).map(e=>e.id||e.className)")});
       fs.writeFileSync(path.join(directory,`${name}.png`),(await window.webContents.capturePage()).toPNG());
     }
-    await js("document.querySelector('#mcpConfig').closest('details').open=true;document.querySelector('#mcpConfig').scrollIntoView({block:'center'})");
+    await js("document.querySelector('#mcpCopyInstructions').closest('details').open=true;document.querySelector('#mcpCopyInstructions').scrollIntoView({block:'center'})");
     window.setSize(700,900);window.webContents.setZoomFactor(1);await pause(250);
-    assert.equal(await js("document.querySelector('#mcpConfig').scrollWidth>document.querySelector('#mcpConfig').clientWidth+1"),false);
+    assert.equal(await js("document.querySelector('#mcpCopyInstructions').scrollWidth>document.querySelector('#mcpCopyInstructions').clientWidth+1"),false);
     fs.writeFileSync(path.join(directory,'settings-config.png'),(await window.webContents.capturePage()).toPNG());
-    await js("document.querySelector('#mcpConfig').closest('details').open=false;document.querySelector('#mcpHeading').scrollIntoView({block:'start'})");
+    await js("document.querySelector('#mcpCopyInstructions').closest('details').open=false;document.querySelector('#mcpHeading').scrollIntoView({block:'start'})");
     window.setSize(700,1000);window.webContents.setZoomFactor(1);await js("document.querySelector('[data-language=zh]')?.click();document.querySelector('#settingsNavMcp').click()");await pause(250);
     fs.writeFileSync(path.join(directory,"settings-zh.png"),(await window.webContents.capturePage()).toPNG());
     nativeTheme.themeSource="dark";

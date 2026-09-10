@@ -251,7 +251,7 @@ function validatePresentation(value, { kind, capture, hasExplicitDimensions = fa
 }
 
 function presentationDimensions(input, presentation, {maxWidth,maxHeight}) {
-  const preset = presentation?.size === undefined ? PRESENTATION_VIEWPORTS.base : PRESENTATION_VIEWPORTS[presentation.size];
+  const preset = presentation?.size === undefined ? PRESENTATION_VIEWPORTS.page : PRESENTATION_VIEWPORTS[presentation.size];
   const width = input.width === undefined ? preset.width : Math.round(finiteNumber(input.width, "width", {min:300,max:maxWidth}));
   const height = input.height === undefined ? preset.height : Math.round(finiteNumber(input.height, "height", {min:200,max:maxHeight}));
   if (width > maxWidth || height > maxHeight) invalid("presentation.size exceeds this tool's viewport limits.");
@@ -344,18 +344,20 @@ const validators = {
   },
   penecho_start_session(input) {
     object(input, "arguments");
-    exactKeys(input, new Set(["canvasId", "instanceId", "documentId", "target", "takeover", "title", "client", "sessionKey"]), "arguments");
+    exactKeys(input, new Set(["canvasId", "instanceId", "documentId", "target", "takeover", "title", "client", "sessionKey", "restore", "show"]), "arguments");
     if (input.target !== undefined && input.target !== "current") invalid("target must be current.");
     if (input.target !== undefined && input.documentId !== undefined) invalid("target cannot be combined with documentId.");
     return {
-      canvasId:string(input.canvasId, "canvasId"),
-      instanceId:string(input.instanceId, "instanceId"),
+      ...(input.canvasId === undefined ? {} : {canvasId:string(input.canvasId, "canvasId")}),
+      ...(input.instanceId === undefined ? {} : {instanceId:string(input.instanceId, "instanceId")}),
       title:string(input.title, "title", { max:MAX_TITLE_CHARS }),
       ...(input.target === undefined ? {} : {target:input.target}),
       ...(input.documentId === undefined ? {} : { documentId:string(input.documentId, "documentId", { max:256 }) }),
       ...(input.takeover === undefined ? {} : { takeover:bool(input.takeover, "takeover", false) }),
       ...(input.client === undefined ? {} : { client:string(input.client, "client", { max:120 }) }),
       ...(input.sessionKey === undefined ? {} : { sessionKey:string(input.sessionKey, "sessionKey", { max:128 }) }),
+      ...(input.restore === undefined ? {} : {restore:bool(input.restore, "restore", true)}),
+      ...(input.show === undefined ? {} : {show:bool(input.show, "show", false)}),
     };
   },
   penecho_list_files(input) {
@@ -565,7 +567,7 @@ function presentationSchema({allowSize = true,allowInspect = false} = {}) {
   const properties = {
     intent:{type:"string",enum:[...PRESENTATION_INTENTS].filter(value => allowInspect || value !== "inspect"),default:"deliver"},
     role:{type:"string",enum:[...PRESENTATION_ROLES],default:"primary"},
-    ...(allowSize ? {size:{type:"string",enum:[...PRESENTATION_SIZES],default:"base",description:"Creation viewport: base 480×360 (one compact idea), wide 992×360, tall 480×752, large 992×752, page 1200×800 (desktop UI). Omit width/height when using a preset. Later source updates preserve user geometry."}} : {}),
+    ...(allowSize ? {size:{type:"string",enum:[...PRESENTATION_SIZES],default:"page",description:"Default creation viewport is page 1200×800. Presets: base 480×360 (one compact idea), wide 992×360, tall 480×752, large 992×752, page 1200×800 (desktop UI). Omit width/height when using a preset. Later source updates preserve user geometry."}} : {}),
     relativeTo:{type:"string",minLength:1,maxLength:128},
     relation:{type:"string",enum:[...PRESENTATION_RELATIONS]},
     attention:{type:"string",enum:[...PRESENTATION_ATTENTION]},
@@ -593,6 +595,7 @@ const TOOLS = [
   },
   {
     name:"penecho_list_canvases",
+    annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},
     description:`List live opted-in Canvas connections across local PenEcho instances. ${INVOCATION_INSTRUCTIONS} Empty or partial discovery reports unavailable instances separately from instances with no opted-in Canvas.`,
     inputSchema:{ type:"object", additionalProperties:false, properties:{} },
   },
@@ -600,8 +603,8 @@ const TOOLS = [
   { name:"penecho_find_canvases", description:"Find authorized document candidates and per-provider statuses through one exact opted-in browser connection. This does not guess across PenEcho hosts.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256}}} },
   {
     name:"penecho_start_session",
-    description:"Start an owned session on an exact connection. Use a unique sessionKey per conversation and a stable client name; retain returned sessionId/documentId. Use target:current to attach to the visible Canvas without creating a document or renaming it; target and documentId are exclusive. Without either, a new unbound conversation gets a new background Canvas even when the visible Canvas is empty. This default applies only to new conversations; reuse an existing binding across turns and reconnects. Give the new Canvas a concise descriptive name through title. This does not create a browser tab or progress board; boardObjectId may be null. A concise title also names an untitled Canvas.",
-    inputSchema:{ type:"object", additionalProperties:false, required:["canvasId", "instanceId", "title"], not:{required:["target","documentId"]}, properties:{ canvasId:{type:"string",minLength:1,maxLength:128}, instanceId:{type:"string",minLength:1,maxLength:128}, documentId:{type:"string",minLength:1,maxLength:256}, target:{type:"string",enum:["current"]}, takeover:{type:"boolean",default:false}, title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS}, client:{type:"string",minLength:1,maxLength:120}, sessionKey:{type:"string",minLength:1,maxLength:128} } },
+    description:"Start or restore an owned conversation. With direct HTTP, omit instanceId/canvasId to select the latest registered browser for a new conversation; an existing sessionKey keeps its original browser/document binding. Pass documentId to reopen a closed Canvas before associating it; only a confirmed missing document creates a replacement (restore:false disables replacement). Use a unique sessionKey per conversation and a stable client name; retain returned sessionId/documentId. Use target:current to attach to the visible Canvas without creating a document or renaming it; target and documentId are exclusive. Without either, a new unbound conversation gets a new background Canvas even when the visible Canvas is empty. This default applies only to new conversations; reuse an existing binding across turns and reconnects. Give the new Canvas a concise descriptive name through title. This does not create a browser tab or progress board; boardObjectId may be null. A concise title also names an untitled Canvas.",
+    inputSchema:{ type:"object", additionalProperties:false, required:["title"], not:{required:["target","documentId"]}, properties:{ canvasId:{type:"string",minLength:1,maxLength:128}, instanceId:{type:"string",minLength:1,maxLength:128}, documentId:{type:"string",minLength:1,maxLength:256}, target:{type:"string",enum:["current"]}, takeover:{type:"boolean",default:false}, title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS}, client:{type:"string",minLength:1,maxLength:120}, sessionKey:{type:"string",minLength:1,maxLength:128}, restore:{type:"boolean",default:true}, show:{type:"boolean",default:false} } },
   },
   { name:"penecho_list_files", description:"List bounded virtual public files for the session document. Paths are Canvas virtual paths, never host filesystem paths.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",default:"/",maxLength:1024},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},offset:{type:"integer",minimum:0,default:0},limit:{type:"integer",minimum:1,maximum:MAX_FILES_PER_PAGE,default:50}}} },
   { name:"penecho_read_file", description:"Read bounded public source content from one virtual Canvas file. This never exposes a physical filesystem path.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","path"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",minLength:1,maxLength:1024},startLine:{type:"integer",minimum:1},endLine:{type:"integer",minimum:1}}} },

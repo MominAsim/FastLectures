@@ -9,6 +9,8 @@ const { SESSION_INSTRUCTIONS, VISUAL_INSTRUCTIONS, visualExplorerPrompt } = requ
 
 const { getAuthoringGuidance } = require("./authoring-guidance.js");
 
+const { RESOURCES, readResource } = require("./resources.js");
+
 const PROTOCOL_VERSION = "2025-11-25";
 const MAX_INPUT_LINE_BYTES = 3 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 12 * 1024 * 1024;
@@ -226,12 +228,18 @@ class PenEchoStdioServer {
     try {
       if (message.method === "initialize") {
         this.initialized = true;
-        return this.send({ jsonrpc:"2.0", id, result:{ protocolVersion:PROTOCOL_VERSION, capabilities:{ tools:{ listChanged:false }, prompts:{listChanged:false} }, serverInfo:{ name:"PenEcho", version:"1.0.0" }, instructions:INSTRUCTIONS } });
+        return this.send({ jsonrpc:"2.0", id, result:{ protocolVersion:PROTOCOL_VERSION, capabilities:{ tools:{ listChanged:false }, prompts:{listChanged:false}, resources:{subscribe:false,listChanged:false} }, serverInfo:{ name:"PenEcho", version:"1.0.0" }, instructions:INSTRUCTIONS } });
       }
       if (message.method === "ping") return this.send({ jsonrpc:"2.0", id, result:{} });
       if (!this.initialized) return this.send({ jsonrpc:"2.0", id, error:{ code:-32002, message:"Initialize the PenEcho MCP server first." } });
       if (message.method === "tools/list") return this.send({ jsonrpc:"2.0", id, result:{ tools:TOOLS } });
       if (message.method === "prompts/list") return this.send({jsonrpc:"2.0",id,result:{prompts:PROMPTS}});
+      if (message.method === "resources/list") return this.send({jsonrpc:"2.0",id,result:{resources:RESOURCES}});
+      if (message.method === "resources/templates/list") return this.send({jsonrpc:"2.0",id,result:{resourceTemplates:[]}});
+      if (message.method === "resources/read") {
+        try { return this.send({jsonrpc:"2.0",id,result:readResource(message.params?.uri,PROMPTS)}); }
+        catch (error) { return this.send({jsonrpc:"2.0",id,error:{code:error.code || -32602,message:error.message}}); }
+      }
       if (message.method === "prompts/get") {
         try { return this.send({jsonrpc:"2.0",id,result:promptResult(message.params?.name,message.params?.arguments || {})}); }
         catch (error) { return this.send({jsonrpc:"2.0",id,error:{code:error?.code || -32602,message:String(error?.message || "Invalid params").slice(0,500)}}); }

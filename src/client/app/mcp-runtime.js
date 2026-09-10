@@ -1,12 +1,29 @@
   // External MCP sessions share Canvas primitives, but never an Agent conversation.
-  var mcpRuntime = { socket:null, generation:0, sessions:new Map(), previews:new Map(), controllers:new Map(), queue:Promise.resolve(), queued:0, status:null, loading:null, loadError:null, configuring:false, configureResult:null, feedbackSequence:0, feedback:[], ready:false, connectionLost:false, heartbeatTimer:0, heartbeatSupported:false, lastPong:0, activeMutation:null, mutationDocumentId:null, glowTimer:0, glowing:false, pendingView:new Map(), layoutTimer:0, layoutSince:0, viewPaused:false, exampleStatusTimer:0 };
+  var mcpRuntime = { socket:null, browserId:null, wanted:false, reconnectTimer:0, reconnectDelay:1000, generation:0, sessions:new Map(), previews:new Map(), controllers:new Map(), queue:Promise.resolve(), queued:0, status:null, loading:null, loadError:null, configuring:false, configureResult:null, feedbackSequence:0, feedback:[], ready:false, connectionLost:false, heartbeatTimer:0, heartbeatSupported:false, lastPong:0, activeMutation:null, mutationDocumentId:null, glowTimer:0, glowing:false, pendingView:new Map(), layoutTimer:0, layoutSince:0, viewPaused:false, exampleStatusTimer:0 };
   const mcpCopy = {
+    certificateInvalid:["Connection certificate needs repair. Reset it, then copy a new setup prompt.","连接证书需要修复。请重置证书后重新复制配置指引。"],
+    certificate:["Connection certificate","连接证书"],
+    certificateHelp:["Saved automatically, including after restart. Usually no reset is needed.","自动保存，重启后继续使用。通常无需重置。"],
+    certificateReset:["Reset connection certificate…","重置连接证书…"],
+    certificateResetTitle:["Reset connection certificate?","重置连接证书？"],
+    certificateResetHelp:["Agents on other computers will disconnect. Copy the new setup prompt and send it to each previously connected Agent to update its configuration.","其他电脑上的 Agent 将断开连接。请重新复制配置指引，发给之前连接过的每台电脑上的 Agent 更新配置。"],
+    certificateResetNote:["All configured Agents need the new certificate and connection key. Normal restarts do not need a reset.","已配置的所有 Agent 都需要更新证书与连接密钥。正常重启无需重置。"],
+    certificateResetConfirm:["Reset certificate","重置证书"],cancel:["Cancel","取消"],
+    certificateChanged:["Certificate reset. Copy the new setup prompt for every previously connected computer.","证书已重置。请复制新的配置指引，为之前连接过的每台电脑更新配置。"],
+    certificateCopyNew:["Copy new setup prompt","复制新的配置指引"],
+    certificateCopied:["Copied. Send it to each previously connected Agent to update its certificate.","已复制。请发给之前连接过的各个 Agent，更新连接证书。"],
+
+    lanBusy:["Updating connection…","正在更新连接…"],lanDisabled:["LAN connection is off.","局域网连接已关闭。"],
+    lanOpenFirst:["Open MCP above to connect another computer.","先在上方开放 MCP，即可连接局域网其他电脑。"],
+    lanNoAddress:["No LAN address is available. Check your network connection.","未找到局域网地址，请检查网络连接。"],
+    lanFailed:["Could not update LAN access. Check the connection and retry.","未能更新局域网连接，请检查连接后重试。"],
+
     checkingSetup:["Checking MCP setup…","正在检查 MCP 配置…"],
     toolbarSetup:["Set up MCP Server","配置 MCP Server"],
     toolbarOpen:["Make canvases discoverable to external AI","允许外部 AI 发现并编辑画布"],
     toolbarClose:["Turn off MCP discovery","关闭 MCP 开放"],
     toolbarRetry:["Connection failed. Click MCP Server to retry.","连接失败。点击 MCP Server 重试。"],
-    nav:["MCP service","MCP 服务"], eyebrow:["MCP Service","MCP 服务"], heading:["Give your AI a spatial workspace", "给你的 AI 一个空间工作区"],
+    nav:["MCP service","MCP 服务"], eyebrow:["MCP Service","MCP 服务"], heading:["Connect your AI Agent", "连接你的 AI Agent"],
     canvasNotice:["MCP connected · AI can update this canvas","MCP 已连接 · AI 可更新此画布"],
     canvasWaiting:["MCP open · Waiting for AI","MCP 已开放 · 等待 AI"],
     canvasLost:["MCP connection lost","MCP 连接已断开"],
@@ -16,20 +33,23 @@
     newContent:["Show new content","查看新内容"],
     lastUpdate:["Last update","最近更新"],
     canvasNoticeHelp:["Open MCP settings to manage or turn off access to this canvas.","打开 MCP 设置，管理或关闭对此画布的访问。"],
-    description:["Connect Codex or Claude. Show, annotate and iterate on Canvas.", "连接 Codex、Claude，在画布上展示、批注、迭代。"],
+    description:["Works with Codex, Claude Code, OpenCode, Pi and other MCP clients.", "支持 Codex、Claude Code、OpenCode、Pi 等 MCP 客户端。"],
     enable:["Make workspace discoverable", "开放空间工作区"],
     accessHelp:["Connected clients can find and open your Device, Server and connected Cloud canvases, read their content, and edit the Canvas bound to a conversation. Images are captured on request. Turn this off to disconnect all external sessions.","外部客户端可查找并打开本设备、Server 和已连接 Cloud 中的画布，读取内容，并编辑对话绑定的画布。截图按需获取。关闭后会断开全部外部会话。"],
     stepOpen:["Open your workspace","开放你的工作区"],
     stepOpenHint:["Connected AI can read and edit your canvases, and open Device, Server and Cloud documents.","连接的 AI 可以读取和编辑你的画布，也能打开本设备、Server 与 Cloud 中的文档。"],
     stepOpenNote:["Turning this off disconnects all external sessions.","关闭后会断开全部外部会话。"],
-    setup:["Connect your AI client", "连接你的 AI 客户端"],refresh:["Check again", "重新检查"],
-    setupHint:["PenEcho writes the MCP entry on this computer. Other browsers can open MCP here; client setup stays on the PenEcho host.","PenEcho 会在这台电脑上写入 MCP 配置。其他浏览器可在此开放 MCP；AI 客户端配置仍在 PenEcho 主机上完成。"],
+    setup:["AI Agent on this computer", "AI Agent 在这台电脑"],refresh:["Check again", "重新检查"],
+    setupHint:["Select your Agent and configure it with one click.","选择 Agent，一键完成配置。"],
     clientCodexHint:["Terminal AI client","终端 AI 客户端"],
     clientClaudeHint:["Terminal AI client","终端 AI 客户端"],
-    clientOtherHint:["Kimi / ZCode / any MCP client","Kimi / ZCode 等 MCP 客户端"],
-    configure:["Auto configure", "自动配置"],copyConfig:["Copy config", "复制配置"],copyInstructions:["Copy setup prompt", "复制配置指引"],
-    session:["Start a session","开始一个会话"],
-    sessionHint:["Reload your AI client, then paste one of these prompts.","重载 AI 客户端，然后粘贴其中一条提示词。"],
+    clientOtherHint:["OpenCode / Pi / other MCP clients","OpenCode / Pi / 其他 MCP 客户端"],
+    configure:["Auto configure", "自动配置"],copyInstructions:["Copy setup prompt", "复制配置指引"],
+    session:["Start your Spatial Workspace","开始使用 Spatial Workspace"],
+    sessionHint:["Copy the prompt, close Settings, and check that the MCP indicator on the right of the toolbar is green. Send it to your external Agent to start.","复制提示词后关闭设置，确认工具栏右侧的 MCP 亮绿灯，再发给外部 Agent 即可开始。"],
+    starterTitle:["Start with your current task","从当前任务开始"],
+    starterPrompt:["Use PenEcho as our spatial workspace for this task. Show the work with useful diagrams or an interactive view, and revise it from my feedback.","把当前任务放到 PenEcho 空间工作区，用合适的图示或交互界面展示，并根据我的反馈继续修改。"],
+    morePrompts:["More examples","更多示例"],
     copyPrompt:["Copy prompt","复制提示词"],exampleCopied:["Prompt copied","提示词已复制"],
     exampleDesignTitle:["Three design options","三个设计方案"],
     exampleDesignPrompt:["Echo this UI idea in PenEcho with three design options, then let me choose.", "帮我 echo 一下这个界面想法，在 PenEcho 上展示三个方案，让我选择。"],
@@ -43,13 +63,14 @@
     exampleCodePrompt:["Put your proposed code changes on canvas for review, then echo the implemented changes.", "把你要做的代码修改放到 canvas 上供我确认，完成后 echo 一下重点改动。"],
     exampleFeedbackTitle:["Revise from feedback","根据界面反馈修改"],
     exampleFeedbackPrompt:["Read my latest feedback and annotations on the current PenEcho canvas, then revise the existing UI in place.","读取我在当前 PenEcho 画布上的最新反馈和批注，根据这些反馈修改现有界面。"],
-    manualSteps:["On the computer running PenEcho, select Codex or Claude Code and choose Auto configure. For another client, copy the setup prompt or add the JSON below to its MCP settings, then reload the client.","在运行 PenEcho 的电脑上，选择 Codex 或 Claude Code 并点击自动配置。其他客户端可复制配置指引，或将下方 JSON 添加到其 MCP 设置，然后重载客户端。"],
-    remoteManualSteps:["On the computer running PenEcho, open Settings → MCP service. Select Codex or Claude Code and choose Auto configure; for another client, expand Manual setup and copy its configuration into the client’s MCP settings. Reload the client, then return here and open your workspace.","在运行 PenEcho 的电脑上打开 Settings → MCP 服务。选择 Codex 或 Claude Code 并点击自动配置；其他客户端展开手动配置，将配置复制到客户端的 MCP 设置中。重载客户端后，回到此页面开放工作区。"],
+    setupPromptLabel:["Setup prompt","配置提示词"],
+    manualSteps:["Open a conversation in your AI Agent, such as Codex. Copy the prompt below, paste it into that conversation and send it. Keep PenEcho running with MCP enabled; another computer must be on the same network.","打开 AI Agent 的对话，例如 Codex。复制下面的提示词，粘贴到对话中并发送。保持 PenEcho 运行并开启 MCP；另一台电脑需在同一局域网。"],
+    remoteManualSteps:["On the computer running PenEcho, open Settings → MCP service. Select Codex or Claude Code and choose Auto configure; for another Agent, copy the setup prompt below and send it to that Agent. Reload the client, then return here and open your workspace.","在运行 PenEcho 的电脑上打开 Settings → MCP 服务。选择 Codex 或 Claude Code 并点击自动配置；其他 Agent 使用下方的复制配置指引。重载客户端后，回到此页面开放工作区。"],
     capDrawTitle:["Draw & annotate","绘图与批注"],capDrawHint:["Diagrams, notes and sketches","关系图、笔记与草图"],
     capPlotTitle:["Plots & Widgets","函数图与 Widget"],capPlotHint:["Curves and interactive UI","曲线与交互界面"],
     capCaptureTitle:["Capture on request","按需截图"],capCaptureHint:["Screenshots only when asked","仅在你要求时截图"],
-    manual:["Manual setup & details", "手动配置与详情"],manualHint:["Config JSON · Skill · Guide","配置 JSON · 技能 · 指南"],
-    copySkill:["Copy skill", "复制技能"],copyGuide:["Copy guide", "复制指南"],
+    manual:["Auto configure failed, or your Agent is on another computer?", "自动配置失败，或 Agent 在另一台电脑？"],manualHint:["Copy the setup prompt and let your Agent connect.","复制指引，让 Agent 帮你配置。"],
+
     how:["How to use it","如何使用"],
     howHelp:["Ask your AI to show useful work and revise it from your feedback. Use lightweight drawings for text and diagrams, function plots for curves, and Widgets for interactive UI. Request a screenshot when checking a design. Progress updates do not call another model or take screenshots.","让 AI 展示有用的成果，并结合你的反馈继续修改。文字和关系图使用轻量绘图，曲线使用函数图，交互 UI 使用 Widget。检查设计时再获取截图。进度更新不调用额外模型，也不生成截图。"],
     thoughtHelp:["Shows the AI’s shared plans, decisions and results. Session updates are supplied by the external AI client.","展示 AI 分享的计划、决策和结果。会话更新由外部 AI 客户端主动提供。"],
@@ -59,17 +80,21 @@
     loadingConfig:["Loading connection configuration…","正在加载连接配置…"],
     configuring:["Configuring…","正在配置…"],
     configurePending:["Saving the MCP configuration. This may take up to 20 seconds.","正在保存 MCP 配置，可能需要约 20 秒。"],
+    configureUpdated:["Configuration updated","配置已更新"],
+    configureUpdatedHelp:["Updated to this PenEcho program. Reload your AI client to use it.","已更新为当前 PenEcho 程序的配置。重载 AI 客户端后生效。"],
+    configureTrust:["Configuration saved · certificate setup required","配置已保存 · 需要完成证书设置"],
+    configureTrustHelp:["Copy the setup prompt below to your Agent to trust this certificate, reload MCP and verify the connection.","将下方配置指引发给 Agent，完成证书信任、重载 MCP 并验证连接。"],
     configureSaved:["Configuration saved","配置已保存"],
     configureExisting:["Existing configuration found · not verified","已发现已有配置 · 尚未验证"],
     configureExistingHelp:["No changes were made. Reload this AI client and check for PenEcho tools. If they are unavailable, compare its existing entry with Manual configuration below.","本次未修改配置。请重新加载此 AI 客户端，检查是否出现 PenEcho 工具；若未出现，请对照下方“手动配置”检查已有条目。"],
     configureFailed:["Automatic configuration failed","自动配置失败"],
-    configureFailedHelp:["Retry, or open Manual setup & details and copy the setup prompt.","请重试，或展开“手动配置与详情”，复制配置指引。"],
+    configureFailedHelp:["Retry, or copy the setup prompt below and send it to your Agent.","请重试，或复制下方的配置指引，发给你的 Agent。"],
     configureUncertain:["Configuration result not confirmed","配置结果尚未确认"],
     configureUncertainHelp:["The request did not finish. Check the AI client's PenEcho entry before retrying; it may already have been saved.","请求未完成。重试前请检查 AI 客户端中的 PenEcho 条目，配置可能已经保存。"],
     loadFailed:["Could not load configuration. Select Check again.","未能加载配置。请点击“重新检查”。"],
     serviceOutdated:["This running PenEcho service has no usable MCP configuration. Restart PenEcho to load the updated service, then check again.","当前运行的 PenEcho 服务未提供有效的 MCP 配置。请重启 PenEcho 以加载更新后的服务，然后重新检查。"],
     hostRequired:["Configure MCP on the computer running PenEcho. Other devices can view the canvas but cannot configure its local AI clients.","请在运行 PenEcho 的电脑上配置 MCP。其他设备可以查看画布，但不能配置这台电脑的 AI 客户端。"],
-    remoteSetup:["Open this workspace here. Configure the AI client on the computer running PenEcho; it can discover this browser through its existing MCP connection.","在此开放工作区。在运行 PenEcho 的电脑上配置 AI 客户端，即可通过已有 MCP 连接发现此浏览器。"],
+    remoteSetup:["Auto configure is available on the computer running PenEcho. To connect an Agent on this computer, use the setup prompt below.","自动配置需要在运行 PenEcho 的电脑上使用。连接此电脑上的 Agent，请使用下方配置提示词。"],
     deviceOffline:["The linked PenEcho host is unavailable. Reconnect it, then retry MCP.","已连接的 PenEcho 主机不可用。恢复设备连接后重试 MCP。"],
     deviceUpdate:["Update PenEcho on the linked computer to enable MCP, then retry.","请更新已连接电脑上的 PenEcho，再重试 MCP。"],
     accessDenied:["MCP access was refused. On the PenEcho computer, try its localhost address, or refresh and unlock this page before checking again.","MCP 访问被拒绝。请在 PenEcho 所在电脑尝试 localhost 地址，或刷新并解锁页面后重新检查。"],
@@ -80,6 +105,7 @@
   const mcpClientInputs = [...document.querySelectorAll('input[name="mcpClient"]')];
   function mcpSelectedClient() { return mcpClientInputs.find(input=>input.checked)?.value || "codex"; }
   function mcpLocal() { return window.PENECHO_CONFIG?.runtime !== "viewer"; }
+  function mcpCanCopySetup() { return mcpRemoteBrowser() ? window.PENECHO_CONFIG?.runtime !== "cloud" && mcpRuntime.status?.canCopyLanSetup === true && !!mcpLanInstructions() : !!mcpRuntime.status?.config; }
   function mcpRemoteBrowser() { return window.PENECHO_CONFIG?.runtime === "cloud" || mcpRuntime.status?.canConfigureLocalClients === false; }
   function mcpExecutionCurrent(execution) {
     return execution.socket === mcpRuntime.socket && execution.socket?.readyState === WebSocket.OPEN
@@ -89,6 +115,8 @@
   }
   function mcpDisconnect(lost=false) {
     if(!mcpRuntime)return;
+    clearTimeout(mcpRuntime.reconnectTimer);mcpRuntime.reconnectTimer=0;
+    if(!lost)mcpRuntime.wanted=false;
     if(typeof canvasDocuments!=="undefined"&&canvasDocuments.activeId) {
       const active=canvasDocumentsCurrent();active.feedback=mcpRuntime.feedback;active.feedbackSequence=mcpRuntime.feedbackSequence;
       for(const doc of canvasDocuments.records.values()){const saved=canvasDocumentsWorkspaceData(doc);doc.sessions=saved.sessions;doc.internalSessions=saved.internalSessions||[];}
@@ -107,8 +135,19 @@
     for(const [id,session] of mcpRuntime.sessions)if(!session.internalAgent)mcpRuntime.sessions.delete(id);
     if(!mcpRuntime.sessions.size)mcpRuntime.feedback=[];
     if(mcpRuntime.pendingView.size&&!mcpRuntime.viewPaused)mcpRuntime.layoutTimer=setTimeout(()=>mcpFlushView(false),900);
+    if(lost&&mcpRuntime.wanted){const delay=mcpRuntime.reconnectDelay||1000;mcpRuntime.reconnectDelay=Math.min(delay*2,10000);mcpRuntime.reconnectTimer=setTimeout(()=>{mcpRuntime.reconnectTimer=0;if(mcpRuntime.wanted){try{mcpConnect();}catch{mcpDisconnect(true);}}},delay);}
     mcpRenderSettings();
     if(mcpRuntime.toolbarManaged&&(!mcpRuntime.toolbarPending||lost))setStatus(mcpText(lost?"toolbarRetry":"disconnected"));
+  }
+  function mcpDisposeSession(sessionId) {
+    const session=mcpRuntime.sessions.get(sessionId);
+    if(!session||session.internalAgent)return;
+    const doc=typeof canvasDocuments!=="undefined"?canvasDocuments.records.get(session.documentId):null;
+    if(doc){const workspace=canvasDocumentsWorkspaceData(doc);doc.sessions=workspace.sessions;doc.internalSessions=workspace.internalSessions||[];}
+    mcpRuntime.pendingView.delete(sessionId);
+    mcpRuntime.sessions.delete(sessionId);
+    if(doc){canvasDocumentsSyncExtension(doc);if(!canvasDocumentsIsActive(doc))void canvasDocumentsPersist(doc).catch(error=>canvasDocumentsReport(error,()=>canvasDocumentsPersist(doc)));}
+    mcpRenderSettings();
   }
   function mcpRenderCanvasStatus() {
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,
@@ -149,7 +188,7 @@
     return {...input,intent,role,attention:input.attention||(intent==="review"?"request":role!=="primary"||intent==="inspect"?"quiet":"normal")};
   }
   function mcpPresentationSize(args) {
-    const size=MCP_PRESENTATION_SIZES[args.presentation?.size||"base"]||MCP_PRESENTATION_SIZES.base;
+    const size=MCP_PRESENTATION_SIZES[args.presentation?.size||"page"]||MCP_PRESENTATION_SIZES.page;
     return {width:args.width||size[0],height:args.height||size[1]};
   }
   // Semantic placement has one owner for visible and parked documents. It never
@@ -163,7 +202,8 @@
     const primary=owned.find(a=>a.presentation?.role!=="supporting"&&a.presentation?.role!=="alternative"),
       primaryBounds=primary&&boundsFor(primary),last=owned.map(boundsFor).filter(Boolean).at(-1),
       viewport=view||{x:0,y:0,w:1280,h:900},
-      origin={x:Math.max(48,Math.min(SIZE-width-48,viewport.x+Math.max(48,(viewport.w-width)/2))),y:Math.max(128,Math.min(SIZE-height-48,viewport.y+Math.min(160,viewport.h*.18)))};
+      origin=session?.internalAgent?{x:Math.max(48,Math.min(SIZE-width-48,viewport.x+Math.max(48,(viewport.w-width)/2))),y:Math.max(128,Math.min(SIZE-height-48,viewport.y+Math.min(160,viewport.h*.18)))}
+        :{x:Math.max(48,Math.min(SIZE-width-48,1000)),y:Math.max(48,Math.min(SIZE-height-48,1000))};
     let x=reference?.x??primaryBounds?.x??last?.x??origin.x,
       y=reference?reference.y+reference.h+gap:last?last.y+last.h+gap:origin.y;
     const beside=reference&&(p.relation==="beside"||!p.relation&&p.intent==="compare");
@@ -287,7 +327,7 @@
       }});
     document.querySelectorAll("[data-mcp-aria]").forEach(node=>{node.setAttribute("aria-label",mcpText(node.dataset.mcpAria));});
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN, connecting=!!mcpRuntime.socket&&!connected;
-    mcpRenderCanvasStatus();mcpRenderToolbar();
+    mcpRenderCanvasStatus();mcpRenderToolbar();mcpRenderLan();
     if(mcpEl("mcpEnabled")){mcpEl("mcpEnabled").setAttribute("aria-checked",String(connected||connecting));mcpEl("mcpEnabled").classList.toggle("on",connected||connecting);mcpEl("mcpEnabled").disabled=!mcpLocal();}
     const connection=mcpEl("mcpConnectionStatus");
     if(connection){
@@ -296,25 +336,86 @@
     }
     const remote=mcpRemoteBrowser(),config=remote?null:mcpRuntime.status?.config;
     for(const id of ["mcpClients","mcpManual"])if(mcpEl(id))mcpEl(id).hidden=false;
-    if(mcpEl("mcpConfig"))mcpEl("mcpConfig").hidden=remote;
-    if(mcpEl("mcpManualSteps"))mcpEl("mcpManualSteps").textContent=mcpText(remote?"remoteManualSteps":"manualSteps");
+    if(mcpEl("mcpManualSteps"))mcpEl("mcpManualSteps").textContent=mcpText(remote&&!mcpCanCopySetup()?"remoteManualSteps":"manualSteps");
     const setupHint=document.querySelectorAll('[data-mcp-label="setupHint"]');
     for(const node of setupHint)node.textContent=mcpText(remote?"remoteSetup":"setupHint");
     const configStatus=mcpEl("mcpConfigStatus");
     if(configStatus){configStatus.hidden=!mcpRuntime.loading&&!mcpRuntime.loadError;configStatus.textContent=mcpRuntime.loading?mcpText("loadingConfig"):mcpRuntime.loadError?mcpConfigurationErrorText(mcpRuntime.loadError):"";}
-    if(mcpEl("mcpConfig"))mcpEl("mcpConfig").textContent=config?JSON.stringify({mcpServers:{penecho:config}},null,2):"";
-    for(const id of ["mcpCopyConfig","mcpCopyInstructions","mcpConfigure"])if(mcpEl(id))mcpEl(id).disabled=!config;
+    for(const id of ["mcpCopyInstructions","mcpConfigure"])if(mcpEl(id))mcpEl(id).disabled=!config||!!mcpRuntime.lanBusy;
+    if(mcpEl("mcpCopyInstructions"))mcpEl("mcpCopyInstructions").disabled=!mcpCanCopySetup()||!!mcpRuntime.lanBusy;
     if(mcpEl("mcpConfigure")&&mcpRuntime.configuring)mcpEl("mcpConfigure").disabled=true;
     if(mcpEl("mcpConfigure")){mcpEl("mcpConfigure").textContent=mcpText(mcpRuntime.configuring?"configuring":"configure");mcpEl("mcpConfigure").setAttribute("aria-busy",String(mcpRuntime.configuring));}
     for(const input of mcpClientInputs)input.disabled=remote||mcpRuntime.configuring;
     const configureNotice=mcpEl("mcpConfigureStatus"),outcome=mcpRuntime.configureResult;
     if(configureNotice){
       configureNotice.hidden=!mcpRuntime.configuring&&!outcome;
-      configureNotice.classList.toggle("success",!mcpRuntime.configuring&&outcome?.kind==="saved");
+      configureNotice.classList.toggle("success",!mcpRuntime.configuring&&["saved","updated"].includes(outcome?.kind));
       configureNotice.classList.toggle("error",!mcpRuntime.configuring&&outcome?.kind==="failed");
-      configureNotice.textContent=mcpRuntime.configuring?mcpText("configurePending"):outcome?`${outcome.client} · ${mcpText({saved:"configureSaved",existing:"configureExisting",failed:"configureFailed",uncertain:"configureUncertain"}[outcome.kind])}\n${mcpText({saved:"configured",existing:"configureExistingHelp",failed:"configureFailedHelp",uncertain:"configureUncertainHelp"}[outcome.kind])}${outcome.detail?`\n${outcome.detail}`:""}`:"";
+      configureNotice.textContent=mcpRuntime.configuring?mcpText("configurePending"):outcome?`${outcome.client} · ${mcpText({trust:"configureTrust",saved:"configureSaved",updated:"configureUpdated",existing:"configureExisting",failed:"configureFailed",uncertain:"configureUncertain"}[outcome.kind])}\n${mcpText({trust:"configureTrustHelp",saved:"configured",updated:"configureUpdatedHelp",existing:"configureExistingHelp",failed:"configureFailedHelp",uncertain:"configureUncertainHelp"}[outcome.kind])}${outcome.detail?`\n${outcome.detail}`:""}`:"";
     }
     if(mcpEl("mcpConfigure"))mcpEl("mcpConfigure").hidden=mcpSelectedClient()==="other";
+    if(mcpEl("mcpManual")&&(remote||mcpSelectedClient()==="other"||!config&&!mcpRuntime.loading&&!mcpRuntime.configuring&&!mcpRuntime.lanBusy)){
+      mcpEl("mcpManual").open=true;
+      mcpRenderSetupPrompt();
+    }
+  }
+  function mcpRenderSetupPrompt() {
+    const block=mcpEl("mcpSetupBlock"),code=mcpEl("mcpSetupPromptCode");
+    if(!block||!code)return;
+    const available=mcpCanCopySetup();
+    block.hidden=!available;
+    const text=available&&mcpEl("mcpManual")?.open?mcpInstructions():"";
+    if(code.textContent!==text)code.textContent=text;
+    mcpEl("mcpSetupPrompt")?.setAttribute("aria-label",mcpText("setupPromptLabel"));
+  }
+  function mcpRenderLan() {
+    mcpRenderSetupPrompt();
+    const section=mcpEl("mcpLan"),lan=mcpRuntime.status?.http||mcpRuntime.status?.lan,host=!mcpRemoteBrowser();
+    if(!section)return;
+    section.hidden=!host||!lan;
+    if(!host||!lan){if(mcpEl("mcpCertificateDialog")?.open)mcpEl("mcpCertificateDialog").close();return;}
+    const active=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN;
+    const reset=mcpEl("mcpResetCertificate");
+    if(reset)reset.disabled=!!mcpRuntime.lanBusy||(!lan.hostId&&!lan.fingerprint&&!lan.identityError);
+    const notice=mcpEl("mcpCertificateNotice");if(notice)notice.hidden=!mcpRuntime.certificateChanged;
+    const copy=mcpEl("mcpCopyInstructions");
+    if(copy){copy.textContent=mcpText(mcpRuntime.certificateChanged?"certificateCopyNew":"copyInstructions");copy.disabled=!mcpRuntime.status?.config||!!mcpRuntime.lanBusy;}
+    const status=mcpEl("mcpLanStatus");
+    if(status){status.textContent=mcpRuntime.lanMessage||(lan.identityError?mcpText("certificateInvalid"):!active?mcpText("lanOpenFirst"):!lan.enabled?mcpText("lanDisabled"):!lan.urls?.length?mcpText("lanNoAddress"):"");status.hidden=!status.textContent;}
+  }
+
+  async function mcpLanAction(action,extra={}) {
+    if(mcpRemoteBrowser()||mcpRuntime.lanBusy)return;
+    mcpRuntime.lanBusy=true;mcpRuntime.lanMessage="";mcpRenderLan();
+    let success=false;
+    try{
+      const endpoint=mcpRuntime.status?.http&&action==="reset-certificate"?"http":"lan";
+      const result=await mcpApi(endpoint,{action,...extra});
+      success=true;
+      if(mcpRuntime.status)mcpRuntime.status={...mcpRuntime.status,[endpoint]:result[endpoint]};
+    }catch(error){
+      mcpRuntime.lanMessage=mcpText("lanFailed");
+    }finally{mcpRuntime.lanBusy=false;mcpRenderLan();}
+    return success;
+  }
+  async function mcpLanRefresh() {
+    if(window.PENECHO_CONFIG?.runtime === "cloud")return;
+    if(mcpRuntime.loading)await mcpRuntime.loading;
+    await mcpRefreshSettings();
+  }
+  async function mcpLanOpened() {
+    const generation=mcpRuntime.generation;
+    await mcpRefreshSettings();
+    if(generation!==mcpRuntime.generation||!mcpRuntime.ready||mcpRemoteBrowser())return;
+    if(!mcpRuntime.status?.http?.enabled&&mcpRuntime.status?.lan&&!mcpRuntime.status.lan.enabled&&!mcpRuntime.lanUserDisabled)await mcpLanAction("enable");
+  }
+  function mcpLanInstructions() {
+    const http=mcpRuntime.status?.http;
+    if(http?.enabled&&http.hostId&&http.certificatePem&&http.accessToken&&http.discoveryCliUrl&&http.discoveryCliSha256&&http.sessionCliUrl&&http.sessionCliSha256)return {transport:"stdio-http",serverRunning:true,hostId:http.hostId,certificatePem:http.certificatePem,accessToken:http.accessToken,initialUrl:http.initialUrl||http.urls?.[0]||http.localUrl,addresses:(http.urls?.length?http.urls:[http.localUrl]).filter(Boolean),discoveryCliUrl:http.discoveryCliUrl,discoveryCliSha256:http.discoveryCliSha256,sessionCliUrl:http.sessionCliUrl,sessionCliSha256:http.sessionCliSha256,idleTimeoutMs:http.clientIdleMs||1800000};
+    if(http?.enabled&&http.hostId&&http.certificatePem&&http.accessToken&&http.discoveryCliUrl&&http.discoveryCliSha256)return {transport:"http",serverRunning:true,hostId:http.hostId,certificatePem:http.certificatePem,accessToken:http.accessToken,addresses:[...(http.urls||[]),http.localUrl].filter(Boolean),discoveryCliUrl:http.discoveryCliUrl,discoveryCliSha256:http.discoveryCliSha256};
+    const lan=mcpRuntime.status?.lan;
+    if(!lan?.fingerprint||!lan.hostId||!lan.invitation||!lan.clientUrl||!lan.clientSha256)return null;
+    return {serverRunning:lan.enabled===true,hostId:lan.hostId,certificateSha256:lan.fingerprint,invitation:lan.invitation,addresses:lan.urls||[],bridgeDownloadUrl:lan.clientUrl,bridgeSha256:lan.clientSha256};
   }
   function mcpRememberSetup() {
     mcpRuntime.setupKnown=true;
@@ -326,23 +427,11 @@
   }
   async function mcpToolbarClick() {
     if(mcpRuntime.toolbarChecking)return;
-    if(mcpRuntime.socket){
+    if(mcpRuntime.socket||mcpRuntime.wanted&&!mcpRuntime.connectionLost){
       if(mcpRuntime.ready)mcpRememberSetup();
       mcpRuntime.toolbarManaged=false;mcpRuntime.toolbarPending=false;mcpDisconnect();setStatus(mcpText("disconnected"));return;
     }
     if(!mcpLocal()){openSettings();selectSettingsPage("mcp");return;}
-    if(!mcpSetupKnown()&&!mcpRemoteBrowser()) {
-      const generation=mcpRuntime.generation;
-      mcpRuntime.toolbarChecking=true;setStatus(mcpText("checkingSetup"));mcpRenderToolbar();
-      try{
-        const result=await mcpApi("status?inspectClients=1");
-        if(generation!==mcpRuntime.generation)return;
-        mcpRuntime.status=result;mcpRuntime.loadError=null;
-        if(Array.isArray(result.configuredClients)&&result.configuredClients.some(client=>["codex","claude"].includes(client)))mcpRememberSetup();
-      }catch(error){mcpRuntime.loadError=error;mcpRuntime.connectionLost=true;setStatus(mcpText("toolbarRetry"));return;}finally{mcpRuntime.toolbarChecking=false;mcpRenderSettings();}
-      if(generation!==mcpRuntime.generation)return;
-      if(!mcpSetupKnown()&&!mcpRemoteBrowser()){openSettings();selectSettingsPage("mcp");return;}
-    }
     mcpRuntime.toolbarManaged=true;mcpRuntime.toolbarPending=true;setStatus(mcpText("connecting"));
     try{mcpConnect();}catch{mcpDisconnect(true);setStatus(mcpText("toolbarRetry"));mcpRenderSettings();}
   }
@@ -351,7 +440,7 @@
     const button=mcpEl("mcpToolbarToggle");if(!button)return;
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,opening=Boolean(mcpRuntime.socket)&&!connected;
     button.setAttribute("aria-pressed",String(connected||opening));button.setAttribute("aria-busy",String(opening||Boolean(mcpRuntime.toolbarChecking)));button.disabled=Boolean(mcpRuntime.toolbarChecking);
-    const title=mcpText(connected||opening?"toolbarClose":mcpRuntime.connectionLost?"toolbarRetry":(mcpSetupKnown()||mcpRemoteBrowser())?"toolbarOpen":"toolbarSetup");
+    const title=mcpText(connected||opening?"toolbarClose":mcpRuntime.connectionLost?"toolbarRetry":"toolbarOpen");
     button.title=title;button.setAttribute("aria-label",`MCP Server · ${title}`);
     button.setAttribute("data-state",connected?"connected":opening||mcpRuntime.toolbarChecking?"connecting":mcpRuntime.connectionLost?"failed":"off");
     if(mcpRuntime.toolbarPending&&(connected||mcpRuntime.connectionLost)){
@@ -378,7 +467,7 @@
     mcpRuntime.loading=(async()=>{
       try{
         const status=await mcpApi("status"),config=status.config;
-        if(status.canConfigureLocalClients!==false&&(!config||typeof config.command!=="string"||!config.command.trim()||!Array.isArray(config.args)||config.args.some(arg=>typeof arg!=="string")))throw Object.assign(Error("MCP configuration is unavailable."),{code:"mcp_configuration_unavailable"});
+        if(status.canConfigureLocalClients!==false&&!(config?.type==="http"&&/^https:\/\//.test(config.url||""))&&(!config||typeof config.command!=="string"||!config.command.trim()||!Array.isArray(config.args)||config.args.some(arg=>typeof arg!=="string")))throw Object.assign(Error("MCP configuration is unavailable."),{code:"mcp_configuration_unavailable"});
         mcpRuntime.status=status;
       }catch(error){mcpRuntime.status=null;mcpRuntime.loadError=error;}
       finally{mcpRuntime.loading=null;mcpRenderSettings();}
@@ -386,18 +475,67 @@
     mcpRenderSettings();return mcpRuntime.loading;
   }
   function mcpInstructions() {
-    return `Configure PenEcho MCP for the AI client I am using. Read its installed MCP help or official documentation. Preserve unrelated servers and settings; do not invent client commands. Use this exact stdio launch configuration (absolute paths and env matter):\n${JSON.stringify({mcpServers:{penecho:mcpRuntime.status?.config}},null,2)}\nNo server URL, port, API key or npm download is needed. This bridge discovers local PenEcho instances. Reload the client and verify penecho_list_canvases appears. If no canvas is listed, ask me to open PenEcho Settings → MCP service and allow this canvas. Select the intended instanceId and canvasId explicitly, then penecho_start_session with a descriptive title, client name and a unique sessionKey for this conversation. Each conversation must use its own sessionId. Retain the returned documentId across reconnects. Only a new, unbound conversation gets a new Canvas by default, even if the visible Canvas is empty. Give the new Canvas a concise descriptive name through title. Continue an already bound conversation on its retained documentId/sessionId across turns and reconnects; do not create another Canvas. Pass documentId explicitly only to resume known existing work or when the user requests that Canvas. When I say current canvas, this canvas, 当前画布 or 这个画布, use penecho_start_session target:"current" without documentId to attach the visible Canvas directly; do not create or open a Canvas first. Keep its returned sessionId and documentId pinned. If this conversation is already bound elsewhere, use a distinct stable attachment sessionKey and keep the original handle. Read existing content before editing. For native brush annotations, use penecho_edit_canvas action:"draw_ink" with current baseRevision and strokes containing world-coordinate points, arbitrary explicit #RRGGBB color, and width 1–64. It preserves the selected user brush and supports the active document only; never switch a background document into view without intent. Limits: 16 strokes, 256 points each, 1024 total points within 2048 × 2048; brush radius must stay inside the Canvas. Use penecho_find_canvases to resolve saved IDs across Device, Server and connected Cloud; an unavailable store is not a missing document. Use an exact locator if copies are ambiguous. Open uses show:false by default, so background work never steals the viewport. List/read virtual files before patching: use the returned contentHash, one unified patch and a stable requestId; retry the same requestId after an uncertain result. Keep context.md concise with the goal, decisions and next step. Use runtime/viewport.json and runtime/selection.json only as current context. Read penecho_read_messages at natural task boundaries, acknowledge received/working/done/error explicitly and deduplicate instruction IDs across retries. Reading does not acknowledge; queued instructions cannot wake this client. The external processor pauses local Auto AI and never silently falls back to another model. Widget controls may opt in with data-penecho-action and data-penecho-prompt; only a trusted click queues a text instruction for the owning conversation. Width and height apply on creation; later HTML updates preserve geometry. Use penecho_edit_canvas for explicit geometry changes.\nWith an already selected live connection, proactively show useful UI previews, a small set of alternatives for user choice, or a diagram when it clarifies the task. Avoid decorative output for routine edits. Update stable artifacts and keep ordinary presentation capture:false: generating a screenshot does not call a model, but a model reading that image may incur image-input tokens. While doing my real work, use concise session status only when useful information changes; keep a stable main artifact, use presentation intent and standard sizes, and use inspect with capture:true for temporary render checks. Never publish private chain of thought, secrets or full transcripts. Do not update per token or every tool call. Keep the primary task moving if visualization is offline. Use penecho_draw for lightweight native text, shapes, connectors or paths, and penecho_plot for function expressions. Nodes can omit local positions; PenEcho handles placement. Draw items are a complete artifact replacement, so retain all desired element IDs. Shapes and paths are native image objects, not editable vector handles or eraser-layer strokes. Both tools support capture:true for bounded visual verification. Use penecho_present_widget with a stable artifactId for interactive HTML UI previews. When presenting code that needs immediate visual validation, use penecho_present_widget with capture:true in one call. Otherwise use penecho_capture_widget only when visual validation is needed; read the image and timing/diagnostics. It is an embedded Widget preview, not full browser navigation or end-to-end automation. Before revising a design, call penecho_read_feedback for your session. Keep an independent after cursor, page with nextCursor while hasMore, and advance only after processing. Feedback defaults to one compressed screenshot with nearby design context, including text-only feedback. Read the image; use capture:false only for a lightweight availability check. Never discard unread feedback by replacing your cursor with a newer presentation feedbackCursor. Reads do not clear Canvas dirty state or other sessions. Handle truncated history explicitly. Only committed user input after the session was established is available; no automatic wake-up or tight polling. Finish with status done or error and a short verified result. Do not claim a tool succeeded without its result.\n${mcpRuntime.status?.instructions||""}`;
+    const direct=mcpLanInstructions();
+    if(direct?.transport==="stdio-http")return `Configure PenEcho MCP on THIS Agent's computer using one lightweight stdio CLI per client-owned MCP session. The CLI connects directly to PenEcho HTTPS; no shared Gateway or background discovery daemon.
+
+${JSON.stringify(direct,null,2)}
+
+Use this computer's user home: ~/.penecho/mcp on macOS/Linux, %USERPROFILE%\\.penecho\\mcp on Windows. Download discoveryCliUrl to discover.js and sessionCliUrl to client.js in that directory. Verify each SHA-256 against its supplied hash BEFORE execution. Use a locally installed Node.js 18+ and absolute executable/script paths. Never use another computer's paths. Save {hostId,certificatePem,accessToken,initialUrl,addresses} in a private temporary JSON file, run node <absolute discover.js> --import <temporary file> WITHOUT --client, then delete only that temporary file. Discovery only saves verified host credentials and addresses; it does not need the Agent's name and must not rewrite Agent configuration during normal reconnects.
+
+Configure this Agent's supported stdio MCP entry named penecho with command=<absolute local Node executable> and args=[<absolute client.js>,"--host-id",hostId]. Preserve unrelated settings and replace only the previous PenEcho entry; remove old HTTP url/header fields and any old idle-exit option from that entry. Do not add an idle process-exit timer. For Codex use its MCP command/args format; for Claude use its stdio command/args format; use the actual supported format for other clients. Authorization and certificate trust stay in the shared ~/.penecho/mcp store, read by client.js. Do not place accessToken on the command line, print credentials, disable TLS verification, or configure discover.js as the stdio server.
+
+Connection order is the last successful IP + port (or the supplied initialUrl on first connection), freshly read shared endpoint cache, then one-shot LAN discovery. Missing, stale or unreachable cache all trigger discovery. Authenticate every candidate and save the verified new address. The same complete sequence runs if reconnecting after idle release fails; another process may already have updated the cache. No hostname lookup is required on this path and address changes never rewrite AI configuration.
+
+The AI client owns the CLI stdin/stdout. Keep the lightweight CLI alive while stdin is open; idle for 30 minutes releases only HTTP, and the next request reconnects and restores the same Canvas. In-flight work prevents idle release. EOF or shutdown signals close the process. Do not add an idle-exit argument, gateway, OS startup job, periodic discovery or reconnect loop while idle. Retry safe connection failures within a bounded request; do not blindly replay a write whose outcome is unknown.
+
+Reload this Agent's MCP integration and verify initialize, tools/list, and penecho_list_canvases. Keep one unique stable client/sessionKey per logical conversation plus returned sessionId/documentId. HTTP recovery in the living CLI restores its original document; after CLI restart call penecho_start_session with the same client/sessionKey/documentId. Never use a new conversation's key or silently switch an existing conversation to another browser. A closed Canvas can reopen; only definitive DOCUMENT_NOT_FOUND permits replacement. Report the actually verified connection result.
+
+Optional helper skill: if this Agent supports local skills, create or update penecho-mcp using its supported skill location and format. Use this one-shot SKILL.md content (adapt the format if needed):
+
+---
+name: penecho-mcp
+description: Find and use PenEcho MCP when the user mentions PenEcho, asks to echo an idea, show work on a canvas or 画布, or use a spatial workspace. Interpret these phrases in context.
+---
+
+When the user asks to work visually, discover the PenEcho MCP server and its deferred tools through tool search. Read penecho://guidance/discovery with resources/read for current discovery instructions. Use tools/list for all current tools and their input schemas, prompts/list then prompts/get for available prompts, and resources/list then resources/read for live resources; follow pagination when a nextCursor is returned. Read penecho://guidance/skill for the latest PenEcho skill guidance and penecho_get_guidance for the relevant authoring instructions. Use the live server descriptions rather than a remembered method list. If tools are missing, check the configured server and refresh or reconnect MCP tool discovery; an empty resource list is not an empty tool list. After ordinary server upgrades, rediscover these catalogs using the existing remote configuration. Client tool caches may require reconnecting or a new conversation. Local installed skill files are bootstrap instructions, not automatically rewritten by MCP; read the live skill resource to get current guidance. Transport-breaking upgrades or an explicitly reset host certificate may still require an updated setup.
+
+Keep the same client/sessionKey/documentId across turns and HTTP recovery. The CLI stays on stdin; after idle HTTP release it tries known IP, shared cache and discovery as needed. One-shot means finish this visual request and return; it does not mean kill the CLI, close the Canvas, or poll while idle. Ordinary shell echo commands and unrelated canvas mentions are not triggers.
+
+One-shot examples (one trigger phrase per example):
+- Use PenEcho to draw a simple flowchart.
+- Echo this idea as a diagram.
+- Show this architecture on a canvas.
+- 在画布上比较这两个方案。
+- Use a spatial workspace to explain this process.
+
+If skill creation is unavailable or fails, simply skip it and continue MCP setup; no extra user action is needed.`;
+    if(direct?.transport==="http")return `Configure PenEcho using native Streamable HTTP MCP on THIS Agent's computer. Preserve unrelated client configuration. No Gateway, background daemon, or stdio bridge is needed.
+
+${JSON.stringify(direct,null,2)}
+
+Use Node.js 18+ for the short-lived discovery helper. Download discoveryCliUrl to ~/.penecho/mcp/discover.js (use this computer's home directory on Windows too). Verify its SHA-256 equals discoveryCliSha256 BEFORE executing. Save {hostId,certificatePem,accessToken,addresses} to a private temporary JSON file, import with node <absolute discover.js> --import <file> --client <codex|claude>, then delete only that temporary file. The helper stores shared credentials, trusted CA and endpoint cache under ~/.penecho/mcp. For another client, use --client json and its documented native HTTP MCP format, preserving other entries. Never configure the helper itself as a stdio MCP server. Never print accessToken or disable TLS verification. A certificate is trust; the bearer token authorizes access.
+
+Finish certificate trust using this client's supported CA configuration. Codex supports CODEX_CA_CERTIFICATE and Claude Code supports NODE_EXTRA_CA_CERTS; these are environment variables of the actual client process, not per-server HTTP environment fields. Configure persistent trust for the actual launch method or use an already trusted OS certificate store supported by that client. A saved MCP entry alone does not prove the running client trusts this CA. Reload the MCP client and verify initialize, tools/list and penecho_list_canvases.
+
+When the cached endpoint fails, run node <absolute discover.js> --host-id ${direct.hostId} --client <client> again: it probes the cache, rediscovers the trusted host only when needed, updates the matching configuration, and exits. Do not poll or keep a remote-client process alive. Use the client's supported MCP refresh/reconnect after an endpoint change; MCP does not universally execute discovery commands or hot-reload changed URLs. Report the actual verified result.
+
+Install a small PenEcho bootstrap skill in this Agent's supported local skill format if available: trigger on PenEcho, echo, canvas or spatial-workspace requests; discover PenEcho tools and read penecho://guidance/skill; on connection failure run the saved discovery command above and refresh the MCP connection using this client's supported mechanism. Preserve a unique stable sessionKey for this logical conversation, its client name and returned documentId. New conversations use different keys. Call penecho_start_session with the same key and documentId after reconnect; PenEcho restores the original Canvas even when it was closed, and creates a replacement only if the document is definitively missing. New conversations without a target use the most recently enabled browser. Never redirect an existing conversation merely because another browser connected. After reconnect verify the returned documentId and recovery result before continuing edits. Do not claim a failed connection succeeded.`;
+    const setup={local:mcpRemoteBrowser()?null:mcpRuntime.status?.config,lan:mcpLanInstructions()};
+    return `Configure or update PenEcho MCP for this AI Agent (Codex, Claude Code, OpenCode, Pi, or another MCP client). No separate PenEcho skill installation is required. Read this Agent's supported MCP settings/help and preserve unrelated configuration.\n\n${JSON.stringify(setup,null,2)}\n\nChoose the connection on THIS Agent's computer. Use the exact local command, args and env only if this is the PenEcho host and those executables/scripts exist locally; verify the local bridge initializes. Never create host paths on another computer. For another LAN computer, use the LAN configuration below. Discovery and remote connection require PenEcho to be running with MCP enabled on the host. If serverRunning is false or the host is unreachable, ask me to open PenEcho and enable its workspace MCP; do not claim discovery can start an offline host. If lan is null, local setup is still available; ask me to enable MCP on the host and copy this prompt again for remote setup.\n\nRemote setup: use Node.js 18+ on THIS computer. Download bridgeDownloadUrl into a persistent local penecho-mcp/remote-client.js. BEFORE executing, verify its SHA-256 exactly equals bridgeSha256. Resolve local absolute Node/script paths with correct Windows/macOS escaping. Configure stdio command=<local Node executable> and args=[<local remote-client.js>,"--host-id",hostId,"--fingerprint",certificateSha256,"--invitation",invitation,"--name",<Agent name>], adding "--remote",addresses[0] when an address is supplied as a fallback. The bridge discovers the current LAN IP/port and verifies the pinned certificate before sending secrets. Allow time for discovery and initialization: Codex startup_timeout_sec=150; use the documented equivalent for other clients. If network discovery is blocked, use the supplied fallback address and report a concrete connection failure.\n\nExisting configuration: find only the matching PenEcho entry (including previous penecho or penecho-lan names); preserve its scope and unrelated MCP entries. If the stored host identity/certificate differs from THIS newly copied user-supplied prompt, update that entry's hostId, certificate fingerprint, invitation, fallback address and bridge version/hash together. Do not create duplicate PenEcho entries. If they already match, retain the identity and update only stale launch details. Never accept a changed certificate based solely on an mDNS advertisement or a failed TLS connection. Never disable certificate verification or print the invitation/private credentials. This prompt includes no private key.\n\nReload the MCP connection. The included invitation is the secret connection key and authorizes access automatically; there is no host Allow or pairing-confirmation step. The certificate fingerprint verifies host identity and is not itself an authorization secret. The saved host identity survives restarts and IP/port changes. After a server restart the bridge reauthenticates automatically with the same saved key; only a certificate reset requires a newly copied setup prompt. Verify initialize, tools/list and penecho_list_canvases. Use tool search/discovery if this Agent defers MCP tools. Read live usage/authoring guidance through penecho_get_guidance (visual-explorer for explanations, general-html for UI). Bind the exact instanceId/canvasId and retain sessionId/documentId across this conversation. Report the actual verified result.\n\nOptional helper skill: if this Agent supports local skills, create or update penecho-mcp using its supported skill location and format. Use this one-shot SKILL.md content (adapt the format if needed):\n\n---\nname: penecho-mcp\ndescription: Find and use PenEcho MCP when the user mentions PenEcho, asks to echo an idea, show work on a canvas or 画布, or use a spatial workspace. Interpret these phrases in context.\n---\n\nWhen the user asks to work visually, discover the PenEcho MCP server and its deferred tools through tool search. Read penecho://guidance/discovery with resources/read for current discovery instructions. Use tools/list for all current tools and their input schemas, prompts/list then prompts/get for available prompts, and resources/list then resources/read for live resources; follow pagination when a nextCursor is returned. Read penecho://guidance/skill for the latest PenEcho skill guidance and penecho_get_guidance for the relevant authoring instructions. Use the live server descriptions rather than a remembered method list. If tools are missing, check the configured server and refresh or reconnect MCP tool discovery; an empty resource list is not an empty tool list. After ordinary server upgrades, rediscover these catalogs using the existing remote configuration. Client tool caches may require reconnecting or a new conversation. Local installed skill files are bootstrap instructions, not automatically rewritten by MCP; read the live skill resource to get current guidance. Transport-breaking upgrades or an explicitly reset host certificate may still require an updated setup.\n\nOne-shot examples (one trigger phrase per example):\n- Use PenEcho to draw a simple flowchart.\n- Echo this idea as a diagram.\n- Show this architecture on a canvas.\n- 在画布上比较这两个方案。\n- Use a spatial workspace to explain this process.\n\nIf skill creation is unavailable or fails, simply skip it and continue MCP setup; no extra user action is needed.`;
   }
   function mcpConnect() {
     if(!mcpLocal())return;
-    mcpDisconnect();
+    mcpDisconnect();mcpRuntime.wanted=true;
+    mcpRuntime.browserId=mcpRuntime.browserId||canvasClientId();
     if(typeof canvasDocumentsReady==="function")void canvasDocumentsReady().then(()=>{const doc=canvasDocumentsCurrent();mcpRuntime.feedback=doc.feedback;mcpRuntime.feedbackSequence=doc.feedbackSequence;canvasDocumentsRender();}).catch(error=>canvasDocumentsReport(error,()=>canvasDocumentsReady()));
     const socket=new WebSocket(`${location.protocol==="https:"?"wss:":"ws:"}//${location.host}${window.PENECHO_CONFIG?.runtime==="cloud"?"/api/v1/remote-canvas/mcp":"/api/mcp/canvas"}`),generation=mcpRuntime.generation;
     mcpRuntime.socket=socket;mcpRuntime.lastPong=Date.now();mcpHeartbeat(socket);
-    socket.addEventListener("open",()=>{if(socket!==mcpRuntime.socket)return;socket.send(JSON.stringify({type:"hello",canvasId:canvasClientId(),title:state.currentSnapshotName||"PenEcho Canvas"}));mcpRenderSettings();});
+    socket.addEventListener("open",()=>{if(socket!==mcpRuntime.socket)return;socket.send(JSON.stringify({type:"hello",canvasId:mcpRuntime.browserId,title:state.currentSnapshotName||"PenEcho Canvas"}));mcpRenderSettings();});
     socket.addEventListener("message",event=>{
       if(socket!==mcpRuntime.socket)return;let message;try{message=JSON.parse(event.data);}catch{return;}
-      if(message.type==="ready"){mcpRuntime.ready=true;mcpRuntime.connectionLost=false;mcpRuntime.heartbeatSupported=message.heartbeat===true;mcpRuntime.lastPong=Date.now();mcpRenderSettings();if(typeof canvasDocuments!=="undefined"){canvasDocuments.error=null;canvasDocuments.retry=null;canvasDocumentsRender();}return;}
+      if(message.type==="dispose-session"){mcpDisposeSession(message.sessionId);return;}
+      if(message.type==="lan-status-changed"){void mcpLanRefresh();return;}
+      if(message.type==="ready"){mcpRuntime.reconnectDelay=1000;mcpRuntime.ready=true;mcpRuntime.connectionLost=false;mcpRuntime.heartbeatSupported=message.heartbeat===true;mcpRuntime.lastPong=Date.now();mcpRenderSettings();void mcpLanOpened();if(typeof canvasDocuments!=="undefined"){canvasDocuments.error=null;canvasDocuments.retry=null;canvasDocumentsRender();}return;}
       if(message.type==="pong"){mcpRuntime.lastPong=Date.now();return;}
       if(message.type==="cancel"){mcpRuntime.controllers.get(message.requestId)?.abort();return;}
       if(message.type!=="call")return;
@@ -611,11 +749,27 @@
   mcpEl("viewport")?.addEventListener("pointerdown",mcpPauseView,{capture:true,passive:true});
   mcpEl("viewport")?.addEventListener("wheel",mcpPauseView,{passive:true});
   mcpEl("viewport")?.addEventListener("keydown",event=>{if([" ","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","+","-","="].includes(event.key))mcpPauseView();});
+  mcpEl("mcpResetCertificate")?.addEventListener("click",()=>{
+    if(mcpRemoteBrowser()||mcpRuntime.lanBusy||!mcpRuntime.status?.http?.hostId&&!mcpRuntime.status?.lan?.fingerprint&&!mcpRuntime.status?.lan?.identityError)return;
+    if(mcpEl("mcpCertificateStatus"))mcpEl("mcpCertificateStatus").textContent="";
+    mcpEl("mcpCertificateDialog")?.showModal();
+  });
+  mcpEl("mcpCertificateCancel")?.addEventListener("click",()=>mcpEl("mcpCertificateDialog")?.close());
+  mcpEl("mcpCertificateConfirm")?.addEventListener("click",async()=>{
+    if(mcpRemoteBrowser()||mcpRuntime.lanBusy)return;
+    const button=mcpEl("mcpCertificateConfirm");button.disabled=true;
+    const ok=await mcpLanAction("reset-certificate");button.disabled=false;
+    if(ok){mcpRuntime.certificateChanged=true;mcpRuntime.setupCopyCount=0;mcpRuntime.lanMessage="";if(mcpEl("mcpSetupStatus"))mcpEl("mcpSetupStatus").textContent="";mcpEl("mcpCertificateDialog")?.close();if(mcpEl("mcpManual"))mcpEl("mcpManual").open=true;mcpRenderSettings();}
+    else if(mcpEl("mcpCertificateStatus"))mcpEl("mcpCertificateStatus").textContent=mcpText("lanFailed");
+  });
   mcpEl("mcpRefresh")?.addEventListener("click",()=>void mcpRefreshSettings());
   mcpEl("mcpClients")?.addEventListener("change",()=>{mcpRuntime.configureResult=null;if(mcpEl("mcpManual"))mcpEl("mcpManual").open=mcpSelectedClient()==="other";mcpRenderSettings();});
-  for(const [id,instructions] of [["mcpCopyConfig",false],["mcpCopyInstructions",true]])mcpEl(id)?.addEventListener("click",async()=>{
-    if(mcpRemoteBrowser()||!mcpRuntime.status?.config)return;
-    const copied=await writeClipboardText(instructions?mcpInstructions():JSON.stringify({mcpServers:{penecho:mcpRuntime.status?.config}},null,2));mcpEl("mcpSetupStatus").textContent=copied?mcpText("copied"):t("copyFailed");
+  mcpEl("mcpManual")?.addEventListener("toggle",mcpRenderSetupPrompt);
+  mcpEl("mcpCopyInstructions")?.addEventListener("click",async()=>{
+    if(!mcpCanCopySetup())return;
+    const copied=await writeClipboardText(mcpInstructions());
+    if(copied)mcpRuntime.setupCopyCount=(mcpRuntime.setupCopyCount||0)+1;
+    mcpEl("mcpSetupStatus").textContent=copied?mcpText(mcpRuntime.certificateChanged?"certificateCopied":"copied")+(mcpRuntime.setupCopyCount>1?` (${mcpRuntime.setupCopyCount})`:""):t("copyFailed");
   });
   mcpEl("mcpExamples")?.addEventListener("click",async event=>{
     const button=event.target?.closest?.("[data-mcp-example]");
@@ -625,10 +779,6 @@
     if(status){status.textContent=copied?mcpText("exampleCopied"):t("copyFailed");clearTimeout(mcpRuntime.exampleStatusTimer);mcpRuntime.exampleStatusTimer=setTimeout(()=>{if(status.textContent===mcpText("exampleCopied"))status.textContent="";},2400);}
     if(copied){button.classList.add("done");setTimeout(()=>button.classList.remove("done"),1600);}
   });
-  for(const [id,route] of [["mcpCopySkill","skill"],["mcpCopyGuide","guide"]])mcpEl(id)?.addEventListener("click",async()=>{
-    try{const result=await mcpApi(route),copied=await writeClipboardText(result.text);mcpEl("mcpSetupStatus").textContent=copied?mcpText("copied"):t("copyFailed");}
-    catch(error){mcpEl("mcpSetupStatus").textContent=String(error.message);}
-  });
   mcpEl("mcpConfigure")?.addEventListener("click",async()=>{
     if(mcpRuntime.configuring||mcpRemoteBrowser())return;
     const client=mcpSelectedClient(),clientName=client==="codex"?"Codex":client==="claude"?"Claude Code":"Other";
@@ -636,11 +786,11 @@
     try{
       const result=await mcpApi("configure",{client});
       if(result.configured===true)mcpRememberSetup();
-      mcpRuntime.configureResult={client:clientName,kind:result.configured===true?"saved":result.existing?"existing":"uncertain"};
+      mcpRuntime.configureResult={client:clientName,kind:result.configured===true?(result.trustRequired?"trust":result.updated?"updated":"saved"):result.existing?"existing":"uncertain"};
     }catch(error){
       const kind=error.existing?"existing":!error.status?"uncertain":"failed";
       mcpRuntime.configureResult={client:clientName,kind,detail:kind==="failed"?String(error.message):""};
-    }finally{mcpRuntime.configuring=false;mcpRenderSettings();if(mcpEl("settingsPageMcp")?.hidden===false)mcpEl("mcpConfigureStatus")?.scrollIntoView?.({block:"nearest"});}
+    }finally{mcpRuntime.configuring=false;if(!["saved","updated"].includes(mcpRuntime.configureResult?.kind)&&mcpEl("mcpManual"))mcpEl("mcpManual").open=true;mcpRenderSettings();if(mcpEl("settingsPageMcp")?.hidden===false)mcpEl("mcpConfigureStatus")?.scrollIntoView?.({block:"nearest"});}
   });
   addEventListener("visibilitychange",()=>{if(!document.hidden&&mcpRuntime.socket){mcpRuntime.lastPong=Date.now();clearTimeout(mcpRuntime.heartbeatTimer);mcpHeartbeat(mcpRuntime.socket);}});
   addEventListener("offline",()=>{if(mcpRuntime.socket)mcpDisconnect(true);});

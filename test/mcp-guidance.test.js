@@ -81,3 +81,16 @@ test("stdio returns guidance and legacy prompt without discovery or a live insta
   assert.ok(prompt.result.messages[0].content.text.includes(getAuthoringGuidance("visual-explorer").document));
   assert.equal(server.pending.size, 0);
 });
+
+test('live workspace guidance uses direct HTTP and persistent conversation recovery', () => {
+  const {WORKSPACE_INSTRUCTIONS,VISUAL_INSTRUCTIONS}=require('../src/server/mcp/guidance.js');
+  assert.match(WORKSPACE_INSTRUCTIONS,/omit instanceId\/canvasId/);
+  assert.match(WORKSPACE_INSTRUCTIONS,/client\/sessionKey/);
+  assert.match(WORKSPACE_INSTRUCTIONS,/only DOCUMENT_NOT_FOUND permits replacement/);
+  assert.match(WORKSPACE_INSTRUCTIONS,/Permission\/storage errors remain errors/);
+  assert.match(WORKSPACE_INSTRUCTIONS,/one-shot discovery/);
+  assert.match(WORKSPACE_INSTRUCTIONS,/Relaunch belongs to the AI host and must be verified/);
+  assert.match(WORKSPACE_INSTRUCTIONS,/fresh process must start_session/);
+  assert.doesNotMatch(WORKSPACE_INSTRUCTIONS,/16 host LAN leases|suspend after 60 seconds|probe \/pair/);
+  assert.match(VISUAL_INSTRUCTIONS,/1200×800/);
+});

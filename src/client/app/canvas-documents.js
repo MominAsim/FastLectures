@@ -1,7 +1,7 @@
   // One visible Canvas; inactive documents contain data, never hidden iframe trees.
   // Ordinary saves carry this extension in bundle V2. This is not version history.
   var canvasDocuments = { records:new Map(), activeId:null, ready:null, db:null, switching:false, epoch:0, error:null, retry:null, receipts:new Map(), write:Promise.resolve() };
-  const CANVAS_DOCUMENT_EXTENSION = "penechoDocument", CANVAS_WORKSPACE_EXTENSION = "penechoWorkspace", CANVAS_DOCUMENT_LIMIT = 32;
+  const CANVAS_DOCUMENT_EXTENSION = "penechoDocument", CANVAS_WORKSPACE_EXTENSION = "penechoWorkspace", CANVAS_DOCUMENT_LIMIT = 64;
   function canvasDocumentsCopy(en,zh) { return state.language === "zh" ? zh : en; }
   function canvasDocumentsLimitMessage() { return canvasDocumentsCopy(`${CANVAS_DOCUMENT_LIMIT} Canvases are already open. Close an unused Canvas before opening another.`,`已打开 ${CANVAS_DOCUMENT_LIMIT} 个画布，请先关闭不用的画布，再打开新的画布。`); }
   function canvasDocumentsError(code,message,details=null) { return Object.assign(Error(message),{code,details}); }
@@ -79,9 +79,13 @@
     canvasDocumentsCurrent();
     if(!canvasDocuments.ready)canvasDocuments.ready=(async()=>{
       const db=await canvasDocumentsDb(),items=await canvasDocumentsBound(requestResult(db.transaction("documents","readonly").objectStore("documents").getAll()));
-      for(const item of items.slice(-31)) {
-        const meta=canvasDocumentIdentity.normalizeMetadata(item.metadata);
-        if(!meta||canvasDocuments.records.has(meta.documentId))continue;
+      const candidates=new Map();
+      for(const item of items) {
+        const meta=!item.closed&&canvasDocumentIdentity.normalizeMetadata(item.metadata);
+        if(meta&&!canvasDocuments.records.has(meta.documentId))candidates.set(meta.documentId,{item,meta});
+      }
+      const available=Math.max(0,CANVAS_DOCUMENT_LIMIT-canvasDocuments.records.size);
+      for(const {item,meta} of available?[...candidates.values()].slice(-available):[]) {
         const doc=canvasDocumentsRecord(meta,item.stored);canvasDocumentsRestoreWorkspace(doc,item.workspace);
         doc.revision=item.revision||1;doc.savedRevision=item.savedRevision||0;doc.unseen=canvasDocumentsUnseen(item.unseen);doc.locator=item.locator||null;doc.agentDraft=typeof item.agentDraft==="string"?item.agentDraft.slice(0,16000):"";
         canvasDocuments.records.set(doc.id,doc);
@@ -90,8 +94,8 @@
     })().catch(error=>{canvasDocuments.ready=null;throw error;});
     return canvasDocuments.ready;
   }
-  async function canvasDocumentsPersist(doc) {
-    const db=await canvasDocumentsDb(),payload={id:doc.id,metadata:canvasDocumentsMetadata(doc),stored:doc.stored,workspace:canvasDocumentsWorkspaceData(doc),revision:doc.revision,savedRevision:doc.savedRevision,unseen:canvasDocumentsUnseen(doc.unseen),locator:doc.locator||null,agentDraft:String(doc.agentDraft||"").slice(0,16000)};
+  async function canvasDocumentsPersist(doc,closed=false) {
+    const db=await canvasDocumentsDb(),payload={id:doc.id,metadata:canvasDocumentsMetadata(doc),stored:doc.stored,workspace:canvasDocumentsWorkspaceData(doc),revision:doc.revision,savedRevision:doc.savedRevision,unseen:canvasDocumentsUnseen(doc.unseen),locator:doc.locator||null,agentDraft:String(doc.agentDraft||"").slice(0,16000),closed};
     await canvasDocumentsBound(new Promise((resolve,reject)=>{const tx=db.transaction("documents","readwrite");tx.objectStore("documents").put(payload);tx.oncomplete=resolve;tx.onabort=tx.onerror=()=>reject(tx.error||Error("Could not save the workspace. Free device storage, then retry."));}));
   }
   function canvasDocumentsReport(error,retry=null) {
@@ -162,6 +166,7 @@
       mcpRuntime.feedback=doc.feedback;mcpRuntime.feedbackSequence=doc.feedbackSequence;
       restoreSnapshotCanvasObjectOrder(item.bundleExtensions);
       canvasDocumentsSyncExtension(doc);canvasDocumentsApplyView(item.view);
+      resetCanvasDefaultMode();
       canvasAgentCanvasDidChange(doc.locator||{id:doc.id,location:"workspace"},{clearProject:true});
       if(typeof canvasAgentInput!=="undefined"){canvasAgentInput.value=doc.agentDraft||"";canvasAgentResizeInput();}
       doc.unseen=0;canvasDocuments.error=null;canvasDocuments.retry=null;render();canvasAgentSyncAutomaticAIStatus();mcpRenderCanvasStatus();
@@ -391,6 +396,18 @@
       const open=[...canvasDocuments.records.values()].filter(d=>(!args.documentId||d.id===args.documentId)&&(!args.locator||d.locator?.location===args.locator.location&&d.locator?.id===args.locator.id));
       if(open.length===1)doc=open[0];
       else {
+        // Closing a conversation Canvas hides it; its recoverable workspace is
+        // still addressable by documentId without opening every closed Canvas.
+        const db=await canvasDocumentsDb(),saved=args.documentId&&!args.locator?await canvasDocumentsBound(requestResult(db.transaction("documents","readonly").objectStore("documents").get(args.documentId))):null;
+        if(saved?.closed&&saved.metadata?.documentId===args.documentId) {
+          if(canvasDocuments.records.size>=CANVAS_DOCUMENT_LIMIT)throw canvasDocumentsError("DOCUMENT_LIMIT",canvasDocumentsLimitMessage());
+          const meta=canvasDocumentIdentity.normalizeMetadata(saved.metadata);
+          if(!meta)throw canvasDocumentsError("DOCUMENT_CONFLICT","The saved workspace identity is invalid.");
+          doc=canvasDocumentsRecord(meta,saved.stored);canvasDocumentsRestoreWorkspace(doc,saved.workspace);
+          doc.revision=saved.revision||1;doc.savedRevision=saved.savedRevision||0;doc.locator=saved.locator||null;doc.unseen=canvasDocumentsUnseen(saved.unseen);doc.agentDraft=typeof saved.agentDraft==="string"?saved.agentDraft.slice(0,16000):"";
+          canvasDocuments.records.set(doc.id,doc);
+        }
+        if(!doc) {
         let locator=args.locator;
         if(!locator) {
           const found=await canvasDocumentsFind(args),resolved=canvasDocumentIdentity.resolveCandidates({documentId:args.documentId,candidates:found.canvases,active:found.canvases.filter(c=>c.open),providers:found.providers});
@@ -404,6 +421,7 @@
         if(canvasDocuments.records.has(meta.documentId))throw canvasDocumentsError("DOCUMENT_AMBIGUOUS","This Canvas is already open from another location. Use the open document or save an independent copy first.");
         if(canvasDocuments.records.size>=CANVAS_DOCUMENT_LIMIT)throw canvasDocumentsError("DOCUMENT_LIMIT",canvasDocumentsLimitMessage());
         doc=canvasDocumentsRecord(meta,stored);doc.locator=locator;canvasDocumentsRestoreWorkspace(doc,stored.item.bundleExtensions?.[CANVAS_WORKSPACE_EXTENSION]);canvasDocuments.records.set(doc.id,doc);
+        }
       }
     }
     canvasAgentAssertToolExecution(execution);await canvasDocumentsPersist(doc);
@@ -634,6 +652,17 @@
       await canvasDocumentsReady();
       if(args.target==="current"&&(canvasDocuments.switching||snapshotLoadInProgress))throw canvasDocumentsError("CANVAS_BUSY","A Canvas is opening. Retry after it finishes.");
       doc=args.target==="current"?canvasDocuments.records.get(canvasDocuments.activeId):args.documentId?canvasDocuments.records.get(args.documentId):args.sessionKey?[...canvasDocuments.records.values()].find(d=>d.bindings.some(b=>b.key===args.sessionKey&&b.client===(args.client||""))):null;
+      let recovery=null;
+      if(!doc&&args.documentId) {
+        try {
+          await canvasDocumentsOpen({documentId:args.documentId,show:args.show===true},execution);
+          doc=canvasDocuments.records.get(args.documentId);recovery={restored:true,previousDocumentId:args.documentId};
+        } catch(error) {
+          if(error.code!=="DOCUMENT_NOT_FOUND"||args.restore===false)throw error;
+          const opened=await canvasDocumentsOpen({create:true,requestId:`recover:${args.client||""}:${args.sessionKey||args.sessionId}:${args.documentId}`,title:args.title,show:args.show===true},execution);
+          doc=canvasDocuments.records.get(opened.documentId);recovery={restored:false,created:true,previousDocumentId:args.documentId,reason:"DOCUMENT_NOT_FOUND"};
+        }
+      }
       if(!doc&&!args.documentId&&args.target!=="current"){
         if(session&&!session.closed&&session.client===args.client)doc=canvasDocuments.records.get(session.documentId);
         if(!doc){
@@ -651,7 +680,7 @@
       if(args.takeover&&session.sessionKey)canvasDocumentsSetProcessor(doc,{kind:"external",bindingKey:session.sessionKey,client:session.client});
       canvasDocumentsSyncExtension(doc);canvasDocumentsRender();
       if(!canvasDocumentsIsActive(doc))await canvasDocumentsPersist(doc);
-      return {sessionId:session.sessionId,documentId:doc.id,boardObjectId:session.boardObjectId,revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision,feedbackCursor:session.feedbackStart,active:canvasDocumentsIsActive(doc),reused:Boolean(session.artifacts.size),progress:{title:session.title,status:session.status,summary:session.summary,steps:session.steps,events:session.events}};
+      return {sessionId:session.sessionId,documentId:doc.id,boardObjectId:session.boardObjectId,revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision,feedbackCursor:session.feedbackStart,active:canvasDocumentsIsActive(doc),reused:Boolean(session.artifacts.size),...(recovery?{recovery}:{}),progress:{title:session.title,status:session.status,summary:session.summary,steps:session.steps,events:session.events}};
     }
     if(!session||session.closed||session.documentId&&!canvasDocuments.records.has(session.documentId))throw canvasDocumentsError("SESSION_EXPIRED","The session is no longer connected. Reopen its documentId and reconnect, then retry.");
     doc=canvasDocuments.records.get(session.documentId)||canvasDocumentsCurrent();
@@ -787,8 +816,12 @@
     let next=[...canvasDocuments.records.values()].find(d=>!closingIds.has(d.id)),created=false;
     if(!next){next=canvasDocumentsRecord({documentId:canvasDocumentsId(),title:canvasDocumentsCopy("Untitled Canvas","未命名画布")},{item:{widgets:[],textBoxes:[],images:[],animations:[],theme:state.theme},tileEntries:[]});canvasDocuments.records.set(next.id,next);created=true;}
     try{await canvasDocumentsShow(next.id);}catch(error){if(created&&!canvasDocumentsIsActive(next))canvasDocuments.records.delete(next.id);throw error;}
-    const db=await canvasDocumentsDb();
-    await canvasDocumentsBound(new Promise((resolve,reject)=>{const tx=db.transaction("documents","readwrite");for(const closingId of closingIds)tx.objectStore("documents").delete(closingId);tx.oncomplete=resolve;tx.onabort=tx.onerror=()=>reject(tx.error||Error("Could not close the Canvas. Retry."));}));
+    const retained=new Set();
+    for(const closingId of closingIds){const closing=canvasDocuments.records.get(closingId);if(closing?.bindings?.length){await canvasDocumentsPersist(closing,true);retained.add(closingId);}}
+    const deleted=[...closingIds].filter(id=>!retained.has(id));
+    if(deleted.length){const db=await canvasDocumentsDb();
+      await canvasDocumentsBound(new Promise((resolve,reject)=>{const tx=db.transaction("documents","readwrite");for(const closingId of deleted)tx.objectStore("documents").delete(closingId);tx.oncomplete=resolve;tx.onabort=tx.onerror=()=>reject(tx.error||Error("Could not close the Canvas. Retry."));}));
+    }
     for(const session of mcpRuntime.sessions.values())if(closingIds.has(session.documentId))session.closed=true;
     for(const closingId of closingIds)canvasDocuments.records.delete(closingId);canvasDocumentsRender();return true;
   }

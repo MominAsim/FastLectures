@@ -4381,7 +4381,7 @@
         if(unobscured.length)stages.splice(0,stages.length,...unobscured);
       }
     }
-    const logicalPadding=Math.max(0,Math.min(2000,Number.isFinite(Number(padding))?Number(padding):80)),framedX=Math.max(0,region.x-logicalPadding),framedY=Math.max(0,region.y-logicalPadding),framedRight=Math.min(SIZE,region.x+region.w+logicalPadding),framedBottom=Math.min(SIZE,region.y+region.h+logicalPadding),framed={x:framedX,y:framedY,w:Math.max(1,framedRight-framedX),h:Math.max(1,framedBottom-framedY)},ranked=stages.map(stage=>({...stage,scale:Math.max(.03,Math.min(2,Math.min(stage.w/framed.w,stage.h/framed.h)))})).sort((a,b)=>b.scale-a.scale||b.w*b.h-a.w*a.h),stage=ranked[0]||full,scale=stage.scale||.03;
+    const logicalPadding=Math.max(0,Math.min(2000,Number.isFinite(Number(padding))?Number(padding):80)),framedX=Math.max(0,region.x-logicalPadding),framedY=Math.max(0,region.y-logicalPadding),framedRight=Math.min(SIZE,region.x+region.w+logicalPadding),framedBottom=Math.min(SIZE,region.y+region.h+logicalPadding),framed={x:framedX,y:framedY,w:Math.max(1,framedRight-framedX),h:Math.max(1,framedBottom-framedY)},ranked=stages.map(stage=>({...stage,scale:Math.max(.03,Math.min(1,Math.min(stage.w/framed.w,stage.h/framed.h)))})).sort((a,b)=>b.scale-a.scale||b.w*b.h-a.w*a.h),stage=ranked[0]||full,scale=stage.scale||.03;
     return{framed,stage,scale,panX:stage.x+(stage.w-framed.w*scale)/2-framed.x*scale,panY:stage.y+(stage.h-framed.h*scale)/2-framed.y*scale};
   }
   function canvasAgentFrameRegion(region,padding=80) {

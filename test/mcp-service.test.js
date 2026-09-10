@@ -9,17 +9,18 @@ const path = require("node:path");
 const { EventEmitter } = require("node:events");
 const { after, test } = require("node:test");
 const { WebSocket } = require("ws");
+const { Command } = require("commander");
 const { configurationArguments, configureClient, inspectConfiguredClients } = require("../src/server/mcp/configure.js");
 const { SESSION_INSTRUCTIONS } = require("../src/server/mcp/guidance.js");
 const { readRecords, recordsDirectory } = require("../src/server/mcp/records.js");
 const { createMcpService: createService } = require("../src/server/mcp/service.js");
-const createMcpService = options => createService({ ...options, registryStateDirectory:options.registryStateDirectory || options.stateDirectory || tempDirectory() });
+const createMcpService = options => createService({ autoStartHttp:false, ...options, registryStateDirectory:options.registryStateDirectory || options.stateDirectory || tempDirectory() });
 
 const temporaryDirectories = [];
 after(() => { for (const directory of temporaryDirectories) fs.rmSync(directory, { recursive:true, force:true }); });
 
 function tempDirectory() {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-mcp-test-"));
+  const directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "penecho-mcp-test-"));
   temporaryDirectories.push(directory);
   return directory;
 }
@@ -434,7 +435,7 @@ test("MCP service keeps discovery credentials private and binds a session to its
   assert.equal(plainPresentation.value.result.pixelVerified, false);
   assert.equal(plainPresentation.value.result.feedbackCursor, 1);
   assert.equal(plainPresentation.value.result.image, undefined);
-  assert.deepEqual(calls.find(call => call.name === "mcp_present_widget" && call.arguments.artifactId === "plain").arguments, {sessionId,artifactId:"plain",title:"Plain",html:"<p>Plain</p>",width:480,height:360});
+  assert.deepEqual(calls.find(call => call.name === "mcp_present_widget" && call.arguments.artifactId === "plain").arguments, {sessionId,artifactId:"plain",title:"Plain",html:"<p>Plain</p>",width:1200,height:800});
   assert.equal(calls.some(call => call.name === "mcp_capture_widget" && call.arguments.artifactId === "plain"), false);
   const combined = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_present_widget",arguments:{sessionId,artifactId:"chart",title:"Chart",html:"<p>Chart</p>",capture:true,quality:"detail"}} });
   assert.deepEqual(combined.value.result.image, { mimeType:"image/png", data:"AQID", bytes:3 });
@@ -557,7 +558,29 @@ test("authenticated LAN browser status is allowed while configuration and privat
   assert.equal(otherLanHost.value.config, null);
   const remoteConfigure = await invokeServiceHttp(service, "192.168.50.8", "/api/mcp/configure", {headers:{"x-test-browser":"allowed"}});
   assert.equal(remoteConfigure.value.error.code, "local_host_required");
-  assert.equal(JSON.stringify(otherLanHost.value).includes("192.168.50"), false);
+  assert.equal(otherLanHost.value.canCopyLanSetup, true);
+  assert.deepEqual(otherLanHost.value.lan, sameHost.value.lan);
+  assert.equal(sameHost.value.canCopyLanSetup, true);
+  assert.equal(service.status(false).canCopyLanSetup, false);
+  assert.equal(service.status(false).lan, undefined);
+  for (const address of ["::ffff:10.0.0.8", "172.16.0.8", "172.31.255.254", "fd12::8", "fe80::8%en0"]) {
+    const status = await invokeServiceHttp(service, address, "/api/mcp/status", {headers:{"x-test-browser":"allowed"}});
+    assert.equal(status.value.canCopyLanSetup, true);
+    assert.equal(status.value.config, null);
+    assert.deepEqual(status.value.lan, sameHost.value.lan);
+  }
+  for (const address of ["203.0.113.8", "172.32.0.8", "2001:db8::8", "unknown"]) {
+    const status = await invokeServiceHttp(service, address, "/api/mcp/status", {headers:{"x-test-browser":"allowed", "x-forwarded-for":"192.168.50.8"}});
+    assert.equal(status.value.canCopyLanSetup, false);
+    assert.equal(status.value.lan, undefined);
+    assert.equal(status.value.config, null);
+  }
+  const deniedLan = await invokeServiceHttp(service, "192.168.50.8", "/api/mcp/status");
+  assert.equal(deniedLan.status, 403);
+  assert.equal(deniedLan.value.lan, undefined);
+  const remoteMutation = await invokeServiceHttp(service, "192.168.50.8", "/api/mcp/lan", {headers:{"x-test-browser":"allowed"}});
+  assert.equal(remoteMutation.status, 403);
+  assert.equal(remoteMutation.value.error.code, "local_host_required");
 
   const authorizationDenied = await invokeServiceHttp(service, "192.168.50.7", "/api/mcp/status");
   assert.equal(authorizationDenied.status, 403);
@@ -728,26 +751,84 @@ test("MCP tool validation is strict and client configuration uses official argv 
   await assert.rejects(() => service.callTool(crypto.randomUUID(), "penecho_read_feedback", { sessionId:"x", limit:51 }), /limit is invalid/);
   await assert.rejects(() => service.callTool(crypto.randomUUID(), "penecho_read_feedback", { sessionId:"x", capture:"yes" }), /capture is invalid/);
   assert.deepEqual(configurationArguments("codex", service.status().config), ["mcp","add","--env","ELECTRON_RUN_AS_NODE=1","penecho","--","/opt/penecho/node","/opt/penecho/stdio.js"]);
-  assert.deepEqual(configurationArguments("claude", service.status().config), ["mcp","add","--transport","stdio","--scope","user","--env","ELECTRON_RUN_AS_NODE=1","penecho","--","/opt/penecho/node","/opt/penecho/stdio.js"]);
-  const executions = [];
+  assert.deepEqual(configurationArguments("claude", service.status().config), ["mcp","add","--transport","stdio","--scope","user","penecho","--env","ELECTRON_RUN_AS_NODE=1","--","/opt/penecho/node","/opt/penecho/stdio.js"]);
+  const executions = [],configHome=tempDirectory(),configEnv={CLAUDE_CONFIG_DIR:configHome};
   const configured = await configureClient("claude", service.status().config, {
-    candidates:[{executable:"/opt/claude",source:"test"}],
-    executeFile:async (executable, args) => { executions.push({executable,args}); if (args[1] === "get") throw new Error("not found"); return {stdout:"",stderr:""}; },
+    env:configEnv,home:configHome,candidates:[{executable:"/opt/claude",source:"test"}],
+    executeFile:async (executable,args)=>{executions.push({executable,args});return {stdout:"",stderr:""};},
   });
-  assert.deepEqual(configured, {configured:true,client:"claude"});
-  assert.deepEqual(executions, [
-    {executable:"/opt/claude",args:["mcp","get","penecho"]},
-    {executable:"/opt/claude",args:["mcp","add","--transport","stdio","--scope","user","--env","ELECTRON_RUN_AS_NODE=1","penecho","--","/opt/penecho/node","/opt/penecho/stdio.js"]},
-  ]);
-  const existingExecutions = [];
-  const existing = await configureClient("claude", service.status().config, {
-    candidates:[{executable:"/opt/claude",source:"test"}],
-    executeFile:async (executable, args) => { existingExecutions.push({executable,args}); return {stdout:"existing entry",stderr:""}; },
+  assert.deepEqual(configured,{configured:true,updated:false,client:"claude"});
+  assert.deepEqual(executions,[{executable:"/opt/claude",args:["mcp","add","--transport","stdio","--scope","user","penecho","--env","ELECTRON_RUN_AS_NODE=1","--","/opt/penecho/node","/opt/penecho/stdio.js"]}]);
+  const file=path.join(configHome,".claude.json"),other={command:"/unchanged"};
+  fs.writeFileSync(file,JSON.stringify({mcpServers:{penecho:{command:"/old"},other}}));
+  const existing = await configureClient("claude",service.status().config,{
+    env:configEnv,home:configHome,candidates:[{executable:"/opt/claude",source:"test"}],
+    executeFile:async()=>assert.fail("existing user entry must update without remove/add"),
   });
-  assert.equal(existing.configured, false);
-  assert.equal(existing.existing, true);
-  assert.deepEqual(existingExecutions, [{executable:"/opt/claude",args:["mcp","get","penecho"]}]);
+  assert.deepEqual(existing,{configured:true,updated:true,client:"claude"});
+  const saved=JSON.parse(fs.readFileSync(file,"utf8"));
+  assert.deepEqual(saved.mcpServers.penecho,{type:"stdio",...service.status().config});
+  assert.deepEqual(saved.mcpServers.other,other);
   await service.close();
+});
+
+test("HTTP auto configuration reports safe actionable failures without exposing configuration contents", async () => {
+  const home = tempDirectory(), config = path.join(home, ".codex", "config.toml");
+  fs.mkdirSync(path.dirname(config));
+  const original = 'developer_instructions = """private fixture instructions"""\n';
+  fs.writeFileSync(config, original);
+  const result = await configureClient("codex", {type:"http",url:"https://127.0.0.1:1234/mcp",accessToken:"private-fixture-token"}, {home,env:{}});
+  assert.equal(result.configured, false);
+  assert.equal(result.code, "MCP_CONFIG_UNSUPPORTED");
+  assert.match(result.error, /syntax.*setup prompt/);
+  assert.doesNotMatch(JSON.stringify(result), /private.fixture/);
+  assert.equal(fs.readFileSync(config, "utf8"), original);
+});
+
+test("Claude MCP configuration argv parses with commander variadic env options", () => {
+  const parseAddArguments = argv => {
+    const program = new Command();
+    program.exitOverride();
+    let parsed = null;
+    const mcp = program.command("mcp");
+    mcp.command("add <name> <commandOrUrl> [args...]")
+      .option("--transport <transport>")
+      .option("--scope <scope>")
+      .option("-e, --env <env...>")
+      .action((name, commandOrUrl, args, options) => {
+        parsed = { name, commandOrUrl, args, transport:options.transport, scope:options.scope, env:options.env || [] };
+      });
+    program.parse(["node", "claude", ...argv]);
+    return parsed;
+  };
+
+  const cases = [
+    {
+      launch:{ command:"/opt/penecho/node", args:["/opt/penecho/stdio.js"], env:{ ELECTRON_RUN_AS_NODE:"1" } },
+      expected:{ name:"penecho", commandOrUrl:"/opt/penecho/node", args:["/opt/penecho/stdio.js"], transport:"stdio", scope:"user", env:["ELECTRON_RUN_AS_NODE=1"] },
+    },
+    {
+      launch:{
+        command:'C:\\Program Files\\PenEcho & Tools\\PenEcho.exe',
+        args:['C:\\Users\\用户\\stdio.js', "--state-dir", 'C:\\space & %PATH% ! ^ ( )\\', 'literal "quote"'],
+        env:{ API_KEY:'value with spaces & %PATH% ! ^ "quoted"', EMPTY:"" },
+      },
+      expected:{
+        name:"penecho",
+        commandOrUrl:'C:\\Program Files\\PenEcho & Tools\\PenEcho.exe',
+        args:['C:\\Users\\用户\\stdio.js', "--state-dir", 'C:\\space & %PATH% ! ^ ( )\\', 'literal "quote"'],
+        transport:"stdio",
+        scope:"user",
+        env:['API_KEY=value with spaces & %PATH% ! ^ "quoted"', "EMPTY="],
+      },
+    },
+    {
+      launch:{ command:"/opt/penecho/node", args:[], env:{} },
+      expected:{ name:"penecho", commandOrUrl:"/opt/penecho/node", args:[], transport:"stdio", scope:"user", env:[] },
+    },
+  ];
+
+  for (const {launch, expected} of cases) assert.deepEqual(parseAddArguments(configurationArguments("claude", launch)), expected);
 });
 
 test("configured MCP client inspection is bounded, read-only, and treats failures as unknown", async () => {
@@ -802,6 +883,8 @@ test("authenticated LAN WebSocket participates in local RPC discovery and routin
   const record = readRecords(recordsDirectory(service.status().config.args.at(-1)))[0];
   try {
     const {ws} = await openCanvas(address.port, []);
+    assert.equal(service.status().lan.enabled,false,"opt-in must not create a new LAN identity");
+    assert.equal(service.status().lan.fingerprint,"");
     const owner = crypto.randomUUID();
     const rpc = await requestJson(address.port,"/api/mcp/rpc",{headers:{authorization:`Bearer ${record.secret}`,"x-penecho-mcp-instance":service.instanceId},body:{operation:"list_canvases",ownerId:owner}});
     assert.equal(rpc.status,200);
@@ -815,6 +898,49 @@ test("authenticated LAN WebSocket participates in local RPC discovery and routin
     assert.deepEqual(service.listCanvases(), []);
     await assert.rejects(service.callTool(owner,"penecho_inspect_session",{sessionId:started.sessionId}), {code:"canvas_disconnected"});
   } finally { await service.close(); await closeServer(server); }
+});
+
+test("direct opt-in restores persisted LAN identity while Cloud and unopened canvases do not", async () => {
+  const stateDirectory = tempDirectory();
+  const {identityStore} = require("../src/server/mcp/lan-identity.js");
+  const identity = identityStore(path.join(stateDirectory,"lan")).create();
+  const server = http.createServer();
+  server.on("upgrade", req => Object.defineProperty(req.socket,"remoteAddress",{value:"192.168.50.8"}));
+  const service = createMcpService({server,stateDirectory,lanAddresses:() => ["192.168.50.7"],authorizeBrowser:req => req.headers["x-test-browser"] === "allowed" ? null : "Forbidden"});
+  server.on("request",(req,res) => {void service.handleHttp(req,res);});
+  const address = await listen(server);
+  service.register(address);
+  const waitForLan = async enabled => {
+    for(let attempt=0;attempt<100 && service.status().lan.enabled!==enabled;attempt++) await delay(5);
+    assert.equal(service.status().lan.enabled,enabled);
+  };
+  try {
+    assert.equal(service.status().lan.enabled,false);
+    const unopened = new WebSocket(`ws://127.0.0.1:${address.port}/api/mcp/canvas`,{headers:{"x-test-browser":"allowed"}});
+    await waitForSocketEvent(unopened,"open");
+    assert.equal(service.status().lan.enabled,false,"authorized transport alone is not opt-in");
+    const unopenedClosed=waitForSocketEvent(unopened,"close");unopened.close();await unopenedClosed;
+    const {channelId} = await service.executeRemote({operation:"canvas.mcp.open"});
+    await service.executeRemote({operation:"canvas.mcp.frame",channelId,frame:JSON.stringify({type:"hello",canvasId:"cloud",title:"Cloud"})});
+    assert.equal(service.status().lan.enabled,false);
+    const {ws} = await openCanvas(address.port,[]);
+    await waitForLan(true);
+    assert.equal(service.status().lan.fingerprint,identity.fingerprint);
+    assert.equal(service.status().lan.invitation,identity.invitation);
+    const closed = waitForSocketEvent(ws,"close");ws.close();await closed;
+    assert.equal(service.status().lan.enabled,true,"another opted-in canvas retains the bridge");
+    await service.executeRemote({operation:"canvas.mcp.close",channelId});
+    await waitForLan(false);
+    const restored = await openCanvas(address.port,[]);
+    await waitForLan(true);
+    const disabled = await requestJson(address.port,"/api/mcp/lan",{headers:{"x-test-browser":"allowed"},body:{action:"disable"}});
+    assert.equal(disabled.status,200);
+    await waitForLan(false);
+    restored.ws.send(JSON.stringify({type:"ping"}));
+    await delay(10);
+    assert.equal(service.status().lan.enabled,false,"heartbeat must not undo explicit disable");
+    const lastClosed=waitForSocketEvent(restored.ws,"close");restored.ws.close();await lastClosed;
+  } finally {await service.close();await closeServer(server);}
 });
 
 test("open accepts absent storage locators and caches successful creation receipts without weakening locator validation", async () => {

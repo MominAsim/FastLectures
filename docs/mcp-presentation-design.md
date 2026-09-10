@@ -88,3 +88,5 @@ returns its bounded image in the same call and is not persisted.
 Local 071 owns this implementation. Cloud MCP discovery remains capability-gated
 by the existing local-only policy; this change does not enable remote MCP routing
 or synchronize a Cloud mirror implicitly.
+
+MCP creation default: when size and dimensions are omitted, new Widgets and plots use `page` (1200×800). Explicit `base` remains 480×360; source updates preserve existing geometry.
