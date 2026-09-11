@@ -142,6 +142,8 @@ html.viewer-mode, html.viewer-mode body { height: 100%; overflow: hidden; }
 /* A one-line, dismissible caption below the canvas. It stays in normal flow,
    so it never covers the artwork and disappears completely when dismissed. */
 .viewer-notice {
+  display: block;
+  box-sizing: border-box;
   appearance: none;
   flex: none;
   width: fit-content;
@@ -212,13 +214,15 @@ html.viewer-mode, html.viewer-mode body { height: 100%; overflow: hidden; }
   z-index: 500;
   display: grid;
   place-items: center;
-  background: #12100b;
-  color: var(--ink, #e9ddbd);
+  /* Catalog: page-status / fullscreen-status. Keep foreground and surface
+     in the same semantic palette; Canvas ink/accent may belong to light paper. */
+  background: var(--pe-surface, #ffffff);
+  color: var(--pe-ink, #20242c);
   font: 400 13px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
   text-align: center;
   padding: 24px;
 }
 .viewer-status[hidden] { display: none; }
 .viewer-status img { max-width: min(920px, 92vw); max-height: 62vh; border-radius: 12px; box-shadow: 0 18px 60px rgba(0, 0, 0, .5); }
-.viewer-status .spinner { width: 22px; height: 22px; margin: 0 auto 12px; border: 2px solid color-mix(in srgb, var(--gold, #c6a35b) 30%, transparent); border-top-color: var(--gold-bright, #ead28e); border-radius: 50%; animation: viewer-spin 1s linear infinite; }
+.viewer-status .spinner { width: 22px; height: 22px; margin: 0 auto 12px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: viewer-spin 1s linear infinite; }
 @keyframes viewer-spin { to { transform: rotate(360deg); } }

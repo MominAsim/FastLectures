@@ -6342,7 +6342,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       }
     }
     if (configuredAccessSession) url.searchParams.set("access-session", configuredAccessSession);
-    if (runtime === "cloud") url.searchParams.set("remote-canvas", "1");
+    if (runtime === "cloud" || runtime === "viewer") url.searchParams.set("remote-canvas", "1");
     if (runtime === "cloud" && manifest.id === "general") url.searchParams.set("public-https", "1");
     for (const origin of manifest.connect) url.searchParams.append("connect", origin);
     return url.href;

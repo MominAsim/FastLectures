@@ -1472,7 +1472,7 @@
       }
     }
     if (configuredAccessSession) url.searchParams.set("access-session", configuredAccessSession);
-    if (runtime === "cloud") url.searchParams.set("remote-canvas", "1");
+    if (runtime === "cloud" || runtime === "viewer") url.searchParams.set("remote-canvas", "1");
     if (runtime === "cloud" && manifest.id === "general") url.searchParams.set("public-https", "1");
     for (const origin of manifest.connect) url.searchParams.append("connect", origin);
     return url.href;
