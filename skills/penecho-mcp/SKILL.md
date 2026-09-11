@@ -1,6 +1,6 @@
 ---
 name: penecho-mcp
-description: Use PenEcho's HTTPS MCP service for persistent Canvas documents, useful UI previews, diagrams, plots, virtual source edits, and bounded user feedback. Use for explicit visual-workspace requests naming penecho, echo, canvas or 画布. For PenEcho engineering, also apply the project's engineering guidance.
+description: Use PenEcho's HTTPS MCP service for persistent Canvas documents, useful UI previews, diagrams, plots, virtual source edits, and bounded user feedback. Use for explicit visual-workspace requests naming penecho, echo, canvas or 画布. Also use when the user refers to drawing or handwriting on the connected Canvas, including “请按照我画的内容来执行” and “请按照我写的来进行操作”. For PenEcho engineering, also apply the project's engineering guidance.
 metadata:
   short-description: Useful Canvas interaction with economical MCP calls
 ---
@@ -46,6 +46,10 @@ One-shot examples (one trigger phrase per example):
 - Use a spatial workspace to explain this process.
 
 Complete the requested visual work and return; one-shot does not mean close the Canvas or terminate the shared-with-this-conversation CLI. Preserve the binding for a later turn. No idle polling, mandatory progress board, or unrelated visual output.
+
+## Follow user drawings and handwriting
+
+When the user refers to Canvas drawings, handwriting, circles, arrows or annotations (e.g. “请按照我画的内容来执行”, “请按照我写的来进行操作”, “follow what I drew/wrote”), decide whether the requested action depends on visual information missing from the available context. These phrases are routing cues, not mandatory screenshot triggers. Reuse already understood drawings, supplied images or readable feedback captures when sufficient; do not re-view or recapture unchanged content on every turn or edit. Ordinary source edits and fully specified text instructions need no image. If execution depends on unseen, changed or unclear ink or spatial relationships, inspect the relevant image; source/JSON alone cannot establish those visual details. Only when existing image evidence is insufficient, call penecho_capture_canvas with quality:"basic" and the relevant selection, region, object or viewport target; use target:"canvas" for whole-Canvas context. Request detail only if needed to read the marks. Use the intended document/session; never silently switch documents. If capture fails or handwriting is ambiguous, resolve that specific gap before dependent edits. Read source as needed for implementation.
 
 ## Choose a result worth showing
 

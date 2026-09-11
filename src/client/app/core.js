@@ -1164,6 +1164,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentErrorModelUnavailable: "The selected model is unavailable. Choose another model or connection.",
       canvasAgentErrorConnection: "The AI service could not be reached. Check the connection and try again.",
       canvasAgentErrorGeneric: "The Agent could not finish this request. Open the error details for more information.",
+      canvasAgentErrorRequestRejected: "The model service rejected this request (HTTP 400). Open details for the reason; repeating the same request may fail again.",
       canvasAgentErrorViewDetails: "View details",
       canvasAgentErrorCode: "Error code",
       canvasAgentErrorMessage: "Original message",

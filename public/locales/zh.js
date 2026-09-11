@@ -574,6 +574,7 @@ window.PENECHO_LOCALES.zh = {
   canvasAgentErrorModelUnavailable: "所选模型暂不可用，请更换模型或连接。",
   canvasAgentErrorConnection: "无法连接 AI 服务，请检查连接后重试。",
   canvasAgentErrorGeneric: "Agent 未能完成这次请求，可展开查看错误详情。",
+  canvasAgentErrorRequestRejected: "模型服务拒绝了这次请求（HTTP 400）。请展开查看原因；重复发送相同请求可能仍会失败。",
   canvasAgentErrorViewDetails: "查看详情",
   canvasAgentErrorCode: "错误代码",
   canvasAgentErrorMessage: "原始信息",

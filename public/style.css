@@ -7520,6 +7520,26 @@ body[data-theme="studio"] .primary-tools .view-tools { gap: 8px; }
 .mcp-manual-body { padding: 0 24px 18px; }
 .mcp-manual-body .mcp-actions { margin-top: 0; }
 .mcp-manual-body .mcp-actions + .mcp-config, .mcp-manual-body .mcp-config + .mcp-actions { margin-top: 10px; }
+.mcp-troubleshoot { border-top: 1px solid var(--pe-line); background: var(--pe-surface); }
+.mcp-troubleshoot > summary { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 12px 24px; list-style: none; cursor: pointer; color: var(--pe-ink-2); font: 400 13px/1.6 var(--pe-font-ui); }
+.mcp-troubleshoot > summary::-webkit-details-marker { display: none; }
+.mcp-troubleshoot > summary:hover { background: var(--pe-hover); }
+.mcp-troubleshoot > summary:focus-visible { outline: 2px solid var(--pe-accent); outline-offset: -2px; }
+.mcp-troubleshoot-icon { width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.mcp-troubleshoot .mcp-manual-chevron { margin-left: auto; }
+.mcp-troubleshoot[open] > summary .mcp-manual-chevron { transform: rotate(90deg); }
+.mcp-troubleshoot-body { padding: 16px 24px 20px; border-top: 1px solid var(--pe-line); }
+.mcp-troubleshoot-body h4 { margin: 0 0 4px; color: var(--pe-ink); font: 600 13px/1.6 var(--pe-font-ui); }
+.mcp-troubleshoot-steps { margin: 16px 0; padding-left: 21px; color: var(--pe-ink-2); font: 400 13px/1.6 var(--pe-font-ui); }
+.mcp-troubleshoot-steps li { padding-left: 4px; margin: 8px 0; }
+.mcp-troubleshoot-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.mcp-troubleshoot-body .settings-save-status { margin: 10px 0 0; }
+@media (max-width: 500px) {
+  .mcp-troubleshoot > summary, .mcp-troubleshoot-body { padding: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mcp-troubleshoot .mcp-manual-chevron { transition: none; }
+}
 .mcp-caps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

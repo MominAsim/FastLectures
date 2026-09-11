@@ -182,7 +182,7 @@ test("Hand and Select can start an image resize only from an image edge", () => 
   assert.equal(unselected.calls.some(call => Array.isArray(call) && call[0] === "image-begin"), false, "an unselected image must not start resize");
 });
 
-test("Hand leaves Select-only pending, Widget, and animation resize branches untouched", () => {
+test("Hand starts Widget resize before objects behind it and leaves Select-only branches untouched", () => {
   const h = resizeStartHarness({
     mode: "hand",
     pending: { revealProgress: 0 },
@@ -192,13 +192,15 @@ test("Hand leaves Select-only pending, Widget, and animation resize branches unt
     animationResult: { animation: { id: "animation-1" }, hit: "height" },
   });
 
-  assert.equal(h.result, false);
+  assert.equal(h.result, true);
   assert.equal(h.calls.includes("pending-hit"), false);
-  assert.equal(h.calls.includes("widget-hit"), false);
+  assert.equal(h.calls.includes("widget-hit"), true);
   assert.equal(h.calls.includes("animation-hit"), false);
   assert.equal(h.calls.includes("pending-begin"), false);
-  assert.equal(h.calls.includes("widget-begin"), false);
+  assert.equal(h.calls.includes("widget-begin"), true);
   assert.equal(h.calls.includes("animation-begin"), false);
+
+  assert.equal(h.calls.includes("image-hit"), false);
 
   const select = resizeStartHarness({ mode: "select", pending: { revealProgress: 0 }, pendingResult: "resize" });
   assert.equal(select.result, true);
@@ -223,5 +225,25 @@ test("resize hover cursor is available in Hand and Select, but suppressed by tem
     const h = runtimeHarness({ ...options });
     assert.equal(h.api.syncWidgetResizeCursor({ x: 395, y: 240 }, options.pointerType || "mouse"), false);
     assert.deepEqual(h.cursorCalls, [], `${Object.keys(options).join("/")} must not set a hover cursor`);
+  }
+});
+
+ test("every Widget resize cursor hit starts resize in Hand and Select at all zoom levels", () => {
+  for (const scale of [0.25, 0.5, 1, 2, 4]) {
+    const widget = { id:"widget-1", x:100, y:200, w:300, h:200 };
+    const api = vm.runInNewContext(`(() => {
+      ${["widgetResizeHit", "widgetPointerHit", "widgetResizeCursor"].map(name => extractFunction(runtimeSource, name)).join("\n")}
+      function widgetControlHit(widget, point, pointerType) { return widgetResizeHit(widget, point, pointerType); }
+      return { widgetPointerHit, widgetResizeCursor };
+    })()`, { state:{ scale, widgetEdit:{} }, selectedWidget:() => widget, widgetRuntimeEnabled:() => true });
+    for (const point of [{x:400+7/scale,y:250}, {x:200,y:400+7/scale}, {x:400-10/scale,y:400-10/scale}]) {
+      assert.notEqual(api.widgetResizeCursor(point), "");
+      for (const mode of ["hand", "select"]) {
+        const h = resizeStartHarness({ mode, widgetRuntime:true, widgetResult:api.widgetPointerHit(point) });
+        assert.equal(h.result, true);
+        assert.ok(h.calls.includes("widget-begin"));
+        assert.ok(!h.calls.includes("image-hit"));
+      }
+    }
   }
 });

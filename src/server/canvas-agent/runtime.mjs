@@ -2166,6 +2166,13 @@ function apiHarnessReasoning(connection) {
     compat = { thinkingFormat:'deepseek', supportsReasoningEffort:false }
   }
   if (isKimiCodingPlanOpenAiApi(connection)) compat = { ...compat, supportsDeveloperRole:false }
+  // The installed OpenAI-compatible adapter otherwise defaults DeepSeek to
+  // max_completion_tokens, which is not its documented output-limit field.
+  if (connection.apiFormat !== 'anthropic') {
+    let hostname = ''
+    try { hostname = new URL(connection.apiUrl).hostname.toLowerCase().replace(/\.$/, '') } catch {}
+    if (hostname === 'api.deepseek.com') compat = { ...compat, maxTokensField:'max_tokens' }
+  }
   return { reasoningEffort, reasoningEfforts, ...(compat ? { compat } : {}) }
 }
 

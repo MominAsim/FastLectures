@@ -1150,6 +1150,28 @@
                 </div>
               </details>
 
+              <details id="mcpTroubleshoot" class="mcp-troubleshoot">
+                <summary>
+                  <svg class="mcp-troubleshoot-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z"/><path d="M12 8v5m0 3h.01"/></svg>
+                  <span data-mcp-label="troubleshoot">Troubleshoot</span>
+                  <svg class="mcp-manual-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg>
+                </summary>
+                <div class="mcp-troubleshoot-body">
+                  <h4 data-mcp-label="troubleshootHeading">Allow Windows inbound connections</h4>
+                  <p class="mcp-hint" data-mcp-label="troubleshootHelp">If PenEcho works on the host but other computers cannot connect, Windows Firewall may be blocking inbound MCP connections.</p>
+                  <ol class="mcp-troubleshoot-steps">
+                    <li data-mcp-label="troubleshootStepNetwork">Keep PenEcho running on the Windows host. Both computers should be on the same trusted private network.</li>
+                    <li data-mcp-label="troubleshootStepCommand">On the Windows host, open PowerShell as Administrator and run the repair command.</li>
+                    <li data-mcp-label="troubleshootStepRetry">Reconnect from your AI client. If it still fails, send the troubleshooting prompt to an Agent on the host.</li>
+                  </ol>
+                  <div class="mcp-troubleshoot-actions">
+                    <button id="mcpCopyFirewallCommand" type="button" data-pe-button="primary" data-mcp-label="copyFirewallCommand">Copy repair command</button>
+                    <button id="mcpCopyTroubleshootPrompt" type="button" data-pe-button="secondary" data-mcp-label="copyTroubleshootPrompt">Copy Agent troubleshooting prompt</button>
+                  </div>
+                  <p id="mcpTroubleshootStatus" class="settings-save-status" role="status" aria-live="polite" hidden></p>
+                </div>
+              </details>
+
               <section class="mcp-step" aria-labelledby="mcpSessionHeading">
                 <span class="mcp-step-badge" aria-hidden="true">3</span>
                 <div class="mcp-step-body">

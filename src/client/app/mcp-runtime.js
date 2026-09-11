@@ -1,6 +1,19 @@
   // External MCP sessions share Canvas primitives, but never an Agent conversation.
   var mcpRuntime = { socket:null, browserId:null, wanted:false, reconnectTimer:0, reconnectDelay:1000, generation:0, sessions:new Map(), previews:new Map(), controllers:new Map(), queue:Promise.resolve(), queued:0, status:null, loading:null, loadError:null, configuring:false, configureResult:null, feedbackSequence:0, feedback:[], ready:false, connectionLost:false, heartbeatTimer:0, heartbeatSupported:false, lastPong:0, activeMutation:null, mutationDocumentId:null, glowTimer:0, glowing:false, pendingView:new Map(), viewSequence:0, layoutTimer:0, layoutSince:0, viewPaused:false, exampleStatusTimer:0 };
   const mcpCopy = {
+    troubleshoot:["Troubleshoot","Troubleshoot"],
+    troubleshootHeading:["Allow Windows inbound connections","允许 Windows 入站连接"],
+    troubleshootHelp:["If PenEcho works on the host but other computers cannot connect, Windows Firewall may be blocking inbound MCP connections.","如果 PenEcho 在主机上可用，但其他电脑无法连接，Windows 防火墙可能阻止了 MCP 入站连接。"],
+    troubleshootStepNetwork:["Keep PenEcho running on the Windows host. Both computers should be on the same trusted private network.","保持 Windows 主机上的 PenEcho 运行，确认两台电脑处于同一可信专用网络。"],
+    troubleshootStepCommand:["On the Windows host, open PowerShell as Administrator and run the repair command.","在 Windows 主机上以管理员身份打开 PowerShell，执行修复命令。"],
+    troubleshootStepRetry:["Reconnect from your AI client. If it still fails, send the troubleshooting prompt to an Agent on the host.","返回 AI 客户端重新连接。如果仍失败，将排查提示词发给主机上的 Agent。"],
+    copyFirewallCommand:["Copy repair command","复制修复命令"],
+    copyTroubleshootPrompt:["Copy Agent troubleshooting prompt","复制 Agent 排查提示词"],
+    troubleshootChecking:["Checking the current MCP port…","正在检查当前 MCP 端口…"],
+    troubleshootUnavailable:["The current MCP port is unavailable. Keep PenEcho running on the host, then try again.","无法获取当前 MCP 端口。请保持主机上的 PenEcho 运行后重试。"],
+    troubleshootCopyFailed:["Could not copy. Check clipboard permission and try again.","复制失败，请检查剪贴板权限后重试。"],
+    troubleshootCommandCopied:["Repair command copied · TCP {port}","修复命令已复制 · TCP {port}"],
+    troubleshootPromptCopied:["Troubleshooting prompt copied · TCP {port}","排查提示词已复制 · TCP {port}"],
     certificateInvalid:["Connection certificate needs repair. Reset it, then copy a new setup prompt.","连接证书需要修复。请重置证书后重新复制配置指引。"],
     certificate:["Connection certificate","连接证书"],
     certificateHelp:["Saved automatically, including after restart. Usually no reset is needed.","自动保存，重启后继续使用。通常无需重置。"],
@@ -372,6 +385,7 @@
     document.querySelectorAll("[data-mcp-aria]").forEach(node=>{node.setAttribute("aria-label",mcpText(node.dataset.mcpAria));});
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN, connecting=!!mcpRuntime.socket&&!connected;
     mcpRenderCanvasStatus();mcpRenderToolbar();mcpRenderLan();
+    mcpRenderTroubleshoot();
     if(mcpEl("mcpEnabled")){mcpEl("mcpEnabled").setAttribute("aria-checked",String(connected||connecting));mcpEl("mcpEnabled").classList.toggle("on",connected||connecting);mcpEl("mcpEnabled").disabled=!mcpLocal();}
     const connection=mcpEl("mcpConnectionStatus");
     if(connection){
@@ -402,6 +416,32 @@
       mcpEl("mcpManual").open=true;
       mcpRenderSetupPrompt();
     }
+  }
+  function mcpRenderTroubleshoot() {
+    const busy=!!mcpRuntime.troubleshootBusy;
+    for(const id of ["mcpCopyFirewallCommand","mcpCopyTroubleshootPrompt"]){
+      const button=mcpEl(id);
+      if(button){button.disabled=busy||!mcpLocal();button.setAttribute("aria-busy",String(busy));}
+    }
+    const notice=mcpEl("mcpTroubleshootStatus");
+    if(notice){
+      const result=mcpRuntime.troubleshootResult;
+      notice.textContent=busy?mcpText("troubleshootChecking"):result?mcpText(result.key).replace("{port}",String(result.port??"")):"";
+      notice.hidden=!notice.textContent;
+    }
+  }
+  async function mcpCopyTroubleshoot(kind) {
+    if(mcpRuntime.troubleshootBusy||!mcpLocal())return;
+    mcpRuntime.troubleshootBusy=true;mcpRuntime.troubleshootResult=null;mcpRenderTroubleshoot();
+    try{
+      // Read the host at click time; never use a saved setup address or browser URL.
+      const status=await mcpApi("status"),port=mcpTroubleshootPort(status);
+      if(port===null){mcpRuntime.troubleshootResult={key:"troubleshootUnavailable"};return;}
+      const content=kind==="command"?mcpWindowsFirewallCommand(status):mcpTroubleshootPrompt(status);
+      const copied=await writeClipboardText(content);
+      mcpRuntime.troubleshootResult={key:copied?(kind==="command"?"troubleshootCommandCopied":"troubleshootPromptCopied"):"troubleshootCopyFailed",port};
+    }catch{mcpRuntime.troubleshootResult={key:"troubleshootUnavailable"};}
+    finally{mcpRuntime.troubleshootBusy=false;mcpRenderTroubleshoot();}
   }
   function mcpRenderSetupPrompt() {
     const block=mcpEl("mcpSetupBlock"),code=mcpEl("mcpSetupPromptCode");
@@ -533,10 +573,12 @@ Optional helper skill: if this Agent supports local skills, create or update pen
 
 ---
 name: penecho-mcp
-description: Find and use PenEcho MCP when the user mentions PenEcho, asks to echo an idea, show work on a canvas or 画布, or use a spatial workspace. Interpret these phrases in context.
+description: Find and use PenEcho MCP when the user mentions PenEcho, asks to echo an idea, show work on a canvas or 画布, or use a spatial workspace. Also trigger for “请按照我画的内容来执行” or “请按照我写的来进行操作” when referring to the connected Canvas. Interpret these phrases in context.
 ---
 
 When the user asks to work visually, discover the PenEcho MCP server and its deferred tools through tool search. Read penecho://guidance/discovery with resources/read for current discovery instructions. Use tools/list for all current tools and their input schemas, prompts/list then prompts/get for available prompts, and resources/list then resources/read for live resources; follow pagination when a nextCursor is returned. Read penecho://guidance/skill for the latest PenEcho skill guidance and penecho_get_guidance for the relevant authoring instructions. Use the live server descriptions rather than a remembered method list. If tools are missing, check the configured server and refresh or reconnect MCP tool discovery; an empty resource list is not an empty tool list. After ordinary server upgrades, rediscover these catalogs using the existing remote configuration. Client tool caches may require reconnecting or a new conversation. Local installed skill files are bootstrap instructions, not automatically rewritten by MCP; read the live skill resource to get current guidance. Transport-breaking upgrades or an explicitly reset host certificate may still require an updated setup.
+
+When the user refers to Canvas drawings, handwriting, circles, arrows or annotations (e.g. “请按照我画的内容来执行”, “请按照我写的来进行操作”, “follow what I drew/wrote”), decide whether the requested action depends on visual information missing from the available context. These phrases are routing cues, not mandatory screenshot triggers. Reuse already understood drawings, supplied images or readable feedback captures when sufficient; do not re-view or recapture unchanged content on every turn or edit. Ordinary source edits and fully specified text instructions need no image. If execution depends on unseen, changed or unclear ink or spatial relationships, inspect the relevant image; source/JSON alone cannot establish those visual details. Only when existing image evidence is insufficient, call penecho_capture_canvas with quality:"basic" and the relevant selection, region, object or viewport target; use target:"canvas" for whole-Canvas context. Request detail only if needed to read the marks. Use the intended document/session; never silently switch documents. If capture fails or handwriting is ambiguous, resolve that specific gap before dependent edits. Read source as needed for implementation.
 
 Keep the same client/sessionKey/documentId across turns and HTTP recovery. The CLI stays on stdin; after idle HTTP release it tries known IP, shared cache and discovery as needed. One-shot means finish this visual request and return; it does not mean kill the CLI, close the Canvas, or poll while idle. Ordinary shell echo commands and unrelated canvas mentions are not triggers.
 
@@ -558,7 +600,7 @@ Finish certificate trust using this client's supported CA configuration. Codex s
 
 When the cached endpoint fails, run node <absolute discover.js> --host-id ${direct.hostId} --client <client> again: it probes the cache, rediscovers the trusted host only when needed, updates the matching configuration, and exits. Do not poll or keep a remote-client process alive. Use the client's supported MCP refresh/reconnect after an endpoint change; MCP does not universally execute discovery commands or hot-reload changed URLs. Report the actual verified result.
 
-Install a small PenEcho bootstrap skill in this Agent's supported local skill format if available: trigger on PenEcho, echo, canvas or spatial-workspace requests; discover PenEcho tools and read penecho://guidance/skill; on connection failure run the saved discovery command above and refresh the MCP connection using this client's supported mechanism. Preserve a unique stable sessionKey for this logical conversation, its client name and returned documentId. New conversations use different keys. Call penecho_start_session with the same key and documentId after reconnect; PenEcho restores the original Canvas even when it was closed, and creates a replacement only if the document is definitively missing. New conversations without a target use the most recently enabled browser. Never redirect an existing conversation merely because another browser connected. After reconnect verify the returned documentId and recovery result before continuing edits. Do not claim a failed connection succeeded.`;
+Install a small PenEcho bootstrap skill in this Agent's supported local skill format if available: trigger on PenEcho, echo, canvas or spatial-workspace requests, including requests to follow Canvas drawings or handwriting; When the user refers to Canvas drawings, handwriting, circles, arrows or annotations (e.g. “请按照我画的内容来执行”, “请按照我写的来进行操作”, “follow what I drew/wrote”), decide whether the requested action depends on visual information missing from the available context. These phrases are routing cues, not mandatory screenshot triggers. Reuse already understood drawings, supplied images or readable feedback captures when sufficient; do not re-view or recapture unchanged content on every turn or edit. Ordinary source edits and fully specified text instructions need no image. If execution depends on unseen, changed or unclear ink or spatial relationships, inspect the relevant image; source/JSON alone cannot establish those visual details. Only when existing image evidence is insufficient, call penecho_capture_canvas with quality:"basic" and the relevant selection, region, object or viewport target; use target:"canvas" for whole-Canvas context. Request detail only if needed to read the marks. Use the intended document/session; never silently switch documents. If capture fails or handwriting is ambiguous, resolve that specific gap before dependent edits. Read source as needed for implementation. Discover PenEcho tools and read penecho://guidance/skill; on connection failure run the saved discovery command above and refresh the MCP connection using this client's supported mechanism. Preserve a unique stable sessionKey for this logical conversation, its client name and returned documentId. New conversations use different keys. Call penecho_start_session with the same key and documentId after reconnect; PenEcho restores the original Canvas even when it was closed, and creates a replacement only if the document is definitively missing. New conversations without a target use the most recently enabled browser. Never redirect an existing conversation merely because another browser connected. After reconnect verify the returned documentId and recovery result before continuing edits. Do not claim a failed connection succeeded.`;
     return "";
   }
   function mcpConnect() {
@@ -802,6 +844,8 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     else if(mcpEl("mcpCertificateStatus"))mcpEl("mcpCertificateStatus").textContent=mcpText("lanFailed");
   });
   mcpEl("mcpRefresh")?.addEventListener("click",()=>void mcpRefreshSettings());
+  mcpEl("mcpCopyFirewallCommand")?.addEventListener("click",()=>mcpCopyTroubleshoot("command"));
+  mcpEl("mcpCopyTroubleshootPrompt")?.addEventListener("click",()=>mcpCopyTroubleshoot("prompt"));
   mcpEl("mcpClients")?.addEventListener("change",()=>{mcpRuntime.configureResult=null;if(mcpEl("mcpManual"))mcpEl("mcpManual").open=mcpSelectedClient()==="other";mcpRenderSettings();});
   mcpEl("mcpManual")?.addEventListener("toggle",mcpRenderSetupPrompt);
   mcpEl("mcpCopyInstructions")?.addEventListener("click",async()=>{

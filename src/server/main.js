@@ -17,6 +17,7 @@ const {
   anthropicResponseMaxTokens,
   configuredMaxTokens,
   normalizedApiEffort,
+  openAiOutputTokenParameters,
   resolveApiConfig,
 } = require("./api-config.js");
 const { isEventStreamResponse, providerResponseText, readProviderEventStream } = require("./api-stream.js");
@@ -1052,7 +1053,7 @@ function providerRequest(key, model, text, atlasImage = null, effort = API_EFFOR
     : [{ role: "user", content: text }];
   return {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, stream:true, ...reasoning, ...(atlasImage ? { max_tokens:MODEL_MAX_TOKENS, response_format: { type: "json_object" } } : { max_tokens: 10 }), messages }),
+    body: JSON.stringify({ model, stream:true, ...reasoning, ...openAiOutputTokenParameters(provider.apiUrl || API_BASE_URL, atlasImage ? MODEL_MAX_TOKENS : 10), ...(atlasImage ? { response_format: { type: "json_object" } } : {}), messages }),
   };
 }
 
@@ -2921,7 +2922,7 @@ function pluginAuthoringProviderRequest(key, model, prompt, effort, api = API, p
   };
   return {
     headers:{ "Content-Type":"application/json", Authorization:`Bearer ${key}` },
-    body:JSON.stringify({ model, max_tokens:MODEL_MAX_TOKENS, stream:true, ...reasoning, messages:[{ role:"system", content:PLUGIN_AUTHORING_SYSTEM }, { role:"user", content:prompt }] }),
+    body:JSON.stringify({ model, ...openAiOutputTokenParameters(provider.apiUrl || API_BASE_URL, MODEL_MAX_TOKENS), stream:true, ...reasoning, messages:[{ role:"system", content:PLUGIN_AUTHORING_SYSTEM }, { role:"user", content:prompt }] }),
   };
 }
 function communityMetadataProviderRequest(key,model,prompt,atlasImage,effort,api=API,provider={}) {
@@ -2933,7 +2934,7 @@ function communityMetadataProviderRequest(key,model,prompt,atlasImage,effort,api
   };
   return{
     headers:{"Content-Type":"application/json",Authorization:`Bearer ${key}`},
-    body:JSON.stringify({model,max_tokens:Math.min(MODEL_MAX_TOKENS,2048),stream:true,...reasoning,response_format:{type:"json_object"},messages:[{role:"system",content:COMMUNITY_METADATA_SYSTEM},{role:"user",content:[{type:"text",text:prompt},{type:"image_url",image_url:{url:atlasImage,detail:"high"}}]}]}),
+    body:JSON.stringify({model,...openAiOutputTokenParameters(provider.apiUrl || API_BASE_URL,Math.min(MODEL_MAX_TOKENS,2048)),stream:true,...reasoning,response_format:{type:"json_object"},messages:[{role:"system",content:COMMUNITY_METADATA_SYSTEM},{role:"user",content:[{type:"text",text:prompt},{type:"image_url",image_url:{url:atlasImage,detail:"high"}}]}]}),
   };
 }
 function communityMetadataFromModel(content) {

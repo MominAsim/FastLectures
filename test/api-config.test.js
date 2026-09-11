@@ -7,6 +7,7 @@ const {
   anthropicResponseMaxTokens,
   configuredMaxTokens,
   normalizedApiEffort,
+  openAiOutputTokenParameters,
   resolveApiConfig,
 } = require("../src/server/api-config.js");
 
@@ -56,4 +57,9 @@ test("API response-token limits default to 63000 and require more than 15000", (
   assert.equal(configuredMaxTokens("14999"), null);
   assert.equal(configuredMaxTokens("200001"), 200001);
   assert.equal(anthropicResponseMaxTokens("medium", 24000), 24000);
+});
+
+test("OpenAI output limits follow the exact upstream endpoint without changing their value", () => {
+  for (const url of ["https://api.openai.com/v1", "https://API.OPENAI.COM./v1/chat/completions"]) assert.deepEqual(openAiOutputTokenParameters(url, 63000), {max_completion_tokens:63000});
+  for (const url of ["https://api.deepseek.com/v1", "https://gateway.test/v1", "https://api.openai.com.example.org/v1"]) assert.deepEqual(openAiOutputTokenParameters(url, 63000), {max_tokens:63000});
 });

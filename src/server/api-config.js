@@ -54,6 +54,14 @@ function anthropicResponseMaxTokens(effort, maxTokens = DEFAULT_MAX_TOKENS) {
   return configuredMaxTokens(maxTokens) || DEFAULT_MAX_TOKENS;
 }
 
+function openAiOutputTokenParameters(apiUrl, maxTokens) {
+  let hostname = "";
+  try { hostname = new URL(apiUrl).hostname.toLowerCase().replace(/\.$/, ""); } catch {}
+  // Official OpenAI reasoning models require the modern field. Preserve the
+  // existing compatible-provider contract for independently configured URLs.
+  return hostname === "api.openai.com" ? { max_completion_tokens:maxTokens } : { max_tokens:maxTokens };
+}
+
 module.exports = {
   DEFAULT_MAX_TOKENS,
   MIN_MAX_TOKENS,
@@ -61,5 +69,6 @@ module.exports = {
   anthropicResponseMaxTokens,
   configuredMaxTokens,
   normalizedApiEffort,
+  openAiOutputTokenParameters,
   resolveApiConfig,
 };

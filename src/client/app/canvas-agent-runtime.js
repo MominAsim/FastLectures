@@ -1203,6 +1203,7 @@
     if(/CONTEXT_LENGTH|REQUEST_TOO_LARGE|PAYLOAD_TOO_LARGE|TOKEN_LIMIT/.test(code)||/context (?:length|window)|too many tokens|request (?:is )?too large|message is too large|more attachment data than penecho can safely process|maximum token/.test(message))return "request_too_large";
     if(/UNAUTHENTICATED|UNAUTHORIZED|AUTHENTICATION_FAILED|INVALID_API_KEY|API_KEY_INVALID|LOGIN_REQUIRED/.test(code)||code==="401"||/\bunauthorized\b|\bunauthenticated\b|authentication failed|invalid api key|please (?:log|sign) in|not logged in|\b(?:http )?401\b/.test(message))return "authentication";
     if(/MODEL_NOT_FOUND|MODEL_UNAVAILABLE|UNKNOWN_MODEL/.test(code)||/model .*?(?:not found|unavailable|does not exist|not supported)/.test(message))return "model_unavailable";
+    if(code==="400"||/\bhttp 400\b/.test(message))return "request_rejected";
     if(/ECONN|ENOTFOUND|EAI_AGAIN|NETWORK|SOCKET|CONNECTION/.test(code)||/network error|fetch failed|connection (?:failed|closed|reset|refused)|socket hang up|could not connect/.test(message))return "connection";
     return "generic";
   }
@@ -1215,6 +1216,7 @@
       request_too_large:"canvasAgentErrorRequestTooLarge",
       authentication:"canvasAgentErrorAuthentication",
       model_unavailable:"canvasAgentErrorModelUnavailable",
+      request_rejected:"canvasAgentErrorRequestRejected",
       connection:"canvasAgentErrorConnection",
       generic:"canvasAgentErrorGeneric",
     }[canvasAgentErrorKind(value)]);
@@ -3060,7 +3062,7 @@
     return target;
   }
   function canvasAgentErrorRow(value,{eventKey=""}={}) {
-    const error=canvasAgentNormalizeError(value),key=canvasAgentHistoryText(eventKey,128);
+    const error=canvasAgentNormalizeError(value),key=eventKey?canvasAgentHistoryText(`${canvasAgent.sessionId||"unbound"}:${eventKey}`,128):"";
     if(!canvasAgent.currentConversation)canvasAgent.currentConversation=canvasAgentNewConversationRecord();
     const existing=key?canvasAgent.currentConversation.items.find(item=>item.type==="error"&&item.eventKey===key):null;
     if(existing){

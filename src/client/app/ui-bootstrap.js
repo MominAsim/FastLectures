@@ -233,7 +233,7 @@
         return true;
       }
     }
-    const widgetResult = state.mode === "select" && widgetRuntimeEnabled() ? widgetPointerHit(point, event.pointerType, false) : null;
+    const widgetResult = widgetRuntimeEnabled() ? widgetPointerHit(point, event.pointerType, false) : null;
     if (widgetResult && ["resize", "width", "height"].includes(widgetResult.hit)) {
       refreshHandObjectToolbar();
       return beginWidgetGesture(event, point, widgetResult);
@@ -256,7 +256,11 @@
     view.classList.remove("is-wheel-navigating");
     state.handToolbarTap = null;
     if (!state.viewMode && state.mode === "hand" && !state.spacePan && !e.altKey && e.button === 0 && !state.touches.size) {
-      const target = handObjectToolbarTargetAtPoint(clientPoint(e));
+      const point = clientPoint(e),
+        resizeTarget = widgetPointerHit(point, e.pointerType, false),
+        target = resizeTarget && ["resize", "width", "height"].includes(resizeTarget.hit)
+          ? { kind:"widget", object:resizeTarget.widget }
+          : handObjectToolbarTargetAtPoint(point);
       if (target) state.handToolbarTap = { id:e.pointerId, target, x:e.clientX, y:e.clientY };
       else hideHandObjectToolbar({ all:true, animate:false });
     }

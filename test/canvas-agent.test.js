@@ -643,6 +643,7 @@ test("PenEcho Agent sends Canvas-selected reasoning effort through Harness API r
   const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-reasoning-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),connections=[
+    {id:"deepseek",provider:"api",name:"DeepSeek",apiFormat:"openai",apiUrl:"https://api.deepseek.com/v1",apiModel:"deepseek-flash",apiKey:"test-only",effort:"high"},
     {id:"qwen",provider:"api",name:"Qwen",apiFormat:"openai",apiUrl:"https://qwen.example.test/v1",apiModel:"qwen3.8",apiKey:"qwen-key",effort:"high"},
     {id:"kimi",provider:"api",name:"Kimi",apiFormat:"openai",apiPreset:"kimi-global-api",apiUrl:"https://api.moonshot.ai/v1",apiModel:"kimi-k3",apiKey:"kimi-key",effort:"medium"},
     {id:"kimi-coding",provider:"api",name:"Kimi Coding",apiFormat:"openai",apiPreset:"kimi-global-coding",apiUrl:"https://api.kimi.com/coding/v1",apiModel:"k3-256k",apiKey:"kimi-coding-key",effort:"medium"},
@@ -677,13 +678,18 @@ test("PenEcho Agent sends Canvas-selected reasoning effort through Harness API r
   await waitFor(()=>qwenMessages.filter(message=>message.type==="session_event"&&message.payload.kind==="turn_end").length===2,5000);
   await host.submit(qwenSession,"Reply OK once more.",false,[],{},null,[],false,"low");
   await waitFor(()=>qwenMessages.filter(message=>message.type==="session_event"&&message.payload.kind==="turn_end").length===3,5000);
-  assert.equal(requests.length,7);
+  assert.equal(requests.length,connections.length + 2);
   const qwenRequests=requests.filter(request=>request.body.model==="qwen3.8"),qwenRequest=qwenRequests[0],
     kimiRequest=requests.find(request=>request.body.model==="kimi-k3"),
     kimiCodingRequest=requests.find(request=>request.body.model==="k3-256k");
   assert.equal(qwenRequest.body.reasoning_effort,"max");
   assert.equal(qwenRequests[1].body.reasoning_effort,"provider_native");
   assert.equal(qwenRequests[2].body.reasoning_effort,"low");
+  const deepseekRequest=requests.find(request=>request.body.model==="deepseek-flash");
+  assert.equal(deepseekRequest.body.max_tokens,32768);
+  assert.equal(deepseekRequest.body.max_completion_tokens,undefined);
+  assert.equal(deepseekRequest.body.reasoning_effort,"high");
+  assert.equal(requests.find(request=>request.body.model==="gpt-5.6-sol").body.max_completion_tokens,32768);
   assert.equal(qwenRequest.body.messages[0].role,"developer");
   assert.equal(kimiRequest.body.reasoning_effort,"high");
   assert.equal(kimiRequest.body.messages[0].role,"system");
