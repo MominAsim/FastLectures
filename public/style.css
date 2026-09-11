@@ -7351,7 +7351,9 @@ body[data-theme="studio"] .primary-tools .view-tools { gap: 8px; }
 #mcpToolbarToggle .mcp-toolbar-dot {order:1;}
 #mcpToolbarToggle .mcp-toolbar-dot {display:none;width:6px;height:6px;border-radius:50%;flex:0 0 auto;}
 #mcpToolbarToggle[data-state="connected"] .mcp-toolbar-dot {display:block;background:#16a34a;box-shadow:0 0 0 2px color-mix(in srgb,#16a34a 22%,transparent);}
-@media (prefers-reduced-motion:reduce) { #mcpToolbarToggle .mcp-toolbar-dot { transition:none; } }
+#mcpToolbarToggle[data-state="connecting"] .mcp-toolbar-dot {display:block;background:currentColor;animation:mcp-toolbar-pulse 1s ease-in-out infinite;}
+@keyframes mcp-toolbar-pulse {0%,100% {opacity:.3;}50% {opacity:1;}}
+@media (prefers-reduced-motion:reduce) { #mcpToolbarToggle .mcp-toolbar-dot { transition:none;animation:none; } }
 /* MCP settings panel: one three-step card, from the approved design. */
 .settings-page-mcp { padding-top: 18px; }
 .mcp-panel {
