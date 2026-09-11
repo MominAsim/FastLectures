@@ -193,5 +193,5 @@ test('preferred port is reused across restarts with machine hostname TLS and Hos
 });
 test('occupied preferred port falls back to an available listener',async t=>{
  const net=require('node:net'),occupied=net.createServer();await new Promise(resolve=>occupied.listen(0,'0.0.0.0',resolve));t.after(()=>new Promise(resolve=>occupied.close(resolve)));const port=occupied.address().port;
- const {status}=await fixture(t,{preferredPort:port,getHostnames:()=>['mcp-test-box']});assert.notEqual(new URL(status.localUrl).port,String(port));assert.equal((await request(status,message('initialize'))).status,200);assert.equal(occupied.listening,true);
+ const {status}=await fixture(t,{preferredPort:port,getHostnames:()=>['mcp-test-box']});assert.notEqual(new URL(status.localUrl).port,String(port));assert.equal(new URL(status.preferredUrl).port,new URL(status.localUrl).port);assert.equal((await request(status,message('initialize'))).status,200);assert.equal(occupied.listening,true);
 });

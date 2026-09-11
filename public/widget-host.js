@@ -51,7 +51,7 @@
     dragMoveFrame = 0,
     runtimeVersion = 0,
     innerDocumentReady = false,
-    widgetState = { selected:false, active:true, navigationLocked:false, scaleX:1, scaleY:1 };
+    widgetState = { selected:false, active:true, maximized:false, navigationLocked:false, scaleX:1, scaleY:1 };
   const pendingSnapshots = new Map();
 
   function widgetRendererUrl() {
@@ -106,7 +106,7 @@
         { selector:"::after", placement:"append" },
       ],
       PUBLIC_FETCH_MAX_URL_LENGTH = 16 * 1024;
-    let widgetState = { selected:false, active:true, navigationLocked:false, scaleX:1, scaleY:1 },
+    let widgetState = { selected:false, active:true, maximized:false, navigationLocked:false, scaleX:1, scaleY:1 },
       widgetStateReceived = false,
       suppressClickUntil = 0;
     const presses = new Map(),
@@ -913,7 +913,9 @@
       });
     }
     function waitForSnapshotViewport(width, height, timeoutMs) {
-      const matches = () => Math.abs(innerWidth - width) <= 1 && Math.abs(innerHeight - height) <= 1;
+      // Maximized presentation has its own live viewport. The requested size
+      // remains the canvas snapshot's output size, not a resize instruction.
+      const matches = () => widgetState.maximized || (Math.abs(innerWidth - width) <= 1 && Math.abs(innerHeight - height) <= 1);
       if (matches()) return Promise.resolve();
       return new Promise((resolve, reject) => {
         const finish = (error) => { clearTimeout(timer); removeEventListener("resize", resized); error ? reject(error) : resolve(); },
@@ -1022,7 +1024,7 @@
       const operation = scienceMode && hooks ? scienceSnapshot(message, hooks) : snapshotDocument(message, false);
       activeSnapshot = operation;
       try { return await operation; }
-      finally { if(activeSnapshot===operation)activeSnapshot=null; }
+      finally { if(activeSnapshot===operation)activeSnapshot=null; schedulePresentationSize(); }
     }
     async function snapshotPrimarySvg(requestedWidth, requestedHeight, scale) {
       const visible = [...document.querySelectorAll("svg")].map((svg) => ({ svg, rect:svg.getBoundingClientRect() }))
@@ -1056,13 +1058,12 @@
       const snapshotStartedAt = clock();
       let stage="presented-frame";
       try {
-        const requestedWidth = Math.max(1, Number(message.width) || document.documentElement.clientWidth || 1),
-          requestedHeight = Math.max(1, Number(message.height) || document.documentElement.clientHeight || 1),
-          highResolution = message.highResolution === true,
+        let requestedWidth = Math.max(1, Number(message.width) || document.documentElement.clientWidth || 1),
+          requestedHeight = Math.max(1, Number(message.height) || document.documentElement.clientHeight || 1);
+        const highResolution = message.highResolution === true,
           targetScale = highResolution ? HIGH_RESOLUTION_SNAPSHOT_SCALE : 1,
           maximumDimension = highResolution ? MAX_HIGH_RESOLUTION_SNAPSHOT_DIMENSION : MAX_SNAPSHOT_DIMENSION,
           maximumPixels = highResolution ? MAX_HIGH_RESOLUTION_SNAPSHOT_PIXELS : MAX_SNAPSHOT_PIXELS,
-          scale = Math.min(targetScale, maximumDimension / requestedWidth, maximumDimension / requestedHeight, Math.sqrt(maximumPixels / (requestedWidth * requestedHeight))),
           timeoutMs = Math.max(500, Math.min(17500, Number(message.timeoutMs) || 17500));
         snapshotDebugLog("snapshot-capture-start", {
           requestId:message.requestId,
@@ -1079,6 +1080,13 @@
         if (mcpPreviewMode) await waitForSnapshotViewport(requestedWidth, requestedHeight, timeoutMs);
         const presentedFrame = await settleSnapshotFrame();
         if (requirePresentedFrame && !presentedFrame) throw Error("Widget frame was not presented");
+        if (message.fullContent === true) {
+          const root = document.documentElement, body = document.body;
+          requestedWidth = Math.ceil(Math.max(requestedWidth, root.scrollWidth, body?.scrollWidth || 0));
+          requestedHeight = Math.ceil(Math.max(requestedHeight, root.scrollHeight, body?.scrollHeight || 0));
+          if (requestedWidth > 100000 || requestedHeight > 100000) throw Error("Widget content exceeds snapshot size limit");
+        }
+        const scale = Math.min(targetScale, maximumDimension / requestedWidth, maximumDimension / requestedHeight, Math.sqrt(maximumPixels / (requestedWidth * requestedHeight)));
         stage="prepare-styles";
         restoreSvgStyles = inlineSvgComputedStyles();
         restoreCompatibleColors = inlineSnapshotCompatibleColors();
@@ -1141,7 +1149,7 @@
         };
         const rendering=render();
         activeSnapshotRender=rendering;
-        const release=()=>{if(activeSnapshotRender===rendering)activeSnapshotRender=null;};
+        const release=()=>{if(activeSnapshotRender===rendering)activeSnapshotRender=null;schedulePresentationSize();};
         rendering.then(release,release);
         const remainingMs=Math.max(1,timeoutMs-(clock()-snapshotStartedAt));
         const canvas = await withTimeout(rendering, remainingMs, () => (captureExpired = true));
@@ -1152,7 +1160,7 @@
           width:canvas.width,
           height:canvas.height,
         });
-        parent.postMessage({ type:"penecho-widget-snapshot", runtimeVersion, requestId:message.requestId, dataUrl:canvas.toDataURL("image/png"), width:canvas.width, height:canvas.height }, "*");
+        parent.postMessage({ type:"penecho-widget-snapshot", runtimeVersion, requestId:message.requestId, dataUrl:canvas.toDataURL("image/png"), contentWidth:requestedWidth, contentHeight:requestedHeight, width:canvas.width, height:canvas.height }, "*");
         canvas.width = canvas.height = 1;
       } catch (error) {
         snapshotDebugLog("snapshot-capture-error", {
@@ -1173,28 +1181,54 @@
     }
     // Compatibility for canvases saved while the retired Fit to content action was available.
     let fitContentStyle = null;
-    function setFitContentLayout(enabled) {
+    const fitContentElements = new Map();
+    function restoreFitContentMarkers() {
+      for (const [element, value] of fitContentElements) {
+        if (value === null) element.removeAttribute("data-penecho-fit-scroll");
+        else element.setAttribute("data-penecho-fit-scroll", value);
+      }
+      fitContentElements.clear();
+    }
+    function setFitContentLayout(enabled, refresh = false) {
       if (!enabled) {
         if (fitContentStyle) fitContentStyle.disabled = true;
+        restoreFitContentMarkers();
         return;
       }
-      if (fitContentStyle && !fitContentStyle.disabled) return;
+      if (fitContentStyle && !fitContentStyle.disabled && !refresh) return;
+      if (fitContentStyle) fitContentStyle.disabled = true;
+      restoreFitContentMarkers();
       // Read first, then apply one stylesheet. Preserve authored styles and live DOM.
-      const rules = ["html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}"];
+      const axes = widgetState.maximized || widgetState.fitContent ? "resize" : widgetState.fitContentAxes;
+      const fitWidth = axes !== "height", fitHeight = axes !== "width";
+      const rules = ["html,body{"
+        + (fitHeight ? "height:auto!important;min-height:0!important;max-height:none!important;overflow-y:visible!important;" : "")
+        + (fitWidth ? "max-width:none!important;overflow-x:visible!important;" : "") + "}"
+        + (widgetState.maximized ? "html,body{overscroll-behavior:auto!important}" : "")];
       const containers = [];
       for (const element of document.body?.querySelectorAll("*") || []) {
-        if (!(element instanceof HTMLElement) || element.matches("textarea,input,select,iframe,[contenteditable]")) continue;
+        if (!(element instanceof HTMLElement) || element.closest("textarea,input,select,iframe,[contenteditable],[role=grid],[role=tree],[role=treegrid],[role=listbox],[role=combobox],[role=slider],[role=spinbutton],[role=textbox],[role=menu],[role=menubar],[role=tablist]")) continue;
         const style = getComputedStyle(element);
-        const vertical = /^(auto|scroll)$/.test(style.overflowY);
-        const horizontal = /^(auto|scroll)$/.test(style.overflowX);
-        if (!vertical && !horizontal) continue;
-        containers.push({ element, vertical, horizontal,
+        const vertical = fitHeight && /^(auto|scroll)$/.test(style.overflowY);
+        const horizontal = fitWidth && /^(auto|scroll)$/.test(style.overflowX);
+        // Viewport minimums inside padded documents otherwise grow with every
+        // presentation resize. Remove them only for ordinary maximized layouts.
+        const viewportMinimum = widgetState.maximized && innerHeight > 0
+          && element.children.length > 0 && parseFloat(style.minHeight) >= innerHeight;
+        const viewportHeight = widgetState.maximized && innerHeight > 0
+          && element.children.length > 0 && parseFloat(style.height) >= innerHeight
+          && (/^(hidden|clip)$/.test(style.overflowY) || Math.abs(parseFloat(style.height) - innerHeight) <= 1);
+        if (!vertical && !horizontal && !viewportMinimum && !viewportHeight) continue;
+        containers.push({ element, vertical, horizontal, viewportMinimum, viewportHeight,
           width:element.scrollWidth > element.clientWidth ? element.scrollWidth + element.offsetWidth - element.clientWidth : 0 });
       }
       for (const [index, item] of containers.entries()) {
-        item.element.setAttribute("data-penecho-fit-scroll", String(index));
+        fitContentElements.set(item.element, item.element.getAttribute("data-penecho-fit-scroll"));
+        if (item.element.getAttribute("data-penecho-fit-scroll") !== String(index)) item.element.setAttribute("data-penecho-fit-scroll", String(index));
         rules.push('[data-penecho-fit-scroll="' + index + '"]{'
-          + (item.vertical ? "height:auto!important;max-height:none!important;overflow-y:visible!important;flex-shrink:0!important;" : "")
+          + (item.viewportMinimum ? "min-height:0!important;" : "")
+          + (item.viewportHeight ? "height:auto!important;max-height:none!important;overflow-y:visible!important;" : "")
+          + (item.vertical ? "height:auto!important;min-height:0!important;max-height:none!important;overflow-y:visible!important;flex-shrink:0!important;" : "")
           + (item.horizontal ? "max-width:none!important;overflow-x:visible!important;" + (item.width ? "min-width:" + item.width + "px!important;" : "") : "")
           + "}");
       }
@@ -1202,9 +1236,76 @@
         fitContentStyle = document.createElement("style");
         document.head.append(fitContentStyle);
       }
-      fitContentStyle.textContent = rules.join("\n");
+      const css = rules.join("\n");
+      if (fitContentStyle.textContent !== css) fitContentStyle.textContent = css;
       fitContentStyle.disabled = false;
     }
+    // One presentation owner: refresh authored scrolling layouts only when dirty,
+    // then measure their natural extent without using the iframe viewport height.
+    let presentationFrame = 0, presentationObserver = null, presentationMutations = null;
+    let presentationLayoutDirty = false, lastPresentationSize = "";
+    function schedulePresentationSize(refresh = false) {
+      if (!widgetState.maximized) return;
+      presentationLayoutDirty ||= refresh;
+      if (presentationFrame) return;
+      presentationFrame = nativeRequestAnimationFrame(() => {
+        presentationFrame = 0;
+        if (!widgetState.maximized || !document.body || activeSnapshot || activeSnapshotRender) return;
+        if (presentationLayoutDirty) {
+          presentationLayoutDirty = false;
+          setFitContentLayout(true, true);
+        }
+        const body = document.body, rect = body.getBoundingClientRect();
+        let width = Math.max(1, rect.right + scrollX, body.scrollWidth);
+        // The body border box excludes its trailing margin, but that margin
+        // contributes to the document's scroll extent. Include it so a nearly
+        // full-height inner scrollbar cannot consume the next wheel gesture.
+        const bottomMargin = Math.max(0, parseFloat(getComputedStyle(body).marginBottom) || 0);
+        let height = Math.max(1, rect.bottom + scrollY + bottomMargin);
+        // Out-of-flow content contributes to the presentation without making the
+        // viewport-sized document scrollHeight the next iframe height.
+        for (const element of body.querySelectorAll("*")) {
+          if (element.parentElement?.closest("textarea,input,select,iframe,[contenteditable],[role=grid],[role=tree],[role=treegrid],[role=listbox],[role=combobox],[role=slider],[role=spinbutton],[role=textbox],[role=menu],[role=menubar],[role=tablist]")) continue;
+          const child = element.getBoundingClientRect();
+          width = Math.max(width, child.right + scrollX);
+          height = Math.max(height, child.bottom + scrollY);
+        }
+        width = Math.min(100000, Math.ceil(width));
+        height = Math.min(100000, Math.ceil(height));
+        if (!Number.isFinite(width) || !Number.isFinite(height)) return;
+        const key = width + ":" + height;
+        if (key === lastPresentationSize) return;
+        lastPresentationSize = key;
+        parent.postMessage({ type:"penecho-widget-presentation-size", runtimeVersion, width, height }, "*");
+      });
+    }
+    function setPresentationLayout(refresh = true) {
+      if (!widgetState.maximized) {
+        setFitContentLayout(Boolean(widgetState.fitContent || widgetState.fitContentAxes), refresh);
+        if (presentationFrame) nativeCancelAnimationFrame(presentationFrame);
+        presentationFrame = 0;
+        presentationObserver?.disconnect();
+        presentationMutations?.disconnect();
+        presentationObserver = presentationMutations = null;
+        lastPresentationSize = "";
+        presentationLayoutDirty = false;
+        return;
+      }
+      if (document.body && !presentationObserver && typeof ResizeObserver === "function") {
+        presentationObserver = new ResizeObserver(() => schedulePresentationSize());
+        presentationObserver.observe(document.body);
+      }
+      if (document.body && !presentationMutations && typeof MutationObserver === "function") {
+        presentationMutations = new MutationObserver(records => {
+          if (records.some(record => record.target !== fitContentStyle
+            && record.attributeName !== "data-penecho-fit-scroll")) schedulePresentationSize(true);
+        });
+        presentationMutations.observe(document.body, { subtree:true, childList:true, characterData:true, attributes:true });
+      }
+      if (refresh) schedulePresentationSize(true);
+    }
+    addEventListener("resize", () => schedulePresentationSize(true));
+    addEventListener("load", () => { if (widgetState.maximized) setPresentationLayout(); });
     addEventListener("message", (event) => {
       if (event.source !== parent) return;
       if (event.data?.type === PUBLIC_FETCH_RESPONSE && publicFetchRequests.has(event.data.requestId)) {
@@ -1220,12 +1321,28 @@
           const body = [204, 205, 304].includes(event.data.status) ? null : event.data.body;
           pending.resolve(new Response(body, { status:event.data.status, headers }));
         } else pending.reject(Error("The public data response was invalid"));
+      } else if (event.data?.type === "penecho-widget-fit-request") {
+        const { requestId, hit } = event.data;
+        if (typeof requestId !== "string" || requestId.length > 128 || !["width", "height", "resize"].includes(hit)) return;
+        const previous = widgetState.fitContent ? "resize" : widgetState.fitContentAxes;
+        widgetState.fitContentAxes = previous && previous !== hit ? "resize" : hit;
+        setFitContentLayout(true, true);
+        const body = document.body, root = document.documentElement;
+        let width = Math.max(root.clientWidth, root.scrollWidth, body.scrollWidth);
+        let height = Math.max(root.clientHeight, root.scrollHeight, body.scrollHeight);
+        for (const element of body.querySelectorAll("*")) {
+          const rect = element.getBoundingClientRect();
+          width = Math.max(width, rect.right + scrollX);
+          height = Math.max(height, rect.bottom + scrollY);
+        }
+        parent.postMessage({ type:"penecho-widget-fit-result", requestId, width:Math.ceil(width), height:Math.ceil(height) }, "*");
       } else if (event.data?.type === "penecho-widget-snapshot-request") void snapshot(event.data);
       else if (event.data?.type === "penecho-widget-state" && typeof event.data.selected === "boolean" && typeof event.data.active === "boolean"
         && Number.isFinite(event.data.scaleX) && event.data.scaleX > 0 && Number.isFinite(event.data.scaleY) && event.data.scaleY > 0) {
         const becameVisible = event.data.active && (!widgetStateReceived || !widgetState.active);
-        widgetState = { fitContent:event.data.fitContent === true, selected:event.data.selected, interactive:Boolean(event.data.interactive), active:event.data.active, navigationLocked:Boolean(event.data.navigationLocked), scaleX:event.data.scaleX, scaleY:event.data.scaleY };
-        setFitContentLayout(widgetState.fitContent);
+        const layoutChanged = widgetState.maximized !== (event.data.maximized === true) || widgetState.fitContent !== (event.data.fitContent === true) || widgetState.fitContentAxes !== event.data.fitContentAxes;
+        widgetState = { fitContent:event.data.fitContent === true, fitContentAxes:event.data.fitContentAxes, maximized:event.data.maximized === true, selected:event.data.selected, interactive:Boolean(event.data.interactive), active:event.data.active, navigationLocked:Boolean(event.data.navigationLocked), scaleX:event.data.scaleX, scaleY:event.data.scaleY };
+        setPresentationLayout(layoutChanged);
         widgetStateReceived = true;
         if (!widgetState.selected) setControlCursor();
         setRuntimeActive(widgetState.active);
@@ -1269,6 +1386,9 @@
     const remainingMs=request.timeoutMs-(performance.now()-request.startedAt)-250;
     if(remainingMs<500){snapshotError(requestId,"Widget snapshot readiness exhausted the capture budget","WIDGET_READY_TIMEOUT");return;}
     request.forwarded = true;
+    // Requests queued during document loading must receive the current
+    // presentation state before deciding which viewport to wait for.
+    forwardWidgetState();
     snapshotDebugLog("snapshot-forwarded", { requestId, timeoutMs:remainingMs });
     inner.contentWindow?.postMessage({
       type:"penecho-widget-snapshot-request",
@@ -1277,6 +1397,7 @@
       height:request.requestedHeight,
       timeoutMs:remainingMs,
       highResolution:request.highResolution,
+      fullContent:request.fullContent,
     }, "*");
   }
 
@@ -1307,6 +1428,19 @@
     } catch (error) {
       reply({ error:String(error?.message || "The public data request failed").slice(0, 300) });
     }
+  }
+
+  function resolveImageAssets(html,assets) {
+    const refs=[...new Set(html.match(/penecho-asset:[a-f0-9]{64}/g)||[])];
+    if(refs.length>64)throw Error("Too many Widget image attachments");
+    let total=0;
+    const resolved=new Map();
+    for(const ref of refs){const source=assets?.[ref];
+      if(typeof source!=="string"||source.length>800000||!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(source)||(total+=source.length)>16000000)throw Error("Widget image attachment is unavailable or invalid");
+      resolved.set(ref,source);
+    }
+    let expanded=html.length;
+    return html.replace(/penecho-asset:[a-f0-9]{64}/g,ref=>{const source=resolved.get(ref);if((expanded+=source.length-ref.length)>16000000)throw Error("Widget image expansion exceeds the supported limit");return source;});
   }
 
   function csp(allowNestedFrames = false, scienceMode = false) {
@@ -1793,7 +1927,9 @@
         innerDocumentReady = false;
         inner.title = String(message.title || "Dynamic canvas widget").slice(0, 120);
         parent.postMessage({ type:"penecho-widget-runtime-diagnostics", errors:[], truncated:false }, parentOrigin);
-        const documentSource = widgetDocument(message.html, message.pluginStyles || "", runtimeVersion, message.sourceFormat, message.frameworkVersion);
+        let imageHtml;
+        try {imageHtml=resolveImageAssets(message.html,message.imageAssets);} catch(error) {parent.postMessage({type:"penecho-widget-runtime-diagnostics",errors:[{kind:"error",message:error.message}],truncated:false},parentOrigin);return;}
+        const documentSource = widgetDocument(imageHtml, message.pluginStyles || "", runtimeVersion, message.sourceFormat, message.frameworkVersion);
         inner.removeAttribute("src");
         inner.srcdoc = documentSource;
         snapshotDebugLog("inner-srcdoc-assigned", { documentLength:documentSource.length });
@@ -1802,8 +1938,11 @@
         inner.contentWindow?.postMessage({type:"penecho-mcp-progress",progress:message.progress},"*");
       } else if (message?.type === "penecho-widget-state" && typeof message.selected === "boolean" && typeof message.active === "boolean"
         && Number.isFinite(message.scaleX) && message.scaleX > 0 && Number.isFinite(message.scaleY) && message.scaleY > 0) {
-        widgetState = { fitContent:message.fitContent === true, selected:message.selected, interactive:Boolean(message.interactive), active:message.active, navigationLocked:Boolean(message.navigationLocked), scaleX:message.scaleX, scaleY:message.scaleY };
+        widgetState = { fitContent:message.fitContent === true, fitContentAxes:message.fitContentAxes, maximized:message.maximized === true, selected:message.selected, interactive:Boolean(message.interactive), active:message.active, navigationLocked:Boolean(message.navigationLocked), scaleX:message.scaleX, scaleY:message.scaleY };
         forwardWidgetState();
+      } else if (message?.type === "penecho-widget-fit-request") {
+        if (typeof message.requestId !== "string" || message.requestId.length > 128 || !["width", "height", "resize"].includes(message.hit)) return;
+        inner.contentWindow?.postMessage({ type:message.type, requestId:message.requestId, hit:message.hit }, "*");
       } else if (message?.type === "penecho-widget-snapshot-request") {
         const requestedWidth = Number(message.width), requestedHeight = Number(message.height),
           timeoutMs = Math.max(1000, Math.min(SNAPSHOT_REQUEST_TIMEOUT_MS, Number(message.timeoutMs) || SNAPSHOT_REQUEST_TIMEOUT_MS));
@@ -1816,7 +1955,7 @@
           return;
         }
         const timer = setTimeout(() => snapshotError(message.requestId, "Widget snapshot timed out", pendingSnapshots.get(message.requestId)?.forwarded?"WIDGET_CAPTURE_TIMEOUT":"WIDGET_READY_TIMEOUT"), timeoutMs);
-        const request = { requestedWidth, requestedHeight, timeoutMs, timer, forwarded:false, highResolution:message.highResolution === true, startedAt:performance.now() };
+        const request = { requestedWidth, requestedHeight, timeoutMs, timer, forwarded:false, highResolution:message.highResolution === true, fullContent:message.fullContent === true, startedAt:performance.now() };
         pendingSnapshots.set(message.requestId, request);
         snapshotDebugLog("snapshot-host-received", { requestId:message.requestId, timeoutMs, requestedWidth, requestedHeight });
         forwardSnapshotRequest(message.requestId, request);
@@ -1833,7 +1972,14 @@
         requestPending:typeof message.requestId === "string" ? pendingSnapshots.has(message.requestId) : null,
       });
     }
-    if (message.type === "penecho-widget-exit-interaction" && widgetState.interactive) {
+    if (message.type === "penecho-widget-presentation-size" && widgetState.maximized
+      && message.runtimeVersion === runtimeVersion
+      && [message.width, message.height].every(value => Number.isFinite(value) && value > 0 && value <= 100000)) {
+      parent.postMessage({ type:message.type, width:message.width, height:message.height }, parentOrigin);
+    } else if (message.type === "penecho-widget-fit-result" && typeof message.requestId === "string" && message.requestId.length <= 128
+      && Number.isFinite(message.width) && message.width > 0 && Number.isFinite(message.height) && message.height > 0) {
+      parent.postMessage({ type:message.type, requestId:message.requestId, width:message.width, height:message.height }, parentOrigin);
+    } else if (message.type === "penecho-widget-exit-interaction" && widgetState.interactive) {
       parent.postMessage({ type:message.type }, parentOrigin);
     } else if (message.type === "penecho-widget-public-fetch-request") {
       if (typeof message.requestId !== "string" || !/^public-fetch-\d+$/.test(message.requestId) || message.requestId.length > 64 || typeof message.url !== "string" || message.url.length > PUBLIC_FETCH_MAX_URL_LENGTH) return;
@@ -1858,8 +2004,18 @@
       lastUpdate = now;
       parent.postMessage({ type: "penecho-widget-updated", loaded:message.loaded===true }, parentOrigin);
     } else if (message.type === "penecho-widget-snapshot" && message.runtimeVersion === runtimeVersion && pendingSnapshots.has(message.requestId)) {
-      const request = pendingSnapshots.get(message.requestId),
-        targetScale = request.highResolution ? HIGH_RESOLUTION_SNAPSHOT_SCALE : 1,
+      const request = pendingSnapshots.get(message.requestId);
+      if (request.fullContent) {
+        if (!Number.isFinite(message.contentWidth) || !Number.isFinite(message.contentHeight)
+          || message.contentWidth < request.requestedWidth || message.contentHeight < request.requestedHeight
+          || message.contentWidth > 100000 || message.contentHeight > 100000) {
+          snapshotError(message.requestId, "Widget full content dimensions are invalid");
+          return;
+        }
+        request.requestedWidth = message.contentWidth;
+        request.requestedHeight = message.contentHeight;
+      }
+      const targetScale = request.highResolution ? HIGH_RESOLUTION_SNAPSHOT_SCALE : 1,
         maximumDimension = request.highResolution ? MAX_HIGH_RESOLUTION_SNAPSHOT_DIMENSION : MAX_SNAPSHOT_DIMENSION,
         maximumPixels = request.highResolution ? MAX_HIGH_RESOLUTION_SNAPSHOT_PIXELS : MAX_SNAPSHOT_PIXELS,
         maximumDataUrlLength = request.highResolution ? MAX_HIGH_RESOLUTION_SNAPSHOT_DATA_URL_LENGTH : MAX_SNAPSHOT_DATA_URL_LENGTH,

@@ -129,7 +129,7 @@ test("presentation semantics reject conflicting or unsupported placement and ins
   assert.throws(() => validateToolArguments("penecho_present_widget", {...widget,capture:true,presentation:{intent:"inspect",attention:"normal"}}), /quiet attention/);
   assert.throws(() => validateToolArguments("penecho_present_widget", {...widget,capture:true,presentation:{intent:"inspect",relativeTo:"source"}}), /cannot use/);
   assert.deepEqual(validateToolArguments("penecho_present_widget", {...widget,capture:true,presentation:{intent:"inspect"}}).presentation, {
-    intent:"inspect",role:"primary",size:"base",attention:"quiet",
+    intent:"inspect",role:"primary",size:"page",attention:"quiet",
   });
 });
 
@@ -187,4 +187,82 @@ test("discovery advertises bounded natural-language workspace requests through c
   assert.match(description, /Ordinary shell echo commands and unrelated canvas mentions are not triggers/);
   assert.equal(new Set(TOOLS.map(tool => tool.name)).size, TOOLS.length);
   assert.ok(TOOLS.every(tool => tool.name.startsWith("penecho_")), "invocation phrases do not introduce alias tools");
+});
+
+test("widget role or intent alone keeps page dimensions while plot defaults remain base", () => {
+  const widget = {sessionId:"s",artifactId:"w",title:"W",html:"<p>Hello</p>"};
+  for (const presentation of [{role:"supporting"}, {intent:"deliver"}, {intent:"inspect"}]) {
+    const result = validateToolArguments("penecho_present_widget", {...widget,presentation,...(presentation.intent === "inspect" ? {capture:true} : {})});
+    assert.equal(result.presentation.size, "page");
+    assert.equal(result.width, 1200);
+    assert.equal(result.height, 800);
+  }
+  const plot = validateToolArguments("penecho_plot", {sessionId:"s",artifactId:"p",title:"P",expression:"x",presentation:{role:"supporting"}});
+  assert.equal(plot.presentation.size, "base");
+  assert.equal(plot.width, 480);
+  assert.equal(plot.height, 360);
+  const inspect = validateToolArguments("penecho_present_widget", {...widget,width:390,height:844,capture:true,presentation:{intent:"inspect"}});
+  assert.equal(inspect.width, 390);
+  assert.equal(inspect.height, 844);
+});
+
+test("create_text advertises auto-layout and rejects unrelated action fields", () => {
+  const tool=TOOLS.find(entry=>entry.name==="penecho_edit_canvas"),base={sessionId:"s",requestId:"r",action:"create_text",text:"Hello"};
+  assert.deepEqual(validateToolArguments(tool.name,base),base);
+  assert.match(tool.description,/omit region/);
+  assert.match(tool.description,/To annotate existing Canvas content, supply region/);
+  assert.match(tool.description,/For standalone text display/);
+  assert.match(tool.description,/runtime\/viewport.json/);
+  assert.match(tool.inputSchema.properties.region.description,/w\/h do not size/);
+  const branch=tool.inputSchema.allOf.find(rule=>rule.if.properties.action.const==="create_text").then;
+  assert.deepEqual(branch.required,["text"]);
+  assert.equal(branch.properties.region,undefined);
+  for(const [key,value] of Object.entries({baseRevision:1,width:600,height:120,objectId:"o",source:"data:image/png;base64,AA==",strokes:[{color:"#123456",width:2,points:[{x:10,y:10}]}]})) {
+    assert.equal(branch.properties[key],false,key);
+    assert.throws(()=>validateToolArguments(tool.name,{...base,[key]:value}),new RegExp(`${key} is not valid for create_text`));
+  }
+  const region={x:200,y:200,w:600,h:120};
+  assert.deepEqual(validateToolArguments(tool.name,{...base,region}).region,region);
+  const show=tool.inputSchema.allOf.find(rule=>rule.if.properties.action.const==="show").then;
+  assert.equal(show.properties.baseRevision,false);
+  assert.equal(show.properties.region,false);
+  assert.equal(tool.inputSchema.allOf.length,tool.inputSchema.properties.action.enum.length);
+});
+
+test("capture, open and progress advertise their conditional parameter restrictions", () => {
+  const schema=name=>TOOLS.find(t=>t.name===name).inputSchema;
+  const capture=schema("penecho_capture_canvas");
+  for(const [target,key] of [["object","objectId"],["region","region"]]) {
+    const rule=capture.allOf.find(r=>r.if.properties.target.const===target);
+    assert.deepEqual(rule.then.required,[key]);assert.equal(rule.else.properties[key],false);
+  }
+  const open=schema("penecho_open_canvas").allOf[0];
+  assert.equal(open.then.properties.documentId,false);assert.equal(open.then.properties.locator,false);
+  assert.equal(open.else.properties.title,false);assert.deepEqual(open.else.anyOf,[{required:["documentId"]},{required:["locator"]}]);
+  assert.throws(()=>validateToolArguments("penecho_open_canvas",{instanceId:"i",canvasId:"c",requestId:"r",documentId:"d",title:"extra"}),/title is valid only/);
+  assert.deepEqual(schema("penecho_update_session").anyOf.map(r=>r.required[0]),["title","status","summary","steps","events"]);
+  assert.throws(()=>validateToolArguments("penecho_update_session",{sessionId:"s"}),/At least one/);
+});
+
+test('image attachment tools accept bounded canonical sources and reject external host capabilities', () => {
+  const asset='penecho-asset:'+'a'.repeat(64);
+  for(const source of [asset,'penecho-ref:objects/image-1/image','data:image/png;base64,YQ==']) {
+    assert.equal(validateToolArguments('penecho_upload_image',{sessionId:'s',requestId:'u',name:'Image',source}).source,source);
+    assert.equal(validateToolArguments('penecho_place_image',{sessionId:'s',requestId:'p',source,width:80}).width,80);
+    assert.equal(validateToolArguments('penecho_edit_canvas',{sessionId:'s',requestId:'e',action:'replace_image',objectId:'o',baseRevision:1,source}).source,source);
+  }
+  for(const source of ['/tmp/image.png','https://example.com/a.png','YQ==','penecho-asset:'+'g'.repeat(64),'data:image/svg+xml;base64,YQ==','data:image/png;base64,'+'A'.repeat(800000)]) {
+    assert.throws(()=>validateToolArguments('penecho_upload_image',{sessionId:'s',requestId:'u',name:'Image',source}),{code:'invalid_arguments'});
+  }
+  for(const extra of [{baseRevision:1},{attachmentId:'private'},{width:0},{width:79.99},{height:79.99}])assert.throws(()=>validateToolArguments('penecho_place_image',{sessionId:'s',requestId:'p',source:asset,...extra}),{code:'invalid_arguments'});
+  assert.throws(()=>validateToolArguments('penecho_upload_image',{sessionId:'s',requestId:'u',name:'Image',attachmentId:'private'}),{code:'invalid_arguments'});
+});
+
+ test('image placement discovery matches minimum persistent image dimensions', () => {
+  const tool=TOOLS.find(tool=>tool.name==='penecho_place_image');
+  for(const key of ['width','height']) {
+    assert.equal(tool.inputSchema.properties[key].minimum,80);
+    assert.equal(validateToolArguments(tool.name,{sessionId:'s',requestId:'p',source:'penecho-asset:'+'a'.repeat(64),[key]:80})[key],80);
+  }
+  assert.match(tool.description,/derived proportionally and must also be at least 80/);
 });

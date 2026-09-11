@@ -18,6 +18,19 @@ async function eventually(predicate, message, timeoutMs = 2000) {
   assert.fail(message);
 }
 
+test("account status drops expired or invalid membership without exposing billing fields", () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-membership-status-"));
+  try {
+    const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}) });
+    for (const membership of [undefined, { tier:"pro", expiresAt:Date.now()-1 }, { tier:"vip", expiresAt:2200000000000 }, { tier:"pro", expiresAt:"2200000000000" }]) {
+      connector.account = { id:"account-id", name:"Ada", credits:1000, membership };
+      assert.equal(connector.status().account.membership, undefined);
+    }
+    connector.account.membership = { tier:"plus", expiresAt:2200000000000, customerId:"private" };
+    assert.deepEqual(connector.status().account.membership, { tier:"plus", expiresAt:2200000000000 });
+  } finally { fs.rmSync(stateDir, { recursive:true, force:true }); }
+});
+
 test("cloud origin requires HTTPS except for loopback development", () => {
   assert.equal(normalizedOrigin("https://penecho.ai"), "https://penecho.ai");
   assert.equal(normalizedOrigin("http://127.0.0.1:8080"), "http://127.0.0.1:8080");
@@ -616,7 +629,7 @@ test("local account sign-in and sign-out are independent from the paired device"
         return new Response(JSON.stringify({
           accessToken: "independent-account-token",
           expiresAt: "2030-01-01T00:00:00.000Z",
-          account: { id: "account-id", name: "Ada", credits: 1000, email: "hidden@example.com" },
+          account: { id: "account-id", name: "Ada", credits: 1000, email: "hidden@example.com", membership:{ tier:"pro", expiresAt:2200000000000, stripeSubscriptionId:"private" } },
         }), { status: 201, headers: { "content-type": "application/json" } });
       }
       if (url.endsWith("/api/v1/local-access/session") && options.method === "DELETE") return new Response(null, { status: 204 });
@@ -627,6 +640,7 @@ test("local account sign-in and sign-out are independent from the paired device"
     assert.equal(signedIn.accountSession.signedIn, true);
     assert.equal(signedIn.account.name, "Ada");
     assert.equal(signedIn.account.email, undefined);
+    assert.deepEqual(signedIn.account.membership, { tier:"pro", expiresAt:2200000000000 });
     assert.equal(signedIn.device.configured, true);
     let saved = JSON.parse(fs.readFileSync(path.join(stateDir, "cloud-device.json"), "utf8"));
     assert.equal(saved.accountToken, "independent-account-token");
@@ -1288,7 +1302,7 @@ test("Cloud model context is applied only at the local AI loopback boundary", ()
   const source = fs.readFileSync(path.join(__dirname, "..", "src", "server", "main.js"), "utf8");
   assert.match(source, /async function executeCloudCommand\(payload, timeoutMs, context = null\)/);
   assert.match(source, /headers:\{[^\n]+\.\.\.cloudAiConnectionHeaders\(context\)[^\n]+body:JSON\.stringify\(payload\)/);
-  assert.match(source, /findConnection\(store, requestedId\) \|\| \(requestedId\.startsWith\("hosted:"\) \? null : store\.defaultConnection\)/);
+  assert.match(source, /findConnection\(store, requestedId\) \|\| \(requestedId\.startsWith\("hosted:"\) \? null : store\.connections\[0\]\)/);
 });
 
 test("Remote Canvas relay operations use the isolated HTTP callback", async () => {

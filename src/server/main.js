@@ -959,6 +959,7 @@ function connectionProviderSnapshot(connection) {
         : provider === "claude-cli" ? { ...cli, label:"Claude CLI", doctor:"claude" } : null;
   return {
     connectionId:connection.id || "default",
+    hosted:connection.hosted === true,
     connectionName:connection.name || connection.apiModel || connection.cliModel || connection.provider,
     provider,
     aiEffort:effort,
@@ -1015,8 +1016,14 @@ function cliConnectionIssue(error) {
   return "request_failed";
 }
 
-function requestProviderSnapshot(req) {
-  const requestedId = String(req.headers["x-penecho-connection"] || "default").trim(), store = connectionStore(),
+async function requestProviderSnapshot(req) {
+  const requestedId = String(req.headers["x-penecho-connection"] || "default").trim();
+  if (requestedId.startsWith("hosted:")) {
+    const authorizationError = browserRequestError(req);
+    if (authorizationError) throw Object.assign(new Error(authorizationError), { status:403 });
+    await cloudConnector.prepareHostedConnection(requestedId);
+  }
+  const store = connectionStore(),
     connection = findConnection(store, requestedId) || (requestedId.startsWith("hosted:") ? null : store.connections[0]);
   if (!connection) throw Object.assign(new Error("The selected PenEcho model is unavailable. Refresh AI connections."), { status:409 });
   return connectionProviderSnapshot(connection);
@@ -1036,7 +1043,7 @@ function providerRequest(key, model, text, atlasImage = null, effort = API_EFFOR
       maxTokens = atlasImage ? anthropicResponseMaxTokens(effort, MODEL_MAX_TOKENS) : 10,
       system = atlasImage ? anthropicSystemPrompt(effort, literalTypeset, animationEnabled, pluginsEnabled) : null;
     return {
-      headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+      headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", ...(provider.hosted ? { Authorization:`Bearer ${key}` } : {}) },
       body: JSON.stringify({ model, max_tokens:maxTokens, stream:true, ...effortParameters, ...(system ? { system } : {}), messages: [{ role: "user", content }] }),
     };
   }
@@ -2909,7 +2916,7 @@ function pluginAuthoringRepairPrompt(document, styles, instructions, previous, v
 function pluginAuthoringProviderRequest(key, model, prompt, effort, api = API, provider = {}) {
   const reasoning = apiReasoningParameters({ apiFormat:api.format, apiPreset:provider.apiPreset || API_PRESET, apiUrl:provider.apiUrl || API_BASE_URL, model, effort });
   if (api.format === "anthropic") return {
-    headers:{ "Content-Type":"application/json", "x-api-key":key, "anthropic-version":"2023-06-01" },
+    headers:{ "Content-Type":"application/json", "x-api-key":key, "anthropic-version":"2023-06-01", ...(provider.hosted ? { Authorization:`Bearer ${key}` } : {}) },
     body:JSON.stringify({ model, max_tokens:MODEL_MAX_TOKENS, stream:true, ...reasoning, system:PLUGIN_AUTHORING_SYSTEM, messages:[{ role:"user", content:prompt }] }),
   };
   return {
@@ -2921,7 +2928,7 @@ function communityMetadataProviderRequest(key,model,prompt,atlasImage,effort,api
   const reasoning=apiReasoningParameters({apiFormat:api.format,apiPreset:provider.apiPreset||API_PRESET,apiUrl:provider.apiUrl||API_BASE_URL,model,effort}),image=imageDataUrlParts(atlasImage);
   if(!image)throw new Error("The generated community screenshot is invalid.");
   if(api.format==="anthropic")return{
-    headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
+    headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01",...(provider.hosted ? {Authorization:`Bearer ${key}`} : {})},
     body:JSON.stringify({model,max_tokens:Math.min(MODEL_MAX_TOKENS,2048),stream:true,...reasoning,system:COMMUNITY_METADATA_SYSTEM,messages:[{role:"user",content:[{type:"text",text:prompt},{type:"image",source:{type:"base64",media_type:image.mimeType,data:image.base64}}]}]}),
   };
   return{
@@ -3823,11 +3830,13 @@ const server = http.createServer(async (req, res) => {
     }
   }
   if(req.method==="POST"&&url.pathname==="/api/community/metadata"){
-    const requestId=crypto.randomUUID(),ip=req.socket.remoteAddress,controller=new AbortController(),providerSnapshot=requestProviderSnapshot(req),abort=()=>{if(!res.writableEnded)controller.abort();};
+    const requestId=crypto.randomUUID(),ip=req.socket.remoteAddress,controller=new AbortController(),abort=()=>{if(!res.writableEnded)controller.abort();};
+    let providerSnapshot = {};
     let localRun=null;
     req.once("aborted",abort);
     res.once("close",abort);
     try{
+      providerSnapshot = await requestProviderSnapshot(req);
       if(providerSnapshot.local&&!isLanClient(ip))return send(res,403,{error:`${providerSnapshot.local.label} requests are available only from this computer or its local network.`,requestId});
       const authorizationError=providerBrowserRequestError(req,providerSnapshot);
       if(authorizationError)return send(res,403,{error:authorizationError,requestId});
@@ -3849,11 +3858,13 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (req.method === "POST" && url.pathname === "/api/plugins/improve") {
-    const requestId = crypto.randomUUID(), ip = req.socket.remoteAddress, controller = new AbortController(), providerSnapshot = requestProviderSnapshot(req), abort = () => { if (!res.writableEnded) controller.abort(); };
+    const requestId = crypto.randomUUID(), ip = req.socket.remoteAddress, controller = new AbortController(), abort = () => { if (!res.writableEnded) controller.abort(); };
+    let providerSnapshot = {};
     let localRun = null;
     req.once("aborted", abort);
     res.once("close", abort);
     try {
+      providerSnapshot = await requestProviderSnapshot(req);
       if (providerSnapshot.local && !isLanClient(ip)) return send(res, 403, { error:`${providerSnapshot.local.label} requests are available only from this computer or its local network.`, requestId });
       const authorizationError = providerBrowserRequestError(req, providerSnapshot);
       if (authorizationError) return send(res, 403, { error:authorizationError, requestId });
@@ -3942,13 +3953,15 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === "POST" && url.pathname === "/api/ai/command") {
     const requestId = crypto.randomUUID(), started = Date.now(), ip = req.socket.remoteAddress,
-      clientController = new AbortController(), providerSnapshot = requestProviderSnapshot(req),
+      clientController = new AbortController(),
       abortForDisconnect = () => { if (!res.writableEnded) clientController.abort(); },
       progress=aiProgressStream(req,res,requestId);
+    let providerSnapshot = {};
     let localRun=null,requestTrace=null;
     req.once("aborted", abortForDisconnect);
     res.once("close", abortForDisconnect);
     try {
+      providerSnapshot = await requestProviderSnapshot(req);
       if(providerSnapshot.local||localAccessMode!=="open") {
         const authorizationError=providerBrowserRequestError(req,providerSnapshot);
         if(authorizationError)return send(res,403,{error:authorizationError,requestId});
@@ -4175,6 +4188,7 @@ const canvasAgentRequestTracer = REQUEST_TRACE_ENABLED ? createCanvasAgentReques
 const canvasAgent = attachCanvasAgent({
   server,
   authorize:browserRequestError,
+  prepareConnection:id=>String(id).startsWith("hosted:") ? cloudConnector.prepareHostedConnection(id) : null,
   resolveConnection:id=>{const store=connectionStore(),requested=String(id||"default");return findConnection(store,requested)||(requested==="default"?store.connections[0]||null:null)},
   listConnections:()=>{const store=connectionStore();return[...store.connections,...(cloudConnector?.hostedConnections() || [])]},
   resolveWebSearch:()=>({ provider:DEEPSEEK_SEARCH_API_KEY?DEEPSEEK_SEARCH_PROVIDER:TAVILY_API_KEY?"tavily":"built-in", deepseekProvider:DEEPSEEK_SEARCH_PROVIDER, deepseekApiKey:DEEPSEEK_SEARCH_API_KEY||"", tavilyApiKey:TAVILY_API_KEY||"", apiKey:TAVILY_API_KEY||"" }),

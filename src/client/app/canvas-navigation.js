@@ -1,6 +1,158 @@
 // One owner for canvas navigation and explicit, native Widget interaction.
 // Iframes retain their identity. Selecting a Widget never replays the selecting
 // click into its document, and inactive front shells block underlying Widgets.
+
+  function widgetInteractionPresentation() {
+    try { return localStorage.getItem("penecho.widgetInteractionPresentation") || "maximized"; }
+    catch { return "maximized"; }
+  }
+  function switchWidgetPresentation(widget, maximized) {
+    try { localStorage.setItem("penecho.widgetInteractionPresentation", maximized ? "maximized" : "canvas"); } catch {}
+    setWidgetMaximized(widget, maximized);
+    requestInteractionLayerRender();
+  }
+  function setWidgetPresentationZoom(widget, percent, notifyHost = true) {
+    if (!widget?.shell) return;
+    const value = Number(percent),
+      zoom = Math.max(50, Math.min(100, Number.isFinite(value) ? value : 100));
+    widget.presentationZoom = zoom;
+    widget.shell.setAttribute("data-presentation-zoom", String(zoom));
+    const controls = widget.presentationZoomControls;
+    if (controls) {
+      controls.label.textContent = `${zoom}%`;
+      controls.zoomOut.disabled = zoom === 50;
+      controls.zoomIn.disabled = zoom === 100;
+    }
+    if (notifyHost) sendWidgetHostState(widget);
+  }
+  function setWidgetMaximized(widget, maximized) {
+    const shell = widget?.shell;
+    if (!shell || widget.maximized === maximized) return;
+    if (maximized && typeof shell.showPopover !== "function") return;
+    widget.maximized = maximized;
+    if (maximized) {
+      if (!widget.presentationToolbar) {
+        const toolbar = document.createElement("div");
+        toolbar.className = "widget-presentation-toolbar";
+        toolbar.setAttribute("role", "toolbar");
+        const title = document.createElement("span");
+        title.className = "widget-presentation-title";
+        title.textContent = widget.title;
+        title.title = widget.title;
+        toolbar.append(title);
+        const action = (label, icon, activate) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.title = label;
+          button.setAttribute("aria-label", label);
+          button.innerHTML = icon;
+          button.addEventListener("click", activate);
+          toolbar.append(button);
+          return button;
+        };
+        const zoomOut = action(t("imageZoomOut"), '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>', () => setWidgetPresentationZoom(widget, widget.presentationZoom - 10)),
+          label = document.createElement("output");
+        label.className = "image-presentation-zoom";
+        label.setAttribute("aria-live", "polite");
+        toolbar.append(label);
+        const zoomIn = action(t("imageZoomIn"), '<svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg>', () => setWidgetPresentationZoom(widget, widget.presentationZoom + 10));
+        widget.presentationZoomControls = { zoomOut, zoomIn, label };
+        action(t("widgetReturnToCanvas"), '<svg viewBox="0 0 24 24"><path d="M4 9h5V4m11 11h-5v5M9 9 3 3m12 12 6 6"/></svg>', () => switchWidgetPresentation(widget, false));
+        action(t("downloadWidget"), OBJECT_CHROME_ICONS.download, async (event) => {
+          const button = event.currentTarget;
+          button.disabled = true;
+          try { await downloadWidgetImage(widget); }
+          finally { button.disabled = false; }
+        });
+        action(t("widgetExitInteraction"), '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></svg>', () => setWidgetInteraction(null));
+        toolbar.addEventListener("pointerdown", event => event.stopPropagation());
+        toolbar.addEventListener("dblclick", (event) => {
+          if (!widget.maximized || event.target.closest("button")) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setWidgetInteraction(null);
+        });
+        shell.prepend(toolbar);
+        widget.presentationToolbar = toolbar;
+      }
+      setWidgetPresentationZoom(widget, 100, false);
+      shell.setAttribute("popover", "manual");
+      shell.classList.add("widget-maximized");
+      shell.showPopover();
+    } else {
+      if (shell.matches(":popover-open")) shell.hidePopover();
+      shell.removeAttribute("popover");
+      shell.classList.remove("widget-maximized");
+      shell.removeAttribute("data-presentation-zoom");
+      widget.presentationZoom = 100;
+      widget.presentationWidth = widget.presentationHeight = null;
+      widget.styleRule?.style?.removeProperty("--widget-presentation-width");
+      widget.styleRule?.style?.removeProperty("--widget-presentation-height");
+    }
+    positionWidget(widget);
+    widget.frame?.focus({ preventScroll:true });
+  }
+
+  function showImagePresentation(item) {
+    if (!item || !state.images.includes(item) || !(item.blob instanceof Blob)) return false;
+    const previous = document.querySelector(".canvas-image-presentation");
+    if (previous) previous.close();
+    const dialog = document.createElement("dialog"),
+      toolbar = document.createElement("div"),
+      title = document.createElement("span"),
+      close = document.createElement("button"),
+      zoomOut = document.createElement("button"),
+      zoomIn = document.createElement("button"),
+      zoomLabel = document.createElement("output"),
+      image = document.createElement("img"),
+      sourceUrl = URL.createObjectURL(item.blob);
+    dialog.className = "canvas-image-presentation widget-maximized";
+    dialog.setAttribute("aria-label", item.sourceName || t("widgetMaximize"));
+    toolbar.className = "widget-presentation-toolbar";
+    toolbar.setAttribute("role", "toolbar");
+    title.className = "widget-presentation-title";
+    title.textContent = item.sourceName || "";
+    title.title = item.sourceName || "";
+    close.type = "button";
+    close.title = t("widgetReturnToCanvas");
+    close.setAttribute("aria-label", close.title);
+    close.innerHTML = '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></svg>';
+    close.addEventListener("click", () => dialog.close());
+    let zoomPercent = 100;
+    const updateZoom = (change = 0) => {
+      zoomPercent = Math.max(50, Math.min(100, zoomPercent + change));
+      image.setAttribute("data-zoom", String(zoomPercent));
+      zoomLabel.textContent = `${zoomPercent}%`;
+      zoomOut.disabled = zoomPercent === 50;
+      zoomIn.disabled = zoomPercent === 100;
+    };
+    zoomOut.type = zoomIn.type = "button";
+    zoomOut.title = t("imageZoomOut");
+    zoomIn.title = t("imageZoomIn");
+    zoomOut.setAttribute("aria-label", zoomOut.title);
+    zoomIn.setAttribute("aria-label", zoomIn.title);
+    zoomOut.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>';
+    zoomIn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg>';
+    zoomOut.addEventListener("click", () => updateZoom(-10));
+    zoomIn.addEventListener("click", () => updateZoom(10));
+    zoomLabel.className = "image-presentation-zoom";
+    zoomLabel.setAttribute("aria-live", "polite");
+    updateZoom();
+    image.alt = item.sourceName || "";
+    image.src = sourceUrl;
+    image.draggable = false;
+    image.addEventListener("dblclick", () => dialog.close());
+    dialog.addEventListener("close", () => {
+      URL.revokeObjectURL(sourceUrl);
+      dialog.remove();
+    }, { once:true });
+    toolbar.append(title, zoomOut, zoomLabel, zoomIn, close);
+    dialog.append(toolbar, image);
+    document.body.append(dialog);
+    dialog.showModal();
+    return true;
+  }
+
   function canvasNavigationTextTarget(target) {
     return keyboardShortcutTextEditingTarget(target);
   }
@@ -36,6 +188,7 @@
     if (state.interactingWidgetId === next) return true;
     const previous = state.widgets.find(item => item.id === state.interactingWidgetId);
     if (previous?.frame && document.activeElement === previous.frame) document.activeElement.blur();
+    if (previous) setWidgetMaximized(previous, false);
     state.interactingWidgetId = next;
     if (!next) {
       const returnTool = state.widgetInteractionReturnTool;
@@ -61,10 +214,12 @@
       setCanvasMode("select");
     }
     state.widgetInteractionReturnTool = returnTool;
-    return setWidgetInteraction(widget);
+    const entered = setWidgetInteraction(widget);
+    if (entered) setWidgetMaximized(widget, widgetInteractionPresentation() === "maximized");
+    return entered;
   }
   function canvasWidgetInteractionChromeTarget(target) {
-    return Boolean(target?.closest?.("#canvasViewActions, #canvasNavigationActions, .canvas-fit-contents, .canvas-navigation-lock, .object-chrome-button, .widget-interaction-status"));
+    return Boolean(target?.closest?.("#canvasViewActions, #canvasNavigationActions, .canvas-fit-contents, .canvas-navigation-lock, .object-chrome-button, .widget-interaction-status, .widget-presentation-toolbar"));
   }
   function showWidgetContextToolbar(event) {
     event.preventDefault();
@@ -206,8 +361,11 @@
     const tool = state.viewMode ? state.viewTool : state.mode;
     if (tool !== 'hand' && tool !== 'select') return;
     if (canvasWidgetInteractionChromeTarget(event.target)) return;
-    const widget = canvasWidgetAtEvent(event);
-    if (widget) enterWidgetInteraction(widget);
+    const target = handObjectToolbarTargetAtPoint(clientPoint(event));
+    if (target?.kind === "image") {
+      event.preventDefault();
+      showImagePresentation(target.object);
+    } else if (target?.kind === "widget") enterWidgetInteraction(target.object);
   });
   view.addEventListener('contextmenu', (event) => { showWidgetContextToolbar(event); });
   document.querySelector('#canvasFitContents')?.addEventListener('click', fitCanvasContents);

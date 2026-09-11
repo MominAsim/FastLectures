@@ -347,7 +347,7 @@ function extractCapture(result, maximumBytes = MAX_CAPTURE_BYTES, label = "widge
   return { mimeType:result?.mediaType && result.mediaType === match[1] ? result.mediaType : match[1], data:match[2], bytes:data.length };
 }
 
-const BOUND_CANVAS_TOOL_NAMES = Object.freeze(["penecho_list_files", "penecho_read_file", "penecho_read_messages", "penecho_ack_messages", "penecho_patch_file", "penecho_edit_canvas", "penecho_capture_canvas", "penecho_present_widget", "penecho_draw", "penecho_plot", "penecho_capture_widget", "penecho_read_feedback", "penecho_inspect_session"]);
+const BOUND_CANVAS_TOOL_NAMES = Object.freeze(["penecho_list_files", "penecho_read_file", "penecho_read_messages", "penecho_ack_messages", "penecho_patch_file", "penecho_edit_canvas", "penecho_upload_image", "penecho_place_image", "penecho_capture_canvas", "penecho_present_widget", "penecho_draw", "penecho_plot", "penecho_capture_widget", "penecho_read_feedback", "penecho_inspect_session"]);
 
 // Shared document operations. The caller owns authentication and session lifecycle.
 async function executeBoundCanvasTool({name,args,session,canvasCall,flushUpdate = async () => {},sessionSnapshot = session => ({sessionId:session.id}),callOptions = {}}) {
@@ -368,7 +368,7 @@ async function executeBoundCanvasTool({name,args,session,canvasCall,flushUpdate 
     return {...publicVirtualResult(result, name === "penecho_read_file" ? "virtual file" : "bounded result"),timing};
   }
   if (name === "penecho_patch_file") {
-    const signature = mutationSignature(args), prior = session.mutationRequests.get(args.requestId);
+    const signature = mutationSignature({tool:name,...args}), prior = session.mutationRequests.get(args.requestId);
     if (prior && prior.signature !== signature) throw bridgeError("REQUEST_ID_CONFLICT", "requestId was already used with different patch arguments. Use a new requestId.", 409);
     if (prior?.response) return {...prior.response,reused:true};
     if (prior && !prior.applyArguments) throw bridgeError("REQUEST_IN_PROGRESS", "The patch request is still being prepared. Retry the same requestId shortly.", 409);
@@ -415,8 +415,8 @@ async function executeBoundCanvasTool({name,args,session,canvasCall,flushUpdate 
       throw error;
     }
   }
-  if (name === "penecho_edit_canvas") {
-    const signature = mutationSignature(args), prior = session.mutationRequests.get(args.requestId);
+  if (["penecho_edit_canvas", "penecho_upload_image", "penecho_place_image"].includes(name)) {
+    const signature = mutationSignature({tool:name,...args}), prior = session.mutationRequests.get(args.requestId);
     if (prior && prior.signature !== signature) throw bridgeError("REQUEST_ID_CONFLICT", "requestId was already used with different mutation arguments. Use a new requestId.", 409);
     if (prior?.response) return {...prior.response,reused:true};
     if (!prior && [...session.mutationRequests.values()].filter(value => !value.response).length >= MAX_UNRESOLVED_PATCHES) throw bridgeError("request_limit", "Too many unresolved mutation outcomes are retained for this session. Resolve or retry them before starting another edit.", 429);
@@ -427,7 +427,7 @@ async function executeBoundCanvasTool({name,args,session,canvasCall,flushUpdate 
     }
     const entry = prior || {signature};
     session.mutationRequests.set(args.requestId, entry);
-    const applied = await canvasCall(session.connection, "mcp_edit_canvas", args, callOptions);
+    const applied = await canvasCall(session.connection, name.replace(/^penecho_/, "mcp_"), args, callOptions);
     browserObject(applied.result, "canvas edit result");
     const response = {...safeJsonValue(applied.result, "canvas edit result"),timing:applied.timing};
     entry.response = response;

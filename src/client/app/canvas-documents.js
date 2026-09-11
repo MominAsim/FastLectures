@@ -2,6 +2,83 @@
   // Ordinary saves carry this extension in bundle V2. This is not version history.
   var canvasDocuments = { records:new Map(), activeId:null, ready:null, db:null, switching:false, epoch:0, error:null, retry:null, receipts:new Map(), write:Promise.resolve() };
   const CANVAS_DOCUMENT_EXTENSION = "penechoDocument", CANVAS_WORKSPACE_EXTENSION = "penechoWorkspace", CANVAS_DOCUMENT_LIMIT = 64;
+  const CANVAS_IMAGE_ASSET_TYPE="image-attachment", CANVAS_IMAGE_ASSET_LIMIT=64, CANVAS_IMAGE_ASSET_BYTES=16000000;
+  function canvasImageAssets(doc=canvasDocumentsCurrent()) {
+    return (canvasDocumentsIsActive(doc)?state.currentSnapshotPreservedAssets:doc.stored?.item?.preservedAssets)||[];
+  }
+  function canvasImageAssetMetadata(asset) {
+    return {assetId:asset.metadata.resourceId,source:`penecho-asset:${asset.metadata.resourceId}`,name:asset.metadata.name,mediaType:asset.contentType,bytes:asset.metadata.bytes,width:asset.metadata.width,height:asset.metadata.height};
+  }
+  function canvasImageAsset(doc,source) {
+    const id=/^penecho-asset:([a-f0-9]{64})$/.exec(source)?.[1];
+    const asset=id&&canvasImageAssets(doc).find(a=>a.kind==="resource"&&a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE&&a.metadata.resourceId===id);
+    if(!asset)throw canvasDocumentsError("RESOURCE_NOT_FOUND","Image attachment is not in this Canvas. Upload it to this session first.");
+    return asset;
+  }
+  function canvasImageAssetsForHtml(html,doc=canvasDocumentsCurrent()) {
+    const sources=[...new Set(String(html||"").match(/penecho-asset:[a-f0-9]{64}/g)||[])],result={};
+    let total=0;
+    for(const source of sources){const asset=canvasImageAsset(doc,source),data=`data:${asset.contentType};base64,${asset.dataBase64}`;
+      if(!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(data)||data.length>800000||(total+=data.length)>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("INVALID_IMAGE","The Widget image attachments exceed the supported limits.");
+      result[source]=data;
+    }
+    let expanded=String(html||"").length;
+    for(const source of String(html||"").match(/penecho-asset:[a-f0-9]{64}/g)||[])if((expanded+=result[source].length-source.length)>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("ASSET_LIMIT","Widget image expansion exceeds the supported limit.");
+    return result;
+  }
+  async function canvasImageSource(doc,source) {
+    let blob;
+    if(typeof source!=="string")throw canvasDocumentsError("INVALID_IMAGE","An image source is required.");
+    if(source.startsWith("penecho-asset:")){const asset=canvasImageAsset(doc,source);blob=dataUrlBlob(`data:${asset.contentType};base64,${asset.dataBase64}`);}
+    else if(source.startsWith("penecho-ref:")){const match=/^penecho-ref:objects\/([^/]+)\/image$/.exec(source),object=match&&canvasDocumentsObject(doc,decodeURIComponent(match[1]));if(object?.kind!=="image")throw canvasDocumentsError("RESOURCE_NOT_FOUND","Use an image reference from this Canvas.");blob=object.item.blob;}
+    else {if(source.length>800000||!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(source))throw canvasDocumentsError("INVALID_IMAGE","Use a bounded PNG, JPEG or WebP Data URL.");blob=dataUrlBlob(source);}
+    if(!blob||!["image/png","image/jpeg","image/webp"].includes(blob.type)||blob.size>MAX_IMAGE_SOURCE_BYTES)throw canvasDocumentsError("INVALID_IMAGE","Image attachment exceeds the 800000-byte Data URL limit. Resize it before upload.");
+    const signature=new Uint8Array(await blob.slice(0,12).arrayBuffer()),matches=blob.type==="image/png"?[137,80,78,71,13,10,26,10].every((value,index)=>signature[index]===value):blob.type==="image/jpeg"?signature[0]===255&&signature[1]===216&&signature[2]===255:[82,73,70,70].every((value,index)=>signature[index]===value)&&[87,69,66,80].every((value,index)=>signature[index+8]===value);
+    if(!matches)throw canvasDocumentsError("INVALID_IMAGE","Image bytes do not match their PNG, JPEG or WebP media type.");
+    const image=await createImageBitmap(blob);
+    if(image.width<1||image.height<1||image.width>MAX_IMAGE_DIMENSION||image.height>MAX_IMAGE_DIMENSION||image.width*image.height>MAX_IMAGE_PIXELS){image.close();throw canvasDocumentsError("INVALID_IMAGE","Image dimensions exceed Canvas limits.");}
+    return {blob,image,naturalW:image.width,naturalH:image.height};
+  }
+  async function canvasDocumentsUploadImage(doc,args,execution) {
+    if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
+    const decoded=await canvasImageSource(doc,args.source);
+    try {
+      const bytes=await decoded.blob.arrayBuffer(),hash=await crypto.subtle.digest("SHA-256",bytes),id=Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,"0")).join("");
+      canvasAgentAssertToolExecution(execution);
+      const assets=canvasImageAssets(doc),existing=assets.find(a=>a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE&&a.metadata.resourceId===id);
+      if(existing)return {...canvasImageAssetMetadata(existing),revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision};
+      const data=await canvasAgentReadDataUrl(decoded.blob),entries=assets.filter(a=>a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE);
+      canvasAgentAssertToolExecution(execution);
+      if(data.length>800000||entries.length>=CANVAS_IMAGE_ASSET_LIMIT||entries.reduce((sum,a)=>sum+(a.dataBase64?.length||0),0)+data.length>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("ASSET_LIMIT","This Canvas has reached its image attachment limit.");
+      const asset={kind:"resource",contentType:decoded.blob.type,dataBase64:data.slice(data.indexOf(",")+1),metadata:{resourceType:CANVAS_IMAGE_ASSET_TYPE,resourceId:id,name:String(args.name||"image").slice(0,255),bytes:decoded.blob.size,width:decoded.naturalW,height:decoded.naturalH}};
+      if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
+      // Immutable attachments remain available to objects restored by Undo.
+      if(canvasDocumentsIsActive(doc))state.currentSnapshotPreservedAssets=[...assets,asset];else doc.stored.item.preservedAssets=[...assets,asset];
+      canvasDocumentsEndEdit(doc,"image_attachment",id);
+      return {...canvasImageAssetMetadata(asset),revision:doc.revision};
+    }finally{decoded.image.close();}
+  }
+  async function canvasDocumentsPlaceImage(doc,args,execution) {
+    if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
+    canvasDocumentsCapacity(doc,"image");
+    const decoded=await canvasImageSource(doc,args.source);let retained=false;
+    try {
+      canvasAgentAssertToolExecution(execution);
+      const ratio=decoded.naturalW/decoded.naturalH,defaultScale=Math.max(80/decoded.naturalW,80/decoded.naturalH,Math.min(1,800/Math.max(decoded.naturalW,decoded.naturalH))),
+        w=args.width??(args.height?args.height*ratio:decoded.naturalW*defaultScale),h=args.height??w/ratio;
+      if(![w,h].every(value=>Number.isFinite(value)&&value>=80&&value<=SIZE))throw canvasDocumentsError("INVALID_GEOMETRY","Both image dimensions must be at least 80 Canvas units and within the Canvas. Supply compatible width/height.");
+      const session=mcpRuntime.sessions.get(args.sessionId),placement=args.region||canvasDocumentsPlace(doc,w,h,session,null,true).placement,
+        record=imageRecord({id:canvasDocumentsObjectId(doc,"image"),x:placement.x,y:placement.y,w,h,...decoded,sourceName:args.source.startsWith("data:")?"image":args.source});
+      if(!record)throw canvasDocumentsError("INVALID_IMAGE","Image content or geometry was rejected.");
+      if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
+      canvasDocumentsCapacity(doc,"image");
+      canvasDocumentsValidateGeometry(doc,record);canvasDocumentsBeginEdit(doc);
+      if(canvasDocumentsIsActive(doc)){state.images.push(record);retained=true;}else {const {image,...stored}=record;doc.stored.item.images.push(stored);}
+      canvasDocumentsEndEdit(doc,"image",record.id);
+      if(!args.region&&session&&canvasDocumentsIsActive(doc))mcpQueueView(session,record);
+      return {applied:true,objectId:record.id,source:args.source.startsWith("data:")?`penecho-ref:objects/${encodeURIComponent(record.id)}/image`:args.source,revision:doc.revision};
+    }finally{if(!retained)decoded.image.close();}
+  }
   function canvasDocumentsCopy(en,zh) { return state.language === "zh" ? zh : en; }
   function canvasDocumentsLimitMessage() { return canvasDocumentsCopy(`${CANVAS_DOCUMENT_LIMIT} Canvases are already open. Close an unused Canvas before opening another.`,`已打开 ${CANVAS_DOCUMENT_LIMIT} 个画布，请先关闭不用的画布，再打开新的画布。`); }
   function canvasDocumentsError(code,message,details=null) { return Object.assign(Error(message),{code,details}); }
@@ -35,7 +112,7 @@
     return doc;
   }
   function canvasDocumentsRecord(meta,stored=null) {
-    return {id:meta.documentId,title:meta.title||canvasDocumentsCopy("Untitled Canvas","未命名画布"),context:meta.context||"",bindings:meta.bindings||[],locators:meta.locators||[],processor:meta.processor||{kind:"penecho"},stored,
+    return {id:meta.documentId,title:meta.title||canvasDocumentsCopy("Untitled Canvas","未命名画布"),context:meta.context||"",bindings:meta.bindings||[],locators:meta.locators||[],processor:{kind:"penecho"},stored,
       revision:1,savedRevision:0,feedback:[],feedbackSequence:0,messages:[],messageSequence:0,changes:[],changeSequence:0,sessions:[],internalSessions:[],unseen:0,undo:[],redo:[],receipts:new Map()};
   }
   function canvasDocumentsUnseen(value) { return Number.isSafeInteger(value) && value >= 0 ? value : 0; }
@@ -158,11 +235,12 @@
       mcpPauseView();canvasDocuments.activeId=id;canvasDocuments.epoch++;
       state.userRevision=doc.revision;state.history=doc.undo||[];state.future=doc.redo||[];state.historyBefore.clear();
       state.animationHistoryBefore=state.widgetHistoryBefore=state.imageHistoryBefore=state.textBoxHistoryBefore=null;
+      state.currentSnapshotPreservedAssets=snapshotPreservedAssets(item.preservedAssets);
       restoreAnimations(item.animations||[]);restoreWidgets((item.widgets||[]).map(canvasDocumentsWidgetRecord).filter(Boolean));restoreImages(images||[]);await restoreTextBoxes(item.textBoxes||[],1);
       if(item.theme)applyTheme(item.theme);
       state.currentSnapshotId=doc.locator?.id||null;state.currentSnapshotLocation=doc.locator?.location||null;state.currentSnapshotName=doc.title;state.currentSnapshotHasExplicitName=Boolean(doc.locator||doc.title&&!/^(untitled canvas|未命名画布)$/i.test(doc.title.trim()));state.currentCanvasSuggestedName="";
       state.currentSnapshotProjectId=item.projectId||null;state.currentSnapshotRevisionId=item.currentRevisionId||null;state.snapshotSavedRevision=doc.savedRevision;
-      state.currentSnapshotBundleExtensions=snapshotExtensionObject(item.bundleExtensions);state.currentSnapshotManifestExtensions=snapshotExtensionObject(item.manifestExtensions);state.currentSnapshotPreservedAssets=snapshotPreservedAssets(item.preservedAssets);
+      state.currentSnapshotBundleExtensions=snapshotExtensionObject(item.bundleExtensions);state.currentSnapshotManifestExtensions=snapshotExtensionObject(item.manifestExtensions);
       mcpRuntime.feedback=doc.feedback;mcpRuntime.feedbackSequence=doc.feedbackSequence;
       restoreSnapshotCanvasObjectOrder(item.bundleExtensions);
       canvasDocumentsSyncExtension(doc);canvasDocumentsApplyView(item.view);
@@ -211,7 +289,7 @@
   function canvasDocumentsObject(doc,id) {return canvasDocumentsObjects(doc).find(o=>o.item.id===id);}
   function canvasDocumentsSourceEditable(object) {return object.kind!=="widget"||object.item.widgetType==="html_widget"&&(!object.item.pluginId||object.item.pluginId==="general");}
   function canvasDocumentsFilePaths(doc) {
-    const entries=[{path:"canvas.json",writable:false},{path:"context.md",writable:true},{path:"layout.json",writable:false},{path:"view.json",writable:false},{path:"objects/index.json",writable:false},{path:"runtime/viewport.json",writable:false},{path:"runtime/selection.json",writable:false},{path:"runtime/changes.json",writable:false},{path:"runtime/messages.json",writable:false},{path:"ink/index.json",writable:false}];
+    const entries=[{path:"assets/index.json",writable:false},{path:"canvas.json",writable:false},{path:"context.md",writable:true},{path:"layout.json",writable:false},{path:"view.json",writable:false},{path:"objects/index.json",writable:false},{path:"runtime/viewport.json",writable:false},{path:"runtime/selection.json",writable:false},{path:"runtime/changes.json",writable:false},{path:"runtime/messages.json",writable:false},{path:"ink/index.json",writable:false}];
     for(const object of canvasDocumentsObjects(doc)) {
       const root=`objects/${encodeURIComponent(object.item.id)}`,common={objectId:object.item.id,kind:object.kind,bounds:canvasDocumentsBounds(object)};
       entries.push({...common,path:`${root}/geometry.json`,writable:true});
@@ -224,6 +302,7 @@
   function canvasDocumentsFile(doc,path) {
     path=canvasDocumentsPath(path);
     const active=canvasDocumentsIsActive(doc),json=value=>JSON.stringify(value,null,2)+"\n";
+    if(path==="assets/index.json")return json({images:canvasImageAssets(doc).filter(a=>a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE).map(canvasImageAssetMetadata)});
     if(path==="canvas.json")return json({...canvasDocumentsMetadata(doc),active,revision:active?state.userRevision:doc.revision,coordinates:{units:"canvas",width:SIZE,height:SIZE},capabilities:{virtualFiles:true,history:false,automaticWake:false,backgroundCapture:false}});
     if(path==="context.md")return doc.context||"";
     if(path==="layout.json")return json({groups:[...mcpRuntime.sessions.values()].filter(s=>s.documentId===doc.id).map(s=>({bindingKey:s.sessionKey,title:s.title,layout:s.layout,objectIds:[s.boardObjectId,...[...s.artifacts.values()].flatMap(a=>a.objectIds||[a.objectId])].filter(Boolean)})),policy:"Preserve user geometry. Place related support below; compare beside when readable. New work starts within the viewport with top breathing room. Inspect previews are temporary."});
@@ -270,10 +349,17 @@
     for(const id of ids)if(!exclude.has(id)&&intersection(box,index.boxes.get(id)))result.push({id,...index.boxes.get(id)});
     return result;
   }
-  function canvasDocumentsPlace(doc,w,h,session=null,presentation=null) {
+  function canvasDocumentsPlace(doc,w,h,session=null,presentation=null,preferViewport=false) {
     const active=canvasDocumentsIsActive(doc),view=active?viewportRect():doc.stored?.item?.view?.region,
       stage=active?canvasAgentFramePlan({x:0,y:0,w,h},96).stage:null,
       readingView=view?{...view,readableWidth:stage?.w?stage.w/.8:view.w*(doc.stored?.item?.view?.scale||1)/.8}:null;
+    // Keep the 1.2.0 Agent's viewport-first free-space placement for a new
+    // conversation; subsequent artifacts follow the shared semantic layout.
+    if(active&&(preferViewport||session?.internalAgent&&!session.artifacts.size)&&!presentation?.relativeTo&&typeof canvasAgentPlacementBox==="function"){
+      const slot=canvasAgentPlacementBox(w,h,{mode:"auto"});
+      if(!slot.crowded&&!canvasDocumentsCollisions(doc,{x:slot.x,y:slot.y,w,h}).length)
+        return {placement:{mode:"absolute",x:slot.x,y:slot.y},layout:{zone:{x:slot.x,y:slot.y,w,h},x:0,y:h+32,rowHeight:h}};
+    }
     return mcpArrange(w,h,session,presentation,readingView,a=>{
       let bounds=null;for(const id of a.objectIds||[a.objectId]){const object=canvasDocumentsObject(doc,id);if(object)bounds=unionDirtyBounds(bounds,canvasDocumentsBounds(object));}return bounds;
     },box=>canvasDocumentsCollisions(doc,box));
@@ -309,6 +395,7 @@
       if(canvasDocumentsIsActive(doc))state.userRevision++;
       doc.context=args.content;canvasDocumentsChanged(doc,"context");return {applied:true,contentHash:await canvasAgentHash(args.content)};
     }
+    if(path.endsWith("/widget.html"))canvasImageAssetsForHtml(args.content,doc);
     const parts=canvasDocumentIdentity.parsePath(path),object=parts[0]==="objects"?canvasDocumentsObject(doc,decodeURIComponent(parts[1])):null;
     if(!object)throw canvasDocumentsError("READ_ONLY_FILE","This is a derived runtime file. Use a Canvas action instead.");
     if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
@@ -485,9 +572,9 @@
       if(object&&object.kind!=="widget")throw canvasDocumentsError("KIND_MISMATCH","Use a new artifact ID for this Widget.");
       let widget=object?.item;
       if(!widget)canvasDocumentsCapacity(doc,"widget");
-      const presentation=mcpPresentation(args,previous),size=mcpPresentationSize(args);
+      const presentation=mcpPresentation(args,previous),size=mcpPresentationSize(args,doc);
       const plan=widget?null:canvasDocumentsPlace(doc,size.width,size.height,session,presentation);
-      const record=canvasDocumentsWidgetRecord({id:widget?.id||canvasDocumentsObjectId(doc,"widget"),widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:widget?.x??plan.placement.x,y:widget?.y??plan.placement.y,w:widget?.w||size.width,h:widget?.h||size.height,contentW:widget?.contentW||size.width,contentH:widget?.contentH||size.height,refreshSeconds:0});
+      const record=canvasDocumentsWidgetRecord({id:widget?.id||canvasDocumentsObjectId(doc,"widget"),widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:widget?.x??plan.placement.x,y:widget?.y??plan.placement.y,w:widget?.w||size.width,h:widget?.h||size.height,contentW:widget?.contentW||size.contentWidth||size.width,contentH:widget?.contentH||size.contentHeight||size.height,refreshSeconds:0});
       if(!record)throw canvasDocumentsError("INVALID_WIDGET","Widget source is invalid. Correct it and retry.");
       canvasAgentAssertToolExecution(execution);canvasDocumentsBeginEdit(doc);
       if(widget)Object.assign(widget,record);else{widget=record;item.widgets.push(widget);session.layout=plan.layout;}
@@ -551,11 +638,13 @@
       canvasDocumentsCapacity(doc,"text");
       const record=await renderedTextBoxRecord({id:canvasDocumentsObjectId(doc,"text"),text:args.text,x:0,y:0,fontSize:20,maxWidth:args.width||400,fontFamily:state.aiFont,color:state.inkColor});
       if(!record)throw canvasDocumentsError("INVALID_TEXT","Text could not be rendered. Shorten it and retry.");
-      const placement=args.region||canvasDocumentsPlace(doc,record.w,record.h,mcpRuntime.sessions.get(args.sessionId)).placement;
+      const session=mcpRuntime.sessions.get(args.sessionId),placement=args.region||canvasDocumentsPlace(doc,record.w,record.h,session,null,true).placement;
       record.x=placement.x;record.y=placement.y;canvasDocumentsValidateGeometry(doc,canvasDocumentsBounds({item:record}));
       canvasAgentAssertToolExecution(execution);canvasDocumentsBeginEdit(doc);
       if(canvasDocumentsIsActive(doc))state.textBoxes.push(record);else {const {image,...stored}=record;doc.stored.item.textBoxes.push(stored);}
-      canvasDocumentsEndEdit(doc,"create_text",record.id);return {applied:true,objectId:record.id,revision:doc.revision};
+      canvasDocumentsEndEdit(doc,"create_text",record.id);
+      if(!args.region&&session&&canvasDocumentsIsActive(doc))mcpQueueView(session,record);
+      return {applied:true,objectId:record.id,revision:doc.revision};
     }
     if(args.action==="draw_ink") {
       // Validate the browser boundary too: linked clients must not bypass resource limits.
@@ -597,13 +686,7 @@
     let replacement=null;
     if(args.action==="replace_image") {
       if(object.kind!=="image")throw canvasDocumentsError("KIND_MISMATCH","replace_image requires an image object.");
-      let blob;
-      if(args.source.startsWith("penecho-ref:")){const match=/^penecho-ref:objects\/([^/]+)\/image$/.exec(args.source),source=match?canvasDocumentsObject(doc,decodeURIComponent(match[1])):null;if(source?.kind!=="image")throw canvasDocumentsError("RESOURCE_NOT_FOUND","Use an image reference from this Canvas.");blob=source.item.blob;}
-      else blob=dataUrlBlob(args.source);
-      if(!["image/png","image/webp","image/jpeg"].includes(blob.type)||blob.size>MAX_IMAGE_SOURCE_BYTES)throw canvasDocumentsError("INVALID_IMAGE","Use a supported bounded PNG, JPEG or WebP image.");
-      const image=await createImageBitmap(blob);
-      if(image.width>MAX_IMAGE_DIMENSION||image.height>MAX_IMAGE_DIMENSION||image.width*image.height>MAX_IMAGE_PIXELS){image.close();throw canvasDocumentsError("INVALID_IMAGE","Resize the image to the supported Canvas image dimensions and retry.");}
-      replacement={blob,image,naturalW:image.width,naturalH:image.height};
+      replacement=await canvasImageSource(doc,args.source);
     }
     canvasAgentAssertToolExecution(execution);
     if(args.baseRevision!==(canvasDocumentsIsActive(doc)?state.userRevision:doc.revision))throw canvasDocumentsError("REVISION_CONFLICT","The Canvas changed while preparing the edit. Read canvas.json and retry.");
@@ -620,7 +703,7 @@
   // existing Agent socket is the authority: this does not opt in a public MCP
   // connection, allocate a new Canvas, or give access to other documents.
   async function canvasAgentDocumentOperation(input,execution) {
-    const allowed=new Set(["mcp_list_files","mcp_read_file","mcp_prepare_patch","mcp_apply_patch","mcp_edit_canvas","mcp_present_widget","mcp_draw","mcp_plot","mcp_capture_canvas","mcp_capture_widget","mcp_capture_primitives","mcp_read_feedback","mcp_inspect_session","mcp_read_messages","mcp_ack_messages"]);
+    const allowed=new Set(["mcp_list_files","mcp_read_file","mcp_prepare_patch","mcp_apply_patch","mcp_edit_canvas","mcp_upload_image","mcp_place_image","mcp_present_widget","mcp_draw","mcp_plot","mcp_capture_canvas","mcp_capture_widget","mcp_capture_primitives","mcp_read_feedback","mcp_inspect_session","mcp_read_messages","mcp_ack_messages"]);
     if(!input||Object.keys(input).some(key=>!["operation","arguments","bindingKey"].includes(key))||!allowed.has(input.operation))throw canvasDocumentsError("UNSUPPORTED_OPERATION","This Agent document operation is unavailable.");
     const key=input.bindingKey,args=input.arguments;
     if(typeof key!=="string"||!/^agent-[a-f0-9]{64}$/.test(key)||!args||args.sessionId!==key)throw canvasDocumentsError("BINDING_CONFLICT","The Agent document binding is invalid.");
@@ -677,7 +760,6 @@
       execution.documentId=doc.id;execution.activeDocumentId=canvasDocumentsIsActive(doc)?doc.id:null;execution.documentEpoch=canvasDocuments.epoch;
       session.boardObjectId=session.boardObjectId||null;
       mcpRuntime.sessions.set(session.sessionId,session);
-      if(args.takeover&&session.sessionKey)canvasDocumentsSetProcessor(doc,{kind:"external",bindingKey:session.sessionKey,client:session.client});
       canvasDocumentsSyncExtension(doc);canvasDocumentsRender();
       if(!canvasDocumentsIsActive(doc))await canvasDocumentsPersist(doc);
       return {sessionId:session.sessionId,documentId:doc.id,boardObjectId:session.boardObjectId,revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision,feedbackCursor:session.feedbackStart,active:canvasDocumentsIsActive(doc),reused:Boolean(session.artifacts.size),...(recovery?{recovery}:{}),progress:{title:session.title,status:session.status,summary:session.summary,steps:session.steps,events:session.events}};
@@ -694,6 +776,7 @@
       }
       return canvasDocumentsReadFile(doc,args,true);
     }
+    if(name==="mcp_present_widget")canvasImageAssetsForHtml(args.html,doc);
     if(name==="mcp_present_widget"&&args.presentation?.intent==="inspect")return {...await mcpInspectHtml(args,execution),revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision,documentId:doc.id};
     if(name==="mcp_present_widget") {
       const artifact=session.artifacts.get(args.artifactId),object=artifact&&canvasDocumentsObject(doc,artifact.objectId);
@@ -714,6 +797,8 @@
       }
       if(name==="mcp_apply_patch")result=await canvasDocumentsApplyFile(doc,args,execution);
       else if(name==="mcp_edit_canvas")result=await canvasDocumentsEdit(doc,args,execution);
+      else if(name==="mcp_upload_image")result=await canvasDocumentsUploadImage(doc,args,execution);
+      else if(name==="mcp_place_image")result=await canvasDocumentsPlaceImage(doc,args,execution);
       else if(name==="mcp_read_messages") {
         const all=doc.messages.filter(m=>m.bindingKey===session.sessionKey&&m.client===session.client),pending=all.filter(m=>m.cursor>(args.after||0)),entries=pending.slice(0,args.limit||20);
         return {documentId:doc.id,entries,nextCursor:entries.at(-1)?.cursor||args.after||0,latestCursor:doc.messageSequence,hasMore:pending.length>entries.length,delivery:"pull; reading does not acknowledge a message"};
@@ -729,18 +814,11 @@
       }
       return {...result,documentId:doc.id};
     };
-    const result=await canvasDocumentsOnce(doc.receipts,args.requestId,args,work);
+    // Image receipts retain a digest, not another copy of uploaded Base64.
+    const receiptArgs=["mcp_upload_image","mcp_place_image"].includes(name)?{...args,source:await canvasAgentHash(args.source),operation:name}:args;
+    const result=await canvasDocumentsOnce(doc.receipts,args.requestId,receiptArgs,work);
     if(!canvasDocumentsIsActive(doc)&&!["mcp_list_files","mcp_read_file","mcp_prepare_patch","mcp_read_messages","mcp_inspect_session","mcp_read_feedback"].includes(name))await canvasDocumentsPersist(doc);
     return result;
-  }
-  function canvasDocumentsSetProcessor(doc,processor) {
-    doc.processor=processor;doc.processorEpoch=(doc.processorEpoch||0)+1;
-    if(canvasDocumentsIsActive(doc)) {
-      clearTimeout(state.timer);state.timer=0;stopActiveAutomaticAI("canvas-processor-changed");
-      canvasDocumentsSyncExtension(doc);canvasAgentSyncAutomaticAIStatus();
-      if(processor.kind==="penecho")schedule();
-    }
-    canvasDocumentsRender();
   }
   function canvasDocumentsWidgetAction(widget,message) {
     if(typeof message.text!=="string"||!message.text.trim()||message.text.length>4000)return;
@@ -792,16 +870,6 @@
     status.classList.toggle("sr-only",!canvasDocuments.error&&canvasDocuments.switching);
     status.textContent=canvasDocuments.error||(canvasDocuments.switching?canvasDocumentsCopy("Opening…","正在打开…"):canvasDocuments.records.size>=CANVAS_DOCUMENT_LIMIT?canvasDocumentsLimitMessage():"");
     retry.hidden=!canvasDocuments.retry;retry.textContent=canvasDocumentsCopy("Retry","重试");
-    const processorRow=document.getElementById("canvasProcessorRow"),processor=document.getElementById("canvasProcessorSelect");
-    processorRow.hidden=!doc.bindings.length&&doc.processor.kind!=="external";
-    const choices=[{value:"penecho",text:"PenEcho Agent"},...doc.bindings.map((b,index)=>({value:String(index),text:`${b.client||"External AI"} · ${canvasDocumentsCopy("external conversation","外部对话")}`}))],processorSignature=JSON.stringify(choices);
-    if(processor.dataset.signature!==processorSignature){processor.replaceChildren(...choices.map(c=>{const option=document.createElement("option");option.value=c.value;option.textContent=c.text;return option;}));processor.dataset.signature=processorSignature;}
-    processor.value=doc.processor.kind==="external"?String(doc.bindings.findIndex(b=>b.key===doc.processor.bindingKey&&b.client===doc.processor.client)):"penecho";
-    document.getElementById("canvasProcessorLabel").textContent=canvasDocumentsCopy("Send to","发送给");
-    document.getElementById("canvasProcessorHelp").textContent=doc.processor.kind==="external"?canvasDocumentsCopy("Instructions wait here for the connected conversation to read. Canvas Auto AI is paused.","指令会保留在这里，等待对应外部对话读取。画布 Auto AI 已暂停。") :canvasDocumentsCopy("PenEcho uses your selected model.","PenEcho 使用你选择的模型。");
-    const latest=canvasDocumentsSelectedMessage(doc),messageRow=document.getElementById("canvasExternalMessage"),messageText=document.getElementById("canvasExternalMessageText"),messageRetry=document.getElementById("canvasExternalMessageRetry"),messageCancel=document.getElementById("canvasExternalMessageCancel"),messageSelect=document.getElementById("canvasExternalMessageSelect");
-    if(messageSelect){const items=doc.messages.map(m=>({id:m.id,text:m.text.slice(0,90)})),key=JSON.stringify(items);if(messageSelect.dataset.signature!==key){messageSelect.replaceChildren(...items.map(m=>{const option=document.createElement("option");option.value=m.id;option.textContent=m.text;return option;}));messageSelect.dataset.signature=key;}messageSelect.value=latest?.id||"";messageSelect.setAttribute("aria-label",canvasDocumentsCopy("External instructions","外部指令"));messageSelect.title=latest?.text||"";}
-    messageRow.hidden=!latest;if(latest){const labels={queued:canvasDocumentsCopy("Waiting for the external conversation to read. Continue there when ready.","等待外部对话读取。可以前往对应对话继续任务。"),received:canvasDocumentsCopy("Received by the external conversation.","外部对话已接收。"),working:canvasDocumentsCopy("The external conversation is working.","外部对话正在处理。"),done:canvasDocumentsCopy("Completed by the external conversation.","外部对话已完成。"),error:canvasDocumentsCopy("Could not complete. Your instruction is kept; retry or switch to PenEcho.","未能完成。指令已保留，可以重试或切换到 PenEcho。"),cancelled:canvasDocumentsCopy("Cancelled.","已取消。")};messageText.textContent=`${labels[latest.status]||labels.queued} ${latest.detail||""}`;messageRetry.hidden=!["queued","error"].includes(latest.status);messageRetry.textContent=canvasDocumentsCopy("Retry","重试");messageCancel.hidden=["done","cancelled"].includes(latest.status);messageCancel.textContent=canvasDocumentsCopy("Cancel","取消");}
     if(typeof canvasAgentSyncSendAvailability==="function")canvasAgentSyncSendAvailability();
   }
   function canvasDocumentsUiAction(work) {
@@ -827,7 +895,3 @@
   }
   document.getElementById("canvasWorkspaceClose")?.addEventListener("click",()=>{const documentId=canvasDocumentsCurrent().id;canvasDocumentsUiAction(()=>requestCanvasTransition({type:"close",documentId}));});
   document.getElementById("canvasWorkspaceRetry")?.addEventListener("click",()=>{const retry=canvasDocuments.retry;if(retry)canvasDocumentsUiAction(retry);});
-  document.getElementById("canvasProcessorSelect")?.addEventListener("change",event=>{const doc=canvasDocumentsCurrent(),binding=doc.bindings[Number(event.target.value)];canvasDocumentsSetProcessor(doc,event.target.value==="penecho"||!binding?{kind:"penecho"}:{kind:"external",bindingKey:binding.key,client:binding.client});});
-  document.getElementById("canvasExternalMessageSelect")?.addEventListener("change",event=>{canvasDocumentsCurrent().selectedMessageId=event.target.value;canvasDocumentsRender();});
-  document.getElementById("canvasExternalMessageRetry")?.addEventListener("click",()=>{const doc=canvasDocumentsCurrent(),message=canvasDocumentsSelectedMessage(doc);if(message)void canvasDocumentsRetryMessage(doc,message);});
-  document.getElementById("canvasExternalMessageCancel")?.addEventListener("click",()=>{const doc=canvasDocumentsCurrent(),message=canvasDocumentsSelectedMessage(doc);if(message){message.status="cancelled";message.cursor=++doc.messageSequence;canvasDocumentsSyncExtension(doc);canvasDocumentsRender();canvasDocumentsUiAction(()=>canvasDocumentsPark());}});

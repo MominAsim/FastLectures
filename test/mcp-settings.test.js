@@ -18,7 +18,8 @@ function harness(fetchImpl) {
     selectClient(value){for(const input of clientInputs)input.checked=input.value===value;nodes.get("mcpClients").listeners.change({target:{}});}};
 }
 const response=(status,value)=>({ok:status>=200&&status<300,status,json:async()=>value});
-const ready=()=>response(200,{config:{command:"/node",args:["/PenEcho/src/server/mcp/stdio.js"]}});
+const httpFixture=()=>({enabled:true,hostId:"a".repeat(64),certificatePem:"TEST-CA",accessToken:"test-token",urls:["https://192.168.1.4:3922/mcp"],discoveryCliUrl:"http://192.168.1.4:3888/api/mcp/discovery-client.js",discoveryCliSha256:"c".repeat(64),sessionCliUrl:"http://192.168.1.4:3888/api/mcp/session-client.js",sessionCliSha256:"f".repeat(64)});
+const ready=()=>response(200,{config:{command:"/node",args:["/mcp/client.js"]},http:httpFixture()});
 
 test("MCP configuration is available while canvas access is off and uses authenticated page headers",async()=>{
   const h=harness(()=>ready());await h.mcpRefreshSettings();
@@ -243,29 +244,30 @@ test("one-step setup includes launch configuration and live guidance without ins
   const h=harness(()=>ready());
   await h.mcpRefreshSettings();await h.nodes.get("mcpCopyInstructions").listeners.click();
   assert.equal(h.clipboard.length,1);const prompt=h.clipboard[0];
-  assert.match(prompt,/"command": "\/node"/);
-  assert.match(prompt,/No separate PenEcho skill installation is required/);
-  assert.match(prompt,/penecho_get_guidance/);assert.match(prompt,/visual-explorer/);
+  assert.match(prompt,/"transport": "stdio-http"/);
+  assert.match(prompt,/Optional helper skill/);
+  assert.match(prompt,/penecho:\/\/guidance\/skill/);
   assert.equal(h.requests.filter(r=>r.url.endsWith("\/skill")).length,0);
   assert.equal(h.nodes.get("mcpSetupStatus").textContent,"Copied");
 });
 
 
-const lanFixture=()=>({enabled:true,hostId:"a".repeat(64),urls:["https://192.168.1.4:4444/mcp"],fingerprint:"a".repeat(64),invitation:"b".repeat(64),clientSha256:"c".repeat(64),clientUrl:"http://192.168.1.4:3888/api/mcp/lan-client.js",clients:[]});
-test("LAN setup contains target-machine instructions, pin and verified adapter hash",async()=>{
-  const lan=lanFixture(),h=harness(()=>response(200,{config:{command:"/host/node",args:[]},lan}));
+
+test("HTTP setup contains target-machine instructions, trust and verified client hash",async()=>{
+  const http=httpFixture(),h=harness(()=>response(200,{config:{command:"/host/node",args:[]},http}));
   await h.mcpRefreshSettings();h.mcpRuntime.ready=true;h.mcpRuntime.socket={readyState:1};h.mcpRenderSettings();
   assert.equal(h.nodes.get("mcpLan").hidden,false);assert.equal(h.nodes.get("mcpCopyInstructions").disabled,false);
   await h.nodes.get("mcpCopyInstructions").listeners.click();const prompt=h.clipboard.at(-1);
-  assert.match(prompt,/192\.168\.1\.4:4444/);assert.match(prompt,/BEFORE executing/);assert.ok(prompt.includes(lan.clientSha256));assert.ok(prompt.includes(lan.fingerprint));
-  assert.match(prompt,/\/host\/node/);assert.match(prompt,/No separate PenEcho skill/);assert.match(prompt,/Never create host paths on another computer/);assert.match(prompt,/Existing configuration/);assert.match(prompt,/update that entry/);assert.match(prompt,/authorizes access automatically/);assert.doesNotMatch(prompt,/ask me to approve|startup approval time/);
+  assert.match(prompt,/192\.168\.1\.4:3922/);assert.ok(prompt.includes(http.sessionCliSha256));assert.ok(prompt.includes(http.hostId));
+  assert.match(prompt,/"transport": "stdio-http"/);assert.match(prompt,/BEFORE execution/);
+  assert.doesNotMatch(prompt,/invitation|remote-client\.js|\/host\/node/);
 });
 test("remote browsers cannot copy connection keys",async()=>{
-  const h=harness(()=>response(200,{canConfigureLocalClients:false,config:null,lan:lanFixture()}));await h.mcpRefreshSettings();
+  const h=harness(()=>response(200,{canConfigureLocalClients:false,config:null,http:httpFixture()}));await h.mcpRefreshSettings();
   assert.equal(h.nodes.get("mcpLan").hidden,true);await h.nodes.get("mcpCopyInstructions").listeners.click();assert.equal(h.clipboard.length,0);
 });
 test("LAN settings do not expose an Allow confirmation",async()=>{
-  const h=harness(()=>response(200,{config:{command:"/node",args:[]},lan:lanFixture()}));
+  const h=harness(()=>response(200,{config:{command:"/node",args:[]},http:httpFixture()}));
   await h.mcpRefreshSettings();
   const html=fs.readFileSync(path.join(__dirname,"../public/index.html"),"utf8");
   assert.doesNotMatch(html,/id="mcpLanPairDialog"|id="mcpLanApprove"/);
@@ -273,16 +275,16 @@ test("LAN settings do not expose an Allow confirmation",async()=>{
 });
 
 test("certificate reset requires confirmation and copy updates existing identity",async()=>{
-  const initial=lanFixture(),fresh={...initial,hostId:"d".repeat(64),fingerprint:"d".repeat(64),invitation:"e".repeat(64)};
-  const h=harness(url=>url.endsWith("/lan")?response(200,{lan:fresh}):response(200,{config:{command:"/node",args:[]},lan:initial}));
+  const initial=httpFixture(),fresh={...initial,hostId:"d".repeat(64),certificatePem:"NEW-CA",accessToken:"new-token"};
+  const h=harness(url=>url.endsWith("/http")?response(200,{http:fresh}):response(200,{config:{command:"/node",args:[]},http:initial}));
   await h.mcpRefreshSettings();
   await h.nodes.get("mcpCopyInstructions").listeners.click();
   assert.equal(h.nodes.get("mcpSetupStatus").textContent,"Copied");
   h.nodes.get("mcpResetCertificate").listeners.click();
   assert.equal(h.nodes.get("mcpCertificateDialog").open,true);
-  assert.equal(h.requests.filter(r=>r.url.endsWith("/lan")).length,0);
+  assert.equal(h.requests.filter(r=>r.url.endsWith("/http")).length,0);
   h.nodes.get("mcpCertificateCancel").listeners.click();
-  assert.equal(h.requests.filter(r=>r.url.endsWith("/lan")).length,0);
+  assert.equal(h.requests.filter(r=>r.url.endsWith("/http")).length,0);
   h.nodes.get("mcpResetCertificate").listeners.click();
   await h.nodes.get("mcpCertificateConfirm").listeners.click();
   assert.equal(JSON.parse(h.requests.at(-1).options.body).action,"reset-certificate");
@@ -292,33 +294,29 @@ test("certificate reset requires confirmation and copy updates existing identity
   assert.equal(h.nodes.get("mcpCertificateNotice").hidden,false);
   assert.equal(h.nodes.get("mcpCopyInstructions").textContent,"Copy new setup prompt");
   await h.nodes.get("mcpCopyInstructions").listeners.click();
-  assert.ok(h.clipboard.at(-1).includes(fresh.fingerprint));
-  assert.ok(!h.clipboard.at(-1).includes(initial.fingerprint));
+  assert.ok(h.clipboard.at(-1).includes(fresh.hostId));
+  assert.ok(!h.clipboard.at(-1).includes(initial.hostId));
   assert.match(h.nodes.get("mcpSetupStatus").textContent,/each previously connected Agent/);
 });
 test("failed certificate reset keeps confirmation visible and existing identity",async()=>{
-  const initial=lanFixture();const h=harness(url=>url.endsWith("/lan")?response(500,{error:{message:"Disk failure"}}):response(200,{config:{command:"/node",args:[]},lan:initial}));
+  const initial=httpFixture();const h=harness(url=>url.endsWith("/http")?response(500,{error:{message:"Disk failure"}}):response(200,{config:{command:"/node",args:[]},http:initial}));
   await h.mcpRefreshSettings();h.nodes.get("mcpResetCertificate").listeners.click();await h.nodes.get("mcpCertificateConfirm").listeners.click();
   assert.equal(h.nodes.get("mcpCertificateDialog").open,true);
-  assert.equal(h.mcpRuntime.status.lan.fingerprint,initial.fingerprint);
+  assert.equal(h.mcpRuntime.status.http.hostId,initial.hostId);
   assert.equal(h.nodes.get("mcpCertificateConfirm").disabled,false);
   assert.match(h.nodes.get("mcpCertificateStatus").textContent,/Could not update/);
 });
 test("remote browsers cannot reset the host certificate",async()=>{
-  const h=harness(()=>response(200,{canConfigureLocalClients:false,config:null,lan:lanFixture()}));await h.mcpRefreshSettings();
+  const h=harness(()=>response(200,{canConfigureLocalClients:false,config:null,http:httpFixture()}));await h.mcpRefreshSettings();
   h.nodes.get("mcpResetCertificate").listeners.click();await h.nodes.get("mcpCertificateConfirm").listeners.click();
-  assert.equal(h.requests.filter(r=>r.url.endsWith("/lan")).length,0);
+  assert.equal(h.requests.filter(r=>r.url.endsWith("/http")).length,0);
 });
 
-test("offline setup preserves identity but explains host must enable MCP before discovery",async()=>{
-  const lan={...lanFixture(),enabled:false,urls:[]};
-  const h=harness(()=>response(200,{config:{command:"/host/node",args:[]},lan}));
+test("HTTP unavailable never copies legacy LAN configuration",async()=>{
+  const h=harness(()=>response(200,{config:{command:"/host/node",args:[]},http:{...httpFixture(),enabled:false},lan:{enabled:true,invitation:"old-secret"}}));
   await h.mcpRefreshSettings();await h.nodes.get("mcpCopyInstructions").listeners.click();
-  const prompt=h.clipboard.at(-1);
-  assert.match(prompt,/"serverRunning": false/);
-  assert.ok(prompt.includes(lan.fingerprint));
-  assert.match(prompt,/Discovery and remote connection require PenEcho to be running with MCP enabled/);
-  assert.match(prompt,/do not claim discovery can start an offline host/);
+  assert.equal(h.clipboard.length,0);assert.equal(h.nodes.get("mcpCopyInstructions").disabled,true);
+  assert.equal(h.requests.some(r=>r.url.endsWith("/lan")),false);
 });
 
 
@@ -333,7 +331,7 @@ test("overwriting an existing entry reports updated and reload without a connect
 
 
 test("manual code block shows the exact full prompt and allows repeated copies",async()=>{
-  const h=harness(()=>response(200,{config:{command:"/node",args:[]},lan:lanFixture()}));
+  const h=harness(()=>response(200,{config:{command:"/node",args:[]},http:httpFixture()}));
   await h.mcpRefreshSettings();
   assert.equal(h.nodes.get("mcpSetupPromptCode").textContent,"");
   h.nodes.get("mcpManual").open=true;h.nodes.get("mcpManual").listeners.toggle();
@@ -344,27 +342,27 @@ test("manual code block shows the exact full prompt and allows repeated copies",
   assert.equal(h.nodes.get("mcpSetupStatus").textContent,"Copied (2)");
 });
 test("remote browser never displays host setup keys in the code block",async()=>{
-  const h=harness(()=>response(200,{canConfigureLocalClients:false,config:{command:"/host"},lan:lanFixture()}));
+  const h=harness(()=>response(200,{canConfigureLocalClients:false,config:{command:"/host"},http:httpFixture()}));
   h.nodes.get("mcpManual").open=true;await h.mcpRefreshSettings();
   assert.equal(h.nodes.get("mcpSetupBlock").hidden,true);
   assert.equal(h.nodes.get("mcpSetupPromptCode").textContent,"");
 });
 
 test("authorized LAN browser copies remote setup without host launch paths",async()=>{
-  const h=harness(()=>response(200,{canConfigureLocalClients:false,canCopyLanSetup:true,config:{command:"/private/host/node",args:[]},lan:lanFixture()}));
+  const h=harness(()=>response(200,{canConfigureLocalClients:false,canCopyLanSetup:true,config:{command:"/private/host/node",args:[]},http:httpFixture()}));
   await h.mcpRefreshSettings();assert.equal(h.nodes.get("mcpManual").open,true);
   assert.equal(h.nodes.get("mcpSetupBlock").hidden,false);
   assert.equal(h.nodes.get("mcpConfigure").disabled,true);
   assert.equal(h.nodes.get("mcpCopyInstructions").disabled,false);
   await h.nodes.get("mcpCopyInstructions").listeners.click();
   assert.equal(h.clipboard.at(-1),h.nodes.get("mcpSetupPromptCode").textContent);
-  assert.match(h.clipboard.at(-1),/"local": null/);
+  assert.match(h.clipboard.at(-1),/"transport": "stdio-http"/);
   assert.doesNotMatch(h.clipboard.at(-1),/private\/host/);
   assert.match(h.nodes.get("mcpManualSteps").textContent,/Open a conversation/);
 });
 
 test("closing a host canvas does not disable shared LAN access for other canvases",async()=>{
-  const h=harness(()=>response(200,{config:{command:"/node",args:[]},lan:{...lanFixture(),enabled:true}}));
+  const h=harness(()=>response(200,{config:{command:"/node",args:[]},http:{...httpFixture(),enabled:true}}));
   await h.mcpRefreshSettings();
   h.mcpDisconnect();
   assert.equal(h.requests.filter(r=>r.url.endsWith('/lan')).length,0);

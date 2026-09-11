@@ -60,6 +60,7 @@
       openAccount:"Open account",
       cloudUser:"PenEcho user",
       credits:"{count} credits",
+      subscriptionValidUntil:"Subscription valid until {date}",
       refreshAccount:"Refresh account",
       openDashboard:"Cloud Dashboard ↗",
       signOutHost:"Sign out on this host",
@@ -268,6 +269,7 @@
       openAccount:"前往账户",
       cloudUser:"PenEcho 用户",
       credits:"{count} 积分",
+      subscriptionValidUntil:"订阅有效期至 {date}",
       refreshAccount:"刷新账户",
       openDashboard:"云端 Dashboard ↗",
       signOutHost:"在此主机退出",
@@ -875,12 +877,19 @@
     panel.append(pageHeading(cloudT("cloudAccount"), accountSignedIn() ? cloudT("accountHint") : cloudT("localSignInHelp")));
     if (accountSignedIn()) {
       const account = state.status.account || {};
+      const membership = account.membership;
+      const hasMembership = ["plus", "pro"].includes(membership?.tier) && Number.isFinite(membership?.expiresAt) && membership.expiresAt > Date.now();
+      const membershipDate = hasMembership ? new Date(membership.expiresAt).toLocaleDateString((document.documentElement.lang || "en").startsWith("zh") ? "zh-CN" : "en-US", { year:"numeric", month:"long", day:"numeric" }) : "";
       const identity = el("div", { class:"cloud-settings-group cloud-account-profile" }, [
         el("div", { class:"cloud-setting-row cloud-account-identity" }, [
           el("div", { class:"cloud-avatar", text:String(account.name || "P").slice(0, 1).toUpperCase() }),
           el("div", { class:"cloud-account-copy" }, [
-            el("strong", { class:"cloud-account-name", text:account.name || cloudT("cloudUser") }),
-            el("span", { text:cloudT("credits", { count:Number(account.credits || 0) }) }),
+            el("div", { class:"cloud-account-title" }, [
+              el("strong", { class:"cloud-account-name", text:account.name || cloudT("cloudUser") }),
+              hasMembership ? el("span", { class:`cloud-membership-badge cloud-membership-${membership.tier}`, text:membership.tier.toUpperCase(), "aria-label":`PenEcho ${membership.tier === "pro" ? "Pro" : "Plus"}` }) : null,
+            ]),
+            el("span", { text:cloudT("credits", { count:Number(account.credits || 0).toLocaleString() }) }),
+            hasMembership ? el("span", { class:"cloud-subscription-expiry", text:cloudT("subscriptionValidUntil", { date:membershipDate }) }) : null,
           ]),
         ]),
       ]);

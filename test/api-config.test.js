@@ -39,15 +39,18 @@ test("Anthropic protocol preserves effort values while encoding disabled or adap
   assert.deepEqual(anthropicEffortParameters("Provider_Native", true, { model:"claude-sonnet-4-5" }), {
     thinking:{ type:"adaptive" }, output_config:{ effort:"Provider_Native" },
   });
-  assert.equal(anthropicResponseMaxTokens("none"), 20000);
-  assert.equal(anthropicResponseMaxTokens("low"), 20000);
-  assert.equal(anthropicResponseMaxTokens("medium"), 20000);
-  assert.equal(anthropicResponseMaxTokens("high"), 20000);
-  assert.equal(anthropicResponseMaxTokens("max"), 20000);
+  assert.equal(anthropicResponseMaxTokens("none"), 63000);
+  assert.equal(anthropicResponseMaxTokens("low"), 63000);
+  assert.equal(anthropicResponseMaxTokens("medium"), 63000);
+  assert.equal(anthropicResponseMaxTokens("high"), 63000);
+  assert.equal(anthropicResponseMaxTokens("max"), 63000);
 });
 
-test("API response-token limits default to 20000 and require more than 15000", () => {
-  assert.equal(configuredMaxTokens(undefined), 20000);
+test("API response-token limits default to 63000 and require more than 15000", () => {
+  assert.equal(configuredMaxTokens(undefined), 63000);
+  assert.equal(configuredMaxTokens(null), 63000);
+  assert.equal(configuredMaxTokens("  "), 63000);
+  assert.equal(configuredMaxTokens("20000"), 20000);
   assert.equal(configuredMaxTokens("15000"), null);
   assert.equal(configuredMaxTokens("15001"), 15001);
   assert.equal(configuredMaxTokens("14999"), null);

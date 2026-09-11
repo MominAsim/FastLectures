@@ -6,12 +6,11 @@ Detailed setup and configuration notes for PenEcho. For a project overview, see 
 
 General application settings live in `~/.penecho/config.env`. For npm launches, saved AI connections live in `~/.penecho/connections.json` (or the configured state directory). Desktop uses its application user-data directory. Both runtimes use the same connection-store schema and UI. Connection credentials remain local, receive owner-only permissions on POSIX systems, and are never returned to browser code. Protect this file like any other credential.
 
-PenEcho starts its usable Canvas UI even when no configuration exists or an API connection is incomplete. Add a connection in **Settings → Connections**. `penecho configure` starts the same UI with Connections open; it does not run a terminal questionnaire.
+PenEcho starts its usable Canvas UI even when no configuration exists or an API connection is incomplete. Run `penecho` to open Canvas, then add and manage API or CLI connections in **Settings → Connections**. The connection store is the authoritative source for saved connections.
 
 Use a different env-style file for general settings when needed:
 
 ```bash
-penecho configure --config ./team.env
 penecho --config ./team.env
 ```
 

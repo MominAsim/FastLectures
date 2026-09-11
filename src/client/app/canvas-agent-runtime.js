@@ -4097,7 +4097,7 @@
     const definition=PLUGIN_DEFINITIONS.find(plugin=>plugin.id===pluginId),canvasAgentPlugin=pluginId==="general"||pluginId==="flowchart"||definition?.builtIn===false;
     return canvasAgentPlugin&&pluginEnabled(pluginId)&&pluginManifests.has(pluginId);
   }
-  async function canvasAgentPrepareCreateItems(items) {
+  async function canvasAgentPrepareCreateItems(items,execution=null) {
     if (!Array.isArray(items)||!items.length||items.length>24) throw canvasAgentToolError("INVALID_BATCH","Provide between 1 and 24 create items.");
     const requested={widget:items.filter(item=>item?.type === "widget").length,text:items.filter(item=>item?.type === "text").length,image:items.filter(item=>["image","plot"].includes(item?.type)).length};
     if(state.widgets.length+requested.widget>MAX_VISIBLE_WIDGETS||state.textBoxes.length+requested.text>MAX_VISIBLE_TEXT_BOXES||state.images.length+requested.image>MAX_VISIBLE_IMAGES)throw canvasAgentToolError("OBJECT_LIMIT","This transaction would exceed a visible canvas object limit.",{requested});
@@ -4117,7 +4117,7 @@
         if(widgetType === "diagram_source"||pluginId === "flowchart"||frameworkVersion.startsWith("penecho-professional-diagrams"))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE","PenEcho Agent may edit an existing Professional Diagram, but it cannot create a new Professional Diagram.");
         if(!canvasAgentWidgetPluginAllowed(pluginId,widgetType))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE",`Plugin ${pluginId} is unavailable, disabled, or not available to PenEcho Agent.`);
         const width=Math.max(300,Math.min(SIZE,Number(raw.width)||Math.max(600,Math.min(1200,visible.w*.7)))),height=Math.max(200,Math.min(SIZE,Number(raw.height)||Math.max(400,Math.min(800,visible.h*.7)))),placed=canvasAgentPlacementBox(width,height,raw.placement,reserved),
-          record=widgetRecord({tool:widgetType,widgetType,pluginId,x:placed.x,y:placed.y,w:width,h:height,contentW:width,contentH:height,title:String(raw.title||"Canvas widget"),refreshSeconds:Number.isFinite(Number(raw.refreshSeconds))?Number(raw.refreshSeconds):0,html:typeof raw.html === "string"?raw.html:"",source:typeof raw.source === "string"?raw.source:"",sourceFormat:raw.sourceFormat,diagramKind:raw.diagramKind,frameworkVersion:raw.frameworkVersion,copyText:raw.copyText,copyLabel:raw.copyLabel});
+          record=widgetRecord({tool:widgetType,widgetType,pluginId,x:placed.x,y:placed.y,w:width,h:height,contentW:execution?.widgetContentViewport?.width??width,contentH:execution?.widgetContentViewport?.height??height,title:String(raw.title||"Canvas widget"),refreshSeconds:Number.isFinite(Number(raw.refreshSeconds))?Number(raw.refreshSeconds):0,html:typeof raw.html === "string"?raw.html:"",source:typeof raw.source === "string"?raw.source:"",sourceFormat:raw.sourceFormat,diagramKind:raw.diagramKind,frameworkVersion:raw.frameworkVersion,copyText:raw.copyText,copyLabel:raw.copyLabel});
         if(!record)throw canvasAgentToolError("INVALID_WIDGET","Widget content or geometry was rejected. Read the plugin capability contract and retry.");
         reserved.push(canvasAgentBox({kind:"widget",item:record}));prepared.push({type,kind:"widget",record,placed});
       } else if (type === "image") {
@@ -4147,7 +4147,7 @@
     return prepared;
   }
   async function canvasAgentCreate(args,execution) {
-    canvasAgentAssertRevision(args.baseRevision);canvasAgentMutationIdle(execution);const prepared=await canvasAgentPrepareCreateItems(args.items);canvasAgentAssertRevision(args.baseRevision);canvasAgentAssertToolExecution(execution);save();
+    canvasAgentAssertRevision(args.baseRevision);canvasAgentMutationIdle(execution);const prepared=await canvasAgentPrepareCreateItems(args.items,execution);canvasAgentAssertRevision(args.baseRevision);canvasAgentAssertToolExecution(execution);save();
     const kinds=new Set(prepared.map(item=>item.kind));if(kinds.has("widget"))state.widgetHistoryBefore=serializedWidgets();if(kinds.has("text"))state.textBoxHistoryBefore=textBoxHistoryState();if(kinds.has("image"))state.imageHistoryBefore=imageHistoryState();
     const receipts=[];
     for(const item of prepared){

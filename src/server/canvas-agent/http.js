@@ -8,12 +8,12 @@ const MAX_REMOTE_AGENT_CHANNELS = 8;
 const REMOTE_AGENT_CHANNEL_TTL_MS = 5 * 60_000;
 const REMOTE_AGENT_POLL_MS = 15_000;
 
-function attachCanvasAgent({ server, authorize, resolveConnection, listConnections, resolveWebSearch = () => null, resolveWidgetCapabilities = () => ({ professionalEnabled:false, privatePlugins:[] }), resolveProject = async () => null, stateDirectory, rootDirectory, modelTimeoutMs, canvasAgentTurnLimit, logger = () => {}, conversationLogger = null, conversationTrace = null, onModelUsage = null }) {
+function attachCanvasAgent({ server, authorize, resolveConnection, prepareConnection, listConnections, resolveWebSearch = () => null, resolveWidgetCapabilities = () => ({ professionalEnabled:false, privatePlugins:[] }), resolveProject = async () => null, stateDirectory, rootDirectory, modelTimeoutMs, canvasAgentTurnLimit, logger = () => {}, conversationLogger = null, conversationTrace = null, onModelUsage = null }) {
   const wss = new WebSocketServer({ noServer:true, maxPayload:MAX_AGENT_FRAME_BYTES, perMessageDeflate:false });
   let hostPromise = null;
   const harnessFactory = async () => {
     const runtime = await import("./runtime.mjs");
-    return new runtime.CanvasHarnessHost({ stateDirectory, rootDirectory, resolveConnection, listConnections, resolveWebSearch, resolveWidgetCapabilities, resolveProject, modelTimeoutMs, canvasAgentTurnLimit, logger, conversationLogger, conversationTrace, onModelUsage });
+    return new runtime.CanvasHarnessHost({ stateDirectory, rootDirectory, resolveConnection, prepareConnection, listConnections, resolveWebSearch, resolveWidgetCapabilities, resolveProject, modelTimeoutMs, canvasAgentTurnLimit, logger, conversationLogger, conversationTrace, onModelUsage });
   };
   const nativeFactory = async () => {
     const codexNativeHost = await import("./codex-native-host.mjs");
@@ -23,6 +23,7 @@ function attachCanvasAgent({ server, authorize, resolveConnection, listConnectio
     if (!hostPromise) hostPromise = import("./host-router.mjs").then(async hostRouter => {
       const instance = new hostRouter.CanvasAgentHostRouter({
         resolveConnection,
+        prepareConnection,
         harnessFactory,
         nativeFactory,
       });

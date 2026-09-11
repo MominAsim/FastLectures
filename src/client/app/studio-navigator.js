@@ -61,6 +61,28 @@
       studioNavigatorHistoryDirty = true,
       studioEdgeSwipe = null;
 
+    // Sidebar-only browser metadata; never part of a Canvas snapshot or server write.
+    const STUDIO_CANVAS_OPENED_KEY = "penecho-studio-canvas-last-opened";
+    let studioCanvasOpened = readStudioCanvasOpened(), studioLastOpenedKey = "";
+    function readStudioCanvasOpened() {
+      try {
+        const entries = JSON.parse(localStorage.getItem(STUDIO_CANVAS_OPENED_KEY) || "[]");
+        return new Map(Array.isArray(entries) ? entries.filter(entry => Array.isArray(entry) && typeof entry[0] === "string" && Number.isFinite(entry[1])) : []);
+      } catch { return new Map(); }
+    }
+    function rememberStudioCanvasOpened(key) {
+      if (!key) { studioLastOpenedKey = ""; return; }
+      if (key === studioLastOpenedKey) return;
+      studioLastOpenedKey = key;
+      studioCanvasOpened.set(key, Math.max(Date.now(), ...studioCanvasOpened.values(), 0) + 1);
+      studioCanvasOpened = new Map([...studioCanvasOpened].sort((a,b) => b[1]-a[1]).slice(0,1000));
+      try { localStorage.setItem(STUDIO_CANVAS_OPENED_KEY, JSON.stringify([...studioCanvasOpened])); } catch {}
+      return true;
+    }
+    function studioCanvasOpenedAt(key) {
+      return studioCanvasOpened.get(key) || 0;
+    }
+
     function storedStudioNavigatorTab() {
       try {
         const stored=localStorage.getItem(STUDIO_NAVIGATOR_TAB_KEY);
@@ -458,7 +480,7 @@
           name:doc.title||t("canvasUntitledName"),updatedAt:Math.max(Number(previous?.updatedAt)||0,Number(item?.updatedAt||item?.createdAt)||0,...(doc.changes||[]).map(change=>Number(change.at)||0)),
           conversations:previous?.conversations||[],current,unseen:doc.unseen>0});
       }
-      return [...groups.values()].map((group)=>({...group,current:group.documentId?group.current:group.canvasKey===state.canvasAgentCanvasKey})).sort((a,b)=>Number(b.current)-Number(a.current)||Number(Boolean(b.documentId))-Number(Boolean(a.documentId))||b.updatedAt-a.updatedAt);
+      return [...groups.values()].map((group)=>({...group,current:group.documentId?group.current:group.canvasKey===state.canvasAgentCanvasKey})).sort((a,b)=>Number(b.current)-Number(a.current)||studioCanvasOpenedAt(b.canvasKey)-studioCanvasOpenedAt(a.canvasKey)||Number(Boolean(b.documentId))-Number(Boolean(a.documentId))||b.updatedAt-a.updatedAt);
     }
     function studioNavigatorGroupMatches(group,query) {
       if(!query)return true;
@@ -582,6 +604,7 @@
     }
     function studioNavigatorCanvasDidLoad(identity) {
       const key=identity?.id&&identity?.location?`${identity.location}:${identity.id}`:"";
+      rememberStudioCanvasOpened(key);
       if(!studioNavigatorPendingConversation||studioNavigatorPendingConversation.canvasKey!==key)return false;
       void openStudioConversationOnCurrentCanvas(studioNavigatorPendingConversation).catch(error=>{
         studioNavigatorPendingConversation=null;
@@ -703,7 +726,7 @@
       }
       studioNavigatorHistoryDirty = false;
       releaseStudioNavigatorPreviewUrls(studioNavigatorCanvasPreviewUrls);
-      const items=studioNavigatorSnapshots().sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)),query=studioNavigatorSearchQuery(),locale=state.language==="zh"?"zh-CN":"en",
+      const items=studioNavigatorSnapshots().sort((a,b)=>studioCanvasOpenedAt(`${b.location}:${b.id}`)-studioCanvasOpenedAt(`${a.location}:${a.id}`)||(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)),query=studioNavigatorSearchQuery(),locale=state.language==="zh"?"zh-CN":"en",
         filtered=query?items.filter((item)=>`${snapshotName(item)} ${snapshotLocationLabel(item.location)}`.toLocaleLowerCase(locale).includes(query)):items;
       studioCanvasRecentList.replaceChildren();
       for(const group of studioNavigatorWorkGroups().filter(group=>group.documentId&&!group.location&&studioNavigatorGroupMatches(group,query))){
@@ -902,6 +925,8 @@
     let studioWorkspaceSignature="";
     function studioWorkspaceChanged() {
       if(typeof canvasDocuments==="undefined")return;
+      const active = canvasDocuments.records.get(canvasDocuments.activeId);
+      if (!canvasDocuments.switching && rememberStudioCanvasOpened(active ? active.locator ? `${active.locator.location}:${active.locator.id}` : `workspace:${active.id}` : "")) studioWorkspaceSignature = "";
       syncStudioMcpActions();
       const documents=[...canvasDocuments.records.values()],hasUpdates=documents.some(doc=>doc.unseen>0),attention=hasUpdates||Boolean(canvasDocuments.error);
       studioNavigatorToggle.dataset.workspaceUpdates=String(attention);

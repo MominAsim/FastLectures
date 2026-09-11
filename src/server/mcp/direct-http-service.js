@@ -1,8 +1,9 @@
 "use strict";
 const https = require('node:https');
+const {listenMcp} = require('./listen.js');
 const crypto = require('node:crypto');
 const {loadDirectHttpIdentity, createDirectHttpLeaf, resetDirectHttpIdentity} = require('./direct-http-identity.js');
-const {lanAddresses, isPrivateAddress} = require('./lan-service.js');
+const {lanAddresses, isPrivateAddress} = require('./network-addresses.js');
 const {createAnnouncer} = require('./lan-discovery.js');
 const {INSTRUCTIONS, PROMPTS, PROTOCOL_VERSION, promptResult, captureToolResult} = require('./stdio.js');
 const {TOOLS, validateToolArguments} = require('./schema.js');
@@ -42,7 +43,7 @@ function createDirectHttpService({preferredPort=3922,getHostnames=()=>{const hos
   function status() {
     if (server?.listening) { refresh(); prune(); }
     const port = server?.address()?.port;
-    return {enabled:!!port, preferredUrl:port&&hostnames.length?`https://${hostnames[0]}:${preferredPort||port}/mcp`:'', urls:port ? addresses.map(a => `https://${a}:${port}/mcp`) : [], localUrl:port ? `https://127.0.0.1:${port}/mcp` : '', hostId:identity?.hostId || '', certificatePem:identity?.certificatePem || '', accessToken:identity?.accessToken || '', startedAt:startedAt || null, sessionCount:sessions.size,limits:{...limits},timeouts:{...timeouts}};
+    return {enabled:!!port, preferredUrl:port&&hostnames.length?`https://${hostnames[0]}:${port}/mcp`:'', urls:port ? addresses.map(a => `https://${a}:${port}/mcp`) : [], localUrl:port ? `https://127.0.0.1:${port}/mcp` : '', hostId:identity?.hostId || '', certificatePem:identity?.certificatePem || '', accessToken:identity?.accessToken || '', startedAt:startedAt || null, sessionCount:sessions.size,limits:{...limits},timeouts:{...timeouts}};
   }
   function toolFailure(error) {
     const redact = value => String(value).split(identity.accessToken).join('[redacted]').split(identity.key).join('[redacted]').replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/g,'[redacted]');
@@ -173,7 +174,7 @@ function createDirectHttpService({preferredPort=3922,getHostnames=()=>{const hos
       server = https.createServer({...createDirectHttpLeaf(identity,addresses,hostnames),minVersion:'TLSv1.2'},handle);
       server.requestTimeout = timeouts.requestUploadMs; server.headersTimeout = timeouts.headersMs; server.keepAliveTimeout = timeouts.keepAliveMs; server.maxConnections = limits.tcpConnections;
       server.on('connection', socket => { sockets.add(socket); socket.once('close', () => sockets.delete(socket)); });
-      await new Promise((resolve,reject) => { let fallback=false;const failed=e=>{if(!fallback&&preferredPort&&e.code==='EADDRINUSE'){fallback=true;server.listen(0,'0.0.0.0');}else{server.off('error',failed);reject(e);}};server.on('error',failed);server.once('listening',()=>{server.off('error',failed);resolve();});server.listen(preferredPort,'0.0.0.0'); });
+      await listenMcp(server, preferredPort);
       startedAt = now();
       announcer = announce({hostId:identity.hostId,port:server.address().port,getAddresses:() => { refresh(); return addresses; },onError:() => {}});
       timer = setInterval(() => { try { refresh(); prune(); } catch {} },10000); timer.unref(); notify();

@@ -4,6 +4,8 @@ PenEcho starts its built-in HTTPS MCP service with the application. The default 
 
 PenEcho 随应用启动 HTTPS MCP 服务。各 AI 客户端通过自己的标准 stdio 子进程调用小型 CLI，CLI 直连主机 HTTPS；没有共享 Gateway、开机服务或后台发现进程。浏览器须显式开启 MCP。
 
+The HTTPS listener tries TCP ports `3922`, `13922`, then `23922`; only if all three are occupied does the OS allocate a temporary port. Inbound rules can allow these three candidate ports, but a temporary fallback port needs its own rule for remote access. Discovery and copied endpoints use the actual listening port. Failure to start HTTPS never activates the removed invitation-based LAN service.
+
 ## Setup / 配置
 
 Settings Auto configure and Copy setup prompt use the same transport. Download the supplied, SHA-256-verified `discover.js` and `client.js` into `~/.penecho/mcp` (Windows: `%USERPROFILE%\.penecho\mcp`). Node 18+ is required. Import the private host trust bundle once:
@@ -28,7 +30,7 @@ The CLI remains available while stdin is open. Thirty minutes without useful wor
 
 Each connection first tries the last successful numeric IP + port (or imported `initialUrl` at first connection), then freshly reads and probes the shared endpoint cache, then runs one-shot LAN discovery. Missing, malformed or unreachable cache triggers discovery. This full sequence applies after idle HTTP release too: if the previous address stopped working, another process's cached update or discovered address can restore service without restarting the CLI. Failed endpoints are deduplicated within an attempt. New addresses still require the imported host CA, TLS IP validation, Bearer authorization and matching hostId. Discovery hints never replace trust.
 
-The server prefers port 3922 and falls back to an available advertised port when occupied. Hostname URLs remain compatibility metadata; the default numeric-IP path does not wait for operating-system hostname resolution.
+The server tries ports 3922, 13922, and 23922 in order, then falls back to an available advertised port if all three are occupied. Hostname URLs remain compatibility metadata; the default numeric-IP path does not wait for operating-system hostname resolution.
 
 State is shared per machine/login user at `~/.penecho/mcp/hosts/<hostId>/`: `credentials.json`, `ca.pem`, `endpoint.json`. Windows uses the same structure below `%USERPROFILE%`. `--state-directory` overrides the MCP root. The cache contains no conversation or protocol session ID. A cross-process lock merges discovery; successful refresh updates this cache, never the AI launch configuration. `discover.js --host-id <hostId>` is an optional diagnostic refresh; `--force` bypasses initial/cache probes. No idle discovery loop runs.
 
@@ -44,7 +46,7 @@ New direct HTTPS root and server certificates use `9999-12-31T23:59:59Z`, the [R
 
 Clients may still use native HTTP with a fixed URL and authorization header when their own endpoint and CA handling is suitable. Those clients must trust the CA in their actual HTTP runtime and arrange address refresh themselves; they cannot implicitly read `.penecho` just because it exists. For Codex this includes CODEX_CA_CERTIFICATE (SSL_CERT_FILE fallback); Node-based clients may use NODE_EXTRA_CA_CERTS. Preserve enterprise trust requirements.
 
-Existing `penecho mcp`, `stdio.js` and LAN pairing/`remote-client.js` are older compatibility paths. The new default is bundled `client.js` from `session-client.js`, with direct HTTPS credentials rather than `/pair` slots. Do not configure duplicate PenEcho transports.
+The invitation-based LAN pairing protocol has been removed. Use bundled `client.js` from `session-client.js` with direct HTTPS credentials. Existing local `penecho mcp` / `stdio.js` remains an explicit compatibility entry; Settings never falls back to it when HTTPS is unavailable. Do not configure duplicate PenEcho transports.
 
 ## Optional workflow skill / 可选工作流 skill
 

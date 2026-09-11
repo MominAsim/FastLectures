@@ -92,5 +92,28 @@ test('live workspace guidance uses direct HTTP and persistent conversation recov
   assert.match(WORKSPACE_INSTRUCTIONS,/Relaunch belongs to the AI host and must be verified/);
   assert.match(WORKSPACE_INSTRUCTIONS,/fresh process must start_session/);
   assert.doesNotMatch(WORKSPACE_INSTRUCTIONS,/16 host LAN leases|suspend after 60 seconds|probe \/pair/);
-  assert.match(VISUAL_INSTRUCTIONS,/1200×800/);
+  assert.match(VISUAL_INSTRUCTIONS,/Default\/page takes its aspect ratio/);
+  assert.doesNotMatch(VISUAL_INSTRUCTIONS,/Choose page \(1200×800\)/);
+});
+
+test("HTML guidance establishes responsive viewport sizing without a planning round trip", () => {
+  for (const id of ["general-html", "visual-explorer"]) {
+    const document = getAuthoringGuidance(id).document;
+    for (const expected of [/available unobscured viewport/, /Default\/page sizing takes its aspect ratio/, /capped independently/, /width:100% and min-width:0/, /media or container queries/, /readable normal CSS font sizes/, /vertical scrolling/, /whole-page transform\/zoom/, /Source updates preserve existing artifact geometry/, /intent:inspect renders the exact requested viewport/]) assert.match(document, expected);
+  }
+  const tool = TOOLS.find(tool => tool.name === "penecho_present_widget");
+  assert.match(tool.description, /returned actual viewport/);
+  assert.match(tool.inputSchema.properties.width.description, /Preferred CSS content width/);
+  assert.match(tool.inputSchema.properties.height.description, /capped independently/);
+});
+
+test("live and tool instructions agree on viewport-first delivery and exact inspect", () => {
+  const {VISUAL_INSTRUCTIONS,VISUAL_TOOL_INSTRUCTIONS,MCP_PRESENTATION_INSTRUCTIONS}=require('../src/server/mcp/guidance.js');
+  for (const instructions of [VISUAL_INSTRUCTIONS,VISUAL_TOOL_INSTRUCTIONS,MCP_PRESENTATION_INSTRUCTIONS]) {
+    assert.match(instructions, /available unobscured viewport/);
+    assert.match(instructions, /capped independently/);
+    assert.match(instructions, /intent:inspect keeps the exact requested viewport and creates no Canvas object/);
+    assert.match(instructions, /Source updates preserve existing artifact geometry/);
+  }
+  assert.match(MCP_PRESENTATION_INSTRUCTIONS, /page requests 1200×800 for inspect/);
 });

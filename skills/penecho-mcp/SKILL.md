@@ -188,3 +188,22 @@ user edits, artifact identities and unread feedback. A removed artifact must not
 be silently recreated under its old ID.
 
 For freehand annotation use penecho_edit_canvas action:"draw_ink" with the current baseRevision and strokes:[{color:"#E63946",width:6,points:[{x:120,y:140},{x:220,y:140}]}]. Coordinates and width are Canvas world units. Choose any explicit #RRGGBB color; each stroke is an open round brush polyline (repeat the first point to close a circle; add separate strokes for arrowheads; use a wider stroke for an underline/highlight). Ink may overlap existing content intentionally. Limits: 1–16 strokes, 1–256 points per stroke, 1024 points total, width 1–64; all points fit a 2048 × 2048 region and the brush radius stays inside the Canvas. The operation preserves the user’s brush selection and creates one undoable edit. Background documents reject before mutation: use show only when making that document visible is intended, reread its revision, then draw. Retry the same requestId only with identical arguments.
+
+## Native text placement
+
+Choose `create_text` placement by purpose: when annotating existing Canvas content, supply `region` based on that content’s geometry and current Canvas evidence. For standalone text display through `penecho_edit_canvas` / `create_text`, send only `sessionId`, `requestId`, `action` and `text`. Omit `region` so the host finds clear space in the current viewport; background documents use their own layout. Never invent coordinates. Use `region` only for intentional annotations grounded in user-provided coordinates or current Canvas evidence. Its x/y position the text; w/h do not size the text box. Do not send `baseRevision`, `width` or `height` for `create_text`. When spatial evidence is necessary, read `runtime/viewport.json` with `penecho_read_file`: `active:false` means there is no current viewport. `penecho_draw` item coordinates are local to the drawing scene, not Canvas world positions.
+
+
+## Image attachments and local file upload
+
+Use `penecho_upload_image` with the bound `sessionId`, unique `requestId`, `name` and `source` to import an authorized PNG/JPEG/WebP. Source is a full Base64 Data URL (at most 800,000 UTF-8 bytes including prefix), or an existing same-document image/asset reference. Upload does not place an object. It returns an immutable content-hash source, `penecho-asset:<sha256>`, and metadata without returning image bytes. Read `assets/index.json` to reuse attachments. A Canvas retains up to 64 attachments and 16 MB of encoded attachment data; attachments stay available for Undo and save/reopen.
+
+For file input, run the bundled helper so bytes go directly from disk to the configured MCP bridge without entering model context:
+
+```sh
+node /absolute/path/to/skills/penecho-mcp/scripts/upload-image.cjs --bridge /absolute/path/to/configured/client.js --host-id HOST_ID --client CLIENT_NAME --session-key EXISTING_SESSION_KEY --document-id DOCUMENT_ID --file /absolute/path/to/image.png --request-id UNIQUE_REQUEST_ID
+```
+
+Use the existing conversation's client/sessionKey/documentId and configured host; the helper requires that exact document and never silently creates a replacement. It does not start PenEcho, change client configuration or read arbitrary server paths. Use only client-authorized local files. The built-in PenEcho Agent may instead give `attachmentId` from its current session host references to its upload tool; arbitrary host paths are not accepted.
+
+Use the returned `source` in `<img src="penecho-asset:...">` or CSS `url("penecho-asset:...")`. HTML patching preserves that short reference; the host resolves the document attachment at render time. References cannot read another Canvas's images. To place a separate image object, call `penecho_place_image` with `sessionId`, `requestId`, `source` and optional `width`/`height`. For standalone display omit `region` for host auto-layout; for annotations supply coordinates grounded in the target content. `region.w/h` do not size the image. Upload and placement do not take `baseRevision`; replacing an existing image still requires it through `penecho_edit_canvas` action `replace_image`.

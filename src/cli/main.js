@@ -685,7 +685,7 @@ async function runDoctor(args, configuration, options = {}) {
     report(false, `AI_PROVIDER must be ${PROVIDER_OPTIONS}`);
   } else if (configuration.provider === "api") {
     const issues = apiConfigurationIssues(configuration.env);
-    report(issues.length === 0, issues.length ? `API configuration is incomplete: ${issues.join(", ")}. Run \`penecho configure\`.` : "API configuration is ready (no paid request was made)");
+    report(issues.length === 0, issues.length ? `API configuration is incomplete: ${issues.join(", ")}. Run \`penecho\` and open Settings → Connections.` : "API configuration is ready (no paid request was made)");
   } else if (configuration.provider === "kimi-cli") {
     const kimi = await runKimiPreflight(configuration, { runner:options.runner });
     report(kimi.ok, kimi.ok ? `${kimi.version}; executable is ready (authentication is checked when Kimi handles the first request)` : kimi.error);
@@ -775,14 +775,47 @@ function schedulePostStartCliPreflight(server, configuration, options, output, e
 
 
 function helpText() {
-  return `PenEcho ${PACKAGE_JSON.version}\n\nUsage:\n  penecho [--config FILE] [--port 3888]\n  penecho mcp connect --host-id ID\n  penecho mcp discover [--import FILE] [--host-id ID] [--client codex|claude|json]\n  penecho mcp [--state-directory DIR] (legacy stdio)\n  penecho mcp --host-id <64hex> [--remote https://<private-IP>:<port>/mcp] --fingerprint <64hex> --invitation <64hex> [--name Codex]\n  penecho configure [--config FILE]\n  penecho doctor [--api|--kimi|--codex|--claude] [--config FILE]\n  penecho --kimi [--model MODEL] [--effort LEVEL]\n  penecho --codex [--model MODEL] [--effort LEVEL]\n  penecho --claude [--model MODEL] [--effort LEVEL]\n\nOptions:\n  --config <file>   Use this configuration file instead of ~/.penecho/config.env\n  --api             Use an OpenAI-compatible or Anthropic-compatible API\n  --kimi            Use the authenticated Kimi Code CLI\n  --codex           Use the authenticated Codex CLI\n  --claude          Use the authenticated Claude CLI\n  --model <model>   Override the model for a CLI mode\n  --effort <level>  Override reasoning effort with a known or CLI-supported value\n  --port <port>     Override the configured listening port\n  -h, --help        Show help\n  -v, --version     Show version\n\nRun \`penecho configure\` to open Settings → Connections in the Canvas UI. Known effort values include none, low, medium, high, xhigh, and max; other strings are passed through.\n\nKimi Code CLI installation (run these yourself):\n  macOS/Linux: curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash\n  Windows PowerShell: irm https://code.kimi.com/kimi-code/install.ps1 | iex\n  Then: kimi --version && kimi login\n  Official guide: https://github.com/MoonshotAI/kimi-code\n\nExamples:\n  penecho configure\n  penecho\n  penecho --config ./team.env\n  penecho --kimi\n  penecho --codex --model gpt-5.6-sol --effort xhigh\n`;
+  return `PenEcho ${PACKAGE_JSON.version}
+
+Usage:
+  penecho [options]
+  penecho doctor [--api|--kimi|--codex|--claude] [--config FILE]
+  penecho mcp connect --host-id ID
+  penecho mcp discover [--import FILE] [--host-id ID] [--client codex|claude|hermes|json]
+
+Options:
+  --config <file>   Read general settings from this file instead of ~/.penecho/config.env
+  --api             Use API mode for this launch (set up in Settings → Connections)
+  --kimi            Use the authenticated Kimi Code CLI
+  --codex           Use the authenticated Codex CLI
+  --claude          Use the authenticated Claude CLI
+  --model <model>   Override the model for a CLI mode for this launch
+  --effort <level>  Override reasoning effort for a CLI mode for this launch
+  --port <port>     Override the listening port (0–65535; 0 selects a free port)
+  -h, --help        Show help
+  -v, --version     Show version
+
+Run penecho, then manage AI connections in Settings → Connections.
+If no usable connection exists, the connection settings open automatically.
+Saved AI connections live in the state directory's connections.json.
+Doctor checks configuration and CLI readiness without making a model request.
+Use penecho mcp connect --help or penecho mcp discover --help for MCP options.
+
+Examples:
+  penecho
+  penecho --port 3999
+  penecho --config ./team.env
+  penecho --codex --model gpt-5.6-sol --effort xhigh
+  penecho doctor
+`;
 }
 
 async function main(argv = process.argv.slice(2), options = {}) {
   if(argv[0]==="mcp"&&argv[1]==="connect")return require("../server/mcp/session-client.js").main(argv.slice(2),options);
   if(argv[0]==="mcp"&&argv[1]==="discover")return require("../server/mcp/discovery-client.js").main(argv.slice(2),options);
-  if (argv[0] === "mcp" && argv.slice(1).some(argument => argument === "--remote" || argument === "--host-id" || String(argument).startsWith("--host-id=") || String(argument).startsWith("--remote="))) {
-    return await require("../server/mcp/remote-client.js").main(argv.slice(1), options);
+  if (argv[0] === "mcp" && argv.slice(1).some(argument => /^--(?:remote|host-id|fingerprint|invitation)(?:=|$)/.test(argument))) {
+    (options.errorOutput || process.stderr).write("PenEcho: Invitation-based LAN MCP has been removed. Use `penecho mcp connect --host-id ID`.\n");
+    return 1;
   }
   if (argv[0] === "mcp") { require("../server/mcp/stdio.js").main(argv.slice(1)); return 0; }
   const output = options.output || process.stdout, errorOutput = options.errorOutput || process.stderr;

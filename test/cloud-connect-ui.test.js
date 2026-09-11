@@ -1138,6 +1138,31 @@ test("Cloud Center preserves long account names in both the navigation and Accou
   assert.ok(!overlay.textContent.includes("..."), "long names must wrap instead of being replaced with an ellipsis");
 });
 
+test("Cloud Profile shows paid membership and date only, without changing the toolbar label", async () => {
+  for (const language of ["en", "zh"]) {
+    for (const tier of ["plus", "pro"]) {
+      const expiresAt = new Date(2035, 9, 9, 16, 41, 18).getTime();
+      const run = boot({ language, status:{ ...deviceStatus(), account:{ name:"Ada", credits:25772, membership:{ tier, expiresAt } } } });
+      await run.flush();
+      const overlay = await openCloudCenter(run);
+      selectCloudSection(overlay, "account");
+      await run.flush();
+      assert.ok(flatten(overlay).some(node => node.className === `cloud-membership-badge cloud-membership-${tier}` && node.textContent === tier.toUpperCase()));
+      const expiry = flatten(overlay).find(node => node.className === "cloud-subscription-expiry");
+      assert.equal(expiry.textContent, language === "zh" ? "订阅有效期至 2035年10月9日" : "Subscription valid until October 9, 2035");
+      assert.ok(!expiry.textContent.includes(":"));
+      assert.ok(!run.document.getElementById("cloudAccountBtn").textContent.includes(tier.toUpperCase()));
+    }
+  }
+  for (const membership of [undefined, { tier:"pro", expiresAt:Date.now() - 1 }, { tier:"vip", expiresAt:Date.now() + 86400000 }, { tier:"pro", expiresAt:"invalid" }]) {
+    const run = boot({ status:{ ...deviceStatus(), account:{ name:"Ada", credits:25772, membership } } });
+    await run.flush();
+    const overlay = await openCloudCenter(run);
+    selectCloudSection(overlay, "account");
+    assert.ok(!flatten(overlay).some(node => node.className.startsWith("cloud-membership-badge") || node.className === "cloud-subscription-expiry"));
+  }
+});
+
 test("Cloud Center keeps the concise account and device copy bilingual", async () => {
   const english = boot({ status:signedOutStatus(), language:"en" });
   await english.flush();

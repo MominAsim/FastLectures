@@ -3,7 +3,7 @@
 // may be forwarded. Never retry against an arbitrary latest browser revision.
 export const MAX_CANVAS_DECISION_TOOLS = 16
 const pendingBatches = new WeakMap()
-export const CANVAS_MUTATION_TOOLS = new Set(['canvas_create', 'canvas_edit', 'canvas_patch_widget', 'canvas_revert','penecho_present_widget','penecho_draw','penecho_plot','penecho_patch_file','penecho_edit_canvas'])
+export const CANVAS_MUTATION_TOOLS = new Set(['canvas_create', 'canvas_edit', 'canvas_patch_widget', 'canvas_revert','penecho_present_widget','penecho_draw','penecho_plot','penecho_patch_file','penecho_edit_canvas','penecho_upload_image','penecho_place_image'])
 const mutations = CANVAS_MUTATION_TOOLS
 
 export function createCanvasDecisionBatch(session) {

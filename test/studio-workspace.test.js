@@ -14,7 +14,7 @@ test("Recent Work merges saved documents once and prioritizes open canvases",()=
   ]);
   const groups=vm.runInNewContext(`(${extract("studioNavigatorWorkGroups")})()`,{
     canvasDocuments:{records,activeId:"active"},state:{canvasAgentCanvasKey:"server:one",language:"en"},
-    canvasAgentStoredHistoryGroups:()=>[],studioNavigatorSnapshots:()=>[{id:"one",location:"server",name:"Old title",updatedAt:20},{id:"older",location:"server",name:"Older saved",updatedAt:100}],
+    studioCanvasOpenedAt:()=>0,canvasAgentStoredHistoryGroups:()=>[],studioNavigatorSnapshots:()=>[{id:"one",location:"server",name:"Old title",updatedAt:20},{id:"older",location:"server",name:"Older saved",updatedAt:100}],
     snapshotName:item=>item.name,canvasAgentHistoryForCanvas:()=>[],t:key=>key,
   });
   assert.equal(groups.length,3);
@@ -28,7 +28,7 @@ test("unread dots update in place and opening the sidebar does not acknowledge u
   const context=vm.createContext({canvasDocuments:{records:new Map([[doc.id,doc]]),activeId:"other",switching:false,error:null},
     studioNavigatorToggle:toggle,document:{getElementById:()=>hint},studioNavigator:{querySelectorAll:()=>[row]},
     canvasDocumentsCopy:en=>en,studioNavigatorIsOpen:()=>open,renderActiveStudioNavigatorHistory:()=>{if(open)renders++;},
-    studioNavigatorHistoryDirty:false,syncStudioMcpActions:()=>{},
+    rememberStudioCanvasOpened:()=>{},studioNavigatorHistoryDirty:false,syncStudioMcpActions:()=>{},
   });
   vm.runInContext(`let studioWorkspaceSignature="";${extract("studioWorkspaceChanged")}`,context);
   context.studioWorkspaceChanged();assert.equal(toggle.dataset.workspaceUpdates,"true");assert.equal(renders,0);
@@ -168,7 +168,7 @@ test("canvas metadata distinguishes current, background open and closed saved ca
     ["old",{id:"old",title:"Older edited",bindings:[{}],stored:{item:{createdAt:100}},changes:[{at:300}]}],
   ]);
   const context=vm.createContext({studioMcpOrder:new Map(),studioMcpOrderSequence:0,canvasDocuments:{records,activeId:"new"},state:{canvasAgentCanvasKey:""},
-    canvasAgentStoredHistoryGroups:()=>[],studioNavigatorSnapshots:()=>[],t:key=>key,mcpRuntime:{sessions:new Map()}});
+    studioCanvasOpenedAt:()=>0,canvasAgentStoredHistoryGroups:()=>[],studioNavigatorSnapshots:()=>[],t:key=>key,mcpRuntime:{sessions:new Map()}});
   vm.runInContext(extract("studioNavigatorWorkGroups")+"\n"+extract("studioNavigatorMcpGroups"),context);
   assert.deepEqual(Array.from(context.studioNavigatorMcpGroups(),g=>g.documentId),["old","new"]);
   assert.equal(context.studioNavigatorMcpGroups()[0].updatedAt,300);
@@ -181,3 +181,27 @@ test("canvas metadata distinguishes current, background open and closed saved ca
   records.delete("old");
   assert.deepEqual(Array.from(context.studioNavigatorMcpGroups(),g=>g.documentId),["latest","new"]);
  });
+
+test("sidebar visits persist locally without rewriting content timestamps or counting rerenders",()=>{
+  const storage=new Map(), context=vm.createContext({localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)}});
+  vm.runInContext(`const STUDIO_CANVAS_OPENED_KEY="visits";let studioCanvasOpened=new Map(),studioLastOpenedKey="";${extract("readStudioCanvasOpened")}${extract("rememberStudioCanvasOpened")}${extract("studioCanvasOpenedAt")}`,context);
+  context.rememberStudioCanvasOpened("server:old");
+  const first=context.studioCanvasOpenedAt("server:old");
+  context.rememberStudioCanvasOpened("server:old");
+  assert.equal(context.studioCanvasOpenedAt("server:old"),first);
+  context.rememberStudioCanvasOpened("server:other");
+  context.rememberStudioCanvasOpened("server:old");
+  assert.ok(context.studioCanvasOpenedAt("server:old")>context.studioCanvasOpenedAt("server:other"));
+  assert.equal(context.readStudioCanvasOpened().get("server:old"),context.studioCanvasOpenedAt("server:old"));
+  assert.equal(context.studioCanvasOpenedAt("cloud:old"),0);
+});
+test("recently viewed saved Canvas precedes newer unvisited content",()=>{
+  const items=[{id:"old",location:"server",updatedAt:1},{id:"new",location:"server",updatedAt:999}];
+  const groups=vm.runInNewContext(`(${extract("studioNavigatorWorkGroups")})()`,{
+    canvasDocuments:{records:new Map(),activeId:null},state:{canvasAgentCanvasKey:"",language:"en"},
+    studioCanvasOpenedAt:key=>key==="server:old"?10:0,canvasAgentStoredHistoryGroups:()=>[],studioNavigatorSnapshots:()=>items,
+    snapshotName:item=>item.id,canvasAgentHistoryForCanvas:()=>[],t:key=>key,
+  });
+  assert.deepEqual(Array.from(groups,g=>g.canvasKey),["server:old","server:new"]);
+  assert.equal(items[0].updatedAt,1);
+});

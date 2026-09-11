@@ -843,7 +843,7 @@ test("internal and external Agents use the same current-document source and pres
     assert.equal(h.state.widgets.length,1);
   }
   assert.deepEqual(internal.state.widgets.map(w=>[w.w,w.h,w.html]),external.state.widgets.map(w=>[w.w,w.h,w.html]));
-  assert.deepEqual(internal.state.widgets.map(w=>[w.x,w.y]),[[48,144]],"internal Agent retains viewport placement");
+  assert.deepEqual(internal.state.widgets.map(w=>[w.x,w.y]),[[96,96]],"internal Agent uses the viewport free-space placement helper");
   assert.deepEqual(external.state.widgets.map(w=>[w.x,w.y]),[[1000,1000]],"external MCP starts at the inset");
   assert.equal(internal.canvasDocuments.activeId,firstCanvas);
   assert.equal(internal.canvasDocuments.records.size,1,"binding internal Agent must not create a document");
@@ -1091,4 +1091,127 @@ test("workspace reload restores more than 32 documents and respects the 64-docum
   bounded.canvasDocuments.ready=null;
   await bounded.canvasDocumentsReady();
   assert.equal(bounded.canvasDocuments.records.size,64);
+});
+
+
+test("MCP automatic text uses the active viewport and queues reveal; explicit and hidden placement stay scoped", async () => {
+  const h = harness();
+  await h.canvasDocumentsReady();
+  const doc = h.canvasDocumentsCurrent(), session = {sessionId:"text-placement", artifacts:new Map()};
+  h.mcpRuntime.sessions.set(session.sessionId,session);
+  const queued=[];
+  h.context.mcpQueueView=(owner,record)=>queued.push({sessionId:owner.sessionId,id:record.id});
+  h.context.canvasAgentPlacementBox=(w,h)=>({x:8200,y:6400,w,h,crowded:false});
+  const result=await h.context.canvasDocumentsEdit(doc,{action:"create_text",sessionId:session.sessionId,text:"Visible text"},{});
+  assert.equal(h.state.textBoxes[0].x,8200);
+  assert.equal(h.state.textBoxes[0].y,6400);
+  assert.equal(queued[0].id,result.objectId);
+  await h.context.canvasDocumentsEdit(doc,{action:"create_text",sessionId:session.sessionId,text:"Annotation",region:{x:400,y:500,w:400,h:48}},{});
+  assert.equal(h.state.textBoxes[1].x,400);
+  assert.equal(h.state.textBoxes[1].y,500);
+  assert.equal(queued.length,1);
+  const hidden=await createHidden(h,"hidden-text-placement","Background");
+  await h.context.canvasDocumentsEdit(h.canvasDocuments.records.get(hidden.documentId),{action:"create_text",sessionId:session.sessionId,text:"Background text"},{});
+  assert.equal(queued.length,1);
+  assert.equal(h.state.textBoxes.length,2);
+});
+
+function imageAssetHarness() {
+  const h=harness();
+  Object.assign(h.context,{n:(v,min=0,max=32768)=>typeof v==="number"&&Number.isFinite(v)&&v>=min&&v<=max,MAX_IMAGE_SOURCE_BYTES:32000000,MAX_IMAGE_DIMENSION:16000,MAX_IMAGE_PIXELS:64000000,
+    dataUrlBlob:source=>{const [prefix,bytes]=source.split(',');return new Blob([Buffer.from(bytes,'base64')],{type:prefix.slice(5).split(';')[0]});},
+    canvasAgentReadDataUrl:async blob=>`data:${blob.type};base64,${Buffer.from(await blob.arrayBuffer()).toString('base64')}`,
+    createImageBitmap:async blob=>({width:120,height:60,close(){}}),
+    mcpQueueView:()=>{},
+  });
+  vm.runInContext(clientFunction("canvas-runtime.js","imageRecord"),h.context);
+  return h;
+}
+const assetTestImage='data:image/png;base64,iVBORw0KGgo=';
+
+test('image attachments deduplicate, stay document-scoped and persist without placing objects',async()=>{
+  const h=imageAssetHarness();await h.canvasDocumentsReady();const doc=h.canvasDocumentsCurrent();
+  const first=await h.context.canvasDocumentsUploadImage(doc,{name:'sample.png',source:assetTestImage},{});
+  assert.match(first.source,/^penecho-asset:[a-f0-9]{64}$/);assert.equal(first.width,120);
+  assert.equal(h.state.images.length,0);assert.equal(h.state.currentSnapshotPreservedAssets.length,1);
+  const revision=h.state.userRevision;
+  const second=await h.context.canvasDocumentsUploadImage(doc,{name:'other.png',source:assetTestImage},{});
+  assert.equal(second.source,first.source);assert.equal(h.state.userRevision,revision);
+  assert.equal(JSON.parse(h.context.canvasDocumentsFile(doc,'assets/index.json')).images[0].source,first.source);
+  const hidden=await createHidden(h,'asset-other','Other'),other=h.canvasDocuments.records.get(hidden.documentId);
+  assert.throws(()=>h.context.canvasImageAssetsForHtml(`<img src="${first.source}">`,other),/not in this Canvas/);
+  await h.context.canvasDocumentsPark();
+  const stored=h.records.get(doc.id);assert.equal(stored.stored.item.preservedAssets[0].metadata.resourceId,first.assetId);
+  const reopened=h.canvasDocumentsRecord(stored.metadata,structuredClone(stored.stored));
+  h.canvasDocuments.activeId=other.id;
+  assert.equal(h.context.canvasImageAssetsForHtml(`<img src="${first.source}">`,reopened)[first.source],assetTestImage);
+});
+
+test('image placement uses attachment bytes, auto-layout or explicit position and rejects missing sources before mutation',async()=>{
+  const h=imageAssetHarness();await h.canvasDocumentsReady();const doc=h.canvasDocumentsCurrent();
+  const asset=await h.context.canvasDocumentsUploadImage(doc,{name:'sample.png',source:assetTestImage},{});
+  h.context.canvasAgentPlacementBox=(w,h)=>({x:8200,y:6400,w,h,crowded:false});
+  const placed=await h.context.canvasDocumentsPlaceImage(doc,{source:asset.source,width:240},{});
+  assert.equal(h.state.images[0].id,placed.objectId);assert.equal(h.state.images[0].x,8200);assert.equal(h.state.images[0].h,120);
+  await h.context.canvasDocumentsPlaceImage(doc,{source:asset.source,height:80,region:{x:400,y:500,w:1,h:1}},{});
+  assert.equal(h.state.images[1].x,400);assert.equal(h.state.images[1].w,160);
+  const revision=h.state.userRevision;
+  await assert.rejects(h.context.canvasDocumentsPlaceImage(doc,{source:asset.source,width:80},{}),/at least 80/);
+  await assert.rejects(h.context.canvasDocumentsPlaceImage(doc,{source:'penecho-asset:'+'f'.repeat(64)},{}),/not in this Canvas/);
+  assert.equal(h.state.images.length,2);assert.equal(h.state.userRevision,revision);
+  await assert.rejects(h.context.canvasDocumentsUploadImage(doc,{source:'file:///tmp/image.png'},{}),/Data URL/);
+});
+
+test('switching to a background Canvas installs attachments before Widget hydration',async()=>{
+  const h=imageAssetHarness();await h.canvasDocumentsReady();
+  const hidden=await createHidden(h,'restore-image-widget','Image document'),doc=h.canvasDocuments.records.get(hidden.documentId);
+  const asset=await h.context.canvasDocumentsUploadImage(doc,{name:'sample.png',source:assetTestImage},{});
+  doc.stored.item.widgets.push({id:'widget-1',html:`<img src="${asset.source}">`});
+  let resolved;
+  const restore=h.context.restoreWidgets;
+  h.context.restoreWidgets=items=>{resolved=h.context.canvasImageAssetsForHtml(items[0].html);restore(items);};
+  await h.context.canvasDocumentsShow(doc.id);
+  assert.equal(resolved[asset.source],assetTestImage);
+});
+
+test('image import rechecks active editing after asynchronous decode before changing the Canvas',async()=>{
+  for(const operation of ['canvasDocumentsUploadImage','canvasDocumentsPlaceImage']) {
+    const h=imageAssetHarness();await h.canvasDocumentsReady();const doc=h.canvasDocumentsCurrent();let busy=false,closed=0;
+    h.context.canvasAgentMutationIdle=()=>{if(busy)throw Error('CANVAS_BUSY');};
+    h.context.createImageBitmap=async()=>{busy=true;return {width:120,height:60,close(){closed++;}};};
+    const revision=h.state.userRevision;
+    await assert.rejects(h.context[operation](doc,{name:'sample.png',source:assetTestImage},{}),/CANVAS_BUSY/);
+    assert.equal(h.state.userRevision,revision);assert.equal(h.state.images.length,0);assert.equal(h.state.currentSnapshotPreservedAssets.length,0);assert.equal(closed,1);
+  }
+});
+
+test('routed image upload retries reuse the document receipt without retaining Base64 copies',async()=>{
+  const h=imageAssetHarness();await h.canvasDocumentsReady();const doc=h.canvasDocumentsCurrent();
+  await startHidden(h,doc.id,'asset-session');
+  const args={sessionId:'asset-session',requestId:'asset-request',name:'sample.png',source:assetTestImage};
+  const first=await h.canvasDocumentsExecute('mcp_upload_image',args,{}),revision=h.state.userRevision;
+  const retry=await h.canvasDocumentsExecute('mcp_upload_image',args,{});
+  assert.equal(retry.source,first.source);assert.equal(h.state.userRevision,revision);
+  assert.equal(first.documentId,doc.id);assert.ok(!doc.receipts.get(args.requestId).signature.includes('base64'));
+  await assert.rejects(h.canvasDocumentsExecute('mcp_upload_image',{...args,name:'different.png'},{}),/different content/);
+});
+
+test("legacy routing and external takeover keep the composer on PenEcho while Widget choices remain readable", async () => {
+  const h = harness();
+  const restored = h.canvasDocumentsRecord({ documentId: "legacy", processor: { kind: "external", bindingKey: "old" } });
+  assert.equal(restored.processor.kind, "penecho");
+  await h.canvasDocumentsReady();
+  const doc = h.canvasDocumentsCurrent();
+  await h.canvasDocumentsExecute("mcp_start_session", { sessionId: "choice-owner", sessionKey: "choice-key", client: "Codex", target: "current", takeover: true }, {});
+  assert.equal(doc.processor.kind, "penecho");
+  assert.equal(h.canvasDocumentsExternal(), false);
+  const widget = { id: "choice-widget", x: 10, y: 20, w: 200, h: 100 };
+  h.mcpRuntime.sessions.get("choice-owner").artifacts.set("choice-artifact", { objectId: widget.id });
+  h.context.choiceWidget = widget;
+  vm.runInContext('canvasDocumentsWidgetAction(choiceWidget, {text:"Use option B", action:"choice"})', h.context);
+  const inbox = await h.canvasDocumentsExecute("mcp_read_messages", { sessionId: "choice-owner", after: 0 }, {});
+  assert.equal(inbox.entries.length, 1);
+  assert.equal(inbox.entries[0].text, "Use option B");
+  assert.equal(inbox.entries[0].source, "widget");
+  assert.equal(doc.processor.kind, "penecho");
 });

@@ -54,11 +54,10 @@ PenEcho является официальным участником прогр�
 
 ```bash
 npm install -g penecho
-penecho configure
 penecho
 ```
 
-Откройте [http://localhost:3888](http://localhost:3888). Команда `penecho configure` позволяет интерактивно выбрать источник LLM, модель, уровень рассуждения, тайм-аут, формат изображения и сетевой адрес. По умолчанию настройки сохраняются в `~/.penecho/config.env`; учетные данные API не передаются в браузер.
+Откройте [http://localhost:3888](http://localhost:3888) и добавьте подключения API или CLI в **Настройки → Подключения**. Подключения сохраняются в `~/.penecho/connections.json`, а общие настройки — в `~/.penecho/config.env`.
 
 Запуск из исходного кода:
 

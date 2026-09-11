@@ -102,11 +102,10 @@
 
 ```bash
 npm install -g penecho
-penecho configure
 penecho
 ```
 
-打开 `http://localhost:3888`。配置自己的模型 API，或使用已安装并登录的 Codex、Claude Code、Kimi CLI。使用 PenEcho 托管模型时，登录账号并在设置中选择可用模型。
+打开 `http://localhost:3888`。在**设置 → 连接**中添加自己的模型 API，或已安装并登录的 Codex、Claude Code、Kimi CLI。连接保存在 `~/.penecho/connections.json`，通用设置保存在 `~/.penecho/config.env`。使用 PenEcho 托管模型时，登录账号并在设置中选择可用模型。
 
 启动时设置六位访问码，或明确选择在可信网络开放访问。终端也会显示供其他设备使用的局域网地址。
 

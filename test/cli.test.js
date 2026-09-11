@@ -32,6 +32,7 @@ const {
   testConfiguredProvider,
 } = require("../cli.js");
 
+const { DEFAULT_MAX_TOKENS } = require("../src/server/api-config.js");
 const { runConfigureMenu } = require("../src/cli/configure-ui.js");
 const ROOT = path.resolve(__dirname, "..");
 
@@ -382,12 +383,12 @@ test("API validation and connection requests use the selected wire format", asyn
   assert.equal(Object.hasOwn(openAiBody,"temperature"),false);
   assert.equal(calls[1].url, "https://anthropic.test/v1/messages");
   assert.equal(anthropicBody.stream,true);
-  assert.equal(anthropicBody.max_tokens,20000);
+  assert.equal(anthropicBody.max_tokens,DEFAULT_MAX_TOKENS);
   assert.equal(anthropicBody.output_config.effort, "max");
   assert.equal(anthropicBody.messages[0].content.find(part => part.type === "image").source.media_type, "image/webp");
   assert.equal(Object.hasOwn(anthropicBody,"temperature"),false);
   assert.deepEqual(disabledAnthropicBody.thinking, { type:"disabled" });
-  assert.equal(disabledAnthropicBody.max_tokens,20000);
+  assert.equal(disabledAnthropicBody.max_tokens,DEFAULT_MAX_TOKENS);
   assert.equal(disabledAnthropicBody.output_config, undefined);
   assert.equal(Object.hasOwn(disabledAnthropicBody,"temperature"),false);
   assert.equal(gpt56Body.reasoning_effort, "max");
@@ -971,13 +972,15 @@ test("Claude doctor does not claim an untested session is ready", async () => {
   assert.doesNotMatch(output.text(), /login is ready/);
 });
 
-test("help documents configure, global config, explicit config, and transient overrides", () => {
+test("help documents active options without obsolete setup or legacy stdio guidance", () => {
   const help = helpText();
-  assert.match(help, /penecho configure/);
+  assert.doesNotMatch(help, /configure|legacy stdio|curl|irm /);
+  assert.match(help, /Settings → Connections/);
   assert.match(help, /~\/.penecho\/config\.env/);
   assert.match(help, /--config/);
   assert.match(help, /--model/);
   assert.match(help, /--effort/);
   assert.match(help, /--kimi/);
-  assert.match(help, /MoonshotAI\/kimi-code/);
+  assert.match(help, /mcp discover/);
+  assert.match(help, /hermes/);
 });

@@ -191,6 +191,7 @@
     clearTimeout(state.timer);
     state.timer = 0;
     hideWidgetRefineHint();
+    releaseWidgetsForDrawing();
     const erasing = forceEraser || state.mode === "eraser";
     if (erasing) clearWidgetRefineCandidate();
     else state.latestTypedInput = null;
@@ -222,8 +223,8 @@
     appendLiveInkSample(state.drawing, p, size);
   }
   function beginHandObjectResize(event, point) {
-    if (state.mode !== "select" || event.pointerType === "touch" || Number(event.button) !== 0 || !point || !valid(point)) return false;
-    if (state.pending) {
+    if (!["hand", "select"].includes(state.mode) || state.viewMode || state.spacePan || event.pointerType === "touch" || Number(event.button) !== 0 || !point || !valid(point)) return false;
+    if (state.mode === "select" && state.pending) {
       const result = pendingHit(state.pending, event, state.pending.revealProgress < 1),
         hit = typeof result === "string" ? result : result?.hit,
         itemIndex = result && typeof result === "object" ? result.itemIndex : null;
@@ -232,7 +233,7 @@
         return true;
       }
     }
-    const widgetResult = widgetRuntimeEnabled() ? widgetPointerHit(point, event.pointerType, false) : null;
+    const widgetResult = state.mode === "select" && widgetRuntimeEnabled() ? widgetPointerHit(point, event.pointerType, false) : null;
     if (widgetResult && ["resize", "width", "height"].includes(widgetResult.hit)) {
       refreshHandObjectToolbar();
       return beginWidgetGesture(event, point, widgetResult);
@@ -243,7 +244,7 @@
       refreshHandObjectToolbar();
       return beginImageGesture(event, point, imageResult);
     }
-    const animationResult = animationPointerHit(point, event.pointerType);
+    const animationResult = state.mode === "select" ? animationPointerHit(point, event.pointerType) : null;
     if (animationResult && ["resize", "width", "height"].includes(animationResult.hit)) {
       refreshHandObjectToolbar();
       return beginAnimationGesture(event, point, animationResult);
@@ -255,8 +256,9 @@
     view.classList.remove("is-wheel-navigating");
     state.handToolbarTap = null;
     if (!state.viewMode && state.mode === "hand" && !state.spacePan && !e.altKey && e.button === 0 && !state.touches.size) {
-      const widget = canvasWidgetAtEvent(e);
-      if (widget) state.handToolbarTap = { id:e.pointerId, widget, x:e.clientX, y:e.clientY };
+      const target = handObjectToolbarTargetAtPoint(clientPoint(e));
+      if (target) state.handToolbarTap = { id:e.pointerId, target, x:e.clientX, y:e.clientY };
+      else hideHandObjectToolbar({ all:true, animate:false });
     }
     if (e.pointerType === "touch" && canvasPencilWritingActive()) return;
     if (e.pointerType === "mouse" && ![0, 1].includes(e.button)) return;
@@ -298,10 +300,13 @@
     } catch {}
     calibrateScreenClientRatio(e, false);
     const penEraser = canvasPenEraserActive(e),
-      handPoint = !penEraser && !state.spacePan && state.mode === "select" ? clientPoint(e) : null;
+      handPoint = !penEraser && !state.spacePan && ["hand", "select"].includes(state.mode) ? clientPoint(e) : null;
     beginCanvasWidgetGestureResetTap(e, handPoint);
     state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (handPoint && e.pointerType !== "touch" && beginHandObjectResize(e, handPoint)) return;
+    if (handPoint && e.pointerType !== "touch" && beginHandObjectResize(e, handPoint)) {
+      state.handToolbarTap = null;
+      return;
+    }
 
     if (handPoint) beginHandObjectFocus(e, handPoint);
     if (penEraser) {
@@ -415,7 +420,7 @@
       return;
     }
     updateHandObjectFocus(e);
-    if (state.mode === "select" && e.pointerType !== "touch" && Number(e.buttons) === 0) {
+    if (["hand", "select"].includes(state.mode) && e.pointerType !== "touch" && Number(e.buttons) === 0) {
       const point = clientPoint(e);
       updateHandObjectHover(point);
       syncWidgetResizeCursor(point, e.pointerType);
@@ -468,13 +473,16 @@
       return;
     }
   });
-  function end(e) {
+  function finishHandCanvasTap(e) {
     const handTap = state.handToolbarTap;
     if (handTap?.id === e.pointerId) {
       state.handToolbarTap = null;
       if (e.type === "pointerup" && !state.viewMode && state.mode === "hand" && !state.spacePan && state.touches.size <= 1
-          && Math.hypot(e.clientX - handTap.x, e.clientY - handTap.y) <= 6) showHandObjectToolbar("widget", handTap.widget);
+          && Math.hypot(e.clientX - handTap.x, e.clientY - handTap.y) <= 6) showHandObjectToolbar(handTap.target.kind, handTap.target.object);
     }
+  }
+  function end(e) {
+    finishHandCanvasTap(e);
     const activation = state.widgetActivationTap;
     if (activation?.id === e.pointerId) {
       state.widgetActivationTap = null;

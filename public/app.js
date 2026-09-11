@@ -131,7 +131,7 @@
   const SIZE = 20000,
     TILE = 512,
     DIRTY_MASK_SCALE = 0.25,
-    INITIAL_VIEWPORT_EXTENT_SCALE = 0.8,
+    INITIAL_CANVAS_SCALE = 0.5,
     CANVAS_DOWNLOAD_RESOLUTION_SCALE = 1.5,
     EXPORT_MAX_DIMENSION = 16384,
     EXPORT_MAX_PIXELS = 64 * 1024 * 1024,
@@ -438,6 +438,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       boardTools: "Board tools",
       canvasViewHand: "Move canvas",
       canvasViewSelect: "Select a widget to interact",
+      widgetMaximize: "Maximize",
+      widgetReturnToCanvas: "Interact on canvas",
+      imageZoomOut: "Zoom out",
+      imageZoomIn: "Zoom in",
       widgetInteract: "Interact with widget",
       widgetInteractShort: "Interact",
       widgetInteracting: "Interacting",
@@ -829,7 +833,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsSearchSaved: "Search settings saved. Internet search is on by default and can be turned off with the globe button.",
       settingsEffort: "Reasoning",
       settingsMaxTokens: "Maximum response tokens",
-      settingsMaxTokensHelp: "Includes thinking tokens. Default 20,000; must be larger than 15,000. Low limits may be exhausted during reasoning.",
+      settingsMaxTokensHelp: "Includes thinking tokens. Default 63,000; must be larger than 15,000. Low limits may be exhausted during reasoning.",
       settingsAgentTurnLimit: "PenEcho Agent rounds per request",
       settingsAgentTurnLimitUnit: "rounds",
       settingsAgentTurnLimitHelp: "Stops only the current request at the limit. Results and conversation stay available so the next message can continue. Default 100.",
@@ -1072,7 +1076,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasHintWidgetAddedAlt: "In Pen, notes anywhere in this view can reveal AI Refine on the target widget.",
       canvasHintRefineInPlace: "In Pen, add an instruction, then tap AI Refine on the target widget.",
       canvasHintAIAddsOnly: "Auto AI and manual AI add new widgets; they do not replace existing widgets in place.",
-      canvasHintHand: "Drag anywhere to move the canvas. Click a widget to show its toolbar.",
+      canvasHintHand: "Drag to pan. Click an object to select it. Double-click an image to maximize it.",
       canvasHintHandAlt: "Hold Space to move the canvas temporarily; release to return to your tool.",
       canvasHintWidgetTouchHand: "Choose Select, then Interact to use widget content.",
       canvasHintLasso: "Select an object to move or resize it; drag empty space to lasso ink.",
@@ -5223,12 +5227,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function syncCanvasObjectLayerOrder() {
     const widgetInFront = state.frontCanvasObjectKind === "widget",
-      selectedWidgetMaterialActive = Boolean(selectedWidgetMaterial && !selectedWidgetMaterial.hidden),
+      selectedWidgetMaterialActive = Boolean(state.interactingWidgetId || (selectedWidgetMaterial && !selectedWidgetMaterial.hidden)),
       widgetStyle = runtimeElementStyle(widgetLayer, "widget-layer-stack"),
       imageMaterialStyle = runtimeElementStyle(imageMaterialLayer, "image-material-layer-stack"),
       imageStyle = runtimeElementStyle(placedContentLayer, "placed-content-layer-stack"),
       textEditorStyle = runtimeElementStyle(textEditorLayer, "text-editor-layer-stack");
-    if (widgetStyle) widgetStyle.zIndex = selectedWidgetMaterialActive || widgetInFront ? "3" : "1";
+    // Selection is a temporary lift above ink; click-to-front order survives deselection.
+    // Ink follows the Widget carrier in DOM order at z-index 2.
+    if (widgetStyle) widgetStyle.zIndex = selectedWidgetMaterialActive ? "3" : widgetInFront ? "2" : "1";
     if (imageMaterialStyle) imageMaterialStyle.zIndex = widgetInFront ? "1" : "2";
     if (imageStyle) imageStyle.zIndex = widgetInFront ? "1" : "2";
     if (textEditorStyle) textEditorStyle.setProperty("--text-editor-layer-z", state.frontCanvasObjectKind === "text-box" ? "6" : "1");
@@ -5487,7 +5493,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return true;
   }
   function ensureHandToolbarRecord(kind, object) {
-    const allowed = state.mode === "select" || (kind === "widget" && ["hand", "pen"].includes(state.mode));
+    const allowed = ["select", "hand"].includes(state.mode) || (kind === "widget" && state.mode === "pen");
     if (!allowed || !object?.id || !["widget", "image", "animation", "text-box"].includes(kind)) return null;
     const key = handToolbarKey(kind, object.id);
     let record = state.handToolbarTargets.get(key);
@@ -5567,6 +5573,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       return false;
     }
     if (record.kind === "widget") commitWidgetToolbarFront(object);
+    else if (record.kind === "image") bringImageToFront(object);
+    else if (record.kind === "text-box") bringTextBoxToFront(object);
     if (record.kind === "animation") showAnimationControls(HAND_OBJECT_TOOLBAR_VISIBLE_MS + HAND_OBJECT_TOOLBAR_FADE_MS);
     refreshHandObjectToolbar(key);
     return true;
@@ -5668,6 +5676,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         widgetHostPointerAnchors.delete(id);
       }
       if (ownsDrag) {
+        widget.shell?.classList.remove("is-resizing");
         state.widgetGesture = null;
         resetCanvasCursor();
       }
@@ -5777,18 +5786,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function imageControlHit(item, point, pointerType = "mouse") {
     const box = imageBox(item),
-      handle = 14 / state.scale,
-      radius = (pointerType === "touch" ? 24 : 14) / state.scale,
-      controls = [
-        { hit:"resize", target:{ x:box.x + box.w, y:box.y + box.h }, radius },
-        { hit:"width", target:{ x:box.x + box.w + handle * 0.08, y:box.y + box.h / 2 }, radius },
-        { hit:"height", target:{ x:box.x + box.w / 2, y:box.y + box.h + handle * 0.08 }, radius },
-      ],
-      control = controls
-        .map((candidate) => ({ ...candidate, distance:Math.hypot(point.x - candidate.target.x, point.y - candidate.target.y) }))
-        .filter((candidate) => candidate.distance <= candidate.radius)
-        .sort((a, b) => a.distance - b.distance)[0];
-    if (control) return control.hit;
+      resize = widgetResizeHit(box, point, pointerType);
+    if (resize) return resize;
     return point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h ? "move" : null;
   }
   function imageAtPoint(point) {
@@ -5807,6 +5806,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (!includeUnselected) return null;
     const item = imageAtPoint(point);
     return item ? { image:item, hit:"move" } : null;
+  }
+  function imageResizeCursor(point, pointerType = "mouse") {
+    const hit = imagePointerHit(point, pointerType, false)?.hit;
+    return hit === "resize" ? "nwse-resize" : hit === "width" ? "ew-resize" : hit === "height" ? "ns-resize" : "";
   }
   function resizeImageBox(start, point, hit) {
     const minimumWidth = 80, minimumHeight = 80,
@@ -6024,7 +6027,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return { x: widget.x, y: widget.y, w: widget.w, h: widget.h };
   }
   function widgetLayout(widget) {
-    return { ...widgetBox(widget), contentW:widget.contentW, contentH:widget.contentH, fitContent:widget.fitContent === true };
+    return { ...widgetBox(widget), contentW:widget.contentW, contentH:widget.contentH, fitContent:widget.fitContent === true, fitContentAxes:widget.fitContentAxes || null };
   }
   function visibleWidgets(region = null) {
     if (!widgetRuntimeEnabled()) return [];
@@ -6104,6 +6107,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       contentW: widget.contentW,
       contentH: widget.contentH,
       ...(widget.fitContent ? { fitContent:true } : {}),
+      ...(widget.fitContentAxes ? { fitContentAxes:widget.fitContentAxes } : {}),
       title: widget.title,
       refreshSeconds: widget.refreshSeconds,
       favoriteSourceId: widget.favoriteSourceId,
@@ -6166,6 +6170,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       contentW: Math.round(contentW),
       contentH: Math.round(contentH),
       fitContent: item.fitContent === true,
+      fitContentAxes: ["width", "height", "resize"].includes(item.fitContentAxes) ? item.fitContentAxes : null,
       title: item.title.trim(),
       refreshSeconds: Math.round(item.refreshSeconds),
       html,
@@ -6342,16 +6347,26 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function createWidgetResizeHandle(widget, hit) {
     const handle = document.createElement("div");
     handle.className = `canvas-widget-resize-handle ${hit === "width" ? "width" : hit === "height" ? "height" : "corner"}`;
-    handle.setAttribute("aria-hidden", "true");
     handle.addEventListener("pointerdown", (event) => {
-      if (state.viewMode || state.mode !== "select" || Number(event.button) !== 0) return;
+      if (state.viewMode || state.spacePan || !["hand", "select"].includes(state.mode) || Number(event.button) !== 0) return;
       const pending = widget === state.pendingWidget && widget.pending === true;
-      if (!pending && !showHandObjectToolbar("widget", widget)) return;
+      if (!pending && state.interactingWidgetId !== widget.id && !showHandObjectToolbar("widget", widget)) return;
       event.preventDefault();
       event.stopPropagation();
       finishStaleWidgetHostGesture(event);
+      // Move focus out of the live iframe before capturing its border gesture.
+      handle.tabIndex = -1;
+      handle.focus({ preventScroll:true });
       if (!beginWidgetGesture(event, clientPoint(event), { widget, hit, pending })) return;
+      widget.shell?.classList.add("is-resizing");
       try { handle.setPointerCapture(event.pointerId); } catch {}
+      if (!pending) beginHandToolbarOperation(event.pointerId, handToolbarKey("widget", widget.id));
+    });
+    handle.addEventListener("dblclick", (event) => {
+      if (state.viewMode || state.spacePan || !["hand", "select"].includes(state.mode)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      requestWidgetContentFit(widget, hit);
     });
     handle.addEventListener("pointermove", (event) => {
       if (finishReleasedWidgetGesture(event) || state.widgetGesture?.id !== event.pointerId) return;
@@ -6492,7 +6507,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       dragging = state.widgetGesture?.widget === widget,
       intersectsViewport = viewportWidth <= 0 || viewportHeight <= 0
         || (screenX < viewportWidth && screenY < viewportHeight && screenX + displayWidth > 0 && screenY + displayHeight > 0),
-      active = widget.snapshotCaptureActive === true || dragging || intersectsViewport;
+      active = widget.maximized === true || widget.snapshotCaptureActive === true || dragging || intersectsViewport;
     widget.renderActive = active;
     widget.shell.classList.toggle("widget-offscreen", !active);
     if (active) sendWidgetInit(widget);
@@ -6527,6 +6542,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       widget.styleSizeKey = sizeKey;
       declaration.width = `${widget.contentW}px`;
       declaration.height = `${widget.contentH}px`;
+      declaration.setProperty("--widget-natural-width", `${widget.contentW}px`);
+      declaration.setProperty("--widget-natural-height", `${widget.contentH}px`);
     }
     const transformKey = `${localX}:${localY}:${scaleX}:${scaleY}`;
     if (widget.styleTransformKey !== transformKey) {
@@ -6554,21 +6571,30 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (!widget.frame?.contentWindow || !widget.hostReady || widget.initialized || widget.renderActive === false) return;
     const manifest = pluginManifests.get(widget.pluginId);
     if (!manifest) return;
+    let imageAssets={};
+    try {if(typeof canvasImageAssetsForHtml==="function")imageAssets=canvasImageAssetsForHtml(widget.html,widget.mcpAssetDocumentId?canvasDocuments.records.get(widget.mcpAssetDocumentId):canvasDocumentsCurrent());}
+    catch { /* The host reports missing attachments without aborting Canvas rendering. */ }
     widget.initialized = true;
     widget.mcpDocumentLoaded = false;
     widget.frame.contentWindow.postMessage({
       type:"penecho-widget-init",
       title:widget.title,
       html:widget.html,
+      imageAssets,
       pluginStyles:manifest.styles || "",
       ...(widget.sourceFormat ? { sourceFormat:widget.sourceFormat } : {}),
       ...(widget.frameworkVersion ? { frameworkVersion:widget.frameworkVersion } : {}),
     }, widget.hostOrigin || location.origin);
   }
   function sendWidgetHostState(widget, scaleX = state.scale * widget.w / widget.contentW, scaleY = state.scale * widget.h / widget.contentH, force = false) {
+    if (widget.maximized) {
+      const shellStyle = getComputedStyle(widget.shell);
+      const available = widget.shell.clientWidth - parseFloat(shellStyle.paddingLeft) - parseFloat(shellStyle.paddingRight);
+      scaleX = scaleY = available / Math.max(widget.contentW, widget.presentationWidth || 0) * (widget.presentationZoom || 100) / 100;
+    }
     const interactive = canvasWidgetInteractive(widget),
       selectable = canvasWidgetSelectionEnabled(),
-      selected = !state.viewMode && state.mode === "select" && !interactive && (widget.pending === true || (state.widgetEdit?.id === widget.id && state.selectedWidgetId === widget.id)),
+      selected = !state.viewMode && ["hand", "select"].includes(state.mode) && !interactive && (widget.pending === true || (state.widgetEdit?.id === widget.id && state.selectedWidgetId === widget.id)),
       inputKey = `${interactive}:${selectable}:${selected}`;
     if (widget.inputPolicyKey !== inputKey) {
       widget.inputPolicyKey = inputKey;
@@ -6579,11 +6605,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     }
     if (!widget.frame?.contentWindow || !widget.hostReady || !Number.isFinite(scaleX) || scaleX <= 0 || !Number.isFinite(scaleY) || scaleY <= 0) return;
     const active = widget.renderActive !== false,
-      key = `${interactive ? 1 : 0}:${selected ? 1 : 0}:${active ? 1 : 0}:${state.navigationLocked ? 1 : 0}:${scaleX.toFixed(6)}:${scaleY.toFixed(6)}:${widget.fitContent ? 1 : 0}`;
+      key = `${interactive ? 1 : 0}:${selected ? 1 : 0}:${active ? 1 : 0}:${state.navigationLocked ? 1 : 0}:${scaleX.toFixed(6)}:${scaleY.toFixed(6)}:${widget.fitContent ? 1 : 0}:${widget.fitContentAxes || ""}:${widget.maximized ? 1 : 0}`;
     syncMcpWidgetProgress(widget);
     if (!force && widget.hostStateKey === key) return;
     widget.hostStateKey = key;
-    widget.frame.contentWindow.postMessage({ type:"penecho-widget-state", fitContent:widget.fitContent === true, selected, interactive, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
+    widget.frame.contentWindow.postMessage({ type:"penecho-widget-state", maximized:widget.maximized === true, fitContent:widget.fitContent === true, fitContentAxes:widget.fitContentAxes || null, selected, interactive, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
   }
   function markWidgetHostReady(widget) {
     widget.hostReady = true;
@@ -6619,15 +6645,15 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       );
     });
   }
-  async function requestWidgetSnapshot(widget, timeoutMs = WIDGET_SNAPSHOT_TIMEOUT_MS, requireFresh = true, signal = null, highResolution = false) {
+  async function requestWidgetSnapshot(widget, timeoutMs = WIDGET_SNAPSHOT_TIMEOUT_MS, requireFresh = true, signal = null, highResolution = false, fullContent = false) {
     if(signal?.aborted)throw widgetSnapshotAbortError(signal);
     highResolution = highResolution === true;
     if (widget.snapshotPromise) {
       const inFlight = widget.snapshotPromise;
-      if (!requireFresh && (!highResolution || widget.snapshotPromiseHighResolution)) return waitForWidgetSnapshot(inFlight,signal);
+      if (!fullContent && !widget.snapshotPromiseFullContent && !requireFresh && (!highResolution || widget.snapshotPromiseHighResolution)) return waitForWidgetSnapshot(inFlight,signal);
       try { await waitForWidgetSnapshot(inFlight,signal); } catch (error) { if(signal?.aborted)throw error; }
       if(signal?.aborted)throw widgetSnapshotAbortError(signal);
-      if (widget.snapshotImage && widget.snapshotVersion >= widget.contentVersion && (!highResolution || widget.snapshotHighResolution)) return widget.snapshotImage;
+      if (!fullContent && widget.snapshotImage && widget.snapshotVersion >= widget.contentVersion && (!highResolution || widget.snapshotHighResolution)) return widget.snapshotImage;
     }
     timeoutMs = Math.max(1000, Math.min(WIDGET_SNAPSHOT_TIMEOUT_MS, Number(timeoutMs) || WIDGET_SNAPSHOT_TIMEOUT_MS));
     const snapshotPromise = (async () => {
@@ -6665,11 +6691,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
             clearTimeout(timer);
             reject(widgetSnapshotAbortError(signal));
           };
-          pending={ widget, resolve, reject, timer, contentVersion:widget.contentVersion, signal, abort, highResolution };
+          pending={ widget, resolve, reject, timer, contentVersion:widget.contentVersion, signal, abort, highResolution, fullContent };
           widgetSnapshotRequests.set(requestId,pending);
           signal?.addEventListener("abort",abort,{once:true});
           if(signal?.aborted){abort();return;}
-          widget.frame.contentWindow.postMessage({ type:"penecho-widget-snapshot-request", requestId, width:widget.contentW, height:widget.contentH, timeoutMs:remaining(), highResolution }, widget.hostOrigin || location.origin);
+          widget.frame.contentWindow.postMessage({ type:"penecho-widget-snapshot-request", requestId, width:widget.contentW, height:widget.contentH, timeoutMs:remaining(), highResolution, fullContent }, widget.hostOrigin || location.origin);
         });
       } finally {
         widget.snapshotCaptureActive = false;
@@ -6681,15 +6707,31 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       }
     })();
     widget.snapshotPromise = snapshotPromise;
+    widget.snapshotPromiseFullContent = fullContent;
     widget.snapshotPromiseHighResolution = highResolution;
     try {
       return await snapshotPromise;
     } finally {
       if (widget.snapshotPromise === snapshotPromise) {
         widget.snapshotPromise = null;
+        widget.snapshotPromiseFullContent = false;
         widget.snapshotPromiseHighResolution = false;
       }
     }
+  }
+  function applyWidgetPresentationSize(widget, message) {
+    if (!widget.maximized || !widget.styleRule?.style) return false;
+    const width = Number(message.width), height = Number(message.height);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || width > 100000 || height > 100000) return false;
+    const nextWidth = Math.max(widget.contentW, Math.ceil(width));
+    const nextHeight = Math.max(widget.contentH, Math.ceil(height));
+    if (widget.presentationWidth === nextWidth && widget.presentationHeight === nextHeight) return false;
+    widget.presentationWidth = nextWidth;
+    widget.presentationHeight = nextHeight;
+    widget.styleRule.style.setProperty("--widget-presentation-width", `${nextWidth}px`);
+    widget.styleRule.style.setProperty("--widget-presentation-height", `${nextHeight}px`);
+    sendWidgetHostState(widget);
+    return true;
   }
   async function handleWidgetMessage(event) {
     const widget = [...state.widgets, ...(state.pendingWidget ? [state.pendingWidget] : []), ...(typeof mcpRuntime!=="undefined"?[...(mcpRuntime?.previews?.values()||[])]:[])].find((item) => item.frame?.contentWindow === event.source);
@@ -6698,6 +6740,18 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(widget.mcpEphemeral&&!["penecho-widget-host-ready","penecho-widget-capture-ready","penecho-widget-updated","penecho-widget-snapshot","penecho-widget-snapshot-error","penecho-widget-runtime-diagnostics","penecho-visual-explainer-diagnostics"].includes(message.type))return;
     if(message.type==="penecho-widget-user-action"&&typeof canvasDocumentsWidgetAction==="function") {
       canvasDocumentsWidgetAction(widget,message);return;
+    }
+    if (message.type === "penecho-widget-presentation-size") {
+      applyWidgetPresentationSize(widget, message);
+      return;
+    }
+    if (message.type === "penecho-widget-fit-result") {
+      applyWidgetContentFit(widget, message);
+      return;
+    }
+    if (message.type === "penecho-widget-fit" && ["width", "height", "resize"].includes(message.hit)) {
+      requestWidgetContentFit(widget, message.hit);
+      return;
     }
     if (message.type === "penecho-widget-exit-interaction") {
       if (state.interactingWidgetId === widget.id) setWidgetInteraction(null);
@@ -6775,6 +6829,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       const snapshotImage=await decodeWidgetSnapshot(message.dataUrl);
       if(pending.signal?.aborted)throw widgetSnapshotAbortError(pending.signal);
       if(widget.contentVersion!==pending.contentVersion)throw Error(t("widgetExportFailed"));
+      if (pending.fullContent) {
+        pending.resolve({ image:snapshotImage, dataUrl:message.dataUrl });
+        return;
+      }
       widget.snapshotImage = snapshotImage;
       widget.snapshotDataUrl = message.dataUrl;
       widget.snapshotHighResolution = pending.highResolution;
@@ -6786,6 +6844,15 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function selectedWidget() {
     return state.widgets.find((widget) => widget.id === state.selectedWidgetId) || null;
+  }
+  function releaseWidgetsForDrawing() {
+    // Seal edits before starting the stroke's history transaction. A previous
+    // click-to-front order must survive: only the temporary selection lift ends.
+    if (state.widgetEdit || state.selectedWidgetId) acceptWidgetEdit();
+    clearHandToolbarTargets("widget");
+    if (state.interactingWidgetId) setWidgetInteraction(null, { restoreTool:false });
+    // Remove the selected frost synchronously, before the first live sample.
+    syncSelectedWidgetMaterial(null);
   }
   function beginWidgetEdit(widget) {
     if (!widget || widget.pending) return false;
@@ -6814,6 +6881,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     options ||= {};
     const edit = state.widgetEdit;
     if (edit) clearHandToolbarTarget("widget", edit.id);
+    state.widgetGesture?.widget.shell?.classList.remove("is-resizing");
     state.widgetGesture = null;
     state.widgetEdit = null;
     state.selectedWidgetId = null;
@@ -6838,6 +6906,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       positionWidget(widget);
     }
     state.widgetHistoryBefore = null;
+    state.widgetGesture?.widget.shell?.classList.remove("is-resizing");
     state.widgetGesture = null;
     state.widgetEdit = null;
     state.selectedWidgetId = null;
@@ -6910,11 +6979,50 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return "";
   }
   function syncWidgetResizeCursor(point, pointerType = "mouse") {
-    if (state.mode !== "select" || pointerType === "touch" || state.widgetGesture) return false;
-    const cursor = widgetResizeCursor(point, pointerType);
+    if (!["hand", "select"].includes(state.mode) || state.viewMode || state.spacePan || pointerType === "touch" || state.widgetGesture || state.imageGesture) return false;
+    const cursor = widgetResizeCursor(point, pointerType) || imageResizeCursor(point, pointerType);
     if (cursor) setCanvasCursor(cursor);
     else resetCanvasCursor();
     return Boolean(cursor);
+  }
+  let widgetFitRequestSequence = 0;
+  function requestWidgetContentFit(widget, hit) {
+    if (!widget || !["width", "height", "resize"].includes(hit) || state.viewMode || state.spacePan || !["hand", "select"].includes(state.mode)
+      || widget.maximized || !widget.hostReady || !widget.frame?.contentWindow) return false;
+    if (!widget.pending) beginWidgetEdit(widget);
+    const requestId = `widget-fit-${++widgetFitRequestSequence}`;
+    widget.contentFitRequest = { requestId, hit, start:widgetLayout(widget), html:widget.html };
+    widget.frame.contentWindow.postMessage({ type:"penecho-widget-fit-request", requestId, hit }, widget.hostOrigin || location.origin);
+    return true;
+  }
+  function applyWidgetContentFit(widget, message) {
+    const request = widget.contentFitRequest;
+    if (!request || message.requestId !== request.requestId) return false;
+    widget.contentFitRequest = null;
+    const start = request.start;
+    if (widget.html !== request.html || ["x", "y", "w", "h", "contentW", "contentH"].some((key) => widget[key] !== start[key])
+      || !Number.isFinite(message.width) || !Number.isFinite(message.height) || message.width <= 0 || message.height <= 0) {
+      sendWidgetHostState(widget, undefined, undefined, true);
+      return false;
+    }
+    const width = request.hit !== "height", height = request.hit !== "width";
+    const scaleX = start.w / start.contentW, scaleY = start.h / start.contentH;
+    if (width) {
+      widget.contentW = Math.max(start.contentW, Math.min(message.width, (SIZE - start.x) / scaleX));
+      widget.w = widget.contentW * scaleX;
+    }
+    if (height) {
+      widget.contentH = Math.max(start.contentH, Math.min(message.height, (SIZE - start.y) / scaleY));
+      widget.h = widget.contentH * scaleY;
+    }
+    const previous = widget.fitContent ? "resize" : widget.fitContentAxes;
+    widget.fitContentAxes = previous && previous !== request.hit ? "resize" : request.hit;
+    if (!widget.pending && state.widgetEdit?.id === widget.id) state.widgetEdit.changed = true;
+    positionWidget(widget);
+    sendWidgetHostState(widget, undefined, undefined, true);
+    refreshHandObjectToolbar();
+    requestInteractionLayerRender();
+    return true;
   }
   function resizeWidgetBox(start, point, hit, minimumWidth = 300, minimumHeight = 200, limit = SIZE) {
     const contentW = start.contentW ?? start.w,
@@ -7160,6 +7268,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function finishWidgetGesture(event) {
     const gesture = state.widgetGesture;
     if (!gesture || gesture.id !== event.pointerId) return false;
+    gesture.widget.shell?.classList.remove("is-resizing");
     state.widgetGesture = null;
     resetCanvasCursor();
     if (gesture.changed && !gesture.pending && state.widgetEdit?.id === gesture.widget.id) state.widgetEdit.changed = true;
@@ -7966,7 +8075,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       state.panY = topInset + (availableHeight - viewerBounds.h * nextScale) / 2 - viewerBounds.y * nextScale;
       state.viewInitialized = true;
     } else if (!state.viewInitialized && r.width > 0 && r.height > 0) {
-      state.scale = Math.max(0.03, Math.min(2, Math.max(r.width, r.height) / 10000 / INITIAL_VIEWPORT_EXTENT_SCALE));
+      state.scale = INITIAL_CANVAS_SCALE;
       state.panX = (r.width - SIZE * state.scale) / 2;
       state.panY = (r.height - SIZE * state.scale) / 2;
       state.viewInitialized = true;
@@ -8279,7 +8388,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     context.restore();
   }
   function drawHandObjectToolbarOutlines(context) {
-    if (state.mode !== "select" || !state.handToolbarTargets.size) return;
+    if (!["select", "hand"].includes(state.mode) || !state.handToolbarTargets.size) return;
     const unit = 1 / state.scale;
     context.save();
     context.lineWidth = unit;
@@ -8806,10 +8915,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     syncObjectChrome();
     setStatusKey("widgetDownloading");
     try {
-      await requestWidgetSnapshot(widget, WIDGET_SNAPSHOT_TIMEOUT_MS, true, null, true);
-      if (!widget.snapshotDataUrl?.startsWith("data:image/png;base64,")) throw Error(t("widgetExportFailed"));
+      const snapshot = await requestWidgetSnapshot(widget, WIDGET_SNAPSHOT_TIMEOUT_MS, true, null, true, true);
+      if (!snapshot.dataUrl?.startsWith("data:image/png;base64,")) throw Error(t("widgetExportFailed"));
       const link = document.createElement("a");
-      link.href = widget.snapshotDataUrl;
+      link.href = snapshot.dataUrl;
       link.download = widgetImageFilename(widget);
       document.body.append(link);
       link.click();
@@ -8862,7 +8971,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   const WIDGET_COPY_ICON_FEEDBACK_MS = 2000;
   const OBJECT_CHROME_ICONS = Object.freeze({
-    interact:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 14 9-7 1-3 7z"/></svg>',
+    interact:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>',
     move:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9V3M9 6l3-3 3 3M12 15v6M9 18l3 3 3-3M9 12H3M6 9l-3 3 3 3M15 12h6M18 9l3 3-3 3"/></svg>',
     accept:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7"/></svg>',
     cancel:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
@@ -9249,7 +9358,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     declaration?.setProperty("--widget-refine-confirm-y", `${position.y.toFixed(1)}px`);
   }
   function beginObjectChromeMove(event, spec) {
-    if (state.mode === "hand" && !state.viewMode && !state.spacePan && Number(event.button) === 0 && spec.target === "widget") setCanvasMode("select");
+    if (state.mode === "hand" && !state.viewMode && !state.spacePan && Number(event.button) === 0 && ["widget", "image", "animation"].includes(spec.target)) setCanvasMode("select");
     if (state.mode !== "select" || state.viewMode || state.spacePan || Number(event.button) !== 0) return false;
     const point = clientPoint(event);
     let started = false;
@@ -9695,7 +9804,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const widget = state.interactingWidgetId
       ? state.widgets.find(item => item.id === state.interactingWidgetId && item.shell)
       : null;
-    if (!widget || !widgetRuntimeEnabled() || widget.renderActive === false) {
+    if (!widget || widget.maximized || !widgetRuntimeEnabled() || widget.renderActive === false) {
       if (widgetInteractionStatusElement) widgetInteractionStatusElement.hidden = true;
       return;
     }
@@ -9706,7 +9815,16 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       element.setAttribute("role", "status");
       element.setAttribute("aria-live", "polite");
       label.className = "widget-interaction-status-label";
-      element.append(label);
+      const maximize = document.createElement("button");
+      maximize.type = "button";
+      maximize.title = t("widgetMaximize");
+      maximize.setAttribute("aria-label", t("widgetMaximize"));
+      maximize.innerHTML = OBJECT_CHROME_ICONS.interact;
+      maximize.addEventListener("click", () => {
+        const current = state.widgets.find(item => item.id === state.interactingWidgetId);
+        if (current) switchWidgetPresentation(current, true);
+      });
+      element.append(label, maximize);
       view.append(element);
       widgetInteractionStatusElement = element;
     }
@@ -11996,6 +12114,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       state.textBoxHistoryBefore = null;
       for (const [key, canvas] of decodedTiles) tiles.set(key, canvas);
       decodedTiles.clear();
+      state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       restoreAnimations(item.animations);
       restoreWidgets(item.widgets);
       applyTheme(item.theme);
@@ -12015,7 +12134,6 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       state.currentSnapshotBundleExtensions = snapshotExtensionObject(item.bundleExtensions);
       restoreSnapshotCanvasObjectOrder(item.bundleExtensions);
       state.currentSnapshotManifestExtensions = snapshotExtensionObject(item.manifestExtensions);
-      state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       state.dirty = null;
       state.snapshotSavedRevision = state.userRevision;
       setCanvasNavigationLocked(false);
@@ -12387,6 +12505,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       state.textBoxHistoryBefore = null;
       for (const [k, canvas] of decodedTiles) tiles.set(k, canvas);
       decodedTiles.clear();
+      state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       restoreAnimations(item.animations);
       restoreWidgets(item.widgets);
       applyTheme(item.theme);
@@ -12410,7 +12529,6 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       state.currentSnapshotBundleExtensions = snapshotExtensionObject(item.bundleExtensions);
       restoreSnapshotCanvasObjectOrder(item.bundleExtensions);
       state.currentSnapshotManifestExtensions = snapshotExtensionObject(item.manifestExtensions);
-      state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       state.snapshotSavedRevision = state.userRevision;
       if(typeof canvasDocumentsAdopt==="function")await canvasDocumentsAdopt(item,location);
       resetCanvasDefaultMode();
@@ -21446,7 +21564,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const definition=PLUGIN_DEFINITIONS.find(plugin=>plugin.id===pluginId),canvasAgentPlugin=pluginId==="general"||pluginId==="flowchart"||definition?.builtIn===false;
     return canvasAgentPlugin&&pluginEnabled(pluginId)&&pluginManifests.has(pluginId);
   }
-  async function canvasAgentPrepareCreateItems(items) {
+  async function canvasAgentPrepareCreateItems(items,execution=null) {
     if (!Array.isArray(items)||!items.length||items.length>24) throw canvasAgentToolError("INVALID_BATCH","Provide between 1 and 24 create items.");
     const requested={widget:items.filter(item=>item?.type === "widget").length,text:items.filter(item=>item?.type === "text").length,image:items.filter(item=>["image","plot"].includes(item?.type)).length};
     if(state.widgets.length+requested.widget>MAX_VISIBLE_WIDGETS||state.textBoxes.length+requested.text>MAX_VISIBLE_TEXT_BOXES||state.images.length+requested.image>MAX_VISIBLE_IMAGES)throw canvasAgentToolError("OBJECT_LIMIT","This transaction would exceed a visible canvas object limit.",{requested});
@@ -21466,7 +21584,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         if(widgetType === "diagram_source"||pluginId === "flowchart"||frameworkVersion.startsWith("penecho-professional-diagrams"))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE","PenEcho Agent may edit an existing Professional Diagram, but it cannot create a new Professional Diagram.");
         if(!canvasAgentWidgetPluginAllowed(pluginId,widgetType))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE",`Plugin ${pluginId} is unavailable, disabled, or not available to PenEcho Agent.`);
         const width=Math.max(300,Math.min(SIZE,Number(raw.width)||Math.max(600,Math.min(1200,visible.w*.7)))),height=Math.max(200,Math.min(SIZE,Number(raw.height)||Math.max(400,Math.min(800,visible.h*.7)))),placed=canvasAgentPlacementBox(width,height,raw.placement,reserved),
-          record=widgetRecord({tool:widgetType,widgetType,pluginId,x:placed.x,y:placed.y,w:width,h:height,contentW:width,contentH:height,title:String(raw.title||"Canvas widget"),refreshSeconds:Number.isFinite(Number(raw.refreshSeconds))?Number(raw.refreshSeconds):0,html:typeof raw.html === "string"?raw.html:"",source:typeof raw.source === "string"?raw.source:"",sourceFormat:raw.sourceFormat,diagramKind:raw.diagramKind,frameworkVersion:raw.frameworkVersion,copyText:raw.copyText,copyLabel:raw.copyLabel});
+          record=widgetRecord({tool:widgetType,widgetType,pluginId,x:placed.x,y:placed.y,w:width,h:height,contentW:execution?.widgetContentViewport?.width??width,contentH:execution?.widgetContentViewport?.height??height,title:String(raw.title||"Canvas widget"),refreshSeconds:Number.isFinite(Number(raw.refreshSeconds))?Number(raw.refreshSeconds):0,html:typeof raw.html === "string"?raw.html:"",source:typeof raw.source === "string"?raw.source:"",sourceFormat:raw.sourceFormat,diagramKind:raw.diagramKind,frameworkVersion:raw.frameworkVersion,copyText:raw.copyText,copyLabel:raw.copyLabel});
         if(!record)throw canvasAgentToolError("INVALID_WIDGET","Widget content or geometry was rejected. Read the plugin capability contract and retry.");
         reserved.push(canvasAgentBox({kind:"widget",item:record}));prepared.push({type,kind:"widget",record,placed});
       } else if (type === "image") {
@@ -21496,7 +21614,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return prepared;
   }
   async function canvasAgentCreate(args,execution) {
-    canvasAgentAssertRevision(args.baseRevision);canvasAgentMutationIdle(execution);const prepared=await canvasAgentPrepareCreateItems(args.items);canvasAgentAssertRevision(args.baseRevision);canvasAgentAssertToolExecution(execution);save();
+    canvasAgentAssertRevision(args.baseRevision);canvasAgentMutationIdle(execution);const prepared=await canvasAgentPrepareCreateItems(args.items,execution);canvasAgentAssertRevision(args.baseRevision);canvasAgentAssertToolExecution(execution);save();
     const kinds=new Set(prepared.map(item=>item.kind));if(kinds.has("widget"))state.widgetHistoryBefore=serializedWidgets();if(kinds.has("text"))state.textBoxHistoryBefore=textBoxHistoryState();if(kinds.has("image"))state.imageHistoryBefore=imageHistoryState();
     const receipts=[];
     for(const item of prepared){
@@ -22523,7 +22641,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return {artifactId:args.artifactId,objectId:objectIds[0],objectIds,kind,revision:state.userRevision,feedbackCursor:mcpRuntime.feedbackSequence};
   }
   // External MCP sessions share Canvas primitives, but never an Agent conversation.
-  var mcpRuntime = { socket:null, browserId:null, wanted:false, reconnectTimer:0, reconnectDelay:1000, generation:0, sessions:new Map(), previews:new Map(), controllers:new Map(), queue:Promise.resolve(), queued:0, status:null, loading:null, loadError:null, configuring:false, configureResult:null, feedbackSequence:0, feedback:[], ready:false, connectionLost:false, heartbeatTimer:0, heartbeatSupported:false, lastPong:0, activeMutation:null, mutationDocumentId:null, glowTimer:0, glowing:false, pendingView:new Map(), layoutTimer:0, layoutSince:0, viewPaused:false, exampleStatusTimer:0 };
+  var mcpRuntime = { socket:null, browserId:null, wanted:false, reconnectTimer:0, reconnectDelay:1000, generation:0, sessions:new Map(), previews:new Map(), controllers:new Map(), queue:Promise.resolve(), queued:0, status:null, loading:null, loadError:null, configuring:false, configureResult:null, feedbackSequence:0, feedback:[], ready:false, connectionLost:false, heartbeatTimer:0, heartbeatSupported:false, lastPong:0, activeMutation:null, mutationDocumentId:null, glowTimer:0, glowing:false, pendingView:new Map(), viewSequence:0, layoutTimer:0, layoutSince:0, viewPaused:false, exampleStatusTimer:0 };
   const mcpCopy = {
     certificateInvalid:["Connection certificate needs repair. Reset it, then copy a new setup prompt.","连接证书需要修复。请重置证书后重新复制配置指引。"],
     certificate:["Connection certificate","连接证书"],
@@ -22629,7 +22747,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   const mcpClientInputs = [...document.querySelectorAll('input[name="mcpClient"]')];
   function mcpSelectedClient() { return mcpClientInputs.find(input=>input.checked)?.value || "codex"; }
   function mcpLocal() { return window.PENECHO_CONFIG?.runtime !== "viewer"; }
-  function mcpCanCopySetup() { return mcpRemoteBrowser() ? window.PENECHO_CONFIG?.runtime !== "cloud" && mcpRuntime.status?.canCopyLanSetup === true && !!mcpLanInstructions() : !!mcpRuntime.status?.config; }
+  function mcpCanCopySetup() { return window.PENECHO_CONFIG?.runtime !== "cloud" && !!mcpLanInstructions() && (mcpRemoteBrowser() ? mcpRuntime.status?.canCopyLanSetup === true : !!mcpRuntime.status?.config); }
   function mcpRemoteBrowser() { return window.PENECHO_CONFIG?.runtime === "cloud" || mcpRuntime.status?.canConfigureLocalClients === false; }
   function mcpExecutionCurrent(execution) {
     return execution.socket === mcpRuntime.socket && execution.socket?.readyState === WebSocket.OPEN
@@ -22711,9 +22829,32 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const input=args.presentation||previous?.presentation||{},intent=input.intent||"deliver",role=input.role||"primary";
     return {...input,intent,role,attention:input.attention||(intent==="review"?"request":role!=="primary"||intent==="inspect"?"quiet":"normal")};
   }
-  function mcpPresentationSize(args) {
-    const size=MCP_PRESENTATION_SIZES[args.presentation?.size||"page"]||MCP_PRESENTATION_SIZES.page;
-    return {width:args.width||size[0],height:args.height||size[1]};
+  function mcpPresentationSize(args,doc=null) {
+    const preset=MCP_PRESENTATION_SIZES[args.presentation?.size||"page"]||MCP_PRESENTATION_SIZES.page,
+      requested={width:args.width||preset[0],height:args.height||preset[1]};
+    // Inspection is an exact authoring viewport, not a placed document.
+    if(args.presentation?.intent==="inspect")return requested;
+    const active=!doc||canvasDocumentsIsActive(doc),saved=doc?.stored?.item?.view,
+      stage=active?canvasAgentFramePlan({x:0,y:0,w:1,h:1},0).stage:
+        saved?.region?{w:saved.region.w*saved.scale,h:saved.region.h*saved.scale}:null;
+    if(!stage?.w||!stage?.h)return {...requested,contentWidth:requested.width,contentHeight:requested.height};
+    const page=args.presentation?.size==="page"||(!args.presentation?.size&&requested.width===1200&&requested.height===800),
+      availableW=Math.max(300,Math.floor(stage.w-48)),availableH=Math.max(200,Math.floor(stage.h-72)),
+      contentWidth=Math.min(4096,page?availableW:Math.max(300,Math.min(requested.width,availableW))),
+      contentHeight=Math.min(4096,page?availableH:Math.max(200,Math.min(requested.height,availableH))),
+      // Bound new footprints so a zoomed-out overview cannot consume the entire
+      // finite Canvas. Framing later uses this scale without changing old objects.
+      scale=Math.min(contentWidth/300,contentHeight/200,Math.max(Math.max(contentWidth,contentHeight)/4096,Math.min(2,Number(active?state.scale:saved?.scale)||1))),
+      width=Math.round(contentWidth/scale),height=Math.round(contentHeight/scale);
+    return {width,height,contentWidth,contentHeight};
+  }
+  function mcpWidgetFramePlan(widget) {
+    const region=canvasAgentBox({kind:"widget",item:widget}),stage=canvasAgentFramePlan(region,0).stage;
+    if(!stage?.w||!stage?.h)return null;
+    const scale=Math.max(.03,Math.min(2,widget.contentW/region.w,widget.contentH/region.h,
+      Math.max(1,stage.w-48)/region.w,Math.max(1,stage.h-72)/region.h));
+    return {stage,scale,panX:stage.x+(stage.w-region.w*scale)/2-region.x*scale,
+      panY:stage.y+48+(stage.h-72-region.h*scale)/2-region.y*scale};
   }
   // Semantic placement has one owner for visible and parked documents. It never
   // changes existing geometry, and searches downwards instead of a 4608px shelf.
@@ -22733,12 +22874,21 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const beside=reference&&(p.relation==="beside"||!p.relation&&p.intent==="compare");
     if(beside&&reference.w+gap+width<=Math.max(width,(viewport.readableWidth||viewport.w)-96)) {x=reference.x+reference.w+gap;y=reference.y;}
     x=Math.max(48,Math.min(SIZE-width-48,x));
-    for(let attempt=0;attempt<2048&&y+height<=SIZE-48;attempt++) {
-      const hits=collisions({x:x-gap/2,y:y-gap/2,w:width+gap,h:height+gap});
-      if(!hits.length)return {placement:{mode:"absolute",x,y},layout:{zone:{x,y,w:width,h:height},x:0,y:height+gap,rowHeight:height}};
-      y=Math.max(y+gap,...hits.map(b=>b.y+b.h+gap));
-    }
-    throw Error("No clear space remains below this work. Move the group or use another Canvas.");
+    const findSlot=(column,start)=>{
+      for(let row=Math.max(48,start),attempt=0;attempt<2048&&row+height<=SIZE-48;attempt++){
+        const hits=collisions({x:column-gap/2,y:row-gap/2,w:width+gap,h:height+gap});
+        if(!hits.length)return {placement:{mode:"absolute",x:column,y:row},layout:{zone:{x:column,y:row,w:width,h:height},x:0,y:height+gap,rowHeight:height}};
+        row=Math.max(row+gap,...hits.map(b=>b.y+b.h+gap));
+      }
+      return null;
+    };
+    const below=findSlot(x,y);if(below)return below;
+    // Near the finite Canvas bottom, find another clear column instead of
+    // falling back onto the previous result or rejecting an otherwise empty Canvas.
+    const columns=new Set([x,48,SIZE-width-48]);
+    for(let column=48;column+width<=SIZE-48;column+=width+gap)columns.add(column);
+    for(const column of columns){const slot=findSlot(column,48);if(slot)return slot;}
+    throw Error("No clear space remains for this work. Move the group or use another Canvas.");
   }
   function mcpPlanPlacement(width,height,session=null,presentation=null) {
     if(typeof canvasDocumentsCurrent==="function")return canvasDocumentsPlace(canvasDocumentsCurrent(),width,height,session,presentation);
@@ -22787,6 +22937,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     let pending=mcpRuntime.pendingView.get(session.sessionId);
     if(!pending){pending=new Set();mcpRuntime.pendingView.set(session.sessionId,pending);}
     pending.add(widget.id);
+    if(!pending.order)pending.order=new Map();
+    pending.order.set(widget.id,++mcpRuntime.viewSequence);
     if(!mcpRuntime.layoutSince)mcpRuntime.layoutSince=Date.now();
     clearTimeout(mcpRuntime.layoutTimer);
     if(!mcpRuntime.viewPaused)mcpRuntime.layoutTimer=setTimeout(()=>mcpFlushView(false),Math.max(0,Math.min(900,2500-(Date.now()-mcpRuntime.layoutSince))));
@@ -22805,23 +22957,33 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         const artifact=[...session.artifacts.values()].find(a=>(a.objectIds||[a.objectId]).includes(objectId)),key=artifact||objectId;
         if(seen.has(key))continue;seen.add(key);
         const objectIds=artifact?(artifact.objectIds||[artifact.objectId]):[objectId],p=artifact?.presentation||{};
-        items.push({id,objectIds:objectIds.filter(value=>ids.has(value)),bounds:mcpTaskBounds(session,objectIds),rank:p.attention==="request"?3:p.role==="supporting"||p.role==="alternative"?1:2});
+        const object=objectIds.length===1?canvasAgentObject(objectIds[0]):null;
+        items.push({id,order:Math.max(...objectIds.map(value=>ids.order?.get(value)||0)),widget:object?.kind==="widget"?object.item:null,objectIds:objectIds.filter(value=>ids.has(value)),bounds:mcpTaskBounds(session,objectIds),rank:p.attention==="request"?3:p.role==="supporting"||p.role==="alternative"?1:2});
       }
       return items;
-    }).filter(item=>item.bounds).sort((a,b)=>b.rank-a.rank);
+    }).filter(item=>item.bounds).sort((a,b)=>b.rank-a.rank||b.order-a.order);
     if(!candidates.length){for(const [id] of groups)mcpRuntime.pendingView.delete(id);mcpRenderCanvasStatus();return;}
     let shown=candidates,region=candidates.reduce((bounds,item)=>unionDirtyBounds(bounds,item.bounds),null);
-    if(canvasAgentFramePlan(region,96).scale<.65){shown=[candidates[0]];region=shown[0].bounds;}
+    // A delivered document gets its own readable viewport. Do not squeeze older
+    // pending documents into the same camera frame or focus the oldest result.
+    const widgetFrame=candidates[0].widget?mcpWidgetFramePlan(candidates[0].widget):null;
+    if(widgetFrame||canvasAgentFramePlan(region,96).scale<.65){shown=[candidates[0]];region=shown[0].bounds;}
     const view=typeof viewportRect==="function"?viewportRect():null,stage=canvasAgentFramePlan(region,96).stage,scale=state.scale||1,
       screenX=(state.panX||0)+region.x*scale,screenY=(state.panY||0)+region.y*scale,
       unobscured=!stage||screenX>=stage.x+24&&screenY>=stage.y+24&&screenX+region.w*scale<=stage.x+stage.w-24&&screenY+region.h*scale<=stage.y+stage.h-24,
-      alreadyVisible=scale>=.65&&unobscured&&view&&region.x>=view.x+24&&region.y>=view.y+24&&region.x+region.w<=view.x+view.w-24&&region.y+region.h<=view.y+view.h-24;
+      alreadyVisible=(widgetFrame?scale>=widgetFrame.scale*.99:scale>=.65)&&unobscured&&view&&region.x>=view.x&&region.y>=view.y&&region.x+region.w<=view.x+view.w&&region.y+region.h<=view.y+view.h;
     // An explicit reveal is a request to focus, even if an overview already
     // contains the artifact at a scale too small for reading its content.
     if(explicit||!alreadyVisible) {
-      canvasAgentFrameRegion(region,96);
+      if(widgetFrame){
+        state.scale=widgetFrame.scale;state.panX=widgetFrame.panX;state.panY=widgetFrame.panY;
+        requestRender();canvasAgentSyncState();
+      }else canvasAgentFrameRegion(region,96);
     }
-    for(const item of shown){const ids=mcpRuntime.pendingView.get(item.id);for(const objectId of item.objectIds)ids?.delete(objectId);if(!ids?.size)mcpRuntime.pendingView.delete(item.id);}
+    // Older results remain on Canvas, but must not pull focus backwards on a
+    // later timer after the latest result has been shown.
+    const acknowledged=widgetFrame?candidates.filter(item=>item.rank<=shown[0].rank):shown;
+    for(const item of acknowledged){const ids=mcpRuntime.pendingView.get(item.id);for(const objectId of item.objectIds){ids?.delete(objectId);ids?.order?.delete(objectId);}if(!ids?.size)mcpRuntime.pendingView.delete(item.id);}
 
     mcpRuntime.layoutSince=0;mcpRuntime.viewPaused=false;mcpRenderCanvasStatus();
   }
@@ -22894,7 +23056,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function mcpRenderLan() {
     mcpRenderSetupPrompt();
-    const section=mcpEl("mcpLan"),lan=mcpRuntime.status?.http||mcpRuntime.status?.lan,host=!mcpRemoteBrowser();
+    const section=mcpEl("mcpLan"),lan=mcpRuntime.status?.http,host=!mcpRemoteBrowser();
     if(!section)return;
     section.hidden=!host||!lan;
     if(!host||!lan){if(mcpEl("mcpCertificateDialog")?.open)mcpEl("mcpCertificateDialog").close();return;}
@@ -22903,7 +23065,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(reset)reset.disabled=!!mcpRuntime.lanBusy||(!lan.hostId&&!lan.fingerprint&&!lan.identityError);
     const notice=mcpEl("mcpCertificateNotice");if(notice)notice.hidden=!mcpRuntime.certificateChanged;
     const copy=mcpEl("mcpCopyInstructions");
-    if(copy){copy.textContent=mcpText(mcpRuntime.certificateChanged?"certificateCopyNew":"copyInstructions");copy.disabled=!mcpRuntime.status?.config||!!mcpRuntime.lanBusy;}
+    if(copy){copy.textContent=mcpText(mcpRuntime.certificateChanged?"certificateCopyNew":"copyInstructions");copy.disabled=!mcpCanCopySetup()||!!mcpRuntime.lanBusy;}
     const status=mcpEl("mcpLanStatus");
     if(status){status.textContent=mcpRuntime.lanMessage||(lan.identityError?mcpText("certificateInvalid"):!active?mcpText("lanOpenFirst"):!lan.enabled?mcpText("lanDisabled"):!lan.urls?.length?mcpText("lanNoAddress"):"");status.hidden=!status.textContent;}
   }
@@ -22913,7 +23075,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     mcpRuntime.lanBusy=true;mcpRuntime.lanMessage="";mcpRenderLan();
     let success=false;
     try{
-      const endpoint=mcpRuntime.status?.http&&action==="reset-certificate"?"http":"lan";
+      const endpoint="http";
       const result=await mcpApi(endpoint,{action,...extra});
       success=true;
       if(mcpRuntime.status)mcpRuntime.status={...mcpRuntime.status,[endpoint]:result[endpoint]};
@@ -22928,18 +23090,13 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     await mcpRefreshSettings();
   }
   async function mcpLanOpened() {
-    const generation=mcpRuntime.generation;
     await mcpRefreshSettings();
-    if(generation!==mcpRuntime.generation||!mcpRuntime.ready||mcpRemoteBrowser())return;
-    if(!mcpRuntime.status?.http?.enabled&&mcpRuntime.status?.lan&&!mcpRuntime.status.lan.enabled&&!mcpRuntime.lanUserDisabled)await mcpLanAction("enable");
   }
   function mcpLanInstructions() {
     const http=mcpRuntime.status?.http;
     if(http?.enabled&&http.hostId&&http.certificatePem&&http.accessToken&&http.discoveryCliUrl&&http.discoveryCliSha256&&http.sessionCliUrl&&http.sessionCliSha256)return {transport:"stdio-http",serverRunning:true,hostId:http.hostId,certificatePem:http.certificatePem,accessToken:http.accessToken,initialUrl:http.initialUrl||http.urls?.[0]||http.localUrl,addresses:(http.urls?.length?http.urls:[http.localUrl]).filter(Boolean),discoveryCliUrl:http.discoveryCliUrl,discoveryCliSha256:http.discoveryCliSha256,sessionCliUrl:http.sessionCliUrl,sessionCliSha256:http.sessionCliSha256,idleTimeoutMs:http.clientIdleMs||1800000};
     if(http?.enabled&&http.hostId&&http.certificatePem&&http.accessToken&&http.discoveryCliUrl&&http.discoveryCliSha256)return {transport:"http",serverRunning:true,hostId:http.hostId,certificatePem:http.certificatePem,accessToken:http.accessToken,addresses:[...(http.urls||[]),http.localUrl].filter(Boolean),discoveryCliUrl:http.discoveryCliUrl,discoveryCliSha256:http.discoveryCliSha256};
-    const lan=mcpRuntime.status?.lan;
-    if(!lan?.fingerprint||!lan.hostId||!lan.invitation||!lan.clientUrl||!lan.clientSha256)return null;
-    return {serverRunning:lan.enabled===true,hostId:lan.hostId,certificateSha256:lan.fingerprint,invitation:lan.invitation,addresses:lan.urls||[],bridgeDownloadUrl:lan.clientUrl,bridgeSha256:lan.clientSha256};
+    return null;
   }
   function mcpRememberSetup() {
     mcpRuntime.setupKnown=true;
@@ -23044,8 +23201,7 @@ Finish certificate trust using this client's supported CA configuration. Codex s
 When the cached endpoint fails, run node <absolute discover.js> --host-id ${direct.hostId} --client <client> again: it probes the cache, rediscovers the trusted host only when needed, updates the matching configuration, and exits. Do not poll or keep a remote-client process alive. Use the client's supported MCP refresh/reconnect after an endpoint change; MCP does not universally execute discovery commands or hot-reload changed URLs. Report the actual verified result.
 
 Install a small PenEcho bootstrap skill in this Agent's supported local skill format if available: trigger on PenEcho, echo, canvas or spatial-workspace requests; discover PenEcho tools and read penecho://guidance/skill; on connection failure run the saved discovery command above and refresh the MCP connection using this client's supported mechanism. Preserve a unique stable sessionKey for this logical conversation, its client name and returned documentId. New conversations use different keys. Call penecho_start_session with the same key and documentId after reconnect; PenEcho restores the original Canvas even when it was closed, and creates a replacement only if the document is definitively missing. New conversations without a target use the most recently enabled browser. Never redirect an existing conversation merely because another browser connected. After reconnect verify the returned documentId and recovery result before continuing edits. Do not claim a failed connection succeeded.`;
-    const setup={local:mcpRemoteBrowser()?null:mcpRuntime.status?.config,lan:mcpLanInstructions()};
-    return `Configure or update PenEcho MCP for this AI Agent (Codex, Claude Code, OpenCode, Pi, or another MCP client). No separate PenEcho skill installation is required. Read this Agent's supported MCP settings/help and preserve unrelated configuration.\n\n${JSON.stringify(setup,null,2)}\n\nChoose the connection on THIS Agent's computer. Use the exact local command, args and env only if this is the PenEcho host and those executables/scripts exist locally; verify the local bridge initializes. Never create host paths on another computer. For another LAN computer, use the LAN configuration below. Discovery and remote connection require PenEcho to be running with MCP enabled on the host. If serverRunning is false or the host is unreachable, ask me to open PenEcho and enable its workspace MCP; do not claim discovery can start an offline host. If lan is null, local setup is still available; ask me to enable MCP on the host and copy this prompt again for remote setup.\n\nRemote setup: use Node.js 18+ on THIS computer. Download bridgeDownloadUrl into a persistent local penecho-mcp/remote-client.js. BEFORE executing, verify its SHA-256 exactly equals bridgeSha256. Resolve local absolute Node/script paths with correct Windows/macOS escaping. Configure stdio command=<local Node executable> and args=[<local remote-client.js>,"--host-id",hostId,"--fingerprint",certificateSha256,"--invitation",invitation,"--name",<Agent name>], adding "--remote",addresses[0] when an address is supplied as a fallback. The bridge discovers the current LAN IP/port and verifies the pinned certificate before sending secrets. Allow time for discovery and initialization: Codex startup_timeout_sec=150; use the documented equivalent for other clients. If network discovery is blocked, use the supplied fallback address and report a concrete connection failure.\n\nExisting configuration: find only the matching PenEcho entry (including previous penecho or penecho-lan names); preserve its scope and unrelated MCP entries. If the stored host identity/certificate differs from THIS newly copied user-supplied prompt, update that entry's hostId, certificate fingerprint, invitation, fallback address and bridge version/hash together. Do not create duplicate PenEcho entries. If they already match, retain the identity and update only stale launch details. Never accept a changed certificate based solely on an mDNS advertisement or a failed TLS connection. Never disable certificate verification or print the invitation/private credentials. This prompt includes no private key.\n\nReload the MCP connection. The included invitation is the secret connection key and authorizes access automatically; there is no host Allow or pairing-confirmation step. The certificate fingerprint verifies host identity and is not itself an authorization secret. The saved host identity survives restarts and IP/port changes. After a server restart the bridge reauthenticates automatically with the same saved key; only a certificate reset requires a newly copied setup prompt. Verify initialize, tools/list and penecho_list_canvases. Use tool search/discovery if this Agent defers MCP tools. Read live usage/authoring guidance through penecho_get_guidance (visual-explorer for explanations, general-html for UI). Bind the exact instanceId/canvasId and retain sessionId/documentId across this conversation. Report the actual verified result.\n\nOptional helper skill: if this Agent supports local skills, create or update penecho-mcp using its supported skill location and format. Use this one-shot SKILL.md content (adapt the format if needed):\n\n---\nname: penecho-mcp\ndescription: Find and use PenEcho MCP when the user mentions PenEcho, asks to echo an idea, show work on a canvas or 画布, or use a spatial workspace. Interpret these phrases in context.\n---\n\nWhen the user asks to work visually, discover the PenEcho MCP server and its deferred tools through tool search. Read penecho://guidance/discovery with resources/read for current discovery instructions. Use tools/list for all current tools and their input schemas, prompts/list then prompts/get for available prompts, and resources/list then resources/read for live resources; follow pagination when a nextCursor is returned. Read penecho://guidance/skill for the latest PenEcho skill guidance and penecho_get_guidance for the relevant authoring instructions. Use the live server descriptions rather than a remembered method list. If tools are missing, check the configured server and refresh or reconnect MCP tool discovery; an empty resource list is not an empty tool list. After ordinary server upgrades, rediscover these catalogs using the existing remote configuration. Client tool caches may require reconnecting or a new conversation. Local installed skill files are bootstrap instructions, not automatically rewritten by MCP; read the live skill resource to get current guidance. Transport-breaking upgrades or an explicitly reset host certificate may still require an updated setup.\n\nOne-shot examples (one trigger phrase per example):\n- Use PenEcho to draw a simple flowchart.\n- Echo this idea as a diagram.\n- Show this architecture on a canvas.\n- 在画布上比较这两个方案。\n- Use a spatial workspace to explain this process.\n\nIf skill creation is unavailable or fails, simply skip it and continue MCP setup; no extra user action is needed.`;
+    return "";
   }
   function mcpConnect() {
     if(!mcpLocal())return;
@@ -23074,7 +23230,7 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
           const previousRegion=message.name==="mcp_edit_canvas"&&message.arguments?.action==="delete"?mcpContentUpdateRegion({documentId:message.arguments.documentId||mcpRuntime.sessions.get(message.arguments.sessionId)?.documentId},message.arguments):null;
           const result=typeof canvasDocumentsExecute==="function"?await canvasDocumentsExecute(message.name,message.arguments||{},execution):await mcpExecute(message.name,message.arguments||{},execution);
           canvasAgentAssertToolExecution(execution);
-          if(["mcp_present_widget","mcp_draw","mcp_plot","mcp_apply_patch","mcp_edit_canvas"].includes(message.name)&&message.arguments?.presentation?.intent!=="inspect"&&message.arguments?.action!=="show"&&!result.reused){
+          if(["mcp_present_widget","mcp_draw","mcp_plot","mcp_apply_patch","mcp_edit_canvas","mcp_place_image"].includes(message.name)&&message.arguments?.presentation?.intent!=="inspect"&&message.arguments?.action!=="show"&&!result.reused){
             const region=mcpContentUpdateRegion(result,message.arguments||{})||previousRegion;
             window.PenEchoStudioNavigator?.noteMcpContentUpdate?.(result.documentId,region);
           }
@@ -23138,7 +23294,8 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     widget.mcpSentVersion=widget.contentVersion;
   }
   async function mcpCreateWidget(item,execution) {
-    const result=await canvasAgentCreate({baseRevision:state.userRevision,items:[{type:"widget",widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",...item}]},execution);
+    const result=await canvasAgentCreate({baseRevision:state.userRevision,items:[{type:"widget",widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",...item}]},
+      {...execution,widgetContentViewport:{width:item.contentWidth||item.width,height:item.contentHeight||item.height}});
     return canvasAgentObject(result.receipts[0].objectId).item;
   }
   async function mcpWaitForWidgetLoad(widget,execution) {
@@ -23185,8 +23342,8 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
       } finally { if(previousActive===false){widget.renderActive=false;widget.shell?.classList.add("widget-offscreen");sendWidgetHostState(widget,undefined,undefined,true);} }
   }
   async function mcpInspectHtml(args,execution) {
-    const size=mcpPresentationSize(args),id=`mcp-preview-${canvasClientId()}`,
-      widget={id,widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:0,y:0,w:size.width,h:size.height,contentW:size.width,contentH:size.height,contentVersion:0,refreshSeconds:0,mcpEphemeral:true,internalAgent:mcpRuntime.sessions.get(args.sessionId)?.internalAgent===true};
+    const size=mcpPresentationSize({...args,presentation:{...args.presentation,intent:"inspect"}}),id=`mcp-preview-${canvasClientId()}`,
+      widget={id,widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:0,y:0,w:size.width,h:size.height,contentW:size.width,contentH:size.height,contentVersion:0,refreshSeconds:0,mcpEphemeral:true,mcpAssetDocumentId:mcpRuntime.sessions.get(args.sessionId)?.documentId,internalAgent:mcpRuntime.sessions.get(args.sessionId)?.internalAgent===true};
     mcpRuntime.previews.set(id,widget);
     try {
       canvasAgentAssertToolExecution(execution);mountWidget(widget);
@@ -23233,7 +23390,7 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
         // penecho_edit_canvas and its revision/collision checks.
       }else{
         const plan=mcpPlanPlacement(size.width,size.height,session,presentation);
-        widget=await mcpCreateWidget({title:args.title,html:args.html,width:size.width,height:size.height,placement:plan.placement},{...execution,preserveView:true});
+        widget=await mcpCreateWidget({title:args.title,html:args.html,width:size.width,height:size.height,contentWidth:size.contentWidth,contentHeight:size.contentHeight,placement:plan.placement},{...execution,preserveView:true});
         session.layout=plan.layout;mcpQueueView(session,widget,presentation);
         artifact={objectId:widget.id,title:args.title};session.artifacts.set(args.artifactId,artifact);
       }
@@ -23274,7 +23431,7 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
   mcpEl("viewport")?.addEventListener("wheel",mcpPauseView,{passive:true});
   mcpEl("viewport")?.addEventListener("keydown",event=>{if([" ","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","+","-","="].includes(event.key))mcpPauseView();});
   mcpEl("mcpResetCertificate")?.addEventListener("click",()=>{
-    if(mcpRemoteBrowser()||mcpRuntime.lanBusy||!mcpRuntime.status?.http?.hostId&&!mcpRuntime.status?.lan?.fingerprint&&!mcpRuntime.status?.lan?.identityError)return;
+    if(mcpRemoteBrowser()||mcpRuntime.lanBusy||!mcpRuntime.status?.http?.hostId)return;
     if(mcpEl("mcpCertificateStatus"))mcpEl("mcpCertificateStatus").textContent="";
     mcpEl("mcpCertificateDialog")?.showModal();
   });
@@ -24211,6 +24368,83 @@ var canvasDocumentIdentity = (() => {
   // Ordinary saves carry this extension in bundle V2. This is not version history.
   var canvasDocuments = { records:new Map(), activeId:null, ready:null, db:null, switching:false, epoch:0, error:null, retry:null, receipts:new Map(), write:Promise.resolve() };
   const CANVAS_DOCUMENT_EXTENSION = "penechoDocument", CANVAS_WORKSPACE_EXTENSION = "penechoWorkspace", CANVAS_DOCUMENT_LIMIT = 64;
+  const CANVAS_IMAGE_ASSET_TYPE="image-attachment", CANVAS_IMAGE_ASSET_LIMIT=64, CANVAS_IMAGE_ASSET_BYTES=16000000;
+  function canvasImageAssets(doc=canvasDocumentsCurrent()) {
+    return (canvasDocumentsIsActive(doc)?state.currentSnapshotPreservedAssets:doc.stored?.item?.preservedAssets)||[];
+  }
+  function canvasImageAssetMetadata(asset) {
+    return {assetId:asset.metadata.resourceId,source:`penecho-asset:${asset.metadata.resourceId}`,name:asset.metadata.name,mediaType:asset.contentType,bytes:asset.metadata.bytes,width:asset.metadata.width,height:asset.metadata.height};
+  }
+  function canvasImageAsset(doc,source) {
+    const id=/^penecho-asset:([a-f0-9]{64})$/.exec(source)?.[1];
+    const asset=id&&canvasImageAssets(doc).find(a=>a.kind==="resource"&&a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE&&a.metadata.resourceId===id);
+    if(!asset)throw canvasDocumentsError("RESOURCE_NOT_FOUND","Image attachment is not in this Canvas. Upload it to this session first.");
+    return asset;
+  }
+  function canvasImageAssetsForHtml(html,doc=canvasDocumentsCurrent()) {
+    const sources=[...new Set(String(html||"").match(/penecho-asset:[a-f0-9]{64}/g)||[])],result={};
+    let total=0;
+    for(const source of sources){const asset=canvasImageAsset(doc,source),data=`data:${asset.contentType};base64,${asset.dataBase64}`;
+      if(!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(data)||data.length>800000||(total+=data.length)>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("INVALID_IMAGE","The Widget image attachments exceed the supported limits.");
+      result[source]=data;
+    }
+    let expanded=String(html||"").length;
+    for(const source of String(html||"").match(/penecho-asset:[a-f0-9]{64}/g)||[])if((expanded+=result[source].length-source.length)>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("ASSET_LIMIT","Widget image expansion exceeds the supported limit.");
+    return result;
+  }
+  async function canvasImageSource(doc,source) {
+    let blob;
+    if(typeof source!=="string")throw canvasDocumentsError("INVALID_IMAGE","An image source is required.");
+    if(source.startsWith("penecho-asset:")){const asset=canvasImageAsset(doc,source);blob=dataUrlBlob(`data:${asset.contentType};base64,${asset.dataBase64}`);}
+    else if(source.startsWith("penecho-ref:")){const match=/^penecho-ref:objects\/([^/]+)\/image$/.exec(source),object=match&&canvasDocumentsObject(doc,decodeURIComponent(match[1]));if(object?.kind!=="image")throw canvasDocumentsError("RESOURCE_NOT_FOUND","Use an image reference from this Canvas.");blob=object.item.blob;}
+    else {if(source.length>800000||!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(source))throw canvasDocumentsError("INVALID_IMAGE","Use a bounded PNG, JPEG or WebP Data URL.");blob=dataUrlBlob(source);}
+    if(!blob||!["image/png","image/jpeg","image/webp"].includes(blob.type)||blob.size>MAX_IMAGE_SOURCE_BYTES)throw canvasDocumentsError("INVALID_IMAGE","Image attachment exceeds the 800000-byte Data URL limit. Resize it before upload.");
+    const signature=new Uint8Array(await blob.slice(0,12).arrayBuffer()),matches=blob.type==="image/png"?[137,80,78,71,13,10,26,10].every((value,index)=>signature[index]===value):blob.type==="image/jpeg"?signature[0]===255&&signature[1]===216&&signature[2]===255:[82,73,70,70].every((value,index)=>signature[index]===value)&&[87,69,66,80].every((value,index)=>signature[index+8]===value);
+    if(!matches)throw canvasDocumentsError("INVALID_IMAGE","Image bytes do not match their PNG, JPEG or WebP media type.");
+    const image=await createImageBitmap(blob);
+    if(image.width<1||image.height<1||image.width>MAX_IMAGE_DIMENSION||image.height>MAX_IMAGE_DIMENSION||image.width*image.height>MAX_IMAGE_PIXELS){image.close();throw canvasDocumentsError("INVALID_IMAGE","Image dimensions exceed Canvas limits.");}
+    return {blob,image,naturalW:image.width,naturalH:image.height};
+  }
+  async function canvasDocumentsUploadImage(doc,args,execution) {
+    if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
+    const decoded=await canvasImageSource(doc,args.source);
+    try {
+      const bytes=await decoded.blob.arrayBuffer(),hash=await crypto.subtle.digest("SHA-256",bytes),id=Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,"0")).join("");
+      canvasAgentAssertToolExecution(execution);
+      const assets=canvasImageAssets(doc),existing=assets.find(a=>a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE&&a.metadata.resourceId===id);
+      if(existing)return {...canvasImageAssetMetadata(existing),revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision};
+      const data=await canvasAgentReadDataUrl(decoded.blob),entries=assets.filter(a=>a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE);
+      canvasAgentAssertToolExecution(execution);
+      if(data.length>800000||entries.length>=CANVAS_IMAGE_ASSET_LIMIT||entries.reduce((sum,a)=>sum+(a.dataBase64?.length||0),0)+data.length>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("ASSET_LIMIT","This Canvas has reached its image attachment limit.");
+      const asset={kind:"resource",contentType:decoded.blob.type,dataBase64:data.slice(data.indexOf(",")+1),metadata:{resourceType:CANVAS_IMAGE_ASSET_TYPE,resourceId:id,name:String(args.name||"image").slice(0,255),bytes:decoded.blob.size,width:decoded.naturalW,height:decoded.naturalH}};
+      if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
+      // Immutable attachments remain available to objects restored by Undo.
+      if(canvasDocumentsIsActive(doc))state.currentSnapshotPreservedAssets=[...assets,asset];else doc.stored.item.preservedAssets=[...assets,asset];
+      canvasDocumentsEndEdit(doc,"image_attachment",id);
+      return {...canvasImageAssetMetadata(asset),revision:doc.revision};
+    }finally{decoded.image.close();}
+  }
+  async function canvasDocumentsPlaceImage(doc,args,execution) {
+    if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
+    canvasDocumentsCapacity(doc,"image");
+    const decoded=await canvasImageSource(doc,args.source);let retained=false;
+    try {
+      canvasAgentAssertToolExecution(execution);
+      const ratio=decoded.naturalW/decoded.naturalH,defaultScale=Math.max(80/decoded.naturalW,80/decoded.naturalH,Math.min(1,800/Math.max(decoded.naturalW,decoded.naturalH))),
+        w=args.width??(args.height?args.height*ratio:decoded.naturalW*defaultScale),h=args.height??w/ratio;
+      if(![w,h].every(value=>Number.isFinite(value)&&value>=80&&value<=SIZE))throw canvasDocumentsError("INVALID_GEOMETRY","Both image dimensions must be at least 80 Canvas units and within the Canvas. Supply compatible width/height.");
+      const session=mcpRuntime.sessions.get(args.sessionId),placement=args.region||canvasDocumentsPlace(doc,w,h,session,null,true).placement,
+        record=imageRecord({id:canvasDocumentsObjectId(doc,"image"),x:placement.x,y:placement.y,w,h,...decoded,sourceName:args.source.startsWith("data:")?"image":args.source});
+      if(!record)throw canvasDocumentsError("INVALID_IMAGE","Image content or geometry was rejected.");
+      if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
+      canvasDocumentsCapacity(doc,"image");
+      canvasDocumentsValidateGeometry(doc,record);canvasDocumentsBeginEdit(doc);
+      if(canvasDocumentsIsActive(doc)){state.images.push(record);retained=true;}else {const {image,...stored}=record;doc.stored.item.images.push(stored);}
+      canvasDocumentsEndEdit(doc,"image",record.id);
+      if(!args.region&&session&&canvasDocumentsIsActive(doc))mcpQueueView(session,record);
+      return {applied:true,objectId:record.id,source:args.source.startsWith("data:")?`penecho-ref:objects/${encodeURIComponent(record.id)}/image`:args.source,revision:doc.revision};
+    }finally{if(!retained)decoded.image.close();}
+  }
   function canvasDocumentsCopy(en,zh) { return state.language === "zh" ? zh : en; }
   function canvasDocumentsLimitMessage() { return canvasDocumentsCopy(`${CANVAS_DOCUMENT_LIMIT} Canvases are already open. Close an unused Canvas before opening another.`,`已打开 ${CANVAS_DOCUMENT_LIMIT} 个画布，请先关闭不用的画布，再打开新的画布。`); }
   function canvasDocumentsError(code,message,details=null) { return Object.assign(Error(message),{code,details}); }
@@ -24244,7 +24478,7 @@ var canvasDocumentIdentity = (() => {
     return doc;
   }
   function canvasDocumentsRecord(meta,stored=null) {
-    return {id:meta.documentId,title:meta.title||canvasDocumentsCopy("Untitled Canvas","未命名画布"),context:meta.context||"",bindings:meta.bindings||[],locators:meta.locators||[],processor:meta.processor||{kind:"penecho"},stored,
+    return {id:meta.documentId,title:meta.title||canvasDocumentsCopy("Untitled Canvas","未命名画布"),context:meta.context||"",bindings:meta.bindings||[],locators:meta.locators||[],processor:{kind:"penecho"},stored,
       revision:1,savedRevision:0,feedback:[],feedbackSequence:0,messages:[],messageSequence:0,changes:[],changeSequence:0,sessions:[],internalSessions:[],unseen:0,undo:[],redo:[],receipts:new Map()};
   }
   function canvasDocumentsUnseen(value) { return Number.isSafeInteger(value) && value >= 0 ? value : 0; }
@@ -24367,11 +24601,12 @@ var canvasDocumentIdentity = (() => {
       mcpPauseView();canvasDocuments.activeId=id;canvasDocuments.epoch++;
       state.userRevision=doc.revision;state.history=doc.undo||[];state.future=doc.redo||[];state.historyBefore.clear();
       state.animationHistoryBefore=state.widgetHistoryBefore=state.imageHistoryBefore=state.textBoxHistoryBefore=null;
+      state.currentSnapshotPreservedAssets=snapshotPreservedAssets(item.preservedAssets);
       restoreAnimations(item.animations||[]);restoreWidgets((item.widgets||[]).map(canvasDocumentsWidgetRecord).filter(Boolean));restoreImages(images||[]);await restoreTextBoxes(item.textBoxes||[],1);
       if(item.theme)applyTheme(item.theme);
       state.currentSnapshotId=doc.locator?.id||null;state.currentSnapshotLocation=doc.locator?.location||null;state.currentSnapshotName=doc.title;state.currentSnapshotHasExplicitName=Boolean(doc.locator||doc.title&&!/^(untitled canvas|未命名画布)$/i.test(doc.title.trim()));state.currentCanvasSuggestedName="";
       state.currentSnapshotProjectId=item.projectId||null;state.currentSnapshotRevisionId=item.currentRevisionId||null;state.snapshotSavedRevision=doc.savedRevision;
-      state.currentSnapshotBundleExtensions=snapshotExtensionObject(item.bundleExtensions);state.currentSnapshotManifestExtensions=snapshotExtensionObject(item.manifestExtensions);state.currentSnapshotPreservedAssets=snapshotPreservedAssets(item.preservedAssets);
+      state.currentSnapshotBundleExtensions=snapshotExtensionObject(item.bundleExtensions);state.currentSnapshotManifestExtensions=snapshotExtensionObject(item.manifestExtensions);
       mcpRuntime.feedback=doc.feedback;mcpRuntime.feedbackSequence=doc.feedbackSequence;
       restoreSnapshotCanvasObjectOrder(item.bundleExtensions);
       canvasDocumentsSyncExtension(doc);canvasDocumentsApplyView(item.view);
@@ -24420,7 +24655,7 @@ var canvasDocumentIdentity = (() => {
   function canvasDocumentsObject(doc,id) {return canvasDocumentsObjects(doc).find(o=>o.item.id===id);}
   function canvasDocumentsSourceEditable(object) {return object.kind!=="widget"||object.item.widgetType==="html_widget"&&(!object.item.pluginId||object.item.pluginId==="general");}
   function canvasDocumentsFilePaths(doc) {
-    const entries=[{path:"canvas.json",writable:false},{path:"context.md",writable:true},{path:"layout.json",writable:false},{path:"view.json",writable:false},{path:"objects/index.json",writable:false},{path:"runtime/viewport.json",writable:false},{path:"runtime/selection.json",writable:false},{path:"runtime/changes.json",writable:false},{path:"runtime/messages.json",writable:false},{path:"ink/index.json",writable:false}];
+    const entries=[{path:"assets/index.json",writable:false},{path:"canvas.json",writable:false},{path:"context.md",writable:true},{path:"layout.json",writable:false},{path:"view.json",writable:false},{path:"objects/index.json",writable:false},{path:"runtime/viewport.json",writable:false},{path:"runtime/selection.json",writable:false},{path:"runtime/changes.json",writable:false},{path:"runtime/messages.json",writable:false},{path:"ink/index.json",writable:false}];
     for(const object of canvasDocumentsObjects(doc)) {
       const root=`objects/${encodeURIComponent(object.item.id)}`,common={objectId:object.item.id,kind:object.kind,bounds:canvasDocumentsBounds(object)};
       entries.push({...common,path:`${root}/geometry.json`,writable:true});
@@ -24433,6 +24668,7 @@ var canvasDocumentIdentity = (() => {
   function canvasDocumentsFile(doc,path) {
     path=canvasDocumentsPath(path);
     const active=canvasDocumentsIsActive(doc),json=value=>JSON.stringify(value,null,2)+"\n";
+    if(path==="assets/index.json")return json({images:canvasImageAssets(doc).filter(a=>a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE).map(canvasImageAssetMetadata)});
     if(path==="canvas.json")return json({...canvasDocumentsMetadata(doc),active,revision:active?state.userRevision:doc.revision,coordinates:{units:"canvas",width:SIZE,height:SIZE},capabilities:{virtualFiles:true,history:false,automaticWake:false,backgroundCapture:false}});
     if(path==="context.md")return doc.context||"";
     if(path==="layout.json")return json({groups:[...mcpRuntime.sessions.values()].filter(s=>s.documentId===doc.id).map(s=>({bindingKey:s.sessionKey,title:s.title,layout:s.layout,objectIds:[s.boardObjectId,...[...s.artifacts.values()].flatMap(a=>a.objectIds||[a.objectId])].filter(Boolean)})),policy:"Preserve user geometry. Place related support below; compare beside when readable. New work starts within the viewport with top breathing room. Inspect previews are temporary."});
@@ -24479,10 +24715,17 @@ var canvasDocumentIdentity = (() => {
     for(const id of ids)if(!exclude.has(id)&&intersection(box,index.boxes.get(id)))result.push({id,...index.boxes.get(id)});
     return result;
   }
-  function canvasDocumentsPlace(doc,w,h,session=null,presentation=null) {
+  function canvasDocumentsPlace(doc,w,h,session=null,presentation=null,preferViewport=false) {
     const active=canvasDocumentsIsActive(doc),view=active?viewportRect():doc.stored?.item?.view?.region,
       stage=active?canvasAgentFramePlan({x:0,y:0,w,h},96).stage:null,
       readingView=view?{...view,readableWidth:stage?.w?stage.w/.8:view.w*(doc.stored?.item?.view?.scale||1)/.8}:null;
+    // Keep the 1.2.0 Agent's viewport-first free-space placement for a new
+    // conversation; subsequent artifacts follow the shared semantic layout.
+    if(active&&(preferViewport||session?.internalAgent&&!session.artifacts.size)&&!presentation?.relativeTo&&typeof canvasAgentPlacementBox==="function"){
+      const slot=canvasAgentPlacementBox(w,h,{mode:"auto"});
+      if(!slot.crowded&&!canvasDocumentsCollisions(doc,{x:slot.x,y:slot.y,w,h}).length)
+        return {placement:{mode:"absolute",x:slot.x,y:slot.y},layout:{zone:{x:slot.x,y:slot.y,w,h},x:0,y:h+32,rowHeight:h}};
+    }
     return mcpArrange(w,h,session,presentation,readingView,a=>{
       let bounds=null;for(const id of a.objectIds||[a.objectId]){const object=canvasDocumentsObject(doc,id);if(object)bounds=unionDirtyBounds(bounds,canvasDocumentsBounds(object));}return bounds;
     },box=>canvasDocumentsCollisions(doc,box));
@@ -24518,6 +24761,7 @@ var canvasDocumentIdentity = (() => {
       if(canvasDocumentsIsActive(doc))state.userRevision++;
       doc.context=args.content;canvasDocumentsChanged(doc,"context");return {applied:true,contentHash:await canvasAgentHash(args.content)};
     }
+    if(path.endsWith("/widget.html"))canvasImageAssetsForHtml(args.content,doc);
     const parts=canvasDocumentIdentity.parsePath(path),object=parts[0]==="objects"?canvasDocumentsObject(doc,decodeURIComponent(parts[1])):null;
     if(!object)throw canvasDocumentsError("READ_ONLY_FILE","This is a derived runtime file. Use a Canvas action instead.");
     if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
@@ -24694,9 +24938,9 @@ var canvasDocumentIdentity = (() => {
       if(object&&object.kind!=="widget")throw canvasDocumentsError("KIND_MISMATCH","Use a new artifact ID for this Widget.");
       let widget=object?.item;
       if(!widget)canvasDocumentsCapacity(doc,"widget");
-      const presentation=mcpPresentation(args,previous),size=mcpPresentationSize(args);
+      const presentation=mcpPresentation(args,previous),size=mcpPresentationSize(args,doc);
       const plan=widget?null:canvasDocumentsPlace(doc,size.width,size.height,session,presentation);
-      const record=canvasDocumentsWidgetRecord({id:widget?.id||canvasDocumentsObjectId(doc,"widget"),widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:widget?.x??plan.placement.x,y:widget?.y??plan.placement.y,w:widget?.w||size.width,h:widget?.h||size.height,contentW:widget?.contentW||size.width,contentH:widget?.contentH||size.height,refreshSeconds:0});
+      const record=canvasDocumentsWidgetRecord({id:widget?.id||canvasDocumentsObjectId(doc,"widget"),widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:widget?.x??plan.placement.x,y:widget?.y??plan.placement.y,w:widget?.w||size.width,h:widget?.h||size.height,contentW:widget?.contentW||size.contentWidth||size.width,contentH:widget?.contentH||size.contentHeight||size.height,refreshSeconds:0});
       if(!record)throw canvasDocumentsError("INVALID_WIDGET","Widget source is invalid. Correct it and retry.");
       canvasAgentAssertToolExecution(execution);canvasDocumentsBeginEdit(doc);
       if(widget)Object.assign(widget,record);else{widget=record;item.widgets.push(widget);session.layout=plan.layout;}
@@ -24760,11 +25004,13 @@ var canvasDocumentIdentity = (() => {
       canvasDocumentsCapacity(doc,"text");
       const record=await renderedTextBoxRecord({id:canvasDocumentsObjectId(doc,"text"),text:args.text,x:0,y:0,fontSize:20,maxWidth:args.width||400,fontFamily:state.aiFont,color:state.inkColor});
       if(!record)throw canvasDocumentsError("INVALID_TEXT","Text could not be rendered. Shorten it and retry.");
-      const placement=args.region||canvasDocumentsPlace(doc,record.w,record.h,mcpRuntime.sessions.get(args.sessionId)).placement;
+      const session=mcpRuntime.sessions.get(args.sessionId),placement=args.region||canvasDocumentsPlace(doc,record.w,record.h,session,null,true).placement;
       record.x=placement.x;record.y=placement.y;canvasDocumentsValidateGeometry(doc,canvasDocumentsBounds({item:record}));
       canvasAgentAssertToolExecution(execution);canvasDocumentsBeginEdit(doc);
       if(canvasDocumentsIsActive(doc))state.textBoxes.push(record);else {const {image,...stored}=record;doc.stored.item.textBoxes.push(stored);}
-      canvasDocumentsEndEdit(doc,"create_text",record.id);return {applied:true,objectId:record.id,revision:doc.revision};
+      canvasDocumentsEndEdit(doc,"create_text",record.id);
+      if(!args.region&&session&&canvasDocumentsIsActive(doc))mcpQueueView(session,record);
+      return {applied:true,objectId:record.id,revision:doc.revision};
     }
     if(args.action==="draw_ink") {
       // Validate the browser boundary too: linked clients must not bypass resource limits.
@@ -24806,13 +25052,7 @@ var canvasDocumentIdentity = (() => {
     let replacement=null;
     if(args.action==="replace_image") {
       if(object.kind!=="image")throw canvasDocumentsError("KIND_MISMATCH","replace_image requires an image object.");
-      let blob;
-      if(args.source.startsWith("penecho-ref:")){const match=/^penecho-ref:objects\/([^/]+)\/image$/.exec(args.source),source=match?canvasDocumentsObject(doc,decodeURIComponent(match[1])):null;if(source?.kind!=="image")throw canvasDocumentsError("RESOURCE_NOT_FOUND","Use an image reference from this Canvas.");blob=source.item.blob;}
-      else blob=dataUrlBlob(args.source);
-      if(!["image/png","image/webp","image/jpeg"].includes(blob.type)||blob.size>MAX_IMAGE_SOURCE_BYTES)throw canvasDocumentsError("INVALID_IMAGE","Use a supported bounded PNG, JPEG or WebP image.");
-      const image=await createImageBitmap(blob);
-      if(image.width>MAX_IMAGE_DIMENSION||image.height>MAX_IMAGE_DIMENSION||image.width*image.height>MAX_IMAGE_PIXELS){image.close();throw canvasDocumentsError("INVALID_IMAGE","Resize the image to the supported Canvas image dimensions and retry.");}
-      replacement={blob,image,naturalW:image.width,naturalH:image.height};
+      replacement=await canvasImageSource(doc,args.source);
     }
     canvasAgentAssertToolExecution(execution);
     if(args.baseRevision!==(canvasDocumentsIsActive(doc)?state.userRevision:doc.revision))throw canvasDocumentsError("REVISION_CONFLICT","The Canvas changed while preparing the edit. Read canvas.json and retry.");
@@ -24829,7 +25069,7 @@ var canvasDocumentIdentity = (() => {
   // existing Agent socket is the authority: this does not opt in a public MCP
   // connection, allocate a new Canvas, or give access to other documents.
   async function canvasAgentDocumentOperation(input,execution) {
-    const allowed=new Set(["mcp_list_files","mcp_read_file","mcp_prepare_patch","mcp_apply_patch","mcp_edit_canvas","mcp_present_widget","mcp_draw","mcp_plot","mcp_capture_canvas","mcp_capture_widget","mcp_capture_primitives","mcp_read_feedback","mcp_inspect_session","mcp_read_messages","mcp_ack_messages"]);
+    const allowed=new Set(["mcp_list_files","mcp_read_file","mcp_prepare_patch","mcp_apply_patch","mcp_edit_canvas","mcp_upload_image","mcp_place_image","mcp_present_widget","mcp_draw","mcp_plot","mcp_capture_canvas","mcp_capture_widget","mcp_capture_primitives","mcp_read_feedback","mcp_inspect_session","mcp_read_messages","mcp_ack_messages"]);
     if(!input||Object.keys(input).some(key=>!["operation","arguments","bindingKey"].includes(key))||!allowed.has(input.operation))throw canvasDocumentsError("UNSUPPORTED_OPERATION","This Agent document operation is unavailable.");
     const key=input.bindingKey,args=input.arguments;
     if(typeof key!=="string"||!/^agent-[a-f0-9]{64}$/.test(key)||!args||args.sessionId!==key)throw canvasDocumentsError("BINDING_CONFLICT","The Agent document binding is invalid.");
@@ -24886,7 +25126,6 @@ var canvasDocumentIdentity = (() => {
       execution.documentId=doc.id;execution.activeDocumentId=canvasDocumentsIsActive(doc)?doc.id:null;execution.documentEpoch=canvasDocuments.epoch;
       session.boardObjectId=session.boardObjectId||null;
       mcpRuntime.sessions.set(session.sessionId,session);
-      if(args.takeover&&session.sessionKey)canvasDocumentsSetProcessor(doc,{kind:"external",bindingKey:session.sessionKey,client:session.client});
       canvasDocumentsSyncExtension(doc);canvasDocumentsRender();
       if(!canvasDocumentsIsActive(doc))await canvasDocumentsPersist(doc);
       return {sessionId:session.sessionId,documentId:doc.id,boardObjectId:session.boardObjectId,revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision,feedbackCursor:session.feedbackStart,active:canvasDocumentsIsActive(doc),reused:Boolean(session.artifacts.size),...(recovery?{recovery}:{}),progress:{title:session.title,status:session.status,summary:session.summary,steps:session.steps,events:session.events}};
@@ -24903,6 +25142,7 @@ var canvasDocumentIdentity = (() => {
       }
       return canvasDocumentsReadFile(doc,args,true);
     }
+    if(name==="mcp_present_widget")canvasImageAssetsForHtml(args.html,doc);
     if(name==="mcp_present_widget"&&args.presentation?.intent==="inspect")return {...await mcpInspectHtml(args,execution),revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision,documentId:doc.id};
     if(name==="mcp_present_widget") {
       const artifact=session.artifacts.get(args.artifactId),object=artifact&&canvasDocumentsObject(doc,artifact.objectId);
@@ -24923,6 +25163,8 @@ var canvasDocumentIdentity = (() => {
       }
       if(name==="mcp_apply_patch")result=await canvasDocumentsApplyFile(doc,args,execution);
       else if(name==="mcp_edit_canvas")result=await canvasDocumentsEdit(doc,args,execution);
+      else if(name==="mcp_upload_image")result=await canvasDocumentsUploadImage(doc,args,execution);
+      else if(name==="mcp_place_image")result=await canvasDocumentsPlaceImage(doc,args,execution);
       else if(name==="mcp_read_messages") {
         const all=doc.messages.filter(m=>m.bindingKey===session.sessionKey&&m.client===session.client),pending=all.filter(m=>m.cursor>(args.after||0)),entries=pending.slice(0,args.limit||20);
         return {documentId:doc.id,entries,nextCursor:entries.at(-1)?.cursor||args.after||0,latestCursor:doc.messageSequence,hasMore:pending.length>entries.length,delivery:"pull; reading does not acknowledge a message"};
@@ -24938,18 +25180,11 @@ var canvasDocumentIdentity = (() => {
       }
       return {...result,documentId:doc.id};
     };
-    const result=await canvasDocumentsOnce(doc.receipts,args.requestId,args,work);
+    // Image receipts retain a digest, not another copy of uploaded Base64.
+    const receiptArgs=["mcp_upload_image","mcp_place_image"].includes(name)?{...args,source:await canvasAgentHash(args.source),operation:name}:args;
+    const result=await canvasDocumentsOnce(doc.receipts,args.requestId,receiptArgs,work);
     if(!canvasDocumentsIsActive(doc)&&!["mcp_list_files","mcp_read_file","mcp_prepare_patch","mcp_read_messages","mcp_inspect_session","mcp_read_feedback"].includes(name))await canvasDocumentsPersist(doc);
     return result;
-  }
-  function canvasDocumentsSetProcessor(doc,processor) {
-    doc.processor=processor;doc.processorEpoch=(doc.processorEpoch||0)+1;
-    if(canvasDocumentsIsActive(doc)) {
-      clearTimeout(state.timer);state.timer=0;stopActiveAutomaticAI("canvas-processor-changed");
-      canvasDocumentsSyncExtension(doc);canvasAgentSyncAutomaticAIStatus();
-      if(processor.kind==="penecho")schedule();
-    }
-    canvasDocumentsRender();
   }
   function canvasDocumentsWidgetAction(widget,message) {
     if(typeof message.text!=="string"||!message.text.trim()||message.text.length>4000)return;
@@ -25001,16 +25236,6 @@ var canvasDocumentIdentity = (() => {
     status.classList.toggle("sr-only",!canvasDocuments.error&&canvasDocuments.switching);
     status.textContent=canvasDocuments.error||(canvasDocuments.switching?canvasDocumentsCopy("Opening…","正在打开…"):canvasDocuments.records.size>=CANVAS_DOCUMENT_LIMIT?canvasDocumentsLimitMessage():"");
     retry.hidden=!canvasDocuments.retry;retry.textContent=canvasDocumentsCopy("Retry","重试");
-    const processorRow=document.getElementById("canvasProcessorRow"),processor=document.getElementById("canvasProcessorSelect");
-    processorRow.hidden=!doc.bindings.length&&doc.processor.kind!=="external";
-    const choices=[{value:"penecho",text:"PenEcho Agent"},...doc.bindings.map((b,index)=>({value:String(index),text:`${b.client||"External AI"} · ${canvasDocumentsCopy("external conversation","外部对话")}`}))],processorSignature=JSON.stringify(choices);
-    if(processor.dataset.signature!==processorSignature){processor.replaceChildren(...choices.map(c=>{const option=document.createElement("option");option.value=c.value;option.textContent=c.text;return option;}));processor.dataset.signature=processorSignature;}
-    processor.value=doc.processor.kind==="external"?String(doc.bindings.findIndex(b=>b.key===doc.processor.bindingKey&&b.client===doc.processor.client)):"penecho";
-    document.getElementById("canvasProcessorLabel").textContent=canvasDocumentsCopy("Send to","发送给");
-    document.getElementById("canvasProcessorHelp").textContent=doc.processor.kind==="external"?canvasDocumentsCopy("Instructions wait here for the connected conversation to read. Canvas Auto AI is paused.","指令会保留在这里，等待对应外部对话读取。画布 Auto AI 已暂停。") :canvasDocumentsCopy("PenEcho uses your selected model.","PenEcho 使用你选择的模型。");
-    const latest=canvasDocumentsSelectedMessage(doc),messageRow=document.getElementById("canvasExternalMessage"),messageText=document.getElementById("canvasExternalMessageText"),messageRetry=document.getElementById("canvasExternalMessageRetry"),messageCancel=document.getElementById("canvasExternalMessageCancel"),messageSelect=document.getElementById("canvasExternalMessageSelect");
-    if(messageSelect){const items=doc.messages.map(m=>({id:m.id,text:m.text.slice(0,90)})),key=JSON.stringify(items);if(messageSelect.dataset.signature!==key){messageSelect.replaceChildren(...items.map(m=>{const option=document.createElement("option");option.value=m.id;option.textContent=m.text;return option;}));messageSelect.dataset.signature=key;}messageSelect.value=latest?.id||"";messageSelect.setAttribute("aria-label",canvasDocumentsCopy("External instructions","外部指令"));messageSelect.title=latest?.text||"";}
-    messageRow.hidden=!latest;if(latest){const labels={queued:canvasDocumentsCopy("Waiting for the external conversation to read. Continue there when ready.","等待外部对话读取。可以前往对应对话继续任务。"),received:canvasDocumentsCopy("Received by the external conversation.","外部对话已接收。"),working:canvasDocumentsCopy("The external conversation is working.","外部对话正在处理。"),done:canvasDocumentsCopy("Completed by the external conversation.","外部对话已完成。"),error:canvasDocumentsCopy("Could not complete. Your instruction is kept; retry or switch to PenEcho.","未能完成。指令已保留，可以重试或切换到 PenEcho。"),cancelled:canvasDocumentsCopy("Cancelled.","已取消。")};messageText.textContent=`${labels[latest.status]||labels.queued} ${latest.detail||""}`;messageRetry.hidden=!["queued","error"].includes(latest.status);messageRetry.textContent=canvasDocumentsCopy("Retry","重试");messageCancel.hidden=["done","cancelled"].includes(latest.status);messageCancel.textContent=canvasDocumentsCopy("Cancel","取消");}
     if(typeof canvasAgentSyncSendAvailability==="function")canvasAgentSyncSendAvailability();
   }
   function canvasDocumentsUiAction(work) {
@@ -25036,10 +25261,6 @@ var canvasDocumentIdentity = (() => {
   }
   document.getElementById("canvasWorkspaceClose")?.addEventListener("click",()=>{const documentId=canvasDocumentsCurrent().id;canvasDocumentsUiAction(()=>requestCanvasTransition({type:"close",documentId}));});
   document.getElementById("canvasWorkspaceRetry")?.addEventListener("click",()=>{const retry=canvasDocuments.retry;if(retry)canvasDocumentsUiAction(retry);});
-  document.getElementById("canvasProcessorSelect")?.addEventListener("change",event=>{const doc=canvasDocumentsCurrent(),binding=doc.bindings[Number(event.target.value)];canvasDocumentsSetProcessor(doc,event.target.value==="penecho"||!binding?{kind:"penecho"}:{kind:"external",bindingKey:binding.key,client:binding.client});});
-  document.getElementById("canvasExternalMessageSelect")?.addEventListener("change",event=>{canvasDocumentsCurrent().selectedMessageId=event.target.value;canvasDocumentsRender();});
-  document.getElementById("canvasExternalMessageRetry")?.addEventListener("click",()=>{const doc=canvasDocumentsCurrent(),message=canvasDocumentsSelectedMessage(doc);if(message)void canvasDocumentsRetryMessage(doc,message);});
-  document.getElementById("canvasExternalMessageCancel")?.addEventListener("click",()=>{const doc=canvasDocumentsCurrent(),message=canvasDocumentsSelectedMessage(doc);if(message){message.status="cancelled";message.cursor=++doc.messageSequence;canvasDocumentsSyncExtension(doc);canvasDocumentsRender();canvasDocumentsUiAction(()=>canvasDocumentsPark());}});
 // Studio-only navigator for recent Agent conversations and saved canvases.
   {
     const STUDIO_NAVIGATOR_TAB_KEY = "penecho-studio-navigator-tab",
@@ -25102,6 +25323,28 @@ var canvasDocumentIdentity = (() => {
       studioNavigatorOpenTimer = 0,
       studioNavigatorHistoryDirty = true,
       studioEdgeSwipe = null;
+
+    // Sidebar-only browser metadata; never part of a Canvas snapshot or server write.
+    const STUDIO_CANVAS_OPENED_KEY = "penecho-studio-canvas-last-opened";
+    let studioCanvasOpened = readStudioCanvasOpened(), studioLastOpenedKey = "";
+    function readStudioCanvasOpened() {
+      try {
+        const entries = JSON.parse(localStorage.getItem(STUDIO_CANVAS_OPENED_KEY) || "[]");
+        return new Map(Array.isArray(entries) ? entries.filter(entry => Array.isArray(entry) && typeof entry[0] === "string" && Number.isFinite(entry[1])) : []);
+      } catch { return new Map(); }
+    }
+    function rememberStudioCanvasOpened(key) {
+      if (!key) { studioLastOpenedKey = ""; return; }
+      if (key === studioLastOpenedKey) return;
+      studioLastOpenedKey = key;
+      studioCanvasOpened.set(key, Math.max(Date.now(), ...studioCanvasOpened.values(), 0) + 1);
+      studioCanvasOpened = new Map([...studioCanvasOpened].sort((a,b) => b[1]-a[1]).slice(0,1000));
+      try { localStorage.setItem(STUDIO_CANVAS_OPENED_KEY, JSON.stringify([...studioCanvasOpened])); } catch {}
+      return true;
+    }
+    function studioCanvasOpenedAt(key) {
+      return studioCanvasOpened.get(key) || 0;
+    }
 
     function storedStudioNavigatorTab() {
       try {
@@ -25500,7 +25743,7 @@ var canvasDocumentIdentity = (() => {
           name:doc.title||t("canvasUntitledName"),updatedAt:Math.max(Number(previous?.updatedAt)||0,Number(item?.updatedAt||item?.createdAt)||0,...(doc.changes||[]).map(change=>Number(change.at)||0)),
           conversations:previous?.conversations||[],current,unseen:doc.unseen>0});
       }
-      return [...groups.values()].map((group)=>({...group,current:group.documentId?group.current:group.canvasKey===state.canvasAgentCanvasKey})).sort((a,b)=>Number(b.current)-Number(a.current)||Number(Boolean(b.documentId))-Number(Boolean(a.documentId))||b.updatedAt-a.updatedAt);
+      return [...groups.values()].map((group)=>({...group,current:group.documentId?group.current:group.canvasKey===state.canvasAgentCanvasKey})).sort((a,b)=>Number(b.current)-Number(a.current)||studioCanvasOpenedAt(b.canvasKey)-studioCanvasOpenedAt(a.canvasKey)||Number(Boolean(b.documentId))-Number(Boolean(a.documentId))||b.updatedAt-a.updatedAt);
     }
     function studioNavigatorGroupMatches(group,query) {
       if(!query)return true;
@@ -25624,6 +25867,7 @@ var canvasDocumentIdentity = (() => {
     }
     function studioNavigatorCanvasDidLoad(identity) {
       const key=identity?.id&&identity?.location?`${identity.location}:${identity.id}`:"";
+      rememberStudioCanvasOpened(key);
       if(!studioNavigatorPendingConversation||studioNavigatorPendingConversation.canvasKey!==key)return false;
       void openStudioConversationOnCurrentCanvas(studioNavigatorPendingConversation).catch(error=>{
         studioNavigatorPendingConversation=null;
@@ -25745,7 +25989,7 @@ var canvasDocumentIdentity = (() => {
       }
       studioNavigatorHistoryDirty = false;
       releaseStudioNavigatorPreviewUrls(studioNavigatorCanvasPreviewUrls);
-      const items=studioNavigatorSnapshots().sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)),query=studioNavigatorSearchQuery(),locale=state.language==="zh"?"zh-CN":"en",
+      const items=studioNavigatorSnapshots().sort((a,b)=>studioCanvasOpenedAt(`${b.location}:${b.id}`)-studioCanvasOpenedAt(`${a.location}:${a.id}`)||(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)),query=studioNavigatorSearchQuery(),locale=state.language==="zh"?"zh-CN":"en",
         filtered=query?items.filter((item)=>`${snapshotName(item)} ${snapshotLocationLabel(item.location)}`.toLocaleLowerCase(locale).includes(query)):items;
       studioCanvasRecentList.replaceChildren();
       for(const group of studioNavigatorWorkGroups().filter(group=>group.documentId&&!group.location&&studioNavigatorGroupMatches(group,query))){
@@ -25944,6 +26188,8 @@ var canvasDocumentIdentity = (() => {
     let studioWorkspaceSignature="";
     function studioWorkspaceChanged() {
       if(typeof canvasDocuments==="undefined")return;
+      const active = canvasDocuments.records.get(canvasDocuments.activeId);
+      if (!canvasDocuments.switching && rememberStudioCanvasOpened(active ? active.locator ? `${active.locator.location}:${active.locator.id}` : `workspace:${active.id}` : "")) studioWorkspaceSignature = "";
       syncStudioMcpActions();
       const documents=[...canvasDocuments.records.values()],hasUpdates=documents.some(doc=>doc.unseen>0),attention=hasUpdates||Boolean(canvasDocuments.error);
       studioNavigatorToggle.dataset.workspaceUpdates=String(attention);
@@ -26549,6 +26795,158 @@ var canvasDocumentIdentity = (() => {
 // One owner for canvas navigation and explicit, native Widget interaction.
 // Iframes retain their identity. Selecting a Widget never replays the selecting
 // click into its document, and inactive front shells block underlying Widgets.
+
+  function widgetInteractionPresentation() {
+    try { return localStorage.getItem("penecho.widgetInteractionPresentation") || "maximized"; }
+    catch { return "maximized"; }
+  }
+  function switchWidgetPresentation(widget, maximized) {
+    try { localStorage.setItem("penecho.widgetInteractionPresentation", maximized ? "maximized" : "canvas"); } catch {}
+    setWidgetMaximized(widget, maximized);
+    requestInteractionLayerRender();
+  }
+  function setWidgetPresentationZoom(widget, percent, notifyHost = true) {
+    if (!widget?.shell) return;
+    const value = Number(percent),
+      zoom = Math.max(50, Math.min(100, Number.isFinite(value) ? value : 100));
+    widget.presentationZoom = zoom;
+    widget.shell.setAttribute("data-presentation-zoom", String(zoom));
+    const controls = widget.presentationZoomControls;
+    if (controls) {
+      controls.label.textContent = `${zoom}%`;
+      controls.zoomOut.disabled = zoom === 50;
+      controls.zoomIn.disabled = zoom === 100;
+    }
+    if (notifyHost) sendWidgetHostState(widget);
+  }
+  function setWidgetMaximized(widget, maximized) {
+    const shell = widget?.shell;
+    if (!shell || widget.maximized === maximized) return;
+    if (maximized && typeof shell.showPopover !== "function") return;
+    widget.maximized = maximized;
+    if (maximized) {
+      if (!widget.presentationToolbar) {
+        const toolbar = document.createElement("div");
+        toolbar.className = "widget-presentation-toolbar";
+        toolbar.setAttribute("role", "toolbar");
+        const title = document.createElement("span");
+        title.className = "widget-presentation-title";
+        title.textContent = widget.title;
+        title.title = widget.title;
+        toolbar.append(title);
+        const action = (label, icon, activate) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.title = label;
+          button.setAttribute("aria-label", label);
+          button.innerHTML = icon;
+          button.addEventListener("click", activate);
+          toolbar.append(button);
+          return button;
+        };
+        const zoomOut = action(t("imageZoomOut"), '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>', () => setWidgetPresentationZoom(widget, widget.presentationZoom - 10)),
+          label = document.createElement("output");
+        label.className = "image-presentation-zoom";
+        label.setAttribute("aria-live", "polite");
+        toolbar.append(label);
+        const zoomIn = action(t("imageZoomIn"), '<svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg>', () => setWidgetPresentationZoom(widget, widget.presentationZoom + 10));
+        widget.presentationZoomControls = { zoomOut, zoomIn, label };
+        action(t("widgetReturnToCanvas"), '<svg viewBox="0 0 24 24"><path d="M4 9h5V4m11 11h-5v5M9 9 3 3m12 12 6 6"/></svg>', () => switchWidgetPresentation(widget, false));
+        action(t("downloadWidget"), OBJECT_CHROME_ICONS.download, async (event) => {
+          const button = event.currentTarget;
+          button.disabled = true;
+          try { await downloadWidgetImage(widget); }
+          finally { button.disabled = false; }
+        });
+        action(t("widgetExitInteraction"), '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></svg>', () => setWidgetInteraction(null));
+        toolbar.addEventListener("pointerdown", event => event.stopPropagation());
+        toolbar.addEventListener("dblclick", (event) => {
+          if (!widget.maximized || event.target.closest("button")) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setWidgetInteraction(null);
+        });
+        shell.prepend(toolbar);
+        widget.presentationToolbar = toolbar;
+      }
+      setWidgetPresentationZoom(widget, 100, false);
+      shell.setAttribute("popover", "manual");
+      shell.classList.add("widget-maximized");
+      shell.showPopover();
+    } else {
+      if (shell.matches(":popover-open")) shell.hidePopover();
+      shell.removeAttribute("popover");
+      shell.classList.remove("widget-maximized");
+      shell.removeAttribute("data-presentation-zoom");
+      widget.presentationZoom = 100;
+      widget.presentationWidth = widget.presentationHeight = null;
+      widget.styleRule?.style?.removeProperty("--widget-presentation-width");
+      widget.styleRule?.style?.removeProperty("--widget-presentation-height");
+    }
+    positionWidget(widget);
+    widget.frame?.focus({ preventScroll:true });
+  }
+
+  function showImagePresentation(item) {
+    if (!item || !state.images.includes(item) || !(item.blob instanceof Blob)) return false;
+    const previous = document.querySelector(".canvas-image-presentation");
+    if (previous) previous.close();
+    const dialog = document.createElement("dialog"),
+      toolbar = document.createElement("div"),
+      title = document.createElement("span"),
+      close = document.createElement("button"),
+      zoomOut = document.createElement("button"),
+      zoomIn = document.createElement("button"),
+      zoomLabel = document.createElement("output"),
+      image = document.createElement("img"),
+      sourceUrl = URL.createObjectURL(item.blob);
+    dialog.className = "canvas-image-presentation widget-maximized";
+    dialog.setAttribute("aria-label", item.sourceName || t("widgetMaximize"));
+    toolbar.className = "widget-presentation-toolbar";
+    toolbar.setAttribute("role", "toolbar");
+    title.className = "widget-presentation-title";
+    title.textContent = item.sourceName || "";
+    title.title = item.sourceName || "";
+    close.type = "button";
+    close.title = t("widgetReturnToCanvas");
+    close.setAttribute("aria-label", close.title);
+    close.innerHTML = '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></svg>';
+    close.addEventListener("click", () => dialog.close());
+    let zoomPercent = 100;
+    const updateZoom = (change = 0) => {
+      zoomPercent = Math.max(50, Math.min(100, zoomPercent + change));
+      image.setAttribute("data-zoom", String(zoomPercent));
+      zoomLabel.textContent = `${zoomPercent}%`;
+      zoomOut.disabled = zoomPercent === 50;
+      zoomIn.disabled = zoomPercent === 100;
+    };
+    zoomOut.type = zoomIn.type = "button";
+    zoomOut.title = t("imageZoomOut");
+    zoomIn.title = t("imageZoomIn");
+    zoomOut.setAttribute("aria-label", zoomOut.title);
+    zoomIn.setAttribute("aria-label", zoomIn.title);
+    zoomOut.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>';
+    zoomIn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg>';
+    zoomOut.addEventListener("click", () => updateZoom(-10));
+    zoomIn.addEventListener("click", () => updateZoom(10));
+    zoomLabel.className = "image-presentation-zoom";
+    zoomLabel.setAttribute("aria-live", "polite");
+    updateZoom();
+    image.alt = item.sourceName || "";
+    image.src = sourceUrl;
+    image.draggable = false;
+    image.addEventListener("dblclick", () => dialog.close());
+    dialog.addEventListener("close", () => {
+      URL.revokeObjectURL(sourceUrl);
+      dialog.remove();
+    }, { once:true });
+    toolbar.append(title, zoomOut, zoomLabel, zoomIn, close);
+    dialog.append(toolbar, image);
+    document.body.append(dialog);
+    dialog.showModal();
+    return true;
+  }
+
   function canvasNavigationTextTarget(target) {
     return keyboardShortcutTextEditingTarget(target);
   }
@@ -26584,6 +26982,7 @@ var canvasDocumentIdentity = (() => {
     if (state.interactingWidgetId === next) return true;
     const previous = state.widgets.find(item => item.id === state.interactingWidgetId);
     if (previous?.frame && document.activeElement === previous.frame) document.activeElement.blur();
+    if (previous) setWidgetMaximized(previous, false);
     state.interactingWidgetId = next;
     if (!next) {
       const returnTool = state.widgetInteractionReturnTool;
@@ -26609,10 +27008,12 @@ var canvasDocumentIdentity = (() => {
       setCanvasMode("select");
     }
     state.widgetInteractionReturnTool = returnTool;
-    return setWidgetInteraction(widget);
+    const entered = setWidgetInteraction(widget);
+    if (entered) setWidgetMaximized(widget, widgetInteractionPresentation() === "maximized");
+    return entered;
   }
   function canvasWidgetInteractionChromeTarget(target) {
-    return Boolean(target?.closest?.("#canvasViewActions, #canvasNavigationActions, .canvas-fit-contents, .canvas-navigation-lock, .object-chrome-button, .widget-interaction-status"));
+    return Boolean(target?.closest?.("#canvasViewActions, #canvasNavigationActions, .canvas-fit-contents, .canvas-navigation-lock, .object-chrome-button, .widget-interaction-status, .widget-presentation-toolbar"));
   }
   function showWidgetContextToolbar(event) {
     event.preventDefault();
@@ -26754,8 +27155,11 @@ var canvasDocumentIdentity = (() => {
     const tool = state.viewMode ? state.viewTool : state.mode;
     if (tool !== 'hand' && tool !== 'select') return;
     if (canvasWidgetInteractionChromeTarget(event.target)) return;
-    const widget = canvasWidgetAtEvent(event);
-    if (widget) enterWidgetInteraction(widget);
+    const target = handObjectToolbarTargetAtPoint(clientPoint(event));
+    if (target?.kind === "image") {
+      event.preventDefault();
+      showImagePresentation(target.object);
+    } else if (target?.kind === "widget") enterWidgetInteraction(target.object);
   });
   view.addEventListener('contextmenu', (event) => { showWidgetContextToolbar(event); });
   document.querySelector('#canvasFitContents')?.addEventListener('click', fitCanvasContents);
@@ -26984,6 +27388,7 @@ var canvasDocumentIdentity = (() => {
     clearTimeout(state.timer);
     state.timer = 0;
     hideWidgetRefineHint();
+    releaseWidgetsForDrawing();
     const erasing = forceEraser || state.mode === "eraser";
     if (erasing) clearWidgetRefineCandidate();
     else state.latestTypedInput = null;
@@ -27015,8 +27420,8 @@ var canvasDocumentIdentity = (() => {
     appendLiveInkSample(state.drawing, p, size);
   }
   function beginHandObjectResize(event, point) {
-    if (state.mode !== "select" || event.pointerType === "touch" || Number(event.button) !== 0 || !point || !valid(point)) return false;
-    if (state.pending) {
+    if (!["hand", "select"].includes(state.mode) || state.viewMode || state.spacePan || event.pointerType === "touch" || Number(event.button) !== 0 || !point || !valid(point)) return false;
+    if (state.mode === "select" && state.pending) {
       const result = pendingHit(state.pending, event, state.pending.revealProgress < 1),
         hit = typeof result === "string" ? result : result?.hit,
         itemIndex = result && typeof result === "object" ? result.itemIndex : null;
@@ -27025,7 +27430,7 @@ var canvasDocumentIdentity = (() => {
         return true;
       }
     }
-    const widgetResult = widgetRuntimeEnabled() ? widgetPointerHit(point, event.pointerType, false) : null;
+    const widgetResult = state.mode === "select" && widgetRuntimeEnabled() ? widgetPointerHit(point, event.pointerType, false) : null;
     if (widgetResult && ["resize", "width", "height"].includes(widgetResult.hit)) {
       refreshHandObjectToolbar();
       return beginWidgetGesture(event, point, widgetResult);
@@ -27036,7 +27441,7 @@ var canvasDocumentIdentity = (() => {
       refreshHandObjectToolbar();
       return beginImageGesture(event, point, imageResult);
     }
-    const animationResult = animationPointerHit(point, event.pointerType);
+    const animationResult = state.mode === "select" ? animationPointerHit(point, event.pointerType) : null;
     if (animationResult && ["resize", "width", "height"].includes(animationResult.hit)) {
       refreshHandObjectToolbar();
       return beginAnimationGesture(event, point, animationResult);
@@ -27048,8 +27453,9 @@ var canvasDocumentIdentity = (() => {
     view.classList.remove("is-wheel-navigating");
     state.handToolbarTap = null;
     if (!state.viewMode && state.mode === "hand" && !state.spacePan && !e.altKey && e.button === 0 && !state.touches.size) {
-      const widget = canvasWidgetAtEvent(e);
-      if (widget) state.handToolbarTap = { id:e.pointerId, widget, x:e.clientX, y:e.clientY };
+      const target = handObjectToolbarTargetAtPoint(clientPoint(e));
+      if (target) state.handToolbarTap = { id:e.pointerId, target, x:e.clientX, y:e.clientY };
+      else hideHandObjectToolbar({ all:true, animate:false });
     }
     if (e.pointerType === "touch" && canvasPencilWritingActive()) return;
     if (e.pointerType === "mouse" && ![0, 1].includes(e.button)) return;
@@ -27091,10 +27497,13 @@ var canvasDocumentIdentity = (() => {
     } catch {}
     calibrateScreenClientRatio(e, false);
     const penEraser = canvasPenEraserActive(e),
-      handPoint = !penEraser && !state.spacePan && state.mode === "select" ? clientPoint(e) : null;
+      handPoint = !penEraser && !state.spacePan && ["hand", "select"].includes(state.mode) ? clientPoint(e) : null;
     beginCanvasWidgetGestureResetTap(e, handPoint);
     state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (handPoint && e.pointerType !== "touch" && beginHandObjectResize(e, handPoint)) return;
+    if (handPoint && e.pointerType !== "touch" && beginHandObjectResize(e, handPoint)) {
+      state.handToolbarTap = null;
+      return;
+    }
 
     if (handPoint) beginHandObjectFocus(e, handPoint);
     if (penEraser) {
@@ -27208,7 +27617,7 @@ var canvasDocumentIdentity = (() => {
       return;
     }
     updateHandObjectFocus(e);
-    if (state.mode === "select" && e.pointerType !== "touch" && Number(e.buttons) === 0) {
+    if (["hand", "select"].includes(state.mode) && e.pointerType !== "touch" && Number(e.buttons) === 0) {
       const point = clientPoint(e);
       updateHandObjectHover(point);
       syncWidgetResizeCursor(point, e.pointerType);
@@ -27261,13 +27670,16 @@ var canvasDocumentIdentity = (() => {
       return;
     }
   });
-  function end(e) {
+  function finishHandCanvasTap(e) {
     const handTap = state.handToolbarTap;
     if (handTap?.id === e.pointerId) {
       state.handToolbarTap = null;
       if (e.type === "pointerup" && !state.viewMode && state.mode === "hand" && !state.spacePan && state.touches.size <= 1
-          && Math.hypot(e.clientX - handTap.x, e.clientY - handTap.y) <= 6) showHandObjectToolbar("widget", handTap.widget);
+          && Math.hypot(e.clientX - handTap.x, e.clientY - handTap.y) <= 6) showHandObjectToolbar(handTap.target.kind, handTap.target.object);
     }
+  }
+  function end(e) {
+    finishHandCanvasTap(e);
     const activation = state.widgetActivationTap;
     if (activation?.id === e.pointerId) {
       state.widgetActivationTap = null;

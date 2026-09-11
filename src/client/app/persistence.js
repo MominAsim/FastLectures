@@ -1013,6 +1013,7 @@
       state.textBoxHistoryBefore = null;
       for (const [key, canvas] of decodedTiles) tiles.set(key, canvas);
       decodedTiles.clear();
+      state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       restoreAnimations(item.animations);
       restoreWidgets(item.widgets);
       applyTheme(item.theme);
@@ -1032,7 +1033,6 @@
       state.currentSnapshotBundleExtensions = snapshotExtensionObject(item.bundleExtensions);
       restoreSnapshotCanvasObjectOrder(item.bundleExtensions);
       state.currentSnapshotManifestExtensions = snapshotExtensionObject(item.manifestExtensions);
-      state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       state.dirty = null;
       state.snapshotSavedRevision = state.userRevision;
       setCanvasNavigationLocked(false);
@@ -1404,6 +1404,7 @@
       state.textBoxHistoryBefore = null;
       for (const [k, canvas] of decodedTiles) tiles.set(k, canvas);
       decodedTiles.clear();
+      state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       restoreAnimations(item.animations);
       restoreWidgets(item.widgets);
       applyTheme(item.theme);
@@ -1427,7 +1428,6 @@
       state.currentSnapshotBundleExtensions = snapshotExtensionObject(item.bundleExtensions);
       restoreSnapshotCanvasObjectOrder(item.bundleExtensions);
       state.currentSnapshotManifestExtensions = snapshotExtensionObject(item.manifestExtensions);
-      state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       state.snapshotSavedRevision = state.userRevision;
       if(typeof canvasDocumentsAdopt==="function")await canvasDocumentsAdopt(item,location);
       resetCanvasDefaultMode();

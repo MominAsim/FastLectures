@@ -54,11 +54,10 @@ npm でインストールする場合は、[Node.js 22.19 以降](https://nodejs
 
 ```bash
 npm install -g penecho
-penecho configure
 penecho
 ```
 
-ブラウザーで [http://localhost:3888](http://localhost:3888) を開きます。`penecho configure` では LLM ソース、モデル、推論レベル、タイムアウト、画像形式、待受アドレスなどを対話形式で設定できます。設定は既定で `~/.penecho/config.env` に保存され、API 認証情報がブラウザーへ送られることはありません。
+ブラウザーで [http://localhost:3888](http://localhost:3888) を開き、**設定 → 接続** で API または CLI の接続を追加します。接続は `~/.penecho/connections.json` に、一般設定は `~/.penecho/config.env` に保存されます。
 
 ソースから実行する場合:
 

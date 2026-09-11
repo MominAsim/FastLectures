@@ -23,7 +23,7 @@ test('built-in document tool discovery exactly matches the public bound content 
     assert.equal(tool.parameters.required?.includes('sessionId')||false,false);
     assert.equal(tool.description,expected.find(item=>item.name===tool.name).description);
   }
-  assert.ok(!tools.some(tool=>/canvas_create|load_|professional|private/.test(tool.name)));
+  assert.ok(!tools.some(tool=>/canvas_create|^load_|professional|private/.test(tool.name)));
 });
 
 test('built-in guidance equals MCP guidance without browser RPC or duplicate source injection', async () => {
@@ -79,4 +79,41 @@ test('public Canvas capture uses the shared RPC and preserves bounded image atta
   assert.equal(result.revision,3);
   assert.deepEqual(result.attachment,{attachmentId:'captured-image'});
   assert.equal(Object.hasOwn(result,'image'),false);
+});
+
+test('built-in upload reads only session-owned attachments and emits canonical source without host paths', async () => {
+  const {createDocumentTools,validateDocumentToolArguments}=await import('../src/server/canvas-agent/document-tools.mjs');
+  const calls=[],reads=[],ref={attachmentId:'owned',mediaType:'image/png',name:'Image',absolutePath:'/private/image.png'};
+  const session={id:'s',attachmentRefs:new Map([['owned',ref]]),rpc:async(name,payload)=>{calls.push(payload);return {source:'penecho-asset:'+'a'.repeat(64),revision:1};}};
+  const tool=createDocumentTools(session,{readImage:async value=>{reads.push(value);return {ref:value,data:Buffer.from('a')};}}).find(t=>t.name==='penecho_upload_image');
+  const exec={callId:'upload',signal:new AbortController().signal};
+  for(const input of [{attachmentId:'foreign'},{attachmentId:'owned',source:'data:image/png;base64,YQ=='}]) {
+    assert.throws(()=>validateDocumentToolArguments(tool.name,{requestId:'u',name:'Image',...input},session));
+    await assert.rejects(tool.execute({requestId:'u',name:'Image',...input},exec));
+  }
+  assert.equal(reads.length,0);
+  await tool.execute({requestId:'u',name:'Image',attachmentId:'owned'},exec);
+  assert.equal(reads[0],ref);
+  assert.equal(calls[0].operation,'mcp_upload_image');
+  assert.equal(calls[0].arguments.source,'data:image/png;base64,YQ==');
+  assert.ok(!JSON.stringify(calls).includes('/private/'));
+  assert.equal(calls[0].arguments.attachmentId,undefined);
+});
+
+test('built-in upload rejects oversized or unsupported stored images before any browser RPC', async () => {
+  const {createDocumentTools,DOCUMENT_TOOL_INSTRUCTIONS}=await import('../src/server/canvas-agent/document-tools.mjs');
+  assert.match(DOCUMENT_TOOL_INSTRUCTIONS,/Widget HTML img src or CSS url\(\)/);
+  for(const stored of [
+    {ref:{mediaType:'image/png'},data:Buffer.alloc(600000)},
+    {ref:{mediaType:'image/gif'},data:Buffer.from('GIF89a')},
+    {ref:{mediaType:'image/svg+xml'},data:Buffer.from('<svg/>')},
+  ]) {
+    let reads=0,rpcs=0;
+    const session={id:'bounded',attachmentRefs:new Map([['owned',{attachmentId:'owned'}]]),rpc:async()=>{rpcs++;return {};}};
+    const tool=createDocumentTools(session,{readImage:async()=>{reads++;return stored;}}).find(tool=>tool.name==='penecho_upload_image');
+    await assert.rejects(tool.execute({requestId:'u',name:'Image',attachmentId:'owned'},{callId:'upload',signal:new AbortController().signal}),{code:'invalid_arguments'});
+    assert.equal(reads,1);
+    assert.equal(rpcs,0);
+    assert.equal(session.documentToolSession.mutationRequests.size,0);
+  }
 });

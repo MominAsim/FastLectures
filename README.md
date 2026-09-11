@@ -102,11 +102,10 @@ See the [architecture notes](docs/architecture.md) for implementation details.
 
 ```bash
 npm install -g penecho
-penecho configure
 penecho
 ```
 
-Open `http://localhost:3888`. Configure your own model API or an authenticated Codex, Claude Code, or Kimi CLI. For PenEcho-hosted models, sign in and select an available model in Settings.
+Open `http://localhost:3888`. Add your own model API or an authenticated Codex, Claude Code, or Kimi CLI in **Settings → Connections**. Connections are saved in `~/.penecho/connections.json`; general settings remain in `~/.penecho/config.env`. For PenEcho-hosted models, sign in and select an available model in Settings.
 
 At startup, set a six-digit access code or explicitly enable open access on your trusted network. Startup also prints LAN addresses for other devices.
 

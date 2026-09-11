@@ -54,11 +54,10 @@ npm으로 설치하려면 [Node.js 22.19 이상](https://nodejs.org/)과 API 키
 
 ```bash
 npm install -g penecho
-penecho configure
 penecho
 ```
 
-브라우저에서 [http://localhost:3888](http://localhost:3888)을 여세요. `penecho configure`에서 LLM 소스, 모델, 추론 수준, 제한 시간, 이미지 형식, 수신 주소를 대화형으로 설정할 수 있습니다. 설정은 기본적으로 `~/.penecho/config.env`에 저장되며 API 자격 증명은 브라우저로 전송되지 않습니다.
+브라우저에서 [http://localhost:3888](http://localhost:3888)을 열고 **설정 → 연결**에서 API 또는 CLI 연결을 추가하세요. 연결은 `~/.penecho/connections.json`에, 일반 설정은 `~/.penecho/config.env`에 저장됩니다.
 
 소스에서 실행하려면:
 

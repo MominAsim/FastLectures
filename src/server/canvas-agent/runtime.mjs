@@ -2196,6 +2196,7 @@ export function connectionProfile(connection, configuredTimeoutMs) {
       displayName:connection.name || `PenEcho ${model}`,
       api:connection.apiFormat === 'anthropic' ? 'anthropic-messages' : 'openai-completions',
       baseURL:providerBaseURL(connection),
+      ...(connection.hosted === true && connection.apiFormat === 'anthropic' && connection.apiKey ? { headers:{ Authorization:`Bearer ${connection.apiKey}` } } : {}),
       streamIdleTimeoutMs:idleTimeoutMs,
       defaultInput:['text', 'image'],
       defaultContextWindow:CANVAS_AGENT_CONTEXT_WINDOW,
@@ -4316,6 +4317,7 @@ const PenEchoCanvasPlugin = {
     agentCtx.on('tools/execute', (exec,next) => canvasDecisionFeedbackResult(session,exec,next))
     agentCtx.on('tools/result', (exec,result) => recordCanvasBatchToolResult(session,exec,result))
     for (const tool of createDocumentTools(session, {
+      readImage:(ref,signal)=>attachments.readImage(ref,signal),
       wrap:(name,execute)=>async(args,exec)=>{
         try {
           beginCanvasAgentToolCall(session,name)
@@ -4520,9 +4522,10 @@ export async function createCanvasAgentNativeRuntime({ session, attachments }) {
 }
 
 export class CanvasHarnessHost {
-  constructor({ stateDirectory, rootDirectory, resolveConnection, listConnections, resolveWebSearch = () => null, resolveWidgetCapabilities = () => ({ professionalEnabled:false, privatePlugins:[] }), resolveProject = async () => null, callCli = null, modelBackend = null, capabilities = {}, modelTimeoutMs = () => DEFAULT_CANVAS_AGENT_IDLE_TIMEOUT_MS, canvasAgentTurnLimit = () => DEFAULT_CANVAS_AGENT_TURN_LIMIT, logger = () => {}, conversationLogger = null, conversationTrace = null, observeDecisionProtocol = null, onModelUsage = null, publicFetch = fetchPublicResource }) {
+  constructor({ stateDirectory, rootDirectory, resolveConnection, prepareConnection = async () => {}, listConnections, resolveWebSearch = () => null, resolveWidgetCapabilities = () => ({ professionalEnabled:false, privatePlugins:[] }), resolveProject = async () => null, callCli = null, modelBackend = null, capabilities = {}, modelTimeoutMs = () => DEFAULT_CANVAS_AGENT_IDLE_TIMEOUT_MS, canvasAgentTurnLimit = () => DEFAULT_CANVAS_AGENT_TURN_LIMIT, logger = () => {}, conversationLogger = null, conversationTrace = null, observeDecisionProtocol = null, onModelUsage = null, publicFetch = fetchPublicResource }) {
     this.stateDirectory = stateDirectory
     this.rootDirectory = rootDirectory
+    this.prepareConnection = prepareConnection
     this.resolveConnection = resolveConnection
     this.listConnections = listConnections
     this.resolveWebSearch = resolveWebSearch
@@ -4679,7 +4682,7 @@ export class CanvasHarnessHost {
       if (connection?.provider !== 'api' || !connection.apiModel || !connection.apiUrl) continue
       const source = this.resolveConnection(session.connectionId)
       if (!source?.apiKey) continue
-      const profile = connectionProfile(connection, this.modelTimeoutMs(session.connectionId))
+      const profile = connectionProfile({ ...connection, hosted:source.hosted, apiKey:source.apiKey }, this.modelTimeoutMs(session.connectionId))
       providers[profile.provider] = { ...profile.config, apiKeyEnv:profile.apiKeyEnv }
       this.credentialRefs.set(profile.apiKeyEnv, session.connectionId)
     }
@@ -4737,6 +4740,7 @@ export class CanvasHarnessHost {
       this.send(session, 'agent_status', { status:session.handle.agent.status })
       return session
     }
+    await this.prepareConnection(connectionId)
     const connection = this.resolveConnection(connectionId)
     if (!connection) throw new Error('The selected AI connection was not found.')
     await this.refreshProviders()
@@ -5089,6 +5093,7 @@ export class CanvasHarnessHost {
   async setConnection(session, { connectionId, binding = session?.binding, send = session?.send } = {}) {
     if (!this.sessions.has(session?.id)) throw new Error('PenEcho Agent session is closed.')
     if (session.handle?.agent?.status !== 'idle') throw new Error('Wait for the current PenEcho Agent turn to finish before changing models.')
+    await this.prepareConnection(String(connectionId || ''))
     const connection = this.resolveConnection(String(connectionId || ''))
     if (!connection || connection.provider === 'codex-cli') throw new Error('The selected AI connection cannot use this PenEcho Agent engine.')
     const profile = this.modelBackend

@@ -5,12 +5,12 @@ function harness(){
   const document={getElementById:()=>null,querySelectorAll:()=>[]};
   const context=vm.createContext({SIZE:32768,state,document,window:{PENECHO_CONFIG:{}},location:{origin:"http://127.0.0.1"},WebSocket:{OPEN:1},AbortController,AbortSignal,setTimeout,clearTimeout,performance,
     addEventListener:(type,fn)=>{listeners[type]=fn;},save:()=>saved.push(true),canvasAgentObject:id=>widgets.has(id)?{kind:"widget",item:widgets.get(id)}:null,
-    canvasAgentCreate:async(args)=>{const item=args.items[0],id=`widget-${next++}`,widget={id,...item,x:item.placement?.x||0,y:item.placement?.y||0,contentVersion:0,contentW:item.width,contentH:item.height,w:item.width,h:item.height,hostReady:true,renderActive:true,frame:{contentWindow:{postMessage:value=>sent.push(value)}}};widgets.set(id,widget);state.userRevision++;return{receipts:[{objectId:id}]};},
+    canvasAgentCreate:async(args,execution)=>{const item=args.items[0],id=`widget-${next++}`,widget={id,...item,x:item.placement?.x||0,y:item.placement?.y||0,contentVersion:0,contentW:execution?.widgetContentViewport?.width||item.width,contentH:execution?.widgetContentViewport?.height||item.height,w:item.width,h:item.height,hostReady:true,renderActive:true,frame:{contentWindow:{postMessage:value=>sent.push(value)}}};widgets.set(id,widget);state.userRevision++;return{receipts:[{objectId:id}]};},
     canvasAgentBox:object=>({x:object.item.x,y:object.item.y,w:object.item.w,h:object.item.h}),requestWidgetSnapshot:()=>{captures++;throw Error("not requested");},
     unionDirtyBounds:(a,b)=>!a?{...b}:({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.max(a.x+a.w,b.x+b.w)-Math.min(a.x,b.x),h:Math.max(a.y+a.h,b.y+b.h)-Math.min(a.y,b.y)}),
     canvasAgentAssertToolExecution:()=>{},canvasAgentCapture:async(args)=>{captures++;captureRequests.push(args);return {dataUrl:"data:image/webp;base64,AQ==",logicalRegion:args.region,encodedBytes:1};},
     canvasAgentPlacementBox:(w,h,p,reserved)=>({x:100+reserved.length*5000,y:100,w,h,crowded:false}),canvasAgentInternalRect:b=>b,visibleInkBounds:()=>null,intersection:(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y,
-    canvasAgentFramePlan:()=>({scale:.8}),canvasAgentFrameRegion:region=>{context.frames.push(region);},frames:[],
+    requestRender:()=>{},canvasAgentSyncState:()=>{},canvasAgentFramePlan:()=>({scale:.8}),canvasAgentFrameRegion:region=>{context.frames.push(region);},frames:[],
     writeClipboardText:async()=>true,peButton:()=>{},canvasAgentAllObjects:()=>[...widgets.values()].map(w=>({id:w.id,box:{x:w.x,y:w.y,w:w.w,h:w.h}})),canvasAgentContentBounds:()=>widgets.size?{}:null,
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname,"../src/client/app/mcp-runtime.js"),"utf8")+"\nglobalThis.api={mcpRuntime,mcpExecute,mcpBoardHtml,mcpDisconnect,mcpExecutionCurrent,syncMcpWidgetProgress,mcpRecordFeedback,mcpQueueView,mcpFlushView,mcpPauseView,mcpTaskBounds};",context);
@@ -261,7 +261,7 @@ test("internal user feedback is available without an external socket",async()=>{
   assert.equal(result.nextCursor,1);
 });
 
-test('new page fits a small viewport instead of retaining a tiny camera',async()=>{
+test('new page uses the viewport for reflow while preserving screen typography',async()=>{
  const h=harness();await h.mcpExecute('mcp_start_session',{sessionId:'page',title:'Page'},{});
  h.mcpRuntime.ready=true;h.mcpRuntime.socket={readyState:1,close(){}};
  const source=fs.readFileSync(path.join(__dirname,'../src/client/app/canvas-agent-runtime.js'),'utf8');
@@ -272,9 +272,13 @@ test('new page fits a small viewport instead of retaining a tiny camera',async()
  h.context.canvasAgentFrameRegion=region=>{const plan=h.context.canvasAgentFramePlan(region,96);Object.assign(h.state,{scale:plan.scale,panX:plan.panX,panY:plan.panY});h.context.frames.push(region);};
  const result=await h.mcpExecute('mcp_present_widget',{sessionId:'page',artifactId:'page',title:'Page',html:'<p>Report</p>',presentation:{size:'page'}},{});
  const widget=h.widgets.get(result.objectId);widget.x=2000;widget.y=2000;h.mcpFlushView();
- assert.equal(h.context.frames.length,1);assert.ok(h.state.scale>.4&&h.state.scale<.5);
+ assert.equal(h.context.frames.length,0,'responsive widgets do not run the legacy zoom-to-fit');
+ assert.equal(widget.contentW,592);assert.equal(widget.contentH,408);
+ assert.ok(Math.abs(widget.w*h.state.scale/widget.contentW-1)<.001,'18px stays 18px on screen');
+ assert.ok(Math.abs(widget.h*h.state.scale/widget.contentH-1)<.001);
+ assert.ok(widget.w<=4096&&widget.h<=4096,'overview zoom does not consume the finite canvas');
  assert.ok(Math.abs(h.state.panX+(widget.x+widget.w/2)*h.state.scale-320)<1e-8);
- assert.ok(Math.abs(h.state.panY+(widget.y+widget.h/2)*h.state.scale-240)<1e-8);
+ assert.ok(Math.abs(h.state.panY+(widget.y+widget.h/2)*h.state.scale-252)<1e-8);
  assert.equal(h.mcpRuntime.pendingView.size,0);assert.equal(h.mcpRuntime.viewPaused,false);h.mcpDisconnect();
 });
 
@@ -287,4 +291,71 @@ test("external initial placement avoids occupied inset and stays within Canvas b
   assert.deepEqual([avoided.placement.x,avoided.placement.y],[1000,1832]);
   const large=arrange(32000,32000,()=>[]);
   assert.deepEqual([large.placement.x,large.placement.y],[720,720]);
+});
+
+test('viewport presentation caps each axis, leaves inspect exact and uses saved geometry for parked documents',()=>{
+ const h=harness();h.state.scale=.5;h.context.canvasAgentFramePlan=()=>({stage:{x:0,y:0,w:1000,h:700}});
+ const page=h.context.mcpPresentationSize({width:1200,height:800});
+ assert.deepEqual({...page},{width:1904,height:1256,contentWidth:952,contentHeight:628});
+ const portrait=h.context.mcpPresentationSize({width:390,height:844});
+ assert.deepEqual({...portrait},{width:780,height:1256,contentWidth:390,contentHeight:628});
+ assert.deepEqual({...h.context.mcpPresentationSize({width:390,height:844,presentation:{intent:'inspect'}})},{width:390,height:844});
+ h.context.canvasDocumentsIsActive=()=>false;
+ const parked=h.context.mcpPresentationSize({presentation:{size:'page'}},{stored:{item:{view:{scale:.5,region:{w:1400,h:1000}}}}});
+ assert.deepEqual({...parked},{width:1304,height:856,contentWidth:652,contentHeight:428});
+});
+
+test('new widget dimensions and readable framing remain bounded across overview and close zoom',()=>{
+ const h=harness();h.context.canvasAgentFramePlan=()=>({stage:{x:0,y:0,w:1000,h:700}});
+ for(const zoom of [.03,.1,.5,1,2]){
+  h.state.scale=zoom;
+  const size=h.context.mcpPresentationSize({presentation:{size:'page'}}),widget={x:3000,y:4000,w:size.width,h:size.height,contentW:size.contentWidth,contentH:size.contentHeight};
+  const frame=h.context.mcpWidgetFramePlan(widget);
+  assert.ok(widget.w>=300&&widget.h>=200&&widget.w<=4096&&widget.h<=4096);
+  assert.ok(Math.abs(frame.scale*widget.w/widget.contentW-1)<.002);
+  assert.ok(Math.abs(frame.scale*widget.h/widget.contentH-1)<.002);
+  assert.ok(frame.panX+widget.x*frame.scale>=23.5);
+  assert.ok(frame.panY+widget.y*frame.scale>=47.5);
+ }
+});
+
+test('consecutive documents keep clear footprints and reveal the latest without returning to older pending results',async()=>{
+ const h=harness();h.state.scale=.5;
+ h.context.canvasAgentFramePlan=()=>({scale:.5,stage:{x:0,y:0,w:1000,h:700}});
+ await h.mcpExecute('mcp_start_session',{sessionId:'reading',title:'Reading'},{});
+ const session=h.mcpRuntime.sessions.get('reading');session.internalAgent=true;
+ const first=await h.mcpExecute('mcp_present_widget',{sessionId:'reading',artifactId:'one',title:'One',html:'<p>One</p>'},{});
+ const second=await h.mcpExecute('mcp_present_widget',{sessionId:'reading',artifactId:'two',title:'Two',html:'<p>Two</p>'},{});
+ const a=h.widgets.get(first.objectId),b=h.widgets.get(second.objectId);
+ assert.ok(b.y>=a.y+a.h+32);
+ h.mcpFlushView();
+ assert.ok(Math.abs(h.state.panX+(b.x+b.w/2)*h.state.scale-500)<.01);
+ assert.ok(Math.abs(h.state.panY+(b.y+b.h/2)*h.state.scale-362)<.01);
+ assert.equal(h.mcpRuntime.pendingView.size,0);
+ const geometry=[h.state.scale,h.state.panX,h.state.panY];h.mcpFlushView();
+ assert.deepEqual([h.state.scale,h.state.panX,h.state.panY],geometry);
+ h.mcpDisconnect();
+});
+
+test('append at the Canvas bottom falls back to clear space without covering the prior widget',()=>{
+ const h=harness(),previous={x:1000,y:30000,w:1800,h:2000},session={artifacts:new Map([['last',{objectId:'last'}]])};
+ const plan=h.context.mcpArrange(1800,2000,session,{},null,()=>previous,box=>h.context.intersection(box,previous)?[previous]:[]);
+ assert.ok(plan.placement.y+2000<=32768-48);
+ assert.equal(h.context.intersection({...plan.placement,w:1800,h:2000},previous),false);
+});
+
+
+test('interleaved sessions reveal the most recently queued result',async()=>{
+ const h=harness();h.state.scale=.5;h.mcpRuntime.socket={readyState:1,close(){}};h.mcpRuntime.ready=true;
+ h.context.canvasAgentFramePlan=()=>({scale:.5,stage:{x:0,y:0,w:1000,h:700}});
+ for(const sessionId of ['a','b'])await h.mcpExecute('mcp_start_session',{sessionId,title:sessionId},{});
+ for(const [sessionId,artifactId] of [['a','one'],['b','one'],['a','two']]){
+  await h.mcpExecute('mcp_present_widget',{sessionId,artifactId,title:artifactId,html:'<p>Result</p>'},{});
+ }
+ const latest=h.widgets.get(h.mcpRuntime.sessions.get('a').artifacts.get('two').objectId);
+ h.mcpFlushView();
+ assert.ok(Math.abs(h.state.panX+(latest.x+latest.w/2)*h.state.scale-500)<.01);
+ assert.ok(Math.abs(h.state.panY+(latest.y+latest.h/2)*h.state.scale-362)<.01);
+ assert.equal(h.mcpRuntime.pendingView.size,0);
+ h.mcpDisconnect();
 });

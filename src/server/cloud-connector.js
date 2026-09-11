@@ -132,6 +132,8 @@ function publicAccount(value) {
     ...(value.bio ? { bio:String(value.bio) } : {}),
     ...(value.avatarUrl ? { avatarUrl:String(value.avatarUrl) } : {}),
     credits: Number(value.credits || 0),
+    ...(["plus", "pro"].includes(value.membership?.tier) && Number.isFinite(value.membership?.expiresAt) && value.membership.expiresAt > Date.now()
+      ? { membership:{ tier:value.membership.tier, expiresAt:value.membership.expiresAt } } : {}),
     workspace: value.workspace && typeof value.workspace === "object" ? value.workspace : undefined,
   };
 }
@@ -371,32 +373,57 @@ class CloudConnector {
     return payload;
   }
 
+  async refreshHostedCatalog({ force = false } = {}) {
+    const configuration = this.requireCloudAccount();
+    const matches = value => value?.token === configuration.accountToken && value.origin === configuration.origin;
+    if (!force && matches(this.hostedCatalog) && Date.now() - this.hostedCatalog.fetchedAt < 300_000) return this.hostedCatalog;
+    if (matches(this.hostedCatalogRequest)) return this.hostedCatalogRequest.promise;
+    const pending = { token:configuration.accountToken, origin:configuration.origin };
+    pending.promise = (async () => {
+      const catalog = await this.cloudRequest("/api/v1/models");
+      if (accountToken(this.configuration) !== configuration.accountToken || this.configuration?.origin !== configuration.origin) throw cloudSignInRequiredError("Cloud account changed. Refresh the model list.");
+      this.hostedCatalog = { token:configuration.accountToken, origin:configuration.origin, models:(catalog.models || []).filter(model => model.available && model.enabled !== false && !model.retiredAt), fetchedAt:Date.now() };
+      return this.hostedCatalog;
+    })();
+    this.hostedCatalogRequest = pending;
+    try { return await pending.promise; }
+    finally { if (this.hostedCatalogRequest === pending) this.hostedCatalogRequest = null; }
+  }
+
   async hostedModels() {
     const configuration = this.requireCloudAccount();
-    const [catalog, wallet] = await Promise.all([this.cloudRequest("/api/v1/models"), this.cloudRequest("/api/v1/credits")]);
-    // Pin the catalog to this login; a late response must never cross accounts.
+    const [catalog, wallet] = await Promise.all([this.refreshHostedCatalog({ force:true }), this.cloudRequest("/api/v1/credits")]);
     if (accountToken(this.configuration) !== configuration.accountToken || this.configuration?.origin !== configuration.origin) throw cloudSignInRequiredError("Cloud account changed. Refresh the model list.");
-    this.hostedCatalog = { token:configuration.accountToken, origin:configuration.origin, models:(catalog.models || []).filter(model => model.available && model.enabled !== false && !model.retiredAt), fetchedAt:Date.now() };
-    return { models:this.hostedCatalog.models, credits:wallet.credits };
+    return { models:catalog.models, credits:wallet.credits };
+  }
+
+  async prepareHostedConnection(connectionId) {
+    if (!/^hosted:[0-9a-f-]{36}$/i.test(String(connectionId))) return null;
+    await this.refreshHostedCatalog();
+    const connection = this.hostedConnection(connectionId);
+    if (!connection) throw Object.assign(new Error("The selected PenEcho model is unavailable. Refresh AI connections."), { status:409 });
+    // Old Cloud catalogs did not declare a protocol. Fail closed until the
+    // server is upgraded; a model name or UUID cannot establish its wire format.
+    if (!["openai", "anthropic"].includes(connection.apiFormat)) throw Object.assign(new Error("Cloud did not provide a supported API format for this model. Refresh the model list or update the Cloud server."), { status:409, code:"hosted_model_protocol_unavailable" });
+    return connection;
   }
 
   hostedConnection(connectionId) {
     if (!/^hosted:[0-9a-f-]{36}$/i.test(String(connectionId))) return null;
     const configuration = this.requireCloudAccount();
-    // Cloud is authoritative for availability and charging. A remote browser
-    // may have loaded its catalog without priming this host's in-memory cache.
-    if (this.resolvedHostedToken !== configuration.accountToken) { this.resolvedHostedToken = configuration.accountToken; this.resolvedHostedIds = new Set(); }
-    this.resolvedHostedIds.add(connectionId);
-    return { id:connectionId, provider:"api", apiFormat:"openai", apiUrl:`${configuration.origin}/api/v1/hosted`, apiKey:configuration.accountToken, apiModel:connectionId.slice(7), effort:"medium", hosted:true };
+    const catalog = this.hostedCatalog?.token === configuration.accountToken && this.hostedCatalog.origin === configuration.origin ? this.hostedCatalog : null;
+    const model = catalog?.models.find(model => model.id === connectionId.slice(7));
+    if (catalog && !model) return null;
+    // Keep synchronous callers synchronous. Only inference preparation may
+    // resolve a cold catalog, and it must do so before selecting a backend.
+    return { id:connectionId, provider:"api", apiFormat:model?.apiFormat || null, apiUrl:`${configuration.origin}/api/v1/hosted`, apiKey:configuration.accountToken, apiModel:connectionId.slice(7), effort:"medium", hosted:true };
   }
 
   hostedConnections() {
     this.expireAccountSessionIfNeeded();
     const token = accountToken(this.configuration);
-    if (!token) return [];
-    const ids = new Set(this.resolvedHostedToken === token ? this.resolvedHostedIds : []);
-    if (this.hostedCatalog?.token === token && this.hostedCatalog.origin === this.configuration?.origin) for (const model of this.hostedCatalog.models) ids.add(`hosted:${model.id}`);
-    return [...ids].map(id => this.hostedConnection(id));
+    if (!token || this.hostedCatalog?.token !== token || this.hostedCatalog.origin !== this.configuration?.origin) return [];
+    return this.hostedCatalog.models.filter(model => ["openai", "anthropic"].includes(model.apiFormat)).map(model => this.hostedConnection(`hosted:${model.id}`));
   }
 
   async reportModelEvaluation(event, timeoutMs = 10_000) {

@@ -164,3 +164,17 @@ test("bound presentation only verifies pixels after capture and merges timing", 
   const invalid=harness((op,args) => ({artifactId:args.artifactId,objectId:"widget",revision:1}));
   await assert.rejects(invalid.run("penecho_present_widget",{...args,capture:true}),{code:"invalid_capture"});
 });
+
+test('image upload and placement share owned binding, exact routing and isolated idempotency', async () => {
+  const h=harness(operation=>({operation,revision:2,documentId:'doc'}));
+  const source='penecho-asset:'+'a'.repeat(64);
+  for(const [name,args] of [['penecho_upload_image',{requestId:'u',name:'Image',source}],['penecho_place_image',{requestId:'p',source}]]) {
+    const result=await h.run(name,args);
+    assert.equal(result.operation,name.replace('penecho_','mcp_'));
+    assert.equal((await h.run(name,args)).reused,true);
+    await assert.rejects(h.run(name,{...args,source:'penecho-asset:'+'b'.repeat(64)}),{code:'REQUEST_ID_CONFLICT'});
+    await assert.rejects(h.run(name,{...args,sessionId:'foreign'}),{code:'session_mismatch'});
+  }
+  await assert.rejects(h.run('penecho_edit_canvas',{requestId:'p',action:'show'}),{code:'REQUEST_ID_CONFLICT'});
+  assert.equal(h.calls.length,2);
+});

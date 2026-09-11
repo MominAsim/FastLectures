@@ -360,12 +360,14 @@
   }
   function syncCanvasObjectLayerOrder() {
     const widgetInFront = state.frontCanvasObjectKind === "widget",
-      selectedWidgetMaterialActive = Boolean(selectedWidgetMaterial && !selectedWidgetMaterial.hidden),
+      selectedWidgetMaterialActive = Boolean(state.interactingWidgetId || (selectedWidgetMaterial && !selectedWidgetMaterial.hidden)),
       widgetStyle = runtimeElementStyle(widgetLayer, "widget-layer-stack"),
       imageMaterialStyle = runtimeElementStyle(imageMaterialLayer, "image-material-layer-stack"),
       imageStyle = runtimeElementStyle(placedContentLayer, "placed-content-layer-stack"),
       textEditorStyle = runtimeElementStyle(textEditorLayer, "text-editor-layer-stack");
-    if (widgetStyle) widgetStyle.zIndex = selectedWidgetMaterialActive || widgetInFront ? "3" : "1";
+    // Selection is a temporary lift above ink; click-to-front order survives deselection.
+    // Ink follows the Widget carrier in DOM order at z-index 2.
+    if (widgetStyle) widgetStyle.zIndex = selectedWidgetMaterialActive ? "3" : widgetInFront ? "2" : "1";
     if (imageMaterialStyle) imageMaterialStyle.zIndex = widgetInFront ? "1" : "2";
     if (imageStyle) imageStyle.zIndex = widgetInFront ? "1" : "2";
     if (textEditorStyle) textEditorStyle.setProperty("--text-editor-layer-z", state.frontCanvasObjectKind === "text-box" ? "6" : "1");
@@ -624,7 +626,7 @@
     return true;
   }
   function ensureHandToolbarRecord(kind, object) {
-    const allowed = state.mode === "select" || (kind === "widget" && ["hand", "pen"].includes(state.mode));
+    const allowed = ["select", "hand"].includes(state.mode) || (kind === "widget" && state.mode === "pen");
     if (!allowed || !object?.id || !["widget", "image", "animation", "text-box"].includes(kind)) return null;
     const key = handToolbarKey(kind, object.id);
     let record = state.handToolbarTargets.get(key);
@@ -704,6 +706,8 @@
       return false;
     }
     if (record.kind === "widget") commitWidgetToolbarFront(object);
+    else if (record.kind === "image") bringImageToFront(object);
+    else if (record.kind === "text-box") bringTextBoxToFront(object);
     if (record.kind === "animation") showAnimationControls(HAND_OBJECT_TOOLBAR_VISIBLE_MS + HAND_OBJECT_TOOLBAR_FADE_MS);
     refreshHandObjectToolbar(key);
     return true;
@@ -805,6 +809,7 @@
         widgetHostPointerAnchors.delete(id);
       }
       if (ownsDrag) {
+        widget.shell?.classList.remove("is-resizing");
         state.widgetGesture = null;
         resetCanvasCursor();
       }
@@ -914,18 +919,8 @@
   }
   function imageControlHit(item, point, pointerType = "mouse") {
     const box = imageBox(item),
-      handle = 14 / state.scale,
-      radius = (pointerType === "touch" ? 24 : 14) / state.scale,
-      controls = [
-        { hit:"resize", target:{ x:box.x + box.w, y:box.y + box.h }, radius },
-        { hit:"width", target:{ x:box.x + box.w + handle * 0.08, y:box.y + box.h / 2 }, radius },
-        { hit:"height", target:{ x:box.x + box.w / 2, y:box.y + box.h + handle * 0.08 }, radius },
-      ],
-      control = controls
-        .map((candidate) => ({ ...candidate, distance:Math.hypot(point.x - candidate.target.x, point.y - candidate.target.y) }))
-        .filter((candidate) => candidate.distance <= candidate.radius)
-        .sort((a, b) => a.distance - b.distance)[0];
-    if (control) return control.hit;
+      resize = widgetResizeHit(box, point, pointerType);
+    if (resize) return resize;
     return point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h ? "move" : null;
   }
   function imageAtPoint(point) {
@@ -944,6 +939,10 @@
     if (!includeUnselected) return null;
     const item = imageAtPoint(point);
     return item ? { image:item, hit:"move" } : null;
+  }
+  function imageResizeCursor(point, pointerType = "mouse") {
+    const hit = imagePointerHit(point, pointerType, false)?.hit;
+    return hit === "resize" ? "nwse-resize" : hit === "width" ? "ew-resize" : hit === "height" ? "ns-resize" : "";
   }
   function resizeImageBox(start, point, hit) {
     const minimumWidth = 80, minimumHeight = 80,
@@ -1161,7 +1160,7 @@
     return { x: widget.x, y: widget.y, w: widget.w, h: widget.h };
   }
   function widgetLayout(widget) {
-    return { ...widgetBox(widget), contentW:widget.contentW, contentH:widget.contentH, fitContent:widget.fitContent === true };
+    return { ...widgetBox(widget), contentW:widget.contentW, contentH:widget.contentH, fitContent:widget.fitContent === true, fitContentAxes:widget.fitContentAxes || null };
   }
   function visibleWidgets(region = null) {
     if (!widgetRuntimeEnabled()) return [];
@@ -1241,6 +1240,7 @@
       contentW: widget.contentW,
       contentH: widget.contentH,
       ...(widget.fitContent ? { fitContent:true } : {}),
+      ...(widget.fitContentAxes ? { fitContentAxes:widget.fitContentAxes } : {}),
       title: widget.title,
       refreshSeconds: widget.refreshSeconds,
       favoriteSourceId: widget.favoriteSourceId,
@@ -1303,6 +1303,7 @@
       contentW: Math.round(contentW),
       contentH: Math.round(contentH),
       fitContent: item.fitContent === true,
+      fitContentAxes: ["width", "height", "resize"].includes(item.fitContentAxes) ? item.fitContentAxes : null,
       title: item.title.trim(),
       refreshSeconds: Math.round(item.refreshSeconds),
       html,
@@ -1479,16 +1480,26 @@
   function createWidgetResizeHandle(widget, hit) {
     const handle = document.createElement("div");
     handle.className = `canvas-widget-resize-handle ${hit === "width" ? "width" : hit === "height" ? "height" : "corner"}`;
-    handle.setAttribute("aria-hidden", "true");
     handle.addEventListener("pointerdown", (event) => {
-      if (state.viewMode || state.mode !== "select" || Number(event.button) !== 0) return;
+      if (state.viewMode || state.spacePan || !["hand", "select"].includes(state.mode) || Number(event.button) !== 0) return;
       const pending = widget === state.pendingWidget && widget.pending === true;
-      if (!pending && !showHandObjectToolbar("widget", widget)) return;
+      if (!pending && state.interactingWidgetId !== widget.id && !showHandObjectToolbar("widget", widget)) return;
       event.preventDefault();
       event.stopPropagation();
       finishStaleWidgetHostGesture(event);
+      // Move focus out of the live iframe before capturing its border gesture.
+      handle.tabIndex = -1;
+      handle.focus({ preventScroll:true });
       if (!beginWidgetGesture(event, clientPoint(event), { widget, hit, pending })) return;
+      widget.shell?.classList.add("is-resizing");
       try { handle.setPointerCapture(event.pointerId); } catch {}
+      if (!pending) beginHandToolbarOperation(event.pointerId, handToolbarKey("widget", widget.id));
+    });
+    handle.addEventListener("dblclick", (event) => {
+      if (state.viewMode || state.spacePan || !["hand", "select"].includes(state.mode)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      requestWidgetContentFit(widget, hit);
     });
     handle.addEventListener("pointermove", (event) => {
       if (finishReleasedWidgetGesture(event) || state.widgetGesture?.id !== event.pointerId) return;
@@ -1629,7 +1640,7 @@
       dragging = state.widgetGesture?.widget === widget,
       intersectsViewport = viewportWidth <= 0 || viewportHeight <= 0
         || (screenX < viewportWidth && screenY < viewportHeight && screenX + displayWidth > 0 && screenY + displayHeight > 0),
-      active = widget.snapshotCaptureActive === true || dragging || intersectsViewport;
+      active = widget.maximized === true || widget.snapshotCaptureActive === true || dragging || intersectsViewport;
     widget.renderActive = active;
     widget.shell.classList.toggle("widget-offscreen", !active);
     if (active) sendWidgetInit(widget);
@@ -1664,6 +1675,8 @@
       widget.styleSizeKey = sizeKey;
       declaration.width = `${widget.contentW}px`;
       declaration.height = `${widget.contentH}px`;
+      declaration.setProperty("--widget-natural-width", `${widget.contentW}px`);
+      declaration.setProperty("--widget-natural-height", `${widget.contentH}px`);
     }
     const transformKey = `${localX}:${localY}:${scaleX}:${scaleY}`;
     if (widget.styleTransformKey !== transformKey) {
@@ -1691,21 +1704,30 @@
     if (!widget.frame?.contentWindow || !widget.hostReady || widget.initialized || widget.renderActive === false) return;
     const manifest = pluginManifests.get(widget.pluginId);
     if (!manifest) return;
+    let imageAssets={};
+    try {if(typeof canvasImageAssetsForHtml==="function")imageAssets=canvasImageAssetsForHtml(widget.html,widget.mcpAssetDocumentId?canvasDocuments.records.get(widget.mcpAssetDocumentId):canvasDocumentsCurrent());}
+    catch { /* The host reports missing attachments without aborting Canvas rendering. */ }
     widget.initialized = true;
     widget.mcpDocumentLoaded = false;
     widget.frame.contentWindow.postMessage({
       type:"penecho-widget-init",
       title:widget.title,
       html:widget.html,
+      imageAssets,
       pluginStyles:manifest.styles || "",
       ...(widget.sourceFormat ? { sourceFormat:widget.sourceFormat } : {}),
       ...(widget.frameworkVersion ? { frameworkVersion:widget.frameworkVersion } : {}),
     }, widget.hostOrigin || location.origin);
   }
   function sendWidgetHostState(widget, scaleX = state.scale * widget.w / widget.contentW, scaleY = state.scale * widget.h / widget.contentH, force = false) {
+    if (widget.maximized) {
+      const shellStyle = getComputedStyle(widget.shell);
+      const available = widget.shell.clientWidth - parseFloat(shellStyle.paddingLeft) - parseFloat(shellStyle.paddingRight);
+      scaleX = scaleY = available / Math.max(widget.contentW, widget.presentationWidth || 0) * (widget.presentationZoom || 100) / 100;
+    }
     const interactive = canvasWidgetInteractive(widget),
       selectable = canvasWidgetSelectionEnabled(),
-      selected = !state.viewMode && state.mode === "select" && !interactive && (widget.pending === true || (state.widgetEdit?.id === widget.id && state.selectedWidgetId === widget.id)),
+      selected = !state.viewMode && ["hand", "select"].includes(state.mode) && !interactive && (widget.pending === true || (state.widgetEdit?.id === widget.id && state.selectedWidgetId === widget.id)),
       inputKey = `${interactive}:${selectable}:${selected}`;
     if (widget.inputPolicyKey !== inputKey) {
       widget.inputPolicyKey = inputKey;
@@ -1716,11 +1738,11 @@
     }
     if (!widget.frame?.contentWindow || !widget.hostReady || !Number.isFinite(scaleX) || scaleX <= 0 || !Number.isFinite(scaleY) || scaleY <= 0) return;
     const active = widget.renderActive !== false,
-      key = `${interactive ? 1 : 0}:${selected ? 1 : 0}:${active ? 1 : 0}:${state.navigationLocked ? 1 : 0}:${scaleX.toFixed(6)}:${scaleY.toFixed(6)}:${widget.fitContent ? 1 : 0}`;
+      key = `${interactive ? 1 : 0}:${selected ? 1 : 0}:${active ? 1 : 0}:${state.navigationLocked ? 1 : 0}:${scaleX.toFixed(6)}:${scaleY.toFixed(6)}:${widget.fitContent ? 1 : 0}:${widget.fitContentAxes || ""}:${widget.maximized ? 1 : 0}`;
     syncMcpWidgetProgress(widget);
     if (!force && widget.hostStateKey === key) return;
     widget.hostStateKey = key;
-    widget.frame.contentWindow.postMessage({ type:"penecho-widget-state", fitContent:widget.fitContent === true, selected, interactive, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
+    widget.frame.contentWindow.postMessage({ type:"penecho-widget-state", maximized:widget.maximized === true, fitContent:widget.fitContent === true, fitContentAxes:widget.fitContentAxes || null, selected, interactive, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
   }
   function markWidgetHostReady(widget) {
     widget.hostReady = true;
@@ -1756,15 +1778,15 @@
       );
     });
   }
-  async function requestWidgetSnapshot(widget, timeoutMs = WIDGET_SNAPSHOT_TIMEOUT_MS, requireFresh = true, signal = null, highResolution = false) {
+  async function requestWidgetSnapshot(widget, timeoutMs = WIDGET_SNAPSHOT_TIMEOUT_MS, requireFresh = true, signal = null, highResolution = false, fullContent = false) {
     if(signal?.aborted)throw widgetSnapshotAbortError(signal);
     highResolution = highResolution === true;
     if (widget.snapshotPromise) {
       const inFlight = widget.snapshotPromise;
-      if (!requireFresh && (!highResolution || widget.snapshotPromiseHighResolution)) return waitForWidgetSnapshot(inFlight,signal);
+      if (!fullContent && !widget.snapshotPromiseFullContent && !requireFresh && (!highResolution || widget.snapshotPromiseHighResolution)) return waitForWidgetSnapshot(inFlight,signal);
       try { await waitForWidgetSnapshot(inFlight,signal); } catch (error) { if(signal?.aborted)throw error; }
       if(signal?.aborted)throw widgetSnapshotAbortError(signal);
-      if (widget.snapshotImage && widget.snapshotVersion >= widget.contentVersion && (!highResolution || widget.snapshotHighResolution)) return widget.snapshotImage;
+      if (!fullContent && widget.snapshotImage && widget.snapshotVersion >= widget.contentVersion && (!highResolution || widget.snapshotHighResolution)) return widget.snapshotImage;
     }
     timeoutMs = Math.max(1000, Math.min(WIDGET_SNAPSHOT_TIMEOUT_MS, Number(timeoutMs) || WIDGET_SNAPSHOT_TIMEOUT_MS));
     const snapshotPromise = (async () => {
@@ -1802,11 +1824,11 @@
             clearTimeout(timer);
             reject(widgetSnapshotAbortError(signal));
           };
-          pending={ widget, resolve, reject, timer, contentVersion:widget.contentVersion, signal, abort, highResolution };
+          pending={ widget, resolve, reject, timer, contentVersion:widget.contentVersion, signal, abort, highResolution, fullContent };
           widgetSnapshotRequests.set(requestId,pending);
           signal?.addEventListener("abort",abort,{once:true});
           if(signal?.aborted){abort();return;}
-          widget.frame.contentWindow.postMessage({ type:"penecho-widget-snapshot-request", requestId, width:widget.contentW, height:widget.contentH, timeoutMs:remaining(), highResolution }, widget.hostOrigin || location.origin);
+          widget.frame.contentWindow.postMessage({ type:"penecho-widget-snapshot-request", requestId, width:widget.contentW, height:widget.contentH, timeoutMs:remaining(), highResolution, fullContent }, widget.hostOrigin || location.origin);
         });
       } finally {
         widget.snapshotCaptureActive = false;
@@ -1818,15 +1840,31 @@
       }
     })();
     widget.snapshotPromise = snapshotPromise;
+    widget.snapshotPromiseFullContent = fullContent;
     widget.snapshotPromiseHighResolution = highResolution;
     try {
       return await snapshotPromise;
     } finally {
       if (widget.snapshotPromise === snapshotPromise) {
         widget.snapshotPromise = null;
+        widget.snapshotPromiseFullContent = false;
         widget.snapshotPromiseHighResolution = false;
       }
     }
+  }
+  function applyWidgetPresentationSize(widget, message) {
+    if (!widget.maximized || !widget.styleRule?.style) return false;
+    const width = Number(message.width), height = Number(message.height);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || width > 100000 || height > 100000) return false;
+    const nextWidth = Math.max(widget.contentW, Math.ceil(width));
+    const nextHeight = Math.max(widget.contentH, Math.ceil(height));
+    if (widget.presentationWidth === nextWidth && widget.presentationHeight === nextHeight) return false;
+    widget.presentationWidth = nextWidth;
+    widget.presentationHeight = nextHeight;
+    widget.styleRule.style.setProperty("--widget-presentation-width", `${nextWidth}px`);
+    widget.styleRule.style.setProperty("--widget-presentation-height", `${nextHeight}px`);
+    sendWidgetHostState(widget);
+    return true;
   }
   async function handleWidgetMessage(event) {
     const widget = [...state.widgets, ...(state.pendingWidget ? [state.pendingWidget] : []), ...(typeof mcpRuntime!=="undefined"?[...(mcpRuntime?.previews?.values()||[])]:[])].find((item) => item.frame?.contentWindow === event.source);
@@ -1835,6 +1873,18 @@
     if(widget.mcpEphemeral&&!["penecho-widget-host-ready","penecho-widget-capture-ready","penecho-widget-updated","penecho-widget-snapshot","penecho-widget-snapshot-error","penecho-widget-runtime-diagnostics","penecho-visual-explainer-diagnostics"].includes(message.type))return;
     if(message.type==="penecho-widget-user-action"&&typeof canvasDocumentsWidgetAction==="function") {
       canvasDocumentsWidgetAction(widget,message);return;
+    }
+    if (message.type === "penecho-widget-presentation-size") {
+      applyWidgetPresentationSize(widget, message);
+      return;
+    }
+    if (message.type === "penecho-widget-fit-result") {
+      applyWidgetContentFit(widget, message);
+      return;
+    }
+    if (message.type === "penecho-widget-fit" && ["width", "height", "resize"].includes(message.hit)) {
+      requestWidgetContentFit(widget, message.hit);
+      return;
     }
     if (message.type === "penecho-widget-exit-interaction") {
       if (state.interactingWidgetId === widget.id) setWidgetInteraction(null);
@@ -1912,6 +1962,10 @@
       const snapshotImage=await decodeWidgetSnapshot(message.dataUrl);
       if(pending.signal?.aborted)throw widgetSnapshotAbortError(pending.signal);
       if(widget.contentVersion!==pending.contentVersion)throw Error(t("widgetExportFailed"));
+      if (pending.fullContent) {
+        pending.resolve({ image:snapshotImage, dataUrl:message.dataUrl });
+        return;
+      }
       widget.snapshotImage = snapshotImage;
       widget.snapshotDataUrl = message.dataUrl;
       widget.snapshotHighResolution = pending.highResolution;
@@ -1923,6 +1977,15 @@
   }
   function selectedWidget() {
     return state.widgets.find((widget) => widget.id === state.selectedWidgetId) || null;
+  }
+  function releaseWidgetsForDrawing() {
+    // Seal edits before starting the stroke's history transaction. A previous
+    // click-to-front order must survive: only the temporary selection lift ends.
+    if (state.widgetEdit || state.selectedWidgetId) acceptWidgetEdit();
+    clearHandToolbarTargets("widget");
+    if (state.interactingWidgetId) setWidgetInteraction(null, { restoreTool:false });
+    // Remove the selected frost synchronously, before the first live sample.
+    syncSelectedWidgetMaterial(null);
   }
   function beginWidgetEdit(widget) {
     if (!widget || widget.pending) return false;
@@ -1951,6 +2014,7 @@
     options ||= {};
     const edit = state.widgetEdit;
     if (edit) clearHandToolbarTarget("widget", edit.id);
+    state.widgetGesture?.widget.shell?.classList.remove("is-resizing");
     state.widgetGesture = null;
     state.widgetEdit = null;
     state.selectedWidgetId = null;
@@ -1975,6 +2039,7 @@
       positionWidget(widget);
     }
     state.widgetHistoryBefore = null;
+    state.widgetGesture?.widget.shell?.classList.remove("is-resizing");
     state.widgetGesture = null;
     state.widgetEdit = null;
     state.selectedWidgetId = null;
@@ -2047,11 +2112,50 @@
     return "";
   }
   function syncWidgetResizeCursor(point, pointerType = "mouse") {
-    if (state.mode !== "select" || pointerType === "touch" || state.widgetGesture) return false;
-    const cursor = widgetResizeCursor(point, pointerType);
+    if (!["hand", "select"].includes(state.mode) || state.viewMode || state.spacePan || pointerType === "touch" || state.widgetGesture || state.imageGesture) return false;
+    const cursor = widgetResizeCursor(point, pointerType) || imageResizeCursor(point, pointerType);
     if (cursor) setCanvasCursor(cursor);
     else resetCanvasCursor();
     return Boolean(cursor);
+  }
+  let widgetFitRequestSequence = 0;
+  function requestWidgetContentFit(widget, hit) {
+    if (!widget || !["width", "height", "resize"].includes(hit) || state.viewMode || state.spacePan || !["hand", "select"].includes(state.mode)
+      || widget.maximized || !widget.hostReady || !widget.frame?.contentWindow) return false;
+    if (!widget.pending) beginWidgetEdit(widget);
+    const requestId = `widget-fit-${++widgetFitRequestSequence}`;
+    widget.contentFitRequest = { requestId, hit, start:widgetLayout(widget), html:widget.html };
+    widget.frame.contentWindow.postMessage({ type:"penecho-widget-fit-request", requestId, hit }, widget.hostOrigin || location.origin);
+    return true;
+  }
+  function applyWidgetContentFit(widget, message) {
+    const request = widget.contentFitRequest;
+    if (!request || message.requestId !== request.requestId) return false;
+    widget.contentFitRequest = null;
+    const start = request.start;
+    if (widget.html !== request.html || ["x", "y", "w", "h", "contentW", "contentH"].some((key) => widget[key] !== start[key])
+      || !Number.isFinite(message.width) || !Number.isFinite(message.height) || message.width <= 0 || message.height <= 0) {
+      sendWidgetHostState(widget, undefined, undefined, true);
+      return false;
+    }
+    const width = request.hit !== "height", height = request.hit !== "width";
+    const scaleX = start.w / start.contentW, scaleY = start.h / start.contentH;
+    if (width) {
+      widget.contentW = Math.max(start.contentW, Math.min(message.width, (SIZE - start.x) / scaleX));
+      widget.w = widget.contentW * scaleX;
+    }
+    if (height) {
+      widget.contentH = Math.max(start.contentH, Math.min(message.height, (SIZE - start.y) / scaleY));
+      widget.h = widget.contentH * scaleY;
+    }
+    const previous = widget.fitContent ? "resize" : widget.fitContentAxes;
+    widget.fitContentAxes = previous && previous !== request.hit ? "resize" : request.hit;
+    if (!widget.pending && state.widgetEdit?.id === widget.id) state.widgetEdit.changed = true;
+    positionWidget(widget);
+    sendWidgetHostState(widget, undefined, undefined, true);
+    refreshHandObjectToolbar();
+    requestInteractionLayerRender();
+    return true;
   }
   function resizeWidgetBox(start, point, hit, minimumWidth = 300, minimumHeight = 200, limit = SIZE) {
     const contentW = start.contentW ?? start.w,
@@ -2297,6 +2401,7 @@
   function finishWidgetGesture(event) {
     const gesture = state.widgetGesture;
     if (!gesture || gesture.id !== event.pointerId) return false;
+    gesture.widget.shell?.classList.remove("is-resizing");
     state.widgetGesture = null;
     resetCanvasCursor();
     if (gesture.changed && !gesture.pending && state.widgetEdit?.id === gesture.widget.id) state.widgetEdit.changed = true;
@@ -3103,7 +3208,7 @@
       state.panY = topInset + (availableHeight - viewerBounds.h * nextScale) / 2 - viewerBounds.y * nextScale;
       state.viewInitialized = true;
     } else if (!state.viewInitialized && r.width > 0 && r.height > 0) {
-      state.scale = Math.max(0.03, Math.min(2, Math.max(r.width, r.height) / 10000 / INITIAL_VIEWPORT_EXTENT_SCALE));
+      state.scale = INITIAL_CANVAS_SCALE;
       state.panX = (r.width - SIZE * state.scale) / 2;
       state.panY = (r.height - SIZE * state.scale) / 2;
       state.viewInitialized = true;
@@ -3416,7 +3521,7 @@
     context.restore();
   }
   function drawHandObjectToolbarOutlines(context) {
-    if (state.mode !== "select" || !state.handToolbarTargets.size) return;
+    if (!["select", "hand"].includes(state.mode) || !state.handToolbarTargets.size) return;
     const unit = 1 / state.scale;
     context.save();
     context.lineWidth = unit;
@@ -3943,10 +4048,10 @@
     syncObjectChrome();
     setStatusKey("widgetDownloading");
     try {
-      await requestWidgetSnapshot(widget, WIDGET_SNAPSHOT_TIMEOUT_MS, true, null, true);
-      if (!widget.snapshotDataUrl?.startsWith("data:image/png;base64,")) throw Error(t("widgetExportFailed"));
+      const snapshot = await requestWidgetSnapshot(widget, WIDGET_SNAPSHOT_TIMEOUT_MS, true, null, true, true);
+      if (!snapshot.dataUrl?.startsWith("data:image/png;base64,")) throw Error(t("widgetExportFailed"));
       const link = document.createElement("a");
-      link.href = widget.snapshotDataUrl;
+      link.href = snapshot.dataUrl;
       link.download = widgetImageFilename(widget);
       document.body.append(link);
       link.click();
@@ -3999,7 +4104,7 @@
   }
   const WIDGET_COPY_ICON_FEEDBACK_MS = 2000;
   const OBJECT_CHROME_ICONS = Object.freeze({
-    interact:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 14 9-7 1-3 7z"/></svg>',
+    interact:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>',
     move:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9V3M9 6l3-3 3 3M12 15v6M9 18l3 3 3-3M9 12H3M6 9l-3 3 3 3M15 12h6M18 9l3 3-3 3"/></svg>',
     accept:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7"/></svg>',
     cancel:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
@@ -4386,7 +4491,7 @@
     declaration?.setProperty("--widget-refine-confirm-y", `${position.y.toFixed(1)}px`);
   }
   function beginObjectChromeMove(event, spec) {
-    if (state.mode === "hand" && !state.viewMode && !state.spacePan && Number(event.button) === 0 && spec.target === "widget") setCanvasMode("select");
+    if (state.mode === "hand" && !state.viewMode && !state.spacePan && Number(event.button) === 0 && ["widget", "image", "animation"].includes(spec.target)) setCanvasMode("select");
     if (state.mode !== "select" || state.viewMode || state.spacePan || Number(event.button) !== 0) return false;
     const point = clientPoint(event);
     let started = false;
@@ -4832,7 +4937,7 @@
     const widget = state.interactingWidgetId
       ? state.widgets.find(item => item.id === state.interactingWidgetId && item.shell)
       : null;
-    if (!widget || !widgetRuntimeEnabled() || widget.renderActive === false) {
+    if (!widget || widget.maximized || !widgetRuntimeEnabled() || widget.renderActive === false) {
       if (widgetInteractionStatusElement) widgetInteractionStatusElement.hidden = true;
       return;
     }
@@ -4843,7 +4948,16 @@
       element.setAttribute("role", "status");
       element.setAttribute("aria-live", "polite");
       label.className = "widget-interaction-status-label";
-      element.append(label);
+      const maximize = document.createElement("button");
+      maximize.type = "button";
+      maximize.title = t("widgetMaximize");
+      maximize.setAttribute("aria-label", t("widgetMaximize"));
+      maximize.innerHTML = OBJECT_CHROME_ICONS.interact;
+      maximize.addEventListener("click", () => {
+        const current = state.widgets.find(item => item.id === state.interactingWidgetId);
+        if (current) switchWidgetPresentation(current, true);
+      });
+      element.append(label, maximize);
       view.append(element);
       widgetInteractionStatusElement = element;
     }

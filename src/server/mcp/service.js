@@ -5,8 +5,7 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const { createRemoteMcpChannels } = require("./remote.js");
 const net = require("node:net");
-const {lanClientBundle}=require("./lan-client-bundle.js");
-const { createLanService, isPrivateAddress, lanAddresses } = require("./lan-service.js");
+const { isPrivateAddress, lanAddresses } = require("./network-addresses.js");
 const { createDirectHttpService } = require("./direct-http-service.js");
 const { conversationBindings } = require("./conversation-bindings.js");
 const { importCredentials } = require("./discovery-client.js");
@@ -210,26 +209,6 @@ function createMcpService(options) {
     return directStart;
   }
 
-  const lan = createLanService({
-    stateDirectory:options.lanAddresses && !options.registryStateDirectory && !stateDirectory ? undefined : path.join(stateDirectory || registryDirectory,"lan"),
-    callTool, canEnable:() => !closed && canvases.size > 0,
-    ...(options.lanAddresses ? {getAddresses:options.lanAddresses} : {}),
-    disposeOwner(ownerId) {
-      for (const [id, session] of sessions) if (session.ownerId === ownerId) {
-        clearTimeout(session.updateTimer); clearTimeout(session.lostTimer);
-        session.pendingUpdate = null; session.lost = true;
-        for (const trace of session.pendingUpdateTraces) requestTracer?.queuedUpdateOutcome(trace, "failed", {applied:false,error:"LAN MCP disconnected."});
-        sessions.delete(id);
-        if (session.sessionKey) sessionKeys.delete(session.bindingKey || `${ownerId}\0${session.sessionKey}`);
-      }
-    },
-    onChange() {
-      for (const connection of connections) if (connection.canCopyLanSetup && connection.canvasId && !connection.closed && connection.ws.readyState === WebSocket.OPEN) {
-        try { connection.ws.send(JSON.stringify({type:"lan-status-changed"})); } catch {}
-      }
-    },
-  });
-
   function log(event) { try { logger(event); } catch {} }
 
   async function browserAuthorization(req) {
@@ -290,7 +269,6 @@ function createMcpService(options) {
     clearTimeout(connection.helloTimer);
     connections.delete(connection);
     if (connection.canvasId && canvases.get(connection.canvasId) === connection) canvases.delete(connection.canvasId);
-    if (!canvases.size) void lan.close();
     rejectPending(connection, bridgeError("canvas_disconnected", "The selected PenEcho canvas disconnected.", 409));
     for (const session of sessions.values()) if (session.connection === connection) {
       clearTimeout(session.updateTimer);
@@ -348,12 +326,6 @@ function createMcpService(options) {
         canvases.set(connection.canvasId, connection);
         if (previous && previous !== connection) { markDisconnected(previous); previous.ws.close(4001, "Canvas connection replaced"); }
         ws.send(JSON.stringify({ type:"ready", heartbeat:true, canvasId:connection.canvasId, instanceId }));
-        // An opted-in direct browser can restore an already configured LAN bridge
-        // after restart. Never create pairing credentials for Cloud or a new host.
-        const lanState = lan.status();
-        if (connection.canCopyLanSetup && !lanState.enabled && !lanState.identityError && lanState.fingerprint && lanState.invitation) {
-          void lan.action({action:"enable"}).catch(error => log({type:"mcp-lan-restore-error",errorCode:String(error?.code || "lan_unavailable").slice(0,80)}));
-        }
         return;
       }
       if (message.type === "ping") {
@@ -678,19 +650,6 @@ function createMcpService(options) {
 
   const remoteChannels = createRemoteMcpChannels({ attach:ws => wss.emit("connection", ws) });
 
-  function lanStatus() {
-    const value = lan.status();
-    if (record) {
-      try {
-        const bytes = lanClientBundle();
-        value.clientSha256 = crypto.createHash("sha256").update(bytes).digest("hex");
-        const address = value.urls.length ? new URL(value.urls[0]).hostname : (options.lanAddresses || lanAddresses)()[0];
-        if (address) value.clientUrl = `http://${address}:${record.port}/api/mcp/lan-client.js`;
-      } catch {}
-    }
-    return value;
-  }
-
   function statusPayload(canConfigureLocalClients = true, canCopyLanSetup = canConfigureLocalClients) {
     const http=direct.status();
     http.businessLimits={sessions:MAX_DIRECT_SESSIONS,sessionsPerOwner:businessOwnerLimit,idleMs:1800000,pressureIdleMs:60000};
@@ -710,21 +669,20 @@ function createMcpService(options) {
       instanceId,
       canConfigureLocalClients,
       canCopyLanSetup,
-      ...(canCopyLanSetup ? {lan:lanStatus()} : {}),
       ...(canCopyLanSetup ? {http} : {}),
-      config:canConfigureLocalClients ? http.enabled?{type:"stdio",command:launch.command,args:[path.join(registryDirectory,"mcp","client.js"),"--host-id",http.hostId,"--state-directory",path.join(registryDirectory,"mcp")],...(launch.env?{env:launch.env}:{})}:launch : null,
-      instructions:http.enabled?"Use the small stdio CLI to connect directly over HTTPS. The CLI loads shared host credentials and discovers changed addresses. The CLI keeps stdin open; 30-minute idle releases HTTP only. The next call tries the known IP, shared cache, then discovery before restoring the original Canvas. The application starts MCP automatically; each browser opts in separately. A new conversation defaults to the latest registered browser, and a sessionKey/documentId restores its existing Canvas.":"The HTTP service is starting. The legacy stdio entry remains available for compatibility.",
+      config:canConfigureLocalClients ? http.enabled?{type:"stdio",command:launch.command,args:[path.join(registryDirectory,"mcp","client.js"),"--host-id",http.hostId,"--state-directory",path.join(registryDirectory,"mcp")],...(launch.env?{env:launch.env}:{})}:null : null,
+      instructions:http.enabled?"Use the small stdio CLI to connect directly over HTTPS. The CLI loads shared host credentials and discovers changed addresses. The CLI keeps stdin open; 30-minute idle releases HTTP only. The next call tries the known IP, shared cache, then discovery before restoring the original Canvas. The application starts MCP automatically; each browser opts in separately. A new conversation defaults to the latest registered browser, and a sessionKey/documentId restores its existing Canvas.":"The HTTP service is unavailable. Wait for the host service to become available before configuring a client.",
     };
   }
 
   async function handleHttp(req, res, suppliedUrl) {
     let url;
     try { url = suppliedUrl instanceof URL ? suppliedUrl : new URL(req.url, "http://localhost"); } catch { return false; }
-    if (!["/api/mcp/status", "/api/mcp/configure", "/api/mcp/rpc", "/api/mcp/lan", "/api/mcp/http", "/api/mcp/lan-client.js", "/api/mcp/discovery-client.js", "/api/mcp/session-client.js"].includes(url.pathname)) return false;
+    if (!["/api/mcp/status", "/api/mcp/configure", "/api/mcp/rpc", "/api/mcp/http", "/api/mcp/discovery-client.js", "/api/mcp/session-client.js"].includes(url.pathname)) return false;
     try {
-      if (["/api/mcp/lan-client.js","/api/mcp/discovery-client.js","/api/mcp/session-client.js"].includes(url.pathname)) {
+      if (["/api/mcp/discovery-client.js","/api/mcp/session-client.js"].includes(url.pathname)) {
         if (req.method !== "GET") throw bridgeError("method_not_allowed", "Method Not Allowed", 405);
-        const bytes = url.pathname.endsWith("/session-client.js")?sessionClientBundle():url.pathname.endsWith("/discovery-client.js")?discoveryClientBundle():lanClientBundle();
+        const bytes = url.pathname.endsWith("/session-client.js")?sessionClientBundle():discoveryClientBundle();
         res.writeHead(200, {"content-type":"text/javascript; charset=utf-8", "content-length":bytes.length, "cache-control":"no-store", "x-content-type-options":"nosniff"});
         res.end(bytes); return true;
       }
@@ -738,9 +696,9 @@ function createMcpService(options) {
         if (body?.operation !== "call" || typeof body.name !== "string") throw bridgeError("invalid_operation", "MCP bridge operation is invalid.", 400);
         return sendJson(res, 200, { result:await callTool(ownerId, body.name, body.arguments, { signal:requestSignal(req, res) }) }), true;
       }
-      if (!["GET", "POST"].includes(req.method) || ["/api/mcp/configure", "/api/mcp/lan", "/api/mcp/http"].includes(url.pathname) && req.method !== "POST") throw bridgeError("method_not_allowed", "Method Not Allowed", 405);
+      if (!["GET", "POST"].includes(req.method) || ["/api/mcp/configure", "/api/mcp/http"].includes(url.pathname) && req.method !== "POST") throw bridgeError("method_not_allowed", "Method Not Allowed", 405);
       const canConfigureLocalClients = browserAddressAllowed(req.socket.remoteAddress);
-      if (["/api/mcp/configure", "/api/mcp/lan", "/api/mcp/http"].includes(url.pathname) && !canConfigureLocalClients) throw localHostRequired();
+      if (["/api/mcp/configure", "/api/mcp/http"].includes(url.pathname) && !canConfigureLocalClients) throw localHostRequired();
       if (await browserAuthorization(req)) throw bridgeError("forbidden", "Forbidden", 403);
       if(record&&options.autoStartHttp!==false&&url.pathname!=="/api/mcp/http")await startDirect();
       if (url.pathname === "/api/mcp/status") {
@@ -758,14 +716,10 @@ function createMcpService(options) {
         await direct.reset();directStart=null;await startDirect();
         return sendJson(res,200,{http:statusPayload().http}),true;
       }
-      if (url.pathname === "/api/mcp/lan") {
-        if (req.method !== "POST") throw bridgeError("method_not_allowed", "Method Not Allowed", 405);
-        try { await lan.action(body || {}); }
-        catch (error) { throw bridgeError("lan_error", error.message, error.status || 500); }
-        return sendJson(res, 200, {lan:lanStatus()}), true;
-      }
       if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some(key => key !== "client")) throw bridgeError("invalid_client", "Choose Codex or Claude.", 400);
-      const result = await configureClient(body.client, statusPayload().config, { rootDirectory, stateDirectory });
+      const config = statusPayload().config;
+      if (!config) throw bridgeError("http_unavailable", "The HTTP MCP service is unavailable.", 503);
+      const result = await configureClient(body.client, config, { rootDirectory, stateDirectory });
       return sendJson(res, result.configured ? 200 : 422, result), true;
     } catch (error) {
       const normalized = error instanceof McpBridgeError ? error : bridgeError("mcp_bridge_error", "PenEcho MCP request failed.", 500);
@@ -799,7 +753,6 @@ function createMcpService(options) {
     if (closed) return;
     closed = true;
     await direct.close();
-    await lan.close();
     remoteChannels.close();
     clearInterval(heartbeatTimer);
     server.off("upgrade", upgrade);

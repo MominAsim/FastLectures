@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#eef0f3">
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/png" href="penecho-mark.png">
   <title>PenEcho | Handwritten AI Canvas</title>
   <script src="/api/config.js"></script>
   <script src="page-scale.js"></script>
@@ -686,17 +686,6 @@
             <div><button id="canvasAgentApprovalReject" type="button" data-i18n="canvasAgentApprovalReject" data-pe-button="secondary" data-pe-density="compact">Reject</button><button id="canvasAgentApprovalAllow" type="button" data-i18n="canvasAgentApprovalAllow" data-pe-button="primary" data-pe-density="compact">Allow once</button></div>
           </section>
           <form id="canvasAgentForm" class="canvas-agent-composer">
-            <div id="canvasProcessorRow" class="canvas-processor-row" hidden>
-              <label id="canvasProcessorLabel" for="canvasProcessorSelect">Send to</label>
-              <select id="canvasProcessorSelect" data-pe-control="select" aria-describedby="canvasProcessorHelp"><option value="penecho">PenEcho Agent</option></select>
-              <span id="canvasProcessorHelp"></span>
-            </div>
-            <div id="canvasExternalMessage" class="canvas-external-message" hidden>
-              <select id="canvasExternalMessageSelect" aria-label="External instructions"></select>
-              <span id="canvasExternalMessageText" role="status" aria-live="polite"></span>
-              <button id="canvasExternalMessageRetry" type="button" data-pe-button="secondary" data-pe-density="compact">Retry</button>
-              <button id="canvasExternalMessageCancel" type="button" data-pe-button="secondary" data-pe-density="compact">Cancel</button>
-            </div>
             <p id="canvasAgentInputHint" class="canvas-agent-input-hint" data-i18n="canvasAgentInputHint">Type or use the Pen button to write by hand. Reference a Widget, then ask Agent to extract canvas handwriting, inspect source, arrange content, or edit the Widget.</p>
             <div class="canvas-agent-composer-surface">
               <div class="canvas-agent-composer-toolbar" data-pe-region="toolbar">
@@ -1274,7 +1263,7 @@
           </section>
           <div class="settings-group settings-system-group">
             <div class="settings-fields two-column">
-              <label><span data-i18n="settingsMaxTokens">Maximum response tokens</span><span class="settings-input-unit"><input id="settingsMaxTokens" name="maxTokens" type="number" min="15001" step="1" required><small>tokens</small></span><small data-i18n="settingsMaxTokensHelp">Includes thinking tokens. Default 20,000; must be larger than 15,000. Low limits may be exhausted during reasoning.</small></label>
+              <label><span data-i18n="settingsMaxTokens">Maximum response tokens</span><span class="settings-input-unit"><input id="settingsMaxTokens" name="maxTokens" type="number" min="15001" step="1" required><small>tokens</small></span><small data-i18n="settingsMaxTokensHelp">Includes thinking tokens. Default 63,000; must be larger than 15,000. Low limits may be exhausted during reasoning.</small></label>
               <label><span data-i18n="settingsAgentTurnLimit">PenEcho Agent rounds per request</span><span class="settings-input-unit"><input id="settingsAgentTurnLimit" name="canvasAgentTurnLimit" type="number" min="50" step="1" required><small data-i18n="settingsAgentTurnLimitUnit">rounds</small></span><small data-i18n="settingsAgentTurnLimitHelp">Stops only the current request at the limit. Results and conversation stay available so the next message can continue. Default 100.</small></label>
               <label><span data-i18n="settingsTimeout">No-activity timeout</span><span class="settings-input-unit"><input id="settingsTimeout" name="timeoutSeconds" type="number" min="10" max="600" step="1" required><small>s</small></span><small data-i18n="settingsTimeoutHelp">Resets when model output, tool activity, or progress arrives. There is no fixed total-time limit.</small></label>
             </div>

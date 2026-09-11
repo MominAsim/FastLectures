@@ -54,11 +54,10 @@ Para instalar pelo npm, você precisa do [Node.js 22.19 ou mais recente](https:/
 
 ```bash
 npm install -g penecho
-penecho configure
 penecho
 ```
 
-Abra [http://localhost:3888](http://localhost:3888). O comando `penecho configure` permite escolher de forma interativa a fonte de LLM, o modelo, o nível de raciocínio, o tempo limite, o formato de imagem e a interface de rede. Por padrão, as configurações ficam em `~/.penecho/config.env`; as credenciais de API nunca são enviadas ao navegador.
+Abra [http://localhost:3888](http://localhost:3888) e adicione conexões de API ou CLI em **Configurações → Conexões**. As conexões são salvas em `~/.penecho/connections.json`; as configurações gerais permanecem em `~/.penecho/config.env`.
 
 Para executar a partir do código-fonte:
 

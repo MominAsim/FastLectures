@@ -533,7 +533,7 @@ test("Select exposes one focused object toolbar, drags from its surface, and exp
   assert.deepEqual({ ...chromePosition({ x:100, y:100, w:300, h:260 }, "toolbar", "", { objectToolbar:true, minimumWidth:100, baseHeight:34 }) }, { x:100, y:-114, scale:1, baseWidth:300, baseHeight:34 });
   assert.doesNotMatch(app, /function drawHandModeOutlines\(/);
   const handToolbarOutlines = functionSource(app, "drawHandObjectToolbarOutlines");
-  assert.match(handToolbarOutlines, /state\.mode !== "select"[\s\S]*?state\.handToolbarTargets\.values\(\)[\s\S]*?if \(!record\.expanded \|\| record\.kind === "widget"\) continue[\s\S]*?imageBox\(object\)[\s\S]*?animationBox\(object\)[\s\S]*?textBoxBox\(object\)[\s\S]*?record\.kind === "image" \? state\.paint\.border \|\| "#d8dbe2" : "rgba\(38, 121, 184, 0\.42\)"[\s\S]*?strokeRect/);
+  assert.match(handToolbarOutlines, /!\["select", "hand"\]\.includes\(state\.mode\)[\s\S]*?state\.handToolbarTargets\.values\(\)[\s\S]*?if \(!record\.expanded \|\| record\.kind === "widget"\) continue[\s\S]*?imageBox\(object\)[\s\S]*?animationBox\(object\)[\s\S]*?textBoxBox\(object\)[\s\S]*?record\.kind === "image" \? state\.paint\.border \|\| "#d8dbe2" : "rgba\(38, 121, 184, 0\.42\)"[\s\S]*?strokeRect/);
   assert.doesNotMatch(handToolbarOutlines, /widgetBox\(object\)/);
   assert.match(functionSource(app, "renderInteractionLayer"), /drawHandObjectToolbarOutlines\(interactionCtx\)/);
   assert.match(chromeSpecs, /for \(const \[key, record\] of state\.handToolbarTargets\)/);
@@ -832,6 +832,7 @@ test("stylus eraser ends and Apple Pencil bridge actions preserve Canvas tool se
     supersedeActiveAI:() => pointerCalls.push("supersede"),
     clearTimeout() {},
     hideWidgetRefineHint() {},
+    releaseWidgetsForDrawing() {},
     clearWidgetRefineCandidate:() => pointerCalls.push("clear-refine"),
     noteCanvasChromeInteraction() {},
     logicalWidth:(value) => value,
@@ -1589,7 +1590,7 @@ test("AI waiting uses a spatial echo and quiet copy for the real request lifetim
   assert.doesNotMatch(bootstrap, /summon-effect-option|setSummonEffect|previewSummon/);
 });
 
-test("new canvases open with a 0.8x initial viewport extent without overriding restored views", () => {
+test("new canvases open at 50% without overriding restored views", () => {
   const core = read("src/client/app/core.js"),
     canvas = read("src/client/app/canvas-runtime.js"),
     persistence = read("src/client/app/persistence.js"),
@@ -1602,7 +1603,7 @@ test("new canvases open with a 0.8x initial viewport extent without overriding r
     liveInkLayer = {},
     interactionLayer = {},
     fit = vm.runInNewContext(`(${fitSource})`, {
-      INITIAL_VIEWPORT_EXTENT_SCALE:0.8,
+      INITIAL_CANVAS_SCALE:0.5,
       SIZE:20000,
       viewerAutoFitWidgetId:null,
       viewerAutoFitCanvas:false,
@@ -1621,10 +1622,10 @@ test("new canvases open with a 0.8x initial viewport extent without overriding r
       updateCoordinates:() => {},
       requestRender:() => {},
     });
-  assert.match(core, /INITIAL_VIEWPORT_EXTENT_SCALE\s*=\s*0\.8,/);
-  assert.match(fitSource, /Math\.max\(r\.width,\s*r\.height\)\s*\/\s*10000\s*\/\s*INITIAL_VIEWPORT_EXTENT_SCALE/);
+  assert.match(core, /INITIAL_CANVAS_SCALE\s*=\s*0\.5,/);
+  assert.match(fitSource, /state\.scale = INITIAL_CANVAS_SCALE/);
   fit();
-  assert.equal(state.scale, 0.15);
+  assert.equal(state.scale, 0.5);
   assert.equal(state.panX + 10000 * state.scale, 600);
   assert.equal(state.panY + 10000 * state.scale, 400);
   assert.match(functionSource(persistence, "startBlankCanvas"), /state\.viewInitialized\s*=\s*false;[\s\S]*?fit\(\)/);
@@ -1638,7 +1639,7 @@ test("the public Viewer camera fits a Widget in phone portrait and landscape", (
     screen = {}, animationLayer = {}, placedContentLayer = {}, inkLayer = {}, liveInkLayer = {}, interactionLayer = {};
   let rect = { left:0, top:0, width:375, height:667 };
   const fit = vm.runInNewContext(`(${fitSource})`, {
-    INITIAL_VIEWPORT_EXTENT_SCALE:0.8,
+    INITIAL_CANVAS_SCALE:0.5,
     SIZE:20000,
     viewerAutoFitWidgetId:widget.id,
     viewerAutoFitCanvas:false,
@@ -1695,7 +1696,7 @@ test("the public Viewer camera fits every object in a restored Canvas", () => {
       return { x, y, w:right - x, h:bottom - y };
     },
     fit = vm.runInNewContext(`(${fitSource})`, {
-      INITIAL_VIEWPORT_EXTENT_SCALE:0.8,
+      INITIAL_CANVAS_SCALE:0.5,
       SIZE:20000,
       viewerAutoFitWidgetId:null,
       viewerAutoFitCanvas:true,
@@ -2324,7 +2325,7 @@ test("last-clicked images, TextBoxes, text inputs, and HTML Widgets share the fr
     layerStyles.get("image-material-layer-stack").zIndex,
     layerStyles.get("placed-content-layer-stack").zIndex,
     layerStyles.get("text-editor-layer-stack")["--text-editor-layer-z"],
-  ], ["3", "1", "1", "1"]);
+  ], ["2", "1", "1", "1"]);
   layerState.frontCanvasObjectKind = "text-box";
   layerState.frontPlacedCanvasObjectKind = "text-box";
   syncCanvasObjectLayerOrder();
@@ -5044,7 +5045,7 @@ test("Widget right-click lists the toolbar without decisions and interaction sho
     chromeSpecs = functionSource(app, "objectChromeSpecs"),
     widgetBranch = chromeSpecs.slice(chromeSpecs.indexOf("prefix:`widget:${handTarget.id}`"), chromeSpecs.indexOf("pendingChromeSpecs(specs, state.pending)"));
 
-  assert.match(app, /view\.addEventListener\('dblclick'[\s\S]*?canvasWidgetAtEvent\(event\)[\s\S]*?enterWidgetInteraction\(widget\)/);
+  assert.match(app, /view\.addEventListener\('dblclick'[\s\S]*?handObjectToolbarTargetAtPoint\(clientPoint\(event\)\)[\s\S]*?showImagePresentation\(target\.object\)[\s\S]*?enterWidgetInteraction\(target\.object\)/);
   assert.match(app, /view\.addEventListener\('contextmenu', \(event\) => \{ showWidgetContextToolbar\(event\); \}\)/);
   assert.doesNotMatch(app, /screen\.addEventListener\("contextmenu"/);
   assert.match(functionSource(app, "showWidgetContextToolbar"), /event\.preventDefault\(\)[\s\S]*?state\.viewMode \|\| state\.spacePan \|\| state\.interactingWidgetId[\s\S]*?\["pen", "hand", "select"\]\.includes\(state\.mode\)[\s\S]*?canvasWidgetAtEvent\(event\)[\s\S]*?showHandObjectToolbar\("widget", widget\)/);

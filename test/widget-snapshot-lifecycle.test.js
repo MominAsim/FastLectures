@@ -5,7 +5,7 @@ function chunk(start,end){return source.slice(source.indexOf(start),source.index
 test("snapshot owner prevents overlapping capture and releases after completion",async()=>{
   let finish;const messages=[];
   const context=vm.createContext({parent:{postMessage:m=>messages.push(m)},runtimeVersion:3,scienceMode:false,
-    snapshotDebugLog:()=>{},snapshotDocument:()=>new Promise(r=>{finish=r;}),scienceSnapshot:()=>{},});
+    schedulePresentationSize:()=>{},snapshotDebugLog:()=>{},snapshotDocument:()=>new Promise(r=>{finish=r;}),scienceSnapshot:()=>{},});
   vm.runInContext(chunk('    let activeSnapshot =','    async function snapshotPrimarySvg'),context);
   const first=context.snapshot({requestId:"first"});
   await context.snapshot({requestId:"second"});
@@ -17,12 +17,14 @@ test("snapshot owner prevents overlapping capture and releases after completion"
   await context.snapshot({requestId:"draining"});assert.equal(messages[1].details.stage,"render-draining");
 });
 test("readiness consumes the same capture deadline",()=>{
-  const messages=[],errors=[];
+  const messages=[],errors=[],order=[];
   const context=vm.createContext({innerDocumentReady:true,performance:{now:()=>5000},snapshotDebugLog:()=>{},
-    inner:{contentWindow:{postMessage:m=>messages.push(m)}},snapshotError:(...args)=>errors.push(args)});
+    forwardWidgetState:()=>order.push("state"),
+    inner:{contentWindow:{postMessage:m=>{order.push("snapshot");messages.push(m);}}},snapshotError:(...args)=>errors.push(args)});
   vm.runInContext(chunk('  function forwardSnapshotRequest(', '  async function proxyPublicFetch('),context);
   context.forwardSnapshotRequest("ok",{timeoutMs:10000,startedAt:1000,requestedWidth:500,requestedHeight:300});
   assert.equal(messages[0].timeoutMs,5750);
+  assert.deepEqual(order,["state","snapshot"]);
   context.forwardSnapshotRequest("expired",{timeoutMs:4000,startedAt:1000});
   assert.equal(messages.length,1);assert.equal(errors[0][2],"WIDGET_READY_TIMEOUT");
 });
