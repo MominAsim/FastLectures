@@ -98,6 +98,57 @@
     }
   });
 
+  // Only the actual Canvas-owned host frames can use this public GET channel.
+  // Resolve the pinned device at request time; the relay verifies current ownership
+  // and liveness, so an offline device can reconnect without a stale status cache.
+  function ownsWidgetHost(source) {
+    return [...document.querySelectorAll(".canvas-widget .canvas-widget-frame")].some((frame) => {
+      if (frame.contentWindow !== source) return false;
+      try {
+        const url = new URL(frame.src, location.href);
+        return url.origin === location.origin && url.pathname === "/canvas/widget-host.html";
+      } catch { return false; }
+    });
+  }
+  async function fetchWidgetPublicData(url) {
+    await bridgeGate;
+    const headers = csrfHeaders();
+    if (bridgeDeviceId) {
+      const path = `/api/widget-fetch?url=${encodeURIComponent(url)}`;
+      const response = await nativeFetch(`/api/v1/remote-canvas/http?path=${encodeURIComponent(path)}&deviceId=${encodeURIComponent(bridgeDeviceId)}`, {
+        method:"GET", credentials:"same-origin", cache:"no-store", headers,
+      });
+      if (response.ok) return response;
+      const failure = await response.clone().json().catch(() => ({}));
+      if (response.status !== 409 || failure.error !== "device_offline") return response;
+    }
+    return nativeFetch(`/api/v1/widget-fetch?url=${encodeURIComponent(url)}`, { method:"GET", credentials:"same-origin", cache:"no-store", headers });
+  }
+  window.addEventListener("message", (event) => {
+    const message = event.data;
+    if (event.origin !== location.origin || !event.source || message?.type !== "penecho-widget-host-public-fetch"
+      || !ownsWidgetHost(event.source) || typeof message.requestId !== "string" || !/^widget-fetch-\d{1,16}$/.test(message.requestId)
+      || typeof message.url !== "string" || message.url.length > 16384) return;
+    let url;
+    try { url = new URL(message.url); } catch { return; }
+    if (url.protocol !== "https:" || url.username || url.password) return;
+    const reply = (payload, transfer = []) => {
+      if (ownsWidgetHost(event.source)) event.source.postMessage({ type:"penecho-widget-host-public-fetch-result", requestId:message.requestId, ...payload }, location.origin, transfer);
+    };
+    void (async () => {
+      try {
+        const response = await fetchWidgetPublicData(url.href), body = await response.arrayBuffer();
+        if (body.byteLength > 5 * 1024 * 1024) throw Error("The public data response is too large");
+        const headers = {};
+        for (const name of ["content-type", "x-penecho-upstream-status", "x-penecho-final-url"]) {
+          const value = response.headers.get(name);
+          if (value) headers[name] = value;
+        }
+        reply({ status:response.status, headers, body }, [body]);
+      } catch (error) { reply({ error:String(error?.message || "The public data request failed").slice(0, 300) }); }
+    })();
+  });
+
   function nextCanvasPaint() {
     return new Promise((resolve) => {
       if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));

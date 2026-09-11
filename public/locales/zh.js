@@ -1079,6 +1079,8 @@ window.PENECHO_LOCALES.zh = {
   settingsHostedBrowserNotice: "使用 PenEcho 模型编辑当前画布并保存到云端。自己的连接、本地文件和设备设置需要已连接的设备。",
   canvasAgentCloudContext: "云端画布",
   canvasAgentCloudContextHelp: "此连接可操作当前画布。使用设备连接可访问本地文件夹和文件。",
+  canvasAgentCloudFileFormats: "云端文档支持 PDF 文字层、DOCX、XLSX、CSV、TXT、MD、JSON，每份不超过 8 MiB；不支持扫描 PDF 或 OCR。上传 30 天后过期清理。",
+  canvasAgentCloudFileScopeChanged: "附件属于其他 Agent 连接或会话，请移除后在当前会话重新添加。草稿已保留。",
   canvasAgentCloudFilesHelp: "云端 Agent 支持图片和当前画布。文档或本地文件请使用设备连接，输入的草稿已保留。",
   settingsHostedLinkDevice: "连接设备 ↗",
   settingsHostedLoading: "正在获取可用模型…",

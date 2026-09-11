@@ -602,6 +602,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsHostedBrowserNotice: "Use PenEcho models to edit this Canvas and save to Cloud. Your own connections, local files and device settings need a linked device.",
       canvasAgentCloudContext: "Cloud Canvas",
       canvasAgentCloudContextHelp: "This connection works with the current Canvas. Use a device connection for local folders and files.",
+      canvasAgentCloudFileFormats: "Cloud documents: PDF text layer, DOCX, XLSX, CSV, TXT, MD, JSON; up to 8 MiB each. No scanned PDFs or OCR. Files expire 30 days after upload.",
+      canvasAgentCloudFileScopeChanged: "This file belongs to another Agent connection or conversation. Remove it and attach it again here. Your draft is kept.",
       canvasAgentCloudFilesHelp: "Cloud Agent accepts images and the current Canvas. For documents or local files, select a device connection. Your draft is kept.",
       settingsHostedLinkDevice: "Link a device ↗",
       settingsHostedLoading: "Loading available models…",

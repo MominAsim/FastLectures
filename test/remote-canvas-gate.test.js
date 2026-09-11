@@ -43,7 +43,7 @@ function flatten(root) {
   return out;
 }
 
-function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.penecho.test/canvas/", language = "en-US", respond, openCanvas, takeFurther, widgetFrames = [], nativeReads = false } = {}) {
+function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.penecho.test/canvas/", language = "en-US", respond, openCanvas, takeFurther, widgetFrames = [], nativeReads = false, fetchResponse } = {}) {
   const topRow = new FakeElement("div");
   topRow.className = "top-row";
   const brand = new FakeElement("div");
@@ -60,7 +60,7 @@ function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.pene
       if (selector === ".remote-canvas-status") return flatten(topRow).find((el) => el.className === "remote-canvas-status") || null;
       return null;
     },
-    querySelectorAll:(selector) => selector === ".canvas-widget:not(.widget-offscreen) .canvas-widget-frame" ? widgetFrames : [],
+    querySelectorAll:(selector) => [".canvas-widget:not(.widget-offscreen) .canvas-widget-frame", ".canvas-widget .canvas-widget-frame"].includes(selector) ? widgetFrames : [],
     getElementById:() => null,
   };
   const redirects = [];
@@ -98,7 +98,7 @@ function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.pene
       if (outcome instanceof Error) throw outcome;
       return { ok:true, status:200, json:async () => outcome };
     }
-    return { ok:true, status:200, json:async () => ({}) };
+    return fetchResponse ? fetchResponse(String(url), options) : { ok:true, status:200, json:async () => ({}) };
   };
   const context = {
     window:windowObject, document, location, navigator:{ language },
@@ -477,4 +477,45 @@ test("fresh account status restores a hosted Agent capability missing from cache
   assert.equal(run.window.PENECHO_REMOTE_CLOUD_STATUS.credits,995.3);
   assert.equal(run.gate.hidden,true);
   assert.deepEqual(run.opened,[CANVAS_ID]);
+});
+
+for (const mode of ["online", "offline", "absent", "denied"]) {
+  test(`Widget parent public fetch uses authoritative pinned device: ${mode}`, async () => {
+    const replies = [], deviceId = "123e4567-e89b-42d3-a456-426614174001";
+    const source = { postMessage:(message, origin) => replies.push({ message, origin }) };
+    const frame = { contentWindow:source, src:"https://cloud.penecho.test/canvas/widget-host.html?remote-canvas=1" };
+    const run = boot({ nativeReads:true, widgetFrames:[frame],
+      respond:() => ({ device:mode === "absent" ? null : { id:deviceId, online:mode !== "offline", name:"Pinned host", platform:"mac" } }),
+      fetchResponse:(url) => url.startsWith("/api/v1/remote-canvas/http") && ["offline", "denied"].includes(mode)
+        ? Response.json({ error:mode === "offline" ? "device_offline" : "forbidden" }, { status:mode === "offline" ? 409 : 403 })
+        : new Response("public bytes", { headers:{ "content-type":"text/plain", "x-penecho-upstream-status":"201" } }),
+    });
+    await flush();
+    run.window.dispatchMessage({ type:"penecho-widget-capture-ready" }, source);
+    run.window.dispatchMessage({ type:"penecho-widget-host-public-fetch", requestId:"widget-fetch-1", url:"https://example.org/data?a=b" }, source);
+    await flush();
+    const calls = run.fetchCalls.filter(call => !call.url.startsWith("/api/v1/remote-canvas/status"));
+    assert.equal(calls.length, mode === "offline" ? 2 : 1);
+    const first = new URL(calls[0].url, "https://cloud.penecho.test");
+    assert.equal(first.pathname, mode === "absent" ? "/api/v1/widget-fetch" : "/api/v1/remote-canvas/http");
+    if (mode !== "absent") {
+      assert.equal(first.searchParams.get("deviceId"), deviceId);
+      assert.equal(first.searchParams.get("path"), "/api/widget-fetch?url=https%3A%2F%2Fexample.org%2Fdata%3Fa%3Db");
+    }
+    for (const call of calls) { assert.equal(call.options.method, "GET"); assert.equal(call.options.body, undefined); }
+    assert.equal(replies.length, 1);
+    assert.equal(replies[0].origin, "https://cloud.penecho.test");
+    assert.equal(replies[0].message.status, mode === "denied" ? 403 : 200);
+    if (mode !== "denied") assert.equal(new TextDecoder().decode(replies[0].message.body), "public bytes");
+  });
+}
+
+test("Widget parent refuses foreign origin and unowned frames", async () => {
+  const source = { postMessage:() => {} }, run = boot({ nativeReads:true });
+  await flush();
+  const message = { type:"penecho-widget-host-public-fetch", requestId:"widget-fetch-1", url:"https://example.org/data" };
+  run.window.dispatchMessage(message, source);
+  run.window.dispatchMessage(message, source, "https://other.test");
+  await flush();
+  assert.equal(run.fetchCalls.length, 1);
 });

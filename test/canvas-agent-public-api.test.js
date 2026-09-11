@@ -278,7 +278,7 @@ test("public_api verify accepts an arbitrary HTTPS endpoint and keeps runtime ve
   assert.equal(result.value.runtime_verified, false);
 });
 
-test("publicWeb capability removes public_api while enabled Search keeps web alternatives", async t => {
+test("publicWeb capability keeps public_api while disabling web alternatives", async t => {
   const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-public-api-capability-"));
   t.after(() => fs.rmSync(stateDirectory, { recursive:true, force:true }));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
@@ -308,7 +308,7 @@ test("publicWeb capability removes public_api while enabled Search keeps web alt
   await host.submit(session, "List the available tools.");
   await waitFor(() => messages.some(message => message.type === "session_event" && message.payload.kind === "turn_end"));
   const disabledNames = toolNames(requestFor(calls[0]));
-  assert.equal(disabledNames.includes("public_api"), false);
+  assert.ok(disabledNames.includes("public_api"));
   assert.equal(disabledNames.includes("web_read"), false);
   assert.equal(disabledNames.includes("duckduckgo_search"), false);
   await assert.rejects(
@@ -388,11 +388,59 @@ test("native runtime exposes public_api dynamically and returns first-use guidan
 
   const { runtime:disabledRuntime } = await createNativeRuntimeFixture(t, {
     publicWebEnabled:false,
+    webSearchEnabled:true,
     discovery:fixture.discovery,
   });
   const disabledNames = disabledRuntime.dynamicTools().find(entry => entry.name === "penecho").tools.map(tool => tool.name);
-  assert.equal(disabledNames.includes("public_api"), false);
+  assert.ok(disabledNames.includes("public_api"));
   assert.equal(disabledNames.includes("web_read"), false);
+  assert.equal(disabledNames.includes("duckduckgo_search"), false);
+
+  const restrictedSearchCalls = [], restrictedVerifyCalls = [], restrictedFetchCalls = [];
+  const restrictedFixture = discoveryFixture({
+    search:async ({ query, limit, offline }) => {
+      restrictedSearchCalls.push({ query, limit, offline });
+      return { action:"search", query, offline, results:[{ id:"restricted-result" }].slice(0, limit) };
+    },
+    verify:async args => {
+      restrictedVerifyCalls.push(args);
+      restrictedFetchCalls.push(args.url);
+      return { action:"verify", status:"ok", runtime_verified:false };
+    },
+  });
+  const { runtime:restrictedRuntime, session:restrictedSession } = await createNativeRuntimeFixture(t, {
+    publicWebEnabled:false,
+    webSearchEnabled:true,
+    discovery:restrictedFixture.discovery,
+  });
+  let discoveryLoads = 0;
+  const loadDiscovery = restrictedSession.loadPublicApiDiscovery;
+  restrictedSession.loadPublicApiDiscovery = async (...args) => {
+    discoveryLoads += 1;
+    return loadDiscovery(...args);
+  };
+  const restrictedTool = restrictedRuntime.tool("public_api");
+  assert.ok(restrictedTool);
+  const restrictedSearch = await restrictedTool.execute(
+    { action:"search", query:"offline-only", limit:1 },
+    { callId:"native-public-api-disabled-search", signal:new AbortController().signal },
+  );
+  assert.equal(restrictedSearch.offline, true, "publicWeb=false forces catalog search offline even when Search is enabled");
+  assert.deepEqual(restrictedSearchCalls, [{ query:"offline-only", limit:1, offline:true }]);
+  assert.equal(discoveryLoads, 1);
+
+  const blockedVerify = await restrictedTool.execute(
+    { action:"verify", url:"https://outside-the-catalog.example/v1/data" },
+    { callId:"native-public-api-disabled-verify", signal:new AbortController().signal },
+  );
+  assert.deepEqual(blockedVerify, {
+    status:"unavailable",
+    reason:"public_web_disabled",
+    runtime_verified:false,
+  });
+  assert.equal(discoveryLoads, 1, "disabled verify must not load public API discovery");
+  assert.equal(restrictedVerifyCalls.length, 0, "disabled verify must not call the discovery service");
+  assert.equal(restrictedFetchCalls.length, 0, "disabled verify must not fetch the endpoint");
 });
 
 test("Codex Native session wires public_api through the host discovery loader", async t => {

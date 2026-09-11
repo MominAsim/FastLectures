@@ -737,7 +737,7 @@
   }
   async function canvasAgentProjectRequest(path, options = {}) {
     const response=await fetch(path,{cache:"no-store",credentials:"same-origin",...options,headers:{accept:"application/json",...(options.body?{"content-type":"application/json"}:{}),...(options.headers||{})}}),body=await response.json().catch(()=>({}));
-    if(!response.ok)throw Object.assign(Error(body?.error||`Project request failed (HTTP ${response.status}).`),{code:String(body?.code||""),status:response.status});
+    if(!response.ok)throw Object.assign(Error(body?.message||body?.error||`Project request failed (HTTP ${response.status}).`),{code:String(body?.code||""),status:response.status});
     return body;
   }
   function canvasAgentProjectById(id=canvasAgent.projectId) {
@@ -1152,6 +1152,27 @@
       return false;
     }finally{canvasAgentProjectRemoveConfirm.removeAttribute("aria-busy");}
   }
+  function canvasAgentCloudFileScope() {
+    const canvasId=location.pathname.match(/^\/canvas\/([0-9a-f-]{36})\/?$/i)?.[1],conversationId=canvasAgent.currentConversation?.id;
+    if(!canvasId||!conversationId)throw Error(t("canvasAgentCloudFileScopeChanged"));
+    return {canvasId,conversationId};
+  }
+  function canvasAgentCloudFilesPath(scope) {
+    return `/api/v1/hosted/canvases/${encodeURIComponent(scope.canvasId)}/files/${encodeURIComponent(scope.conversationId)}`;
+  }
+  async function canvasAgentUploadCloudFile(file) {
+    if(window.PENECHO_CONFIG?.hostedDocumentFiles!==true)throw Error(t("canvasAgentCloudFilesHelp"));
+    if(!/\.(pdf|docx|xlsx|csv|txt|md|json)$/i.test(file.name)||file.size>8*1024*1024)throw Error(t("canvasAgentCloudFileFormats"));
+    const scope=canvasAgentCloudFileScope(),body=await canvasAgentProjectRequest(canvasAgentCloudFilesPath(scope),{
+      method:"POST",headers:{"content-type":"application/x-penecho-document","x-document-name":encodeURIComponent(file.name)},body:file,
+    });
+    const current=canvasAgentCloudFileScope();
+    if(current.canvasId!==scope.canvasId||current.conversationId!==scope.conversationId||!canvasAgentUsesCloudHost()) {
+      if(body?.project?.id)await canvasAgentProjectRequest(`${canvasAgentCloudFilesPath(scope)}/${encodeURIComponent(body.project.id)}`,{method:"DELETE"}).catch(()=>{});
+      throw Error(t("canvasAgentCloudFileScopeChanged"));
+    }
+    return {...body.project,cloudScope:scope};
+  }
   async function canvasAgentUploadProjectFile(file) {
     if(canvasAgent.projectUploadBusy||canvasAgent.attachmentBusy||!file)return;
     if(!Number.isSafeInteger(file.size)||file.size<=0){canvasAgentFileInput.value="";canvasAgentSetStatus(t("canvasAgentUploadEmpty"),"error");return false;}
@@ -1160,6 +1181,11 @@
     canvasAgent.projectUploadBusy=true;canvasAgentSetProjectError();canvasAgentRenderProjects();canvasAgentSyncAttachmentButton();
     canvasAgentSetStatus(t("canvasAgentFilePreparing"),"connecting");
     try{
+      if(canvasAgentUsesCloudHost()) {
+        const project=await canvasAgentUploadCloudFile(file);
+        canvasAgentSetStatus(t("canvasAgentReady"),"ready");
+        return project;
+      }
       data=await canvasAgentProjectFileBase64(file);
       const body=await canvasAgentProjectRequest("/api/canvas-agent/files",{method:"POST",body:JSON.stringify({name:file.name,mediaType:String(file.type||""),bytes:file.size,data})});
       await canvasAgentEnsureProjects({refresh:true});
@@ -1237,7 +1263,7 @@
     return canvasAgentMessageText(!before.trim()?after.slice(right.length):!after.trim()?before.slice(0,before.length-left.length):left&&right?`${before.slice(0,before.length-left.length)}${lineBreak.repeat(breaks)}${after.slice(right.length)}`:`${before}${after}`);
   }
   function canvasAgentNormalizeHistoryFile(value) {
-    if(!value||typeof value!=="object"||!/^file-[0-9a-f]{24}$/.test(String(value.projectId||"")))return null;
+    if(!value||typeof value!=="object"||!/^(?:file-[0-9a-f]{24}|cloud-file-[0-9a-f-]{36})$/.test(String(value.projectId||"")))return null;
     const name=canvasAgentHistoryText(value.name,240).replace(/[\0-\x1f\x7f]/g,"").trim(),bytes=Number(value.bytes),mediaType=canvasAgentHistoryText(value.mediaType,255);
     if(!name||!Number.isSafeInteger(bytes)||bytes<1||bytes>CANVAS_AGENT_PROJECT_UPLOAD_LIMIT)return null;
     return {kind:"file",projectId:String(value.projectId),name,bytes,mediaType};
@@ -2268,9 +2294,10 @@
     attachment.removing=true;
     canvasAgentRenderAttachments();
     try{
-      await canvasAgentProjectRequest(`/api/canvas-agent/projects/${encodeURIComponent(attachment.projectId)}`,{method:"DELETE"});
+      const path=attachment.cloudScope?`${canvasAgentCloudFilesPath(attachment.cloudScope)}/${encodeURIComponent(attachment.projectId)}`:`/api/canvas-agent/projects/${encodeURIComponent(attachment.projectId)}`;
+      await canvasAgentProjectRequest(path,{method:"DELETE"});
       canvasAgent.attachments=canvasAgent.attachments.filter(item=>item.id!==attachment.id);
-      await canvasAgentEnsureProjects({refresh:true});
+      if(!attachment.cloudScope)await canvasAgentEnsureProjects({refresh:true});
       canvasAgentRenderAttachments();
     }catch(error){attachment.removing=false;canvasAgentRenderAttachments();canvasAgentSetStatus(String(error?.message||error),"error");}
   }
@@ -2309,6 +2336,9 @@
     canvasAgentRenderAttachments();
   }
   function canvasAgentSyncAttachmentButton() {
+    const cloudFiles=canvasAgentUsesCloudHost()&&window.PENECHO_CONFIG?.hostedDocumentFiles===true;
+    canvasAgentAttach.title=cloudFiles?t("canvasAgentCloudFileFormats"):t("canvasAgentAttach");
+    canvasAgentFileInput.accept=cloudFiles?"image/*,.pdf,.docx,.xlsx,.csv,.txt,.md,.json":"";
     canvasAgentAttach.disabled=canvasAgent.attachmentBusy||canvasAgent.projectUploadBusy;
     canvasAgentSyncSendAvailability();
     canvasAgentSyncPromptSuggestions();
@@ -2342,7 +2372,7 @@
     if(canvasAgent.attachments.length>=CANVAS_AGENT_MAX_ATTACHMENTS){canvasAgentFileInput.value="";canvasAgentSetStatus(t("canvasAgentAttachmentLimit"),"error");return false;}
     const project=await canvasAgentUploadProjectFile(file);
     if(!project)return false;
-    canvasAgent.attachments.push({id:canvasClientId(),kind:"file",name:String(project.name||file.name||"File").slice(0,240),mediaType:String(project.mediaType||file.type||""),bytes:Number(project.bytes)||file.size,fingerprint,projectId:project.id,deleteOnRemove:project.reused!==true});
+    canvasAgent.attachments.push({id:canvasClientId(),kind:"file",name:String(project.name||file.name||"File").slice(0,240),mediaType:String(project.mediaType||file.type||""),bytes:Number(project.bytes)||file.size,fingerprint,projectId:project.id,...(project.cloudScope?{cloudScope:project.cloudScope}:{}),deleteOnRemove:project.reused!==true});
     canvasAgentRenderAttachments();
     return true;
   }
@@ -2354,7 +2384,7 @@
     }
     const pending=unique.filter(item=>!canvasAgent.attachments.some(attachment=>attachment.fingerprint===item.fingerprint));
     if(!pending.length){canvasAgentFileInput.value="";return false;}
-    if(canvasAgentUsesCloudHost()&&pending.some(item=>!item.image)){
+    if(canvasAgentUsesCloudHost()&&window.PENECHO_CONFIG?.hostedDocumentFiles!==true&&pending.some(item=>!item.image)){
       canvasAgentFileInput.value="";
       canvasAgentSetStatus(t("canvasAgentCloudFilesHelp"),"error");
       return false;
@@ -4919,7 +4949,12 @@
       return false;
     }
     const text = textOverride===null?canvasAgentInput.value.trim():String(textOverride||"").trim(), attachments = includeDraftMedia?[...canvasAgent.attachments]:[], fileAttachments=attachments.filter(attachment=>attachment.kind==="file"), imageAttachments=attachments.filter(attachment=>attachment.kind!=="file"), hasInk=includeDraftMedia&&canvasAgent.inkPresent;
-    if(canvasAgentUsesCloudHost()&&fileAttachments.length){canvasAgentSetStatus(t("canvasAgentCloudFilesHelp"),"error");return false;}
+    if(fileAttachments.length) {
+      const cloud=canvasAgentUsesCloudHost(),scope=cloud?canvasAgentCloudFileScope():null;
+      if(fileAttachments.some(file=>cloud ? !file.cloudScope||file.cloudScope.canvasId!==scope.canvasId||file.cloudScope.conversationId!==scope.conversationId : Boolean(file.cloudScope))) {
+        canvasAgentSetStatus(t("canvasAgentCloudFileScopeChanged"),"error");return false;
+      }
+    }
     if (!text && !attachments.length&&!hasInk) return false;
     if(fileAttachments.length&&!text){canvasAgentSetStatus(t("canvasAgentFileInstructionRequired"),"error");return false;}
     if (hasInk&&attachments.length>=CANVAS_AGENT_MAX_ATTACHMENTS) {

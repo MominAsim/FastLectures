@@ -6,7 +6,7 @@ Use `public_api` when a Widget needs live public data and API discovery or endpo
 
 `public_api(action="search", query="节假日", limit=5)` searches a local public-apis snapshot. It returns a bounded shortlist, source revision, retrieval time and staleness. Only entries advertising no authentication and HTTPS with HTTPS documentation links are included; those labels are unverified directory claims. The complete index must never enter the model context.
 
-When Internet Search is off, catalog search stays offline. When on, an old catalog may refresh on demand; failures preserve a valid snapshot. Do not change the user's search toggle. `web_read` and direct endpoint verification remain available under the host's existing public-web capability. No match or stale/unusable candidates should lead to a different permitted source, or an honest limitation, not an invented endpoint.
+Catalog search is available even when the host disables public-web access; in that case it always stays offline, and verify returns unavailable/public_web_disabled without a network request. Do not present catalog entries as verified or invent verification evidence. When Internet Search is off, catalog search stays offline. When on, an old catalog may refresh on demand; failures preserve a valid snapshot. Do not change the user's search toggle. `web_read` and direct endpoint verification remain available under the host's existing public-web capability. No match or stale/unusable candidates should lead to a different permitted source, or an honest limitation, not an invented endpoint.
 
 ## Confirm the actual endpoint
 

@@ -39,8 +39,7 @@
       }
     })(),
     snapshotDebugId = snapshotDebugEnabled ? Math.random().toString(36).slice(2, 10) : "",
-    cloudCsrf = remoteCanvas ? document.cookie.split(";").map(value => value.trim()).find(value => value.startsWith("penecho_csrf="))?.slice("penecho_csrf=".length) || "" : "",
-    publicFetchUrl = remoteCanvas ? new URL("/api/v1/remote-canvas/http?path=%2Fapi%2Fwidget-fetch", location.href).href : new URL("api/widget-fetch", location.href).href,
+    publicFetchUrl = new URL("api/widget-fetch", location.href).href,
     connect = new URL(location.href).searchParams.getAll("connect"),
     inner = document.createElement("iframe");
   let mcpProgressState = null;
@@ -1404,11 +1403,11 @@
   async function proxyPublicFetch(message) {
     const reply = (payload, transfer = []) => inner.contentWindow?.postMessage({ type:"penecho-widget-public-fetch-response", requestId:message.requestId, ...payload }, "*", transfer);
     try {
-      const response = await fetch(publicFetchUrl, {
+      const response = remoteCanvas ? await parentPublicFetch(message.url) : await fetch(publicFetchUrl, {
           method:"POST",
           credentials:"same-origin",
           cache:"no-store",
-          headers:{ "Content-Type":"application/json", ...(accessSession ? { "X-PenEcho-Session":accessSession } : {}), ...(cloudCsrf ? { "X-PenEcho-CSRF":decodeURIComponent(cloudCsrf) } : {}) },
+          headers:{ "Content-Type":"application/json", ...(accessSession ? { "X-PenEcho-Session":accessSession } : {}) },
           body:JSON.stringify({ url:message.url }),
         }),
         body = await response.arrayBuffer(),
@@ -1428,6 +1427,36 @@
     } catch (error) {
       reply({ error:String(error?.message || "The public data request failed").slice(0, 300) });
     }
+  }
+
+  const pendingPublicFetches = new Map();
+  let nextParentPublicFetchId = 1;
+  function parentPublicFetch(url) {
+    if (parentOrigin !== location.origin || parent === window) return Promise.reject(Error("The public data parent is unavailable"));
+    if (pendingPublicFetches.size >= 32) return Promise.reject(Error("Too many public data requests"));
+    return new Promise((resolve, reject) => {
+      const requestId = `widget-fetch-${nextParentPublicFetchId++}`;
+      const timer = setTimeout(() => {
+        pendingPublicFetches.delete(requestId);
+        reject(Error("The public data request timed out"));
+      }, 40000);
+      pendingPublicFetches.set(requestId, { resolve, reject, timer });
+      parent.postMessage({ type:"penecho-widget-host-public-fetch", requestId, url }, parentOrigin);
+    });
+  }
+  function receiveParentPublicFetch(event) {
+    if (event.source !== parent || event.origin !== location.origin || parentOrigin !== location.origin
+      || event.data?.type !== "penecho-widget-host-public-fetch-result") return false;
+    const message = event.data, pending = pendingPublicFetches.get(message.requestId);
+    if (!pending) return true;
+    pendingPublicFetches.delete(message.requestId);
+    clearTimeout(pending.timer);
+    if (message.error) pending.reject(Error(String(message.error)));
+    else {
+      try { pending.resolve(new Response(message.body, { status:message.status, headers:message.headers })); }
+      catch (error) { pending.reject(error); }
+    }
+    return true;
   }
 
   function resolveImageAssets(html,assets) {
@@ -1913,7 +1942,7 @@
   }
 
   addEventListener("message", (event) => {
-    if (respondToWidgetHostProbe(event)) return;
+    if (receiveParentPublicFetch(event) || respondToWidgetHostProbe(event)) return;
     const message = event.data;
     if (event.source === parent && event.origin === parentOrigin) {
       if (message?.type === "penecho-widget-init") {
