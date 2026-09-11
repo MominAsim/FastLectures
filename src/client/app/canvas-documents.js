@@ -43,7 +43,7 @@
     if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
     const decoded=await canvasImageSource(doc,args.source);
     try {
-      const bytes=await decoded.blob.arrayBuffer(),hash=await crypto.subtle.digest("SHA-256",bytes),id=Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,"0")).join("");
+      const id=await canvasDocumentIdentity.sha256Hex(await decoded.blob.arrayBuffer());
       canvasAgentAssertToolExecution(execution);
       const assets=canvasImageAssets(doc),existing=assets.find(a=>a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE&&a.metadata.resourceId===id);
       if(existing)return {...canvasImageAssetMetadata(existing),revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision};

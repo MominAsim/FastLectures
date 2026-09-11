@@ -513,3 +513,15 @@ test("internal restoration cache is bounded and never consumes external authorit
   const invalid=api.normalizeWorkspace({version:1,internalSessions:[null,{sessionKey:"external",client:"PenEcho Agent"},{...internal[0],client:"Codex"},{...internal[0],documentId:"different"}]},metadata);
   assert.equal(invalid.internalSessions,undefined);
 });
+
+ test("binary SHA-256 fallback matches native hashes at block boundaries and upload size", async () => {
+  for (const context of [{crypto:undefined},{crypto:{}},{crypto:{subtle:{digest:async()=>{throw Error("unavailable");}}}},{}]) {
+    const api=loadApi(context);
+    for (const size of [0,1,55,56,63,64,65,127,128,600000]) {
+      const bytes=Uint8Array.from({length:size},(_,i)=>i%256);
+      assert.equal(await api.sha256Hex(bytes.buffer),crypto.createHash("sha256").update(bytes).digest("hex"));
+      const slice=bytes.subarray(Math.min(1,size));
+      assert.equal(await api.sha256Hex(slice),crypto.createHash("sha256").update(slice).digest("hex"));
+    }
+  }
+});

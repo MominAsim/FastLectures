@@ -903,13 +903,13 @@
       }
       if(!studioMcpRecentList.childElementCount)studioNavigatorEmpty(studioMcpRecentList,query?"studioNavigatorNoMatch":"studioNavigatorMcpEmpty");
     }
-    function syncStudioNavigatorMcp(enabled) {
+    function syncStudioNavigatorMcp(enabled,{reveal=true}={}) {
       enabled=Boolean(enabled);
       if(enabled===studioNavigatorMcpEnabled)return;
       studioNavigatorMcpEnabled=enabled;
       if(!enabled){studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;studioMcpLatestDocumentId=null;studioMcpLatestRegion=null;}
       studioNavigatorMcpTab.hidden=!enabled;
-      if(enabled){
+      if(enabled&&reveal){
         selectCanvasToolMode("hand");
         studioNavigatorSuspendedAgent=false;
         studioNavigatorRestoreAgentAfterManager=false;
@@ -920,7 +920,7 @@
         // Connection changes preserve the user’s Follow latest preference.
         studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;
         syncStudioMcpActions();
-      }else if(studioNavigatorActiveTab==="mcp")setStudioNavigatorTab("all",{persist:false});
+      }else if(!enabled&&studioNavigatorActiveTab==="mcp")setStudioNavigatorTab("all",{persist:false});
     }
     let studioWorkspaceSignature="";
     function studioWorkspaceChanged() {

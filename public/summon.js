@@ -107,79 +107,151 @@
     };
   }
 
-  function buildEchoContour(rect, layer = "outer", samples = THINKING_LAYOUT.samples) {
-    const normalized = normalizeRegion(rect);
-    if (!normalized) return [];
-    const count = Math.max(24, Math.round(Number(samples) || THINKING_LAYOUT.samples)),
-      centerX = normalized.x + normalized.w / 2,
-      centerY = normalized.y + normalized.h / 2,
-      radiusX = normalized.w / 2,
-      radiusY = normalized.h / 2,
-      inner = layer === "inner",
-      phase = inner ? 1.46 : 0.38,
-      exponent = inner ? 3.75 : 4.15,
-      points = [];
-    for (let index = 0; index < count; index++) {
-      const angle = index / count * TAU,
-        cosine = Math.cos(angle),
-        sine = Math.sin(angle),
-        edgeDistance = Math.pow(
-          Math.pow(Math.abs(cosine) / Math.max(1, radiusX), exponent)
-            + Math.pow(Math.abs(sine) / Math.max(1, radiusY), exponent),
-          -1 / exponent,
-        ),
-        ripple = 1
-          + Math.sin(angle * 3 + phase) * (inner ? 0.018 : 0.027)
-          + Math.sin(angle * 5 - phase * 0.7) * (inner ? 0.011 : 0.016),
-        driftX = Math.sin(angle * 2 + phase) * Math.min(7, normalized.w * 0.012),
-        driftY = Math.sin(angle * 3 - phase) * Math.min(6, normalized.h * 0.018);
-      points.push({
-        x:centerX + cosine * edgeDistance * ripple + driftX,
-        y:centerY + sine * edgeDistance * ripple + driftY,
-      });
+  var SPECTRUM = [[34, 211, 238], [79, 70, 229], [168, 85, 247], [236, 72, 153], [245, 158, 11], [34, 211, 238]];
+
+  function easeOutCubic(p) { return 1 - Math.pow(1 - p, 3); }
+  // Theme tokens resolve to hex or rgb() colors before painting.
+  function withAlpha(color, a) {
+    var channels;
+    if (typeof color === "string" && color.charAt(0) === "#") {
+      var n = parseInt(color.slice(1), 16);
+      channels = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    } else {
+      var match = String(color).match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+      channels = match ? [Number(match[1]), Number(match[2]), Number(match[3])] : [37, 99, 235];
     }
-    return points;
+    return "rgba(" + channels[0] + "," + channels[1] + "," + channels[2] + "," + a.toFixed(4) + ")";
+  }
+  function paletteAt(u, lighten, alpha) {
+    u = ((u % 1) + 1) % 1;
+    var f = u * (SPECTRUM.length - 1), i = Math.floor(f), k = f - i;
+    var a = SPECTRUM[i], b = SPECTRUM[Math.min(SPECTRUM.length - 1, i + 1)], out = [];
+    for (var c = 0; c < 3; c++) {
+      var v = a[c] + (b[c] - a[c]) * k;
+      out.push(Math.round(v + (255 - v) * (lighten || 0)));
+    }
+    return alpha === undefined ? "rgb(" + out.join(",") + ")" : "rgba(" + out.join(",") + "," + alpha + ")";
   }
 
-  function traceClosedPath(ctx, points) {
-    if (points.length < 2) return;
+  function pillowOutline(box, r, bow) {
+    var l = box.x, t = box.y, rt = box.x + box.w, bo = box.y + box.h, cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+    r = Math.max(0, Math.min(r, box.w / 2, box.h / 2));
+    var pieces = [];
+    pieces.push({ kind: "q", p0: { x: l + r, y: t }, c: { x: cx, y: t - bow }, p1: { x: rt - r, y: t } });
+    pieces.push({ kind: "a", ox: rt - r, oy: t + r, start: -Math.PI / 2, end: 0 });
+    pieces.push({ kind: "q", p0: { x: rt, y: t + r }, c: { x: rt + bow, y: cy }, p1: { x: rt, y: bo - r } });
+    pieces.push({ kind: "a", ox: rt - r, oy: bo - r, start: 0, end: Math.PI / 2 });
+    pieces.push({ kind: "q", p0: { x: rt - r, y: bo }, c: { x: cx, y: bo + bow }, p1: { x: l + r, y: bo } });
+    pieces.push({ kind: "a", ox: l + r, oy: bo - r, start: Math.PI / 2, end: Math.PI });
+    pieces.push({ kind: "q", p0: { x: l, y: bo - r }, c: { x: l - bow, y: cy }, p1: { x: l, y: t + r } });
+    pieces.push({ kind: "a", ox: l + r, oy: t + r, start: Math.PI, end: Math.PI * 1.5 });
+    var points = [], cum = [0], total = 0, prev = null;
+    for (var p = 0; p < pieces.length; p++) {
+      var piece = pieces[p];
+      piece.r = r;
+      var chord = piece.kind === "q"
+        ? Math.hypot(piece.p1.x - piece.p0.x, piece.p1.y - piece.p0.y) * 1.02
+        : Math.abs(piece.end - piece.start) * r;
+      var steps = Math.max(4, Math.ceil(chord / 8));
+      for (var i = 0; i <= steps; i++) {
+        var u = i / steps, point;
+        if (piece.kind === "q") {
+          var w0 = (1 - u) * (1 - u), w1 = 2 * (1 - u) * u, w2 = u * u;
+          point = { x: w0 * piece.p0.x + w1 * piece.c.x + w2 * piece.p1.x, y: w0 * piece.p0.y + w1 * piece.c.y + w2 * piece.p1.y };
+        } else {
+          var angle = piece.start + (piece.end - piece.start) * u;
+          point = { x: piece.ox + Math.cos(angle) * r, y: piece.oy + Math.sin(angle) * r };
+        }
+        if (prev) { total += Math.hypot(point.x - prev.x, point.y - prev.y); cum.push(total); }
+        points.push(point);
+        prev = point;
+      }
+    }
+    return { points: points, cum: cum, total: Math.max(1, total) };
+  }
+  function pointAtDistance(line, d) {
+    var total = line.total;
+    d = ((d % total) + total) % total;
+    var lo = 0, hi = line.cum.length - 1;
+    while (lo < hi - 1) {
+      var mid = (lo + hi) >> 1;
+      if (line.cum[mid] <= d) lo = mid; else hi = mid;
+    }
+    var span = (line.cum[hi] - line.cum[lo]) || 1, k = (d - line.cum[lo]) / span;
+    var a = line.points[lo], b = line.points[hi];
+    return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
+  }
+  function buildEchoLine(rect) {
+    const box = normalizeRegion(rect);
+    if (!box) return { points:[], cum:[], total:0 };
+    const side = Math.min(box.w, box.h);
+    return pillowOutline(box, clamp(side * 0.22, 14, 44), clamp(side * 0.018, 1.5, 9));
+  }
+
+  function buildEchoContour(rect) {
+    return buildEchoLine(rect).points;
+  }
+
+  function traceEchoPath(ctx, line) {
     ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-    for (let index = 1; index < points.length; index++) ctx.lineTo(points[index].x, points[index].y);
+    ctx.moveTo(line.points[0].x, line.points[0].y);
+    for (let i = 1; i < line.points.length; i++) ctx.lineTo(line.points[i].x, line.points[i].y);
     ctx.closePath();
-    ctx.stroke();
   }
 
-  function drawContour(ctx, points, color, alpha, lineWidth) {
+  // Light Sweep: a quiet stationary spectrum outline and one theme-tinted scan.
+  function drawLightSweep(ctx, line, outer, elapsed, reducedMotion, tint, fade = 1) {
+    if (line.points.length < 2) return;
+    const entrance = reducedMotion ? 1 : easeOutCubic(clamp01(elapsed / 0.42)),
+      opacity = fade * entrance,
+      cx = outer.x + outer.w / 2,
+      cy = outer.y + outer.h / 2,
+      start = -Math.PI / 2 + 0.09;
     ctx.save();
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = alpha;
-    ctx.lineWidth = lineWidth;
-    ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    traceClosedPath(ctx, points);
-    ctx.restore();
-  }
-
-  function drawHighlight(ctx, points, color, progress, fade) {
-    if (points.length < 2) return;
-    const length = Math.max(6, Math.round(points.length * THINKING_LAYOUT.highlightFraction)),
-      head = Math.floor(clamp01(progress) * points.length) % points.length;
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2.5;
     ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    for (let step = 0; step < length; step++) {
-      const index = (head - length + step + points.length) % points.length,
-        next = (index + 1) % points.length,
-        strength = Math.sin((step + 1) / (length + 1) * Math.PI);
-      ctx.globalAlpha = fade * (0.12 + strength * 0.82);
-      ctx.beginPath();
-      ctx.moveTo(points[index].x, points[index].y);
-      ctx.lineTo(points[next].x, points[next].y);
+    ctx.lineWidth = 1.4;
+    ctx.globalAlpha = 0.26 * opacity;
+    if (typeof ctx.createConicGradient === "function") {
+      const gradient = ctx.createConicGradient(start, cx, cy);
+      for (let stop = 0; stop < SPECTRUM.length; stop++) {
+        gradient.addColorStop(stop / (SPECTRUM.length - 1), paletteAt(stop / (SPECTRUM.length - 1)));
+      }
+      ctx.strokeStyle = gradient;
+      traceEchoPath(ctx, line);
       ctx.stroke();
+    } else {
+      ctx.lineCap = "butt";
+      for (let i = 0; i < line.points.length - 1; i++) {
+        const p0 = line.points[i], p1 = line.points[i + 1];
+        ctx.strokeStyle = paletteAt((Math.atan2(p0.y - cy, p0.x - cx) - start) / TAU);
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.lineTo(p1.x, p1.y);
+        ctx.stroke();
+      }
     }
+
+    const progress = reducedMotion ? 0.5 : (elapsed / 3.2) % 1,
+      x = outer.x + outer.w * progress,
+      strength = Math.pow(Math.sin(Math.PI * progress), 0.7) * opacity,
+      tailWidth = Math.min(32, outer.w * 0.2),
+      leadingWidth = Math.min(3, outer.w * 0.02);
+    traceEchoPath(ctx, line);
+    ctx.clip();
+    ctx.globalAlpha = 1;
+    const scan = ctx.createLinearGradient(x - tailWidth, 0, x + leadingWidth, 0);
+    scan.addColorStop(0, withAlpha(tint, 0));
+    scan.addColorStop(0.8, withAlpha(tint, 0.09 * strength));
+    scan.addColorStop(1, withAlpha(tint, 0.2 * strength));
+    ctx.fillStyle = scan;
+    ctx.fillRect(x - tailWidth, outer.y - 8, tailWidth + leadingWidth, outer.h + 16);
+    ctx.strokeStyle = withAlpha(tint, 0.45 * strength);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x, outer.y);
+    ctx.lineTo(x, outer.y + outer.h);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -198,7 +270,25 @@
       hideAt = 0,
       copyEl = null,
       copyStyle = null,
-      captionEl = null;
+      captionEl = null,
+      tintKey = null,
+      themeTint = "#4f46e5";
+
+    function getThemeTint() {
+      const body = canvas.ownerDocument?.body;
+      if (!body || typeof getComputedStyle !== "function") return themeTint;
+      // Palette changes are owned by the existing theme controls. Avoid a
+      // computed-style read on every animation frame or a second observer.
+      const key = `${body.dataset.theme || ""}:${body.dataset.studioPalette || ""}`;
+      if (key !== tintKey) {
+        const style = getComputedStyle(canvas);
+        themeTint = (body.dataset.theme === "studio"
+          ? style.getPropertyValue("--studio-accent")
+          : style.getPropertyValue("--gold-bright")).trim() || "#4f46e5";
+        tintKey = key;
+      }
+      return themeTint;
+    }
 
     function now() {
       return performance.now() / 1000;
@@ -254,7 +344,8 @@
         dpr = Math.max(1, Number(transform.dpr) || 1),
         elapsed = now() - startTime,
         layout = echoLayout(projectRegion(model.region, transform), transform),
-        color = getAiColor() || "#526ff1";
+        color = getAiColor() || "#526ff1",
+        tint = getThemeTint();
       let fade = 1;
       if (hideAt) {
         fade = clamp01(1 - (now() - hideAt) / THINKING_LAYOUT.fadeSeconds);
@@ -270,12 +361,12 @@
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const outer = buildEchoContour(layout.outer, "outer"),
-        inner = buildEchoContour(layout.inner, "inner"),
-        progress = getReducedMotion() ? 0.13 : (elapsed / THINKING_LAYOUT.cycleSeconds) % 1;
-      drawContour(ctx, outer, color, fade * 0.2, 1.15);
-      drawContour(ctx, inner, color, fade * 0.1, 0.9);
-      drawHighlight(ctx, outer, color, progress, fade);
+      const outer = layout.outer;
+      if (!model.outline || ["x", "y", "w", "h"].some((key) => model.outer[key] !== outer[key])) {
+        model.outer = outer;
+        model.outline = buildEchoLine(outer);
+      }
+      drawLightSweep(ctx, model.outline, outer, elapsed, getReducedMotion(), tint, fade);
       placeText(layout, fade, color);
     }
 
@@ -286,6 +377,7 @@
       buildText();
       canvas.dataset.effect = "spatial-echo";
       canvas.hidden = false;
+      tintKey = null;
       startTime = now();
       hideAt = 0;
       rafId = requestAnimationFrame(frame);
@@ -316,6 +408,9 @@
     projectRegion,
     echoLayout,
     buildEchoContour,
+    buildEchoLine,
+    pointAtDistance,
+    drawLightSweep,
     create,
   };
 });

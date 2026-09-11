@@ -8,7 +8,7 @@ function harness(overrides={}) {
  const ctx={setCanvasMode(mode){state.mode=mode;},state,view,screen,Math,Number,Boolean,document:{querySelector:()=>null,activeElement:null},window:{PenEchoStudioNavigator:{flushMcpFollow(){changes.push(['flush']);}}},syncWidgetHostStates(){},resetCanvasCursor(){},requestInteractionLayerRender(){},visibleWidgets:()=>widgets,clientPoint:e=>({x:e.clientX,y:e.clientY}),handObjectToolbarTargetAtPoint:()=>({kind:'widget',object:widgets[1]}),canvasViewportMetrics:()=>({width:1000,height:800}),moveCanvas:(dx,dy)=>{state.panX+=dx;state.panY+=dy;},zoomCanvasAt:(x,y,delta)=>{changes.push(['zoom',x,y,delta]);},requestCoordinatesUpdate(){},wheelNavigating(){}};
  const api=vm.runInNewContext(`${source.slice(0,source.indexOf("\n  document.querySelector('#canvasViewHand')"))};({enterWidgetInteraction,canvasWidgetSelectionEnabled,canvasWidgetInteractive,canvasWidgetAtEvent,setWidgetInteraction,setCanvasViewTool,setSpacePan,handleCanvasWheel,beginCanvasTrackpadGesture,updateCanvasTrackpadGesture,endCanvasTrackpadGesture})`,ctx);
  const wheel=(values={})=>{let prevented=false;const event={target:view,deltaX:0,deltaY:0,deltaMode:0,clientX:200,clientY:300,preventDefault(){prevented=true;},...values};api.handleCanvasWheel(event);return prevented;};
- return {api,state,changes,widgets,wheel,view};
+ return {api,state,changes,widgets,wheel,view,ctx};
 }
 test('two-axis scroll pans without scaling, follows shift and deltaMode, and ignores zero events',()=>{
  const h=harness();assert.equal(h.wheel({deltaX:20,deltaY:-30}),true);assert.equal(h.state.panX,-20);assert.equal(h.state.panY,30);assert.equal(h.changes.length,0);
@@ -144,4 +144,18 @@ test('view interaction restores its own Hand tool independently of the editing t
  h.api.setWidgetInteraction(null);
  assert.equal(h.state.viewTool,'hand');
  assert.equal(h.state.mode,'pen');
+});
+
+test('a front image blocks the HTML shell beneath it without blocking exposed or maximized Widgets',()=>{
+ const h=harness({mode:'select'});
+ const event={clientX:20,clientY:30,target:{closest:()=>({dataset:{widgetId:'front'}})}};
+ h.ctx.handObjectToolbarTargetAtPoint=()=>({kind:'image',object:{id:'image-1'}});
+ assert.equal(h.api.canvasWidgetAtEvent(event),null);
+ h.ctx.handObjectToolbarTargetAtPoint=()=>({kind:'widget',object:h.widgets[1]});
+ assert.equal(h.api.canvasWidgetAtEvent(event),h.widgets[1]);
+ h.ctx.handObjectToolbarTargetAtPoint=()=>null;
+ assert.equal(h.api.canvasWidgetAtEvent(event),h.widgets[1]);
+ h.ctx.handObjectToolbarTargetAtPoint=()=>({kind:'image',object:{id:'image-1'}});
+ h.widgets[1].maximized=true;
+ assert.equal(h.api.canvasWidgetAtEvent(event),h.widgets[1]);
 });

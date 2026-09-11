@@ -1129,9 +1129,13 @@ function imageAssetHarness() {
 }
 const assetTestImage='data:image/png;base64,iVBORw0KGgo=';
 
-test('image attachments deduplicate, stay document-scoped and persist without placing objects',async()=>{
+for (const cryptoMode of ['native','missing-subtle','missing-crypto','rejected-digest']) test(`image attachments deduplicate and persist with ${cryptoMode}`,async()=>{
   const h=imageAssetHarness();await h.canvasDocumentsReady();const doc=h.canvasDocumentsCurrent();
+  if(cryptoMode==='missing-subtle')h.context.crypto={};
+  if(cryptoMode==='missing-crypto')h.context.crypto=undefined;
+  if(cryptoMode==='rejected-digest')h.context.crypto={subtle:{digest:async()=>{throw Error("unavailable");}}};
   const first=await h.context.canvasDocumentsUploadImage(doc,{name:'sample.png',source:assetTestImage},{});
+  assert.equal(first.assetId,require("node:crypto").createHash("sha256").update(Buffer.from(assetTestImage.split(",")[1],"base64")).digest("hex"));
   assert.match(first.source,/^penecho-asset:[a-f0-9]{64}$/);assert.equal(first.width,120);
   assert.equal(h.state.images.length,0);assert.equal(h.state.currentSnapshotPreservedAssets.length,1);
   const revision=h.state.userRevision;

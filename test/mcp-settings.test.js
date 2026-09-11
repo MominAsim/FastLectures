@@ -3,11 +3,11 @@ const {test}=require("node:test"),assert=require("node:assert/strict"),fs=requir
 
 function harness(fetchImpl) {
   const nodes=new Map(),requests=[],clipboard=[],clientInputs=["codex","claude","other"].map(value=>({value,checked:value==="codex",disabled:false}));
-  for(const id of ["mcpTroubleshoot","mcpTroubleshootStatus","mcpCopyFirewallCommand","mcpCopyTroubleshootPrompt","mcpSetupBlock","mcpSetupPrompt","mcpSetupPromptCode","mcpToolbarToggle","mcpManualSteps","mcpManual","mcpCanvasRing","mcpCanvasNotice","mcpCanvasNoticeButton","mcpEnabled","mcpConnectionStatus","mcpConfig","mcpConfigure","mcpCopyInstructions","mcpClients","mcpExamples","mcpExampleStatus","mcpRefresh","mcpConfigStatus","mcpConfigureStatus","mcpSetupStatus","settingsPageMcp","mcpLan","mcpResetCertificate","mcpCertificateNotice","mcpCertificateDialog","mcpCertificateTitle","mcpCertificateStatus","mcpCertificateConfirm","mcpCertificateCancel","mcpLanStatus","mcpLanClients","mcpLanPairDialog","mcpLanPairIdentity","mcpLanPairCode","mcpLanPairStatus","mcpLanApprove","mcpLanReject","mcpLanBlock"]){
+  for(const id of ["status","mcpReconnectCancel","mcpListenerStatus","mcpTroubleshoot","mcpTroubleshootStatus","mcpCopyTroubleshootPrompt","mcpSetupBlock","mcpSetupPrompt","mcpSetupPromptCode","mcpToolbarToggle","mcpManualSteps","mcpManual","mcpCanvasRing","mcpCanvasNotice","mcpCanvasNoticeButton","mcpEnabled","mcpConnectionStatus","mcpConfig","mcpConfigure","mcpCopyInstructions","mcpClients","mcpExamples","mcpExampleStatus","mcpRefresh","mcpConfigStatus","mcpConfigureStatus","mcpSetupStatus","settingsPageMcp","mcpLan","mcpResetCertificate","mcpCertificateNotice","mcpCertificateDialog","mcpCertificateTitle","mcpCertificateStatus","mcpCertificateConfirm","mcpCertificateCancel","mcpLanStatus","mcpLanClients","mcpLanPairDialog","mcpLanPairIdentity","mcpLanPairCode","mcpLanPairStatus","mcpLanApprove","mcpLanReject","mcpLanBlock"]){
     nodes.set(id,{hidden:id==="settingsPageMcp"||id==="mcpConfigStatus",value:"",textContent:"",disabled:false,dataset:{},listeners:{},classList:{toggle(){}},attributes:{},replaceChildren(...children){this.children=children;if(children[0])this.value=children[0].value;},showModal(){this.open=true;},close(){this.open=false;},setAttribute(key,value){this.attributes[key]=value;},addEventListener(type,listener){this.listeners[type]=listener;}});
   }
   const ui={status:"",page:null},storage=new Map();
-  const context=vm.createContext({document:{createElement:tag=>({tagName:tag,value:"",textContent:""}),getElementById:id=>nodes.get(id)||null,querySelectorAll:selector=>selector==='input[name="mcpClient"]'?clientInputs:[]},state:{language:"en"},window:{PENECHO_CONFIG:{}},WebSocket:{OPEN:1,CONNECTING:0},URL,AbortSignal,AbortController,setTimeout:(fn,ms)=>{const timer=setTimeout(fn,ms);timer.unref();return timer;},clearTimeout,performance,addEventListener(){},
+  const context=vm.createContext({document:{createElement:tag=>({tagName:tag,value:"",textContent:"",setAttribute(key,value){this[key]=value;}}),getElementById:id=>nodes.get(id)||null,querySelectorAll:selector=>selector==='input[name="mcpClient"]'?clientInputs:[]},state:{language:"en"},window:{PENECHO_CONFIG:{}},WebSocket:{OPEN:1,CONNECTING:0},URL,AbortSignal,AbortController,setTimeout:(fn,ms)=>{const timer=setTimeout(fn,ms);timer.unref();return timer;},clearTimeout,performance,addEventListener(){},
     localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},setStatus:value=>{ui.status=value;},openSettings(){},selectSettingsPage:value=>{ui.page=value;},
     location:{protocol:"http:",host:"localhost:3921"},canvasClientId:()=>"canvas-test",
     authenticatedApiHeaders:headers=>({...headers,"X-PenEcho-Session":"test-page-session"}),
@@ -134,11 +134,11 @@ test("configured toolbar reports discoverability only after ready, and toggles o
     h.mcpToolbarClick();assert.equal(h.mcpRuntime.socket,null);assert.equal(h.ui.status,"Not discoverable");
   }finally{h.mcpDisconnect();}
 });
-test("MCP toolbar keeps retry available after a connection constructor failure",()=>{
+test("MCP toolbar cancels automatic retry after constructor failure before a fresh opt-in",()=>{
   const h=harness(()=>ready());h.mcpRuntime.setupKnown=true;h.context.WebSocket=class{constructor(){throw Error("Unavailable");}};
   h.mcpToolbarClick();assert.match(h.ui.status,/retry/);assert.equal(h.mcpRuntime.toolbarPending,false);
   h.context.WebSocket=CanvasSocket;
-  try{h.mcpToolbarClick();assert.ok(h.mcpRuntime.socket);assert.match(h.ui.status,/Opening/);}finally{h.mcpDisconnect();}
+  try{h.mcpToolbarClick();assert.equal(h.mcpRuntime.socket,null);assert.equal(h.mcpRuntime.wanted,false);h.mcpToolbarClick();assert.ok(h.mcpRuntime.socket);assert.match(h.ui.status,/Opening/);}finally{h.mcpDisconnect();}
 });
 test("manual setup tools are disclosed together and the toolbar precedes Agent",()=>{
   const html=fs.readFileSync(path.join(__dirname,"../public/index.html"),"utf8");
@@ -149,6 +149,13 @@ test("manual setup tools are disclosed together and the toolbar precedes Agent",
   assert.match(html,/Connect your AI Agent/);
   assert.ok(manual.includes('id="mcpResetCertificate"'));
   assert.ok(!html.includes('id="mcpLanCopy"'));
+});
+test("Troubleshoot offers one primary prompt action without a repair command",()=>{
+  const html=fs.readFileSync(path.join(__dirname,"../public/index.html"),"utf8"),section=html.slice(html.indexOf('<details id="mcpTroubleshoot"'),html.indexOf('</details>',html.indexOf('<details id="mcpTroubleshoot"')));
+  assert.match(section,/data-mcp-label="troubleshootStepPrompt"/);
+  assert.match(section,/<button id="mcpCopyTroubleshootPrompt"[^>]*data-pe-button="primary"/);
+  assert.doesNotMatch(section,/mcpCopyFirewallCommand|repair command|修复命令/);
+  assert.equal((section.match(/<button\b/g)||[]).length,1);
 });
 
 test("existing client setup is detected on demand without a browser setup hint",async()=>{
@@ -421,42 +428,142 @@ test("default setup uses the session CLI without changing global AI trust",async
 });
 
 
-test("troubleshoot copies the newly fetched listener port, not the cached setup port",async()=>{
-  let currentPort=49101;
-  const h=harness(()=>response(200,{http:{enabled:true,localUrl:`https://127.0.0.1:${currentPort}/mcp`,preferredUrl:"https://old.local:3922/mcp"}}));
-  h.mcpRuntime.status={http:{enabled:true,localUrl:"https://127.0.0.1:3922/mcp"}};
-  await h.nodes.get("mcpCopyFirewallCommand").listeners.click();
-  assert.match(h.clipboard[0],/\$port = 49101/);
-  assert.doesNotMatch(h.clipboard[0],/3922/);
-  currentPort=49102;
+test("troubleshoot prompt copies static text without requesting host status",async()=>{
+  const h=harness(()=>{throw new Error("Host must not be contacted");});
+  h.context.window.PENECHO_CONFIG.runtime="cloud";
+  h.mcpRuntime.status=null;
   await h.nodes.get("mcpCopyTroubleshootPrompt").listeners.click();
-  assert.match(h.clipboard[1],/TCP port 49102/);
-  assert.equal(h.requests.length,2);
-  assert.equal(h.requests[0].options.cache,"no-store");
-  assert.match(h.nodes.get("mcpTroubleshootStatus").textContent,/49102/);
-  assert.ok(!h.nodes.get("mcpTroubleshoot").open);
-});
-test("troubleshoot refuses stale commands on status failure and permits a fresh retry",async()=>{
-  let available=false;
-  const h=harness(()=>available?response(200,{http:{enabled:true,localUrl:"https://127.0.0.1:50999/mcp"}}):response(503,{error:"offline"}));
-  h.mcpRuntime.status={http:{enabled:true,localUrl:"https://127.0.0.1:3922/mcp"}};
-  await h.nodes.get("mcpCopyFirewallCommand").listeners.click();
-  assert.equal(h.clipboard.length,0);
-  assert.match(h.nodes.get("mcpTroubleshootStatus").textContent,/unavailable/);
-  assert.equal(h.nodes.get("mcpCopyFirewallCommand").disabled,false);
-  available=true;
-  await h.nodes.get("mcpCopyFirewallCommand").listeners.click();
-  assert.match(h.clipboard[0],/50999/);
-});
-test("troubleshoot copy coalesces repeated clicks and keeps both actions busy",async()=>{
-  let resolve;
-  const h=harness(()=>new Promise(done=>resolve=done));
-  const pending=h.nodes.get("mcpCopyFirewallCommand").listeners.click();
-  assert.equal(h.nodes.get("mcpCopyTroubleshootPrompt").disabled,true);
-  await h.nodes.get("mcpCopyTroubleshootPrompt").listeners.click();
-  assert.equal(h.requests.length,1);
-  resolve(response(200,{http:{enabled:true,localUrl:"https://127.0.0.1:50888/mcp"}}));
-  await pending;
-  assert.equal(h.clipboard.length,1);
+  assert.equal(h.clipboard.at(-1),"On the computer running PenEcho, allow inbound TCP connections on ports 3922, 13922, and 23922.");
+  assert.match(h.nodes.get("mcpTroubleshootStatus").textContent,/copied/);
   assert.equal(h.nodes.get("mcpCopyTroubleshootPrompt").disabled,false);
+  assert.equal(h.requests.length,0);
+});
+test("clipboard failures report copy failure and allow retry",async()=>{
+  const h=harness(()=>{throw new Error("Unexpected request");});
+  h.context.writeClipboardText=async()=>{throw new Error("Denied");};
+  await h.nodes.get("mcpCopyTroubleshootPrompt").listeners.click();
+  assert.match(h.nodes.get("mcpTroubleshootStatus").textContent,/Could not copy/);
+  h.context.writeClipboardText=async()=>true;
+  await h.nodes.get("mcpCopyTroubleshootPrompt").listeners.click();
+  assert.match(h.nodes.get("mcpTroubleshootStatus").textContent,/copied/);
+});
+test("troubleshoot coalesces clicks only while clipboard write is pending",async()=>{
+  const h=harness(()=>{throw new Error("Unexpected request");});
+  let resolve,calls=0;
+  h.context.writeClipboardText=()=>{calls++;return new Promise(done=>resolve=done);};
+  const button=h.nodes.get("mcpCopyTroubleshootPrompt"),pending=button.listeners.click();
+  assert.equal(button.disabled,true);
+  await button.listeners.click();
+  resolve(true);await pending;
+  assert.equal(calls,1);
+  assert.equal(h.requests.length,0);
+  assert.equal(button.disabled,false);
+});
+
+test("Cloud MCP explains missing or offline linked devices in the top status bar and permits retry", async()=>{
+  for(const language of ["en","zh"]){
+    let code="linked_device_required";
+    const h=harness(()=>code?response(409,{error:code}):response(200,{canConfigureLocalClients:false,config:null}));
+    h.state.language=language;h.context.window.PENECHO_CONFIG.runtime="cloud";h.context.WebSocket=CanvasSocket;
+    try{
+      await h.mcpToolbarClick();
+      assert.match(h.ui.status,language==="zh"?/MCP 需要关联设备.*连接设备/:/MCP needs a linked device.*Linked Devices/);
+      assert.equal(h.nodes.get("status").children[0].href,"/dashboard.html#devices");
+      assert.equal(h.nodes.get("status").children[0].textContent,h.ui.status);
+      assert.equal(h.mcpRuntime.socket,null);assert.equal(h.mcpRuntime.wanted,false);
+      assert.equal(h.mcpRuntime.reconnectTimer,0);assert.equal(h.nodes.get("mcpToolbarToggle").disabled,false);
+      code="device_offline";await h.mcpToolbarClick();
+      assert.match(h.ui.status,language==="zh"?/Linked Device 不可用/:/Linked Device is unavailable/);
+      assert.equal(h.mcpRuntime.socket,null);
+      code=null;await h.mcpToolbarClick();assert.ok(h.mcpRuntime.socket);
+    }finally{h.mcpDisconnect();}
+  }
+});
+
+ test("listener addresses show actual host endpoints independently of clipboard feedback",async()=>{
+  const h=harness(()=>ready());
+  h.mcpRuntime.status={http:{enabled:true,urls:["https://192.168.1.4:50123/mcp","https://192.168.1.4:50123/mcp","https://[::1]:50123/mcp"],localUrl:"https://127.0.0.1:50123/mcp",preferredUrl:"https://stale:3922/mcp"}};
+  h.mcpRenderSettings();
+  const text=h.nodes.get("mcpListenerStatus").textContent;
+  assert.equal(text,"Current MCP listening addresses: 192.168.1.4:50123 · [::1]:50123 · 127.0.0.1:50123");
+  await h.nodes.get("mcpCopyTroubleshootPrompt").listeners.click();
+  assert.equal(h.nodes.get("mcpListenerStatus").textContent,text);
+  assert.equal(h.requests.length,0);
+  h.state.language="zh";h.mcpRuntime.status=null;h.mcpRenderSettings();
+  assert.equal(h.nodes.get("mcpListenerStatus").textContent,"当前 MCP 监听地址：暂不可用");
+  assert.equal(h.nodes.get("mcpCopyTroubleshootPrompt").disabled,false);
+ });
+
+test("initial MCP connection initializes the sidebar but failed retries wait for server ready",async()=>{
+  const h=harness(()=>ready()),scheduled=new Map();let sequence=0,renders=0,loads=0;
+  const doc={feedback:[],feedbackSequence:3};
+  h.context.setTimeout=(fn,ms)=>{scheduled.set(++sequence,{fn,ms});return sequence;};
+  h.context.clearTimeout=id=>scheduled.delete(id);
+  h.context.WebSocket=CanvasSocket;
+  h.context.canvasDocuments={records:new Map(),activeId:null,error:null,retry:null};
+  h.context.canvasDocumentsCurrent=()=>doc;
+  h.context.canvasDocumentsReady=async()=>{loads++;};
+  h.context.canvasDocumentsRender=()=>{renders++;};
+  h.context.mcpLanOpened=async()=>{};
+  try{
+    await h.mcpToolbarClick();await Promise.resolve();
+    assert.equal(loads,1);assert.equal(renders,1,"first connection keeps initialization refresh");
+    let socket=h.mcpRuntime.socket;
+    for(let attempt=0;attempt<3;attempt++){
+      socket.listeners.close();
+      scheduled.get(h.mcpRuntime.reconnectTimer).fn();
+      socket=h.mcpRuntime.socket;socket.listeners.open();await Promise.resolve();
+      assert.equal(loads,1,"retry must not reinitialize documents");
+      assert.equal(renders,1,"opening transport is not a successful MCP handshake");
+    }
+    socket.listeners.message({data:JSON.stringify({type:"ready"})});
+    assert.equal(renders,2,"server ready refreshes the sidebar");
+    assert.equal(h.mcpRuntime.feedbackSequence,3);
+  }finally{h.mcpDisconnect();}
+});
+
+for(const runtime of ["local","cloud"])for(const cancelFrom of ["toolbar","status","settings"])test(`${runtime} MCP ${cancelFrom} cancels retry, clears countdown and ignores stale callbacks`,async()=>{
+  const h=harness(()=>ready()),scheduled=new Map(),navigation=[];let sequence=0,now=10000;
+  h.context.window.PENECHO_CONFIG.runtime=runtime;
+  h.context.window.PenEchoStudioNavigator={syncMcp:(enabled,options)=>navigation.push({enabled,reveal:options.reveal})};
+  h.context.Date={now:()=>now};h.context.WebSocket=CanvasSocket;
+  h.context.setTimeout=(fn,ms)=>{scheduled.set(++sequence,{fn,ms});return sequence;};h.context.clearTimeout=id=>scheduled.delete(id);
+  try{
+    await h.mcpToolbarClick();const first=h.mcpRuntime.socket;
+    assert.ok(navigation.every(item=>!item.enabled),"connecting must not expose MCP tab");
+    first.readyState=1;first.listeners.message({data:JSON.stringify({type:"ready"})});
+    assert.deepEqual(navigation.at(-1),{enabled:true,reveal:true});
+    h.mcpRuntime.reconnectDelay=4000;first.listeners.close();
+    const retry=scheduled.get(h.mcpRuntime.reconnectTimer),button=h.nodes.get("mcpReconnectCancel");
+    assert.equal(button.hidden,false);assert.match(button.textContent,/4s/);
+    assert.equal(h.nodes.get("mcpCanvasNotice").hidden,false);assert.equal(h.nodes.get("mcpCanvasNoticeButton").hidden,true,"retry replaces lost instead of stacking with it");
+    assert.equal(h.nodes.get("mcpToolbarToggle").attributes["aria-pressed"],"true");
+    now+=1000;scheduled.get(h.mcpRuntime.reconnectStatusTimer).fn();assert.match(button.textContent,/3s/);
+    if(cancelFrom==="toolbar")await h.mcpToolbarClick();else if(cancelFrom==="settings")h.nodes.get("mcpEnabled").listeners.click({});else button.listeners.click();
+    assert.equal(h.mcpRuntime.wanted,false);assert.equal(h.mcpRuntime.reconnectTimer,0);assert.equal(h.mcpRuntime.reconnectStatusTimer,0);assert.equal(button.hidden,true);
+    retry.fn();first.listeners.message({data:JSON.stringify({type:"ready"})});
+    assert.equal(h.mcpRuntime.socket,null);assert.equal(h.mcpRuntime.ready,false);
+    await h.mcpToolbarClick();assert.ok(h.mcpRuntime.socket,"next explicit click starts fresh connection");
+    h.mcpRuntime.socket.listeners.close();scheduled.get(h.mcpRuntime.reconnectTimer).fn();
+    const recovering=h.mcpRuntime.socket;recovering.readyState=1;recovering.listeners.open();
+    assert.equal(navigation.at(-1).enabled,false);assert.match(button.textContent,/reconnecting/);
+    assert.equal(h.nodes.get("mcpCanvasNotice").hidden,false);assert.equal(h.nodes.get("mcpCanvasNoticeButton").hidden,true);
+    if(cancelFrom==="toolbar")await h.mcpToolbarClick();else if(cancelFrom==="settings")h.nodes.get("mcpEnabled").listeners.click({});else button.listeners.click();
+    recovering.listeners.message({data:JSON.stringify({type:"ready"})});
+    assert.equal(h.mcpRuntime.socket,null);assert.equal(h.mcpRuntime.wanted,false);
+  }finally{h.mcpDisconnect();}
+});
+test("successful automatic recovery restores tab availability without revealing navigation",async()=>{
+  const h=harness(()=>ready()),scheduled=new Map(),navigation=[];let sequence=0;
+  h.context.window.PenEchoStudioNavigator={syncMcp:(enabled,options)=>navigation.push({enabled,reveal:options.reveal})};
+  h.context.WebSocket=CanvasSocket;
+  h.context.setTimeout=(fn,ms)=>{scheduled.set(++sequence,{fn,ms});return sequence;};h.context.clearTimeout=id=>scheduled.delete(id);
+  try{
+    await h.mcpToolbarClick();h.mcpRuntime.socket.listeners.close();scheduled.get(h.mcpRuntime.reconnectTimer).fn();
+    const socket=h.mcpRuntime.socket;socket.readyState=1;socket.listeners.open();
+    assert.ok(navigation.every(item=>!item.enabled));
+    socket.listeners.message({data:JSON.stringify({type:"ready"})});
+    assert.deepEqual(navigation.at(-1),{enabled:true,reveal:false});
+    assert.equal(h.nodes.get("mcpReconnectCancel").hidden,true);assert.equal(h.mcpRuntime.reconnectStatusTimer,0);
+  }finally{h.mcpDisconnect();}
 });

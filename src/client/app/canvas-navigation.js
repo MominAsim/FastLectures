@@ -163,11 +163,14 @@
     return canvasWidgetSelectionEnabled() && state.interactingWidgetId === widget.id && !widget.hiddenForReplacement;
   }
   function canvasWidgetAtEvent(event) {
-    // DOM hit testing respects the actual painted Widget order, including a
-    // front shell covering an already-interactive Widget behind it.
     const shell = event.target?.closest?.('.canvas-widget');
-    if (shell) return visibleWidgets().find(widget => widget.id === shell.dataset.widgetId) || null;
+    const widget = shell ? visibleWidgets().find(widget => widget.id === shell.dataset.widgetId) : null;
+    if (widget?.maximized) return widget;
     const target = handObjectToolbarTargetAtPoint(clientPoint(event));
+    // The painted image layer has pointer-events:none, so a DOM shell hit can
+    // belong to a Widget covered by the front image.
+    if (target?.kind === "image") return null;
+    if (shell) return widget || null;
     return target?.kind === "widget" ? target.object : null;
   }
   function syncCanvasNavigation() {

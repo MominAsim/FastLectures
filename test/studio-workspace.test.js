@@ -84,6 +84,7 @@ test("MCP connection opens its tab once, preserves Follow latest and clears pend
   assert.equal(context.studioMcpPendingDocumentId,null);assert.equal(context.studioMcpPendingRegion,null);
   context.syncStudioNavigatorMcp(true);assert.equal(actions.length,5,"heartbeat/status renders must not reopen navigation");
   context.syncStudioNavigatorMcp(false);assert.equal(tab.hidden,true);assert.equal(context.studioNavigatorActiveTab,"all");assert.equal(context.studioMcpFollowLatest,true);
+  const before=actions.length;context.syncStudioNavigatorMcp(true,{reveal:false});assert.equal(tab.hidden,false);assert.equal(context.studioNavigatorActiveTab,"all");assert.equal(actions.length,before,"automatic recovery must not open sidebar, switch tool or close Agent");
 });
 test("MCP list contains only participating canvases, including retained and live sessions",()=>{
   const docs=[{id:"ordinary"},{id:"bound",bindings:[{}]},{id:"retained",sessions:[{}]},{id:"live"}];

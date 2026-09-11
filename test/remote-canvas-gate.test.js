@@ -350,7 +350,7 @@ test("Remote Canvas gate keeps the cloud fetch bridge and community take-further
   assert.match(run.fetchCalls.at(-1).url, /path=%2Fapi%2Fcloud%2Fcanvases%2F.*%2Fsave/, "Cloud saves remain host-owned and bridged");
 });
 
-test("native Cloud Canvas reads remain dormant behind the explicit runtime flag", async () => {
+test("native Cloud Canvas reads stay behind the explicit runtime flag", async () => {
   const run = boot({
     nativeReads:true,
     respond:() => ({ device:{ name:"Host", platform:"linux", online:true } }),
@@ -360,9 +360,27 @@ test("native Cloud Canvas reads remain dormant behind the explicit runtime flag"
   await run.window.fetch("/api/plugins");
   assert.equal(run.fetchCalls.at(-1).url, "/api/plugins");
   await run.window.fetch("/api/plugins?scope=private");
-  assert.equal(run.fetchCalls.at(-1).url, "/api/v1/remote-canvas/http?path=%2Fapi%2Fplugins%3Fscope%3Dprivate");
+  assert.equal(run.fetchCalls.at(-1).url, "/api/plugins?scope=private");
   await run.window.fetch(`/api/cloud/canvases/${CANVAS_ID}`);
   assert.equal(run.fetchCalls.at(-1).url, `/api/cloud/canvases/${CANVAS_ID}`);
+  await run.window.fetch("/api/v1/remote-canvas/http?path=%2Fapi%2Fwidget-fetch", {
+    method:"POST",
+    body:JSON.stringify({ url:"https://data.example.com/feed.json" }),
+  });
+  assert.equal(run.fetchCalls.at(-1).url, "/api/v1/widget-fetch?url=https%3A%2F%2Fdata.example.com%2Ffeed.json");
+  assert.equal(run.fetchCalls.at(-1).options.method, "GET");
+});
+
+test("Cloud-native Canvas opens directly even when a linked device is online", async () => {
+  const run = boot({
+    nativeReads:true,
+    respond:() => ({ device:{ name:"Host", platform:"linux", online:true } }),
+  });
+  await flush();
+  assert.equal(run.gate.hidden, true);
+  assert.deepEqual(run.opened, [CANVAS_ID]);
+  assert.equal(run.window.PENECHO_CONFIG.browserCanvasEditing, true);
+  assert.equal(run.fetchCalls.some((call) => call.url.startsWith("/api/v1/remote-canvas/http")), false);
 });
 
 test("desktop runtime keeps its existing direct Cloud sync path", async () => {
@@ -394,7 +412,7 @@ test("opt-in browser editing opens stored Canvas without a device and keeps host
   assert.equal(run.fetchCalls.at(-1).url,"/api/v1/widget-fetch?url=https%3A%2F%2Fexample.test%2Fdata");
 });
 
-test("browser-only Canvas library reads report the linked-device state", async () => {
+test("browser-only Canvas library and MCP requests report the linked-device state", async () => {
   for (const [status, expectedCode, result] of [
     ["unlinked", "linked_device_required", { device:null }],
     ["offline", "device_offline", { device:{ name:"Host", platform:"linux", online:false } }],
@@ -403,7 +421,7 @@ test("browser-only Canvas library reads report the linked-device state", async (
     await flush();
     assert.equal(run.gate.dataset.state, "opening", `${status} browser editing should open the stored Canvas`);
 
-    for (const endpoint of ["/api/canvases", "/api/canvas-projects"]) {
+    for (const endpoint of ["/api/canvases", "/api/canvas-projects", "/api/mcp/status"]) {
       const response = await run.window.fetch(endpoint);
       assert.equal(response.status, 409, `${status} ${endpoint} should be blocked`);
       assert.equal(response.ok, false, `${status} ${endpoint} should not look successful`);

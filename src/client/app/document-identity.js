@@ -251,20 +251,22 @@ var canvasDocumentIdentity = (() => {
     return digest;
   }
 
-  async function legacyId(locator) {
-    const key = locatorKey(locator);
-    const root = typeof globalThis === "undefined" ? null : globalThis;
-    const subtle = root && root.crypto && root.crypto.subtle;
-    const bytes = utf8Bytes(key);
+  // Content IDs must be identical in HTTPS and local/LAN HTTP contexts.
+  async function sha256Hex(input) {
+    const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+    const subtle = globalThis.crypto?.subtle;
     if (subtle && typeof subtle.digest === "function") {
       try {
-        const digest = await subtle.digest("SHA-256", bytes);
-        return `legacy-${bytesToHex(digest)}`;
+        return bytesToHex(await subtle.digest("SHA-256", bytes));
       } catch {
-        // Fall through to the local implementation when Web Crypto is unavailable.
+        // Local/LAN clients can use the same SHA-256 without Web Crypto.
       }
     }
-    return `legacy-${bytesToHex(sha256Bytes(bytes))}`;
+    return bytesToHex(sha256Bytes(bytes));
+  }
+
+  async function legacyId(locator) {
+    return `legacy-${await sha256Hex(utf8Bytes(locatorKey(locator)))}`;
   }
 
   function boundedText(value, max) {
@@ -880,6 +882,7 @@ var canvasDocumentIdentity = (() => {
     normalizeLocator,
     locatorKey,
     legacyId,
+    sha256Hex,
     normalizeMetadata,
     normalizeWorkspace,
     resolveCandidates,

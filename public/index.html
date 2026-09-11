@@ -517,6 +517,7 @@
         <div id="mcpCanvasRing" class="mcp-canvas-ring" data-state="open" aria-hidden="true" hidden></div>
         <div id="mcpCanvasNotice" class="mcp-canvas-notice" role="status" aria-live="polite" hidden>
           <button id="mcpShowNewContent" type="button" data-pe-button="secondary" data-pe-density="compact" hidden>Show new content</button>
+          <button id="mcpReconnectCancel" type="button" data-pe-button="secondary" data-pe-density="compact" hidden></button>
           <button id="mcpCanvasNoticeButton" type="button" data-pe-button="secondary" data-pe-density="compact" aria-controls="settingsPanel">MCP open · Waiting for AI</button>
         </div>
 
@@ -1097,26 +1098,26 @@
               <section class="mcp-step" aria-labelledby="mcpSetupHeading">
                 <span class="mcp-step-badge" aria-hidden="true">2</span>
                 <div class="mcp-step-body">
-                  <h4 id="mcpSetupHeading" data-mcp-label="setup">AI on this computer</h4>
-                  <p class="mcp-hint" data-mcp-label="setupHint">PenEcho writes the MCP entry on this computer. Other devices can view the canvas but cannot configure its clients.</p>
+                  <h4 id="mcpSetupHeading" data-mcp-label="setup">CLI on this computer</h4>
+                  <p class="mcp-hint" data-mcp-label="setupHint">Select a terminal CLI client for one-click setup. For desktop apps, use the setup prompt below.</p>
                   <div id="mcpClients" class="mcp-clients" role="radiogroup" aria-labelledby="mcpSetupHeading">
                     <label class="mcp-client">
                       <input type="radio" name="mcpClient" value="codex" checked>
                       <span class="mcp-client-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m7 7.5 4.5 4.5L7 16.5"/><path d="M13.5 16.5H18"/></svg></span>
-                      <span class="mcp-client-name">Codex</span>
+                      <span class="mcp-client-name">Codex CLI</span>
                       <span class="mcp-client-hint" data-mcp-label="clientCodexHint">Terminal AI client</span>
                     </label>
                     <label class="mcp-client">
                       <input type="radio" name="mcpClient" value="claude">
                       <span class="mcp-client-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4v16M4.5 8 19.5 16M19.5 8 4.5 16"/></svg></span>
-                      <span class="mcp-client-name">Claude Code</span>
+                      <span class="mcp-client-name">Claude Code CLI</span>
                       <span class="mcp-client-hint" data-mcp-label="clientClaudeHint">Terminal AI client</span>
                     </label>
                     <label class="mcp-client">
                       <input type="radio" name="mcpClient" value="other">
                       <span class="mcp-client-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="8" cy="8.5" r="1.7"/><circle cx="12" cy="8.5" r="1.7"/><circle cx="16" cy="8.5" r="1.7"/><circle cx="8" cy="14.5" r="1.7"/><circle cx="12" cy="14.5" r="1.7"/><circle cx="16" cy="14.5" r="1.7"/></svg></span>
-                      <span class="mcp-client-name">Other</span>
-                      <span class="mcp-client-hint" data-mcp-label="clientOtherHint">OpenCode / Pi / other MCP clients</span>
+                      <span class="mcp-client-name">Other CLI</span>
+                      <span class="mcp-client-hint" data-mcp-label="clientOtherHint">OpenCode / Pi / other CLI clients</span>
                     </label>
                   </div>
                   <div class="mcp-step-actions">
@@ -1130,7 +1131,7 @@
               <details id="mcpManual" class="mcp-manual">
                 <summary>
                   <span class="mcp-manual-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="7.5" cy="10" r="4"/><path d="M11.5 10H21m-3 0v4m-3-4v3"/></svg></span>
-                  <span class="mcp-manual-copy"><span data-mcp-label="manual">Auto configure failed, or your Agent is on another computer?</span><small data-mcp-label="manualHint">Copy the setup prompt and let your Agent connect.</small></span>
+                  <span class="mcp-manual-copy"><span data-mcp-label="manual">Connect with a setup prompt</span><small data-mcp-label="manualHint">Works with the CLI clients above, desktop apps and other MCP-compatible clients, including Codex, Claude, OpenCode, Zcode, Hermes, Kimi and others. Copy the setup prompt to your Agent.</small></span>
                   <svg class="mcp-manual-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg>
                 </summary>
                 <div class="mcp-manual-body">
@@ -1157,17 +1158,17 @@
                   <svg class="mcp-manual-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg>
                 </summary>
                 <div class="mcp-troubleshoot-body">
-                  <h4 data-mcp-label="troubleshootHeading">Allow Windows inbound connections</h4>
-                  <p class="mcp-hint" data-mcp-label="troubleshootHelp">If PenEcho works on the host but other computers cannot connect, Windows Firewall may be blocking inbound MCP connections.</p>
+                  <h4 data-mcp-label="troubleshootHeading">Allow MCP inbound connections</h4>
+                  <p class="mcp-hint" data-mcp-label="troubleshootHelp">If PenEcho works on the host but other computers cannot connect, send the prompt below to an Agent on the host to allow the required inbound TCP ports.</p>
                   <ol class="mcp-troubleshoot-steps">
                     <li data-mcp-label="troubleshootStepNetwork">Keep PenEcho running on the Windows host. Both computers should be on the same trusted private network.</li>
-                    <li data-mcp-label="troubleshootStepCommand">On the Windows host, open PowerShell as Administrator and run the repair command.</li>
-                    <li data-mcp-label="troubleshootStepRetry">Reconnect from your AI client. If it still fails, send the troubleshooting prompt to an Agent on the host.</li>
+                    <li data-mcp-label="troubleshootStepPrompt">Copy the prompt below and send it to an Agent on the PenEcho host.</li>
+                    <li data-mcp-label="troubleshootStepRetry">Reconnect from your AI client after the inbound ports are open.</li>
                   </ol>
                   <div class="mcp-troubleshoot-actions">
-                    <button id="mcpCopyFirewallCommand" type="button" data-pe-button="primary" data-mcp-label="copyFirewallCommand">Copy repair command</button>
-                    <button id="mcpCopyTroubleshootPrompt" type="button" data-pe-button="secondary" data-mcp-label="copyTroubleshootPrompt">Copy Agent troubleshooting prompt</button>
+                    <button id="mcpCopyTroubleshootPrompt" type="button" data-pe-button="primary" data-mcp-label="copyTroubleshootPrompt">Copy troubleshooting prompt</button>
                   </div>
+                  <p id="mcpListenerStatus" class="mcp-hint" role="status" aria-live="polite"></p>
                   <p id="mcpTroubleshootStatus" class="settings-save-status" role="status" aria-live="polite" hidden></p>
                 </div>
               </details>
