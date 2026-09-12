@@ -43,6 +43,7 @@ import { createDocumentTools, DOCUMENT_TOOL_INSTRUCTIONS } from './document-tool
 
 const require = createRequire(import.meta.url)
 const { commandFromWidgetPatch } = require('../widget-patch.js')
+const { getAuthoringGuidance } = require('../mcp/authoring-guidance.js')
 let packagedRipgrepPath = ''
 const PLUGIN_FORMAT = require('../../../public/plugins.js')
 const { DEFAULT_REASONING_EFFORT, reasoningEffortMapping } = require('../../providers/reasoning-effort.js')
@@ -4163,6 +4164,12 @@ const PenEchoCanvasPlugin = {
       },
     })
     agentCtx.systemPrompt.section({name:'penecho:document-tools',order:119,text:DOCUMENT_TOOL_INSTRUCTIONS})
+    // Restore the 1.2.0 first-request design contract while using current tools.
+    agentCtx.systemPrompt.section({
+      name:'penecho:canvas-agent-visual-explorer',
+      order:120,
+      text:visualExplorerContractContext(getAuthoringGuidance('visual-explorer', 'full')),
+    })
     agentCtx.on('tools/execute', (exec,next) => canvasDecisionFeedbackResult(session,exec,next))
     agentCtx.on('tools/result', (exec,result) => recordCanvasBatchToolResult(session,exec,result))
     for (const tool of createDocumentTools(session, {

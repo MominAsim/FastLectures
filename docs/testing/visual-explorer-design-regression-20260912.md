@@ -31,3 +31,11 @@ Loading remains on demand, unlike 1.2.0 initial injection. One read supplies all
 - Cloud mirror provenance and runtime import suites: 2 passed.
 - Historical design-body comparison: byte-identical.
 - No new real-model rendered comparison, desktop package, installation or deployment was performed for this repair. Existing installed applications do not acquire this source change automatically. Visual quality acceptance remains outstanding.
+
+## Follow-up: restore 1.2.0 initial delivery
+
+At the user's explicit request to restore the 1.2.0 requirements, the built-in Agent now includes the complete shared Visual Explorer contract in its first system prompt at order 120, matching the historical loading point. It no longer needs a preliminary guidance read for this contract. MCP still serves the same complete contract through its prompt/guidance entry points. Restored the final composition-wide typography review requirement; current tool names, source patching, live geometry preservation and other current protocol fixes are retained rather than advertising obsolete 1.2.0 tool arguments.
+
+The new Harness integration test captures the actual first model-bound request (using a stub CLI, not a live model), verifies that the full contract appears exactly once, and checks that current tools remain advertised. Targeted tests: 15 passed; existing Agent suite: 88 passed; Cloud mirror/import tests: 2 passed. No visual-quality A/B or desktop rebuild was performed in this follow-up.
+
+These changes require the executing PenEcho runtime to be updated and restarted; they do not change skill files, MCP connection addresses, credentials or client launch configuration. Restart persistent MCP/client processes and test in a new Agent conversation to avoid retained old context. Source commits and Cloud mirror sync are not an installed-app update or deployment.
