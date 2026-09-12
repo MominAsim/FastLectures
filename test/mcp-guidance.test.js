@@ -157,3 +157,17 @@ test("rendering guidance separates Canvas delivery, chat source, and explicit im
   assert.match(TOOLS.find(tool => tool.name === "penecho_present_widget").description, /including static diagrams/);
   assert.match(TOOLS.find(tool => tool.name === "penecho_draw").description, /few simple native.*explicitly requested native/);
 });
+
+
+test("Agent and MCP use the canonical 1.2.0 Visual Explorer selection conditions", async () => {
+  const { VISUAL_EXPLORER_SELECTION, CANVAS_RENDERING_ROUTING, ROUTING } = require("../src/server/mcp/authoring-guidance.js");
+  const { DOCUMENT_TOOL_INSTRUCTIONS } = await import("../src/server/canvas-agent/document-tools.mjs");
+  const paragraph = read("visual-explorer-contract.md").split(/\r?\n\r?\n/).find(text => text.startsWith("Visual Explorer is the default route"));
+  assert.equal(VISUAL_EXPLORER_SELECTION, paragraph.replace('host-native `canvas_create` `type:"plot"`', '`penecho_plot`'));
+  for (const document of [ROUTING, CANVAS_RENDERING_ROUTING, DOCUMENT_TOOL_INSTRUCTIONS, getAuthoringGuidance("visual-explorer").document]) {
+    assert.ok(document.includes(VISUAL_EXPLORER_SELECTION));
+    assert.match(document, /even when the user does not explicitly ask for an infographic/);
+    assert.match(document, /substantial pasted text, equations to explain, project explanations, document analysis, study material, structured summaries/);
+    assert.match(document, /Do not select it when the primary task is merely to supplement or modify existing Canvas/);
+  }
+});
