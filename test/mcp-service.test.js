@@ -737,7 +737,7 @@ test("MCP tool validation is strict and client configuration uses official argv 
   await assert.rejects(() => service.callTool(crypto.randomUUID(), "penecho_update_session", { sessionId:"x", status:"secretly-thinking" }), /status is invalid/);
   await assert.rejects(() => service.callTool(crypto.randomUUID(), "penecho_capture_canvas", { sessionId:"x",target:"artifact", artifactId:"a", quality:0.8 }), /quality is invalid/);
   await assert.rejects(() => service.callTool(crypto.randomUUID(), "penecho_present_widget", { sessionId:"x", artifactId:"a",requestId:"a", title:"Widget", html:"<p>x</p>", quality:"detail" }), /quality requires capture/);
-  await assert.rejects(() => service.callTool(crypto.randomUUID(), "penecho_present_widget", { sessionId:"x", artifactId:"a",requestId:"a", title:"Widget", html:"<p>x</p>", width:299 }), /width is invalid/);
+  await assert.rejects(() => service.callTool(crypto.randomUUID(), "penecho_present_widget", { sessionId:"x", artifactId:"a",requestId:"a", title:"Widget", html:"<p>x</p>", width:299 }), /width must be a finite number in range 300\.\.4096 \(inclusive\); received 299/);
   await assert.rejects(() => service.callTool(crypto.randomUUID(), "penecho_inbox", { sessionId:"x", feedbackAfter:-1 }), /feedbackAfter is invalid/);
   await assert.rejects(() => service.callTool(crypto.randomUUID(), "penecho_inbox", { sessionId:"x", feedbackAfter:1.5 }), /feedbackAfter is invalid/);
   await assert.rejects(() => service.callTool(crypto.randomUUID(), "penecho_inbox", { sessionId:"x", limit:51 }), /limit is invalid/);

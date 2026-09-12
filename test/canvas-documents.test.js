@@ -1259,3 +1259,22 @@ test("routed source patch permits a selected Widget after user geometry edits bu
  assert.deepEqual([widget.x,widget.y,widget.w,widget.h,widget.contentW,widget.contentH],[600,900,920,620,460,310]);assert.equal(widget.html,"<p>After</p>");
  await assert.rejects(h.canvasDocumentsExecute("mcp_patch_file",{...args,requestId:"stale-source"},{}),{code:"SOURCE_CONFLICT"});
 });
+
+
+test("background native labels store text foreground without changing the current Canvas",async()=>{
+ const h=harness();
+ vm.runInContext(clientFunction("mcp-primitives.js","mcpPrimitiveLayout"),h.context);
+ h.context.mcpPrimitiveRaster=()=>({width:280,height:120});
+ const started=await h.canvasDocumentsExecute("mcp_start_session",{sessionId:"labels",sessionKey:"labels",client:"test",title:"Labels"},{});
+ const doc=h.canvasDocuments.records.get(started.documentId);
+ h.state.frontCanvasObjectKind=h.state.frontPlacedCanvasObjectKind="image";
+ const args={sessionId:"labels",artifactId:"hello",title:"Hello",items:[
+  {id:"box",type:"rect",x:200,y:200,width:280,height:120,fill:"#ffffff"},
+  {id:"label",type:"text",x:200,y:230,width:100,text:"Hello"}]};
+ await h.canvasDocumentsExecute("mcp_draw",args,{});
+ assert.equal(h.state.frontPlacedCanvasObjectKind,"image");
+ assert.deepEqual({...doc.stored.item.bundleExtensions.penechoObjectOrder},{version:1,frontKind:"text-box",placedKind:"text-box"});
+ doc.stored.item.bundleExtensions.penechoObjectOrder={version:1,frontKind:"image",placedKind:"image"};
+ await h.canvasDocumentsExecute("mcp_draw",args,{});
+ assert.equal(doc.stored.item.bundleExtensions.penechoObjectOrder.placedKind,"image");
+});

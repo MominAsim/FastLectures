@@ -23940,6 +23940,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     save();state.textBoxHistoryBefore=textBoxHistoryState();state.imageHistoryBefore=imageHistoryState();
     for(const key of ['textBoxes','images'])state[key]=state[key].filter(item=>!removed.has(item.id));
     for(const item of records){if(item.object)Object.assign(item.object.item,item.record);else state[item.kind==='text'?'textBoxes':'images'].push(item.record);}
+    // Match normal new-text creation: opaque native shapes must not cover labels.
+    // Existing artifacts retain the user's later foreground choice.
+    if(!previous&&records.some(item=>item.kind==='text'))setCanvasObjectFrontKind('text-box');
     const objectIds=records.map(item=>item.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,presentation:mcpPresentation(args,previous),elements:[...elements]});
     if(plan)session.layout=plan.layout;
     state.userRevision++;save();requestRender();canvasAgentSyncState();
@@ -26391,6 +26394,8 @@ var canvasDocumentIdentity = (() => {
     canvasDocumentsBeginEdit(doc);const item=doc.stored.item;
     item.images=item.images.filter(i=>!exclude.has(i.id));item.textBoxes=item.textBoxes.filter(t=>!exclude.has(t.id));
     for(const entry of records)item[entry.kind==="text"?"textBoxes":"images"].push(entry.record);
+    // Store the same new-text foreground rule without touching the visible Canvas.
+    if(!previous&&records.some(entry=>entry.kind==="text"))item.bundleExtensions={...snapshotExtensionObject(item.bundleExtensions),penechoObjectOrder:{version:1,frontKind:"text-box",placedKind:"text-box"}};
     const objectIds=records.map(r=>r.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,presentation:mcpPresentation(args,previous),elements:[...elements]});if(plan)session.layout=plan.layout;
     canvasDocumentsEndEdit(doc,kind);return {artifactId:args.artifactId,objectId:objectIds[0],objectIds,kind,revision:doc.revision,feedbackCursor:doc.feedbackSequence,visible:false};
   }

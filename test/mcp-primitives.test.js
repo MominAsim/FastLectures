@@ -2,14 +2,14 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 function harness(){
  let next=0;const saved=[];
- const context=vm.createContext({state:{userRevision:1,textBoxes:[],images:[],aiFont:'sans-serif'},SIZE:32768,MAX_VISIBLE_TEXT_BOXES:100,MAX_VISIBLE_IMAGES:100,
+ const context=vm.createContext({state:{userRevision:1,textBoxes:[],images:[],aiFont:'sans-serif',frontCanvasObjectKind:'image',frontPlacedCanvasObjectKind:'image'},SIZE:32768,MAX_VISIBLE_TEXT_BOXES:100,MAX_VISIBLE_IMAGES:100,
  intersection:(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y,
  unionDirtyBounds:(a,b)=>!a?{...b}:{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.max(a.x+a.w,b.x+b.w)-Math.min(a.x,b.x),h:Math.max(a.y+a.h,b.y+b.h)-Math.min(a.y,b.y)},
  offscreen:(w,h)=>({width:w,height:h,getContext:()=>new Proxy({measureText:s=>({width:s.length*10})},{get:(o,k)=>o[k]||(()=>{})})}),
  renderedTextBoxRecord:async raw=>({id:`text-${++next}`,w:raw.maxWidth,h:40,...raw}),canvasBlob:async()=>({size:100}),
  imageRecord:raw=>({id:raw.id||`image-${++next}`,...raw}),canvasAgentBox:o=>({x:o.item.x,y:o.item.y,w:o.item.w,h:o.item.h}),
  canvasAgentObject:id=>{for(const [key,kind]of [['textBoxes','text'],['images','image']]){const item=context.state[key].find(i=>i.id===id);if(item)return{item,kind};}return null;},
- canvasAgentMutationIdle:()=>{},canvasAgentAssertRevision:r=>assert.equal(context.state.userRevision,r),canvasAgentAssertToolExecution:()=>{},
+ setCanvasObjectFrontKind:kind=>{context.state.frontCanvasObjectKind=kind;context.state.frontPlacedCanvasObjectKind=kind;},canvasAgentMutationIdle:()=>{},canvasAgentAssertRevision:r=>assert.equal(context.state.userRevision,r),canvasAgentAssertToolExecution:()=>{},
  plotView:()=>({xMin:-5,xMax:5,yMin:-10,yMax:10}),mcpPresentation:(args,previous)=>args.presentation||previous?.presentation||{intent:"deliver",role:"primary",attention:"normal"},mcpPlanPlacement:()=>({placement:{x:1000,y:1000},layout:{}}),save:()=>saved.push(true),textBoxHistoryState:()=>[],imageHistoryState:()=>[],requestRender:()=>{},canvasAgentSyncState:()=>{},mcpQueueView:()=>{},mcpRuntime:{feedbackSequence:0},
  });
  const source=fs.readFileSync('src/client/app/ai-runtime.js','utf8'),start=source.indexOf('  function compileExpression('),end=source.indexOf('  async function plotObjectImage',start);
@@ -50,4 +50,20 @@ test('updating one label reuses unchanged text and raster content',async()=>{
  let encodes=0;h.context.canvasBlob=async()=>{encodes++;return{size:100};};h.context.renderedTextBoxRecord=async()=>{throw Error('unchanged text must not rerender');};
  await h.mcpPresentPrimitives(session,{...args,items:args.items.map(item=>item.id==='a'?{...item,text:'Done'}:item)},'drawing',{});
  assert.equal(encodes,1,'only the changed shape encodes a raster');
+});
+
+
+test('new native labels use text foreground while updates preserve the user foreground',async()=>{
+ const h=harness(),session={artifacts:new Map()},args={artifactId:'hello',title:'Hello',items:[
+  {id:'box',type:'rect',x:200,y:200,width:280,height:120,fill:'#ffffff'},
+  {id:'label',type:'text',x:200,y:230,width:280,text:'Hello'}]};
+ await h.mcpPresentPrimitives(session,args,'drawing',{});
+ assert.equal(h.context.state.frontPlacedCanvasObjectKind,'text-box');
+ assert.equal(h.context.state.frontCanvasObjectKind,'text-box');
+ h.context.state.frontCanvasObjectKind=h.context.state.frontPlacedCanvasObjectKind='image';
+ await h.mcpPresentPrimitives(session,args,'drawing',{});
+ assert.equal(h.context.state.frontPlacedCanvasObjectKind,'image');
+ const shapes=harness();
+ await shapes.mcpPresentPrimitives({artifacts:new Map()},{...args,items:[args.items[0]]},'drawing',{});
+ assert.equal(shapes.context.state.frontPlacedCanvasObjectKind,'image');
 });

@@ -119,6 +119,9 @@
     save();state.textBoxHistoryBefore=textBoxHistoryState();state.imageHistoryBefore=imageHistoryState();
     for(const key of ['textBoxes','images'])state[key]=state[key].filter(item=>!removed.has(item.id));
     for(const item of records){if(item.object)Object.assign(item.object.item,item.record);else state[item.kind==='text'?'textBoxes':'images'].push(item.record);}
+    // Match normal new-text creation: opaque native shapes must not cover labels.
+    // Existing artifacts retain the user's later foreground choice.
+    if(!previous&&records.some(item=>item.kind==='text'))setCanvasObjectFrontKind('text-box');
     const objectIds=records.map(item=>item.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,presentation:mcpPresentation(args,previous),elements:[...elements]});
     if(plan)session.layout=plan.layout;
     state.userRevision++;save();requestRender();canvasAgentSyncState();
