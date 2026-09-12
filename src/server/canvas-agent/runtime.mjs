@@ -2051,7 +2051,7 @@ export function connectionProfile(connection, configuredTimeoutMs) {
         id:model,
         name:model,
         contextWindow:CANVAS_AGENT_CONTEXT_WINDOW,
-        maxTokens:32_768,
+        maxTokens:64_000,
         input:['text', 'image'],
         reasoningEfforts:reasoning.reasoningEfforts,
         ...(reasoning.compat ? { compat:reasoning.compat } : {}),

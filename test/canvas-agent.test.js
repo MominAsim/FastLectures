@@ -630,6 +630,7 @@ test("PenEcho Agent maps full API endpoints back to pi-ai provider base URLs",as
   assert.equal(kimiCoding.config.models[0].reasoningEfforts.medium,"high");
   assert.deepEqual(kimiCoding.config.models[0].compat,{supportsReasoningEffort:true,supportsDeveloperRole:false});
   assert.deepEqual(kimiOther.config.models[0].compat,{supportsReasoningEffort:true});
+  for (const profile of [openai,kimi,kimiCoding,claude,disabled]) assert.equal(profile.config.models[0].maxTokens,64_000);
   assert.equal(claude.reasoningEffort,"xhigh");
   assert.equal(claude.config.models[0].reasoningEfforts.xhigh,"xhigh");
   assert.deepEqual(claude.config.models[0].compat,{forceAdaptiveThinking:true});
@@ -686,10 +687,10 @@ test("PenEcho Agent sends Canvas-selected reasoning effort through Harness API r
   assert.equal(qwenRequests[1].body.reasoning_effort,"provider_native");
   assert.equal(qwenRequests[2].body.reasoning_effort,"low");
   const deepseekRequest=requests.find(request=>request.body.model==="deepseek-flash");
-  assert.equal(deepseekRequest.body.max_tokens,32768);
+  assert.equal(deepseekRequest.body.max_tokens,64000);
   assert.equal(deepseekRequest.body.max_completion_tokens,undefined);
   assert.equal(deepseekRequest.body.reasoning_effort,"high");
-  assert.equal(requests.find(request=>request.body.model==="gpt-5.6-sol").body.max_completion_tokens,32768);
+  assert.equal(requests.find(request=>request.body.model==="gpt-5.6-sol").body.max_completion_tokens,64000);
   assert.equal(qwenRequest.body.messages[0].role,"developer");
   assert.equal(kimiRequest.body.reasoning_effort,"high");
   assert.equal(kimiRequest.body.messages[0].role,"system");
