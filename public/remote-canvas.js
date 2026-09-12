@@ -385,7 +385,7 @@
       bridgeDeviceId = deviceIdPattern.test(String(result.device?.id || "")) ? String(result.device.id) : "";
       bridgeDeviceLinked = Boolean(result.device);
       publishCloudHeaderStatus(result);
-      if (nativeCloudCanvasReadsEnabled && !isCommunityCraft) {
+      if (nativeCloudCanvasReadsEnabled) {
         browserEditing = true;
         window.PENECHO_CONFIG.canvasAgent = false;
         window.PENECHO_CONFIG.browserCanvasEditing = true;
@@ -419,7 +419,7 @@
       detail.textContent = `${result.device.name} · ${result.device.platform} · ${copy.onlineStatus}`;
       settleBridgeGate({ online:true });
       await openRequestedCanvas();
-      if (nativeCloudCanvasReadsEnabled && !isCommunityCraft) await waitForVisibleWidgets();
+      if (nativeCloudCanvasReadsEnabled) await waitForVisibleWidgets();
       gate.hidden = true;
     } catch (error) {
       settleBridgeGate({ online:false, message:String(error?.message || error || copy.unavailable).slice(0, 500) });

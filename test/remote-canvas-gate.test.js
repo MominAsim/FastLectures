@@ -383,6 +383,38 @@ test("Cloud-native Canvas opens directly even when a linked device is online", a
   assert.equal(run.fetchCalls.some((call) => call.url.startsWith("/api/v1/remote-canvas/http")), false);
 });
 
+test("native community Canvas reads open Echoes without a linked device, while the default path keeps its device gate", async () => {
+  for (const result of [{ device:null }, { device:{ name:"Host", platform:"linux", online:false } }]) {
+    const run = boot({
+      pathname:`/canvas/community/${COMMUNITY_ID}`,
+      nativeReads:true,
+      respond:() => result,
+    });
+    await flush();
+    assert.equal(run.gate.dataset.state, "opening");
+    assert.equal(run.gate.hidden, true);
+    assert.equal(run.window.PENECHO_CONFIG.browserCanvasEditing, true);
+    assert.deepEqual(run.taken, [COMMUNITY_ID]);
+    assert.deepEqual(run.opened, []);
+  }
+
+  for (const [result, expectedState] of [
+    [{ device:null }, "unlinked"],
+    [{ device:{ name:"Host", platform:"linux", online:false } }, "offline"],
+  ]) {
+    const run = boot({
+      pathname:`/canvas/community/${COMMUNITY_ID}`,
+      respond:() => result,
+    });
+    await flush();
+    assert.equal(run.gate.dataset.state, expectedState);
+    assert.equal(run.gate.hidden, false);
+    assert.notEqual(run.window.PENECHO_CONFIG.browserCanvasEditing, true);
+    assert.deepEqual(run.taken, []);
+    assert.deepEqual(run.opened, []);
+  }
+});
+
 test("desktop runtime keeps its existing direct Cloud sync path", async () => {
   const calls = [], windowObject = {
     PENECHO_CONFIG:{ runtime:"local" },
