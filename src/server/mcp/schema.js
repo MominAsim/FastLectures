@@ -21,6 +21,7 @@ const MAX_REQUEST_IDS = 50;
 const DRAW_TYPES = new Set(["text", "rect", "ellipse", "line", "arrow", "path"]);
 const DRAW_NODE_TYPES = new Set(["text", "rect", "ellipse"]);
 const COLOR_PATTERN = /^(?:#[0-9A-Fa-f]{3}|#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{8}|transparent)$/;
+const COMPLETION_STATUSES = new Set(["done","waiting","error"]);
 const SESSION_STATUSES = new Set(["working", "waiting", "done", "error"]);
 const STEP_STATUSES = new Set(["pending", "working", "done", "error"]);
 const EVENT_KINDS = new Set(["progress", "evidence", "info", "warning", "error"]);
@@ -39,7 +40,7 @@ const EDIT_FIELDS = {
 };
 const EDIT_ARGUMENT_FIELDS = ["objectId","text","source","region","width","height","baseRevision","strokes"];
 const MESSAGE_STATUSES = new Set(["received", "working", "done", "error"]);
-const CAPTURE_TARGETS = new Set(["canvas", "viewport", "selection", "region", "object"]);
+const CAPTURE_TARGETS = new Set(["canvas", "viewport", "selection", "region", "object", "artifact"]);
 const CAPTURE_QUALITIES = new Set(["basic", "detail"]);
 const PRESENTATION_INTENTS = new Set(["explain", "deliver", "compare", "review", "inspect"]);
 const PRESENTATION_ROLES = new Set(["primary", "supporting", "alternative"]);
@@ -319,8 +320,8 @@ function imageSource(value) {
 const validators = {
   penecho_get_guidance(input) {
     object(input, "arguments");
-    exactKeys(input, new Set(["id"]), "arguments");
-    return { id:enumValue(input.id, new Set(GUIDANCE_IDS), "id") };
+    exactKeys(input, new Set(["id","detail"]), "arguments");
+    return { id:enumValue(input.id, new Set(GUIDANCE_IDS), "id"),...(input.detail===undefined?{}:{detail:enumValue(input.detail,new Set(["brief","full"]),"detail")}) };
   },
   penecho_list_canvases(input) {
     object(input, "arguments");
@@ -454,7 +455,7 @@ const validators = {
   },
   penecho_capture_canvas(input) {
     object(input, "arguments");
-    exactKeys(input, new Set(["sessionId", "target", "objectId", "region", "quality"]), "arguments");
+    exactKeys(input, new Set(["sessionId", "target", "objectId", "artifactId", "region", "quality"]), "arguments");
     const target = input.target === undefined ? "viewport" : enumValue(input.target, CAPTURE_TARGETS, "target");
     const output = {
       sessionId:string(input.sessionId, "sessionId"),
@@ -462,6 +463,9 @@ const validators = {
       quality:input.quality === undefined ? "basic" : enumValue(input.quality, CAPTURE_QUALITIES, "quality"),
     };
     if (input.objectId !== undefined) output.objectId = string(input.objectId, "objectId", {max:128});
+    if (input.artifactId !== undefined) output.artifactId = string(input.artifactId, "artifactId");
+    if (target === "artifact" && !output.artifactId) invalid("artifactId is required for artifact capture.");
+    if (target !== "artifact" && output.artifactId !== undefined) invalid("artifactId is valid only for artifact capture.");
     if (input.region !== undefined) output.region = region(input.region);
     if (target === "object" && output.objectId === undefined) invalid("objectId is required for object capture.");
     if (target === "region" && output.region === undefined) invalid("region is required for region capture.");
@@ -469,18 +473,21 @@ const validators = {
     if (target !== "region" && output.region !== undefined) invalid("region is valid only for region capture.");
     return output;
   },
-  penecho_read_messages(input) {
+  penecho_inbox(input) {
     object(input, "arguments");
-    exactKeys(input, new Set(["sessionId", "after", "limit"]), "arguments");
-    return {sessionId:string(input.sessionId, "sessionId"),after:input.after === undefined ? 0 : integer(input.after, "after", {min:0,max:Number.MAX_SAFE_INTEGER}),limit:input.limit === undefined ? 20 : integer(input.limit, "limit", {min:1,max:MAX_MESSAGES_PER_PAGE})};
-  },
-  penecho_ack_messages(input) {
-    object(input, "arguments");
-    exactKeys(input, new Set(["sessionId", "ids", "status", "message"]), "arguments");
-    if (!Array.isArray(input.ids) || !input.ids.length || input.ids.length > MAX_REQUEST_IDS) invalid("ids is invalid.");
-    const ids = input.ids.map((id, index) => string(id, `ids[${index}]`, {max:128}));
-    if (new Set(ids).size !== ids.length) invalid("ids contains duplicates.");
-    return {sessionId:string(input.sessionId, "sessionId"),ids,status:enumValue(input.status, MESSAGE_STATUSES, "status"),...(input.message === undefined ? {} : {message:string(input.message, "message", {min:0,max:1_000})})};
+    const mode = input.mode === undefined ? "read" : enumValue(input.mode, new Set(["read","ack"]), "mode");
+    const sessionId = string(input.sessionId,"sessionId");
+    if (mode === "ack") {
+      exactKeys(input,new Set(["sessionId","mode","ids","status","message"]),"arguments");
+      if (!Array.isArray(input.ids) || !input.ids.length || input.ids.length > MAX_REQUEST_IDS) invalid("ids is invalid.");
+      const ids=input.ids.map((id,i)=>string(id,`ids[${i}]`));
+      if(new Set(ids).size!==ids.length) invalid("ids contains duplicates.");
+      return {sessionId,mode,ids,status:enumValue(input.status,MESSAGE_STATUSES,"status"),...(input.message===undefined?{}:{message:string(input.message,"message",{min:0,max:1000})})};
+    }
+    exactKeys(input,new Set(["sessionId","mode","messageAfter","feedbackAfter","limit","capture","quality"]),"arguments");
+    if(input.capture!==undefined && typeof input.capture!=="boolean") invalid("capture is invalid.");
+    if(input.quality!==undefined && input.capture!==true) invalid("quality requires capture:true.");
+    return {sessionId,mode,messageAfter:input.messageAfter===undefined?0:integer(input.messageAfter,"messageAfter",{min:0,max:Number.MAX_SAFE_INTEGER}),...(input.feedbackAfter===undefined?{}:{feedbackAfter:integer(input.feedbackAfter,"feedbackAfter",{min:0,max:Number.MAX_SAFE_INTEGER})}),limit:input.limit===undefined?10:integer(input.limit,"limit",{min:1,max:MAX_MESSAGES_PER_PAGE}),capture:input.capture===true,...(input.quality===undefined?{}:{quality:enumValue(input.quality,CAPTURE_QUALITIES,"quality")})};
   },
   penecho_update_session(input) {
     object(input, "arguments");
@@ -512,15 +519,6 @@ const validators = {
       ...dimensions,
       ...(presentation === undefined ? {} : {presentation}),
       ...(input.capture === undefined ? {} : { capture:input.capture }),
-      ...(input.quality === undefined ? {} : { quality:enumValue(input.quality, new Set(["basic", "detail"]), "quality") }),
-    };
-  },
-  penecho_capture_widget(input) {
-    object(input, "arguments");
-    exactKeys(input, new Set(["sessionId", "artifactId", "quality"]), "arguments");
-    return {
-      sessionId:string(input.sessionId, "sessionId"),
-      artifactId:string(input.artifactId, "artifactId"),
       ...(input.quality === undefined ? {} : { quality:enumValue(input.quality, new Set(["basic", "detail"]), "quality") }),
     };
   },
@@ -559,17 +557,6 @@ const validators = {
       ...(input.capture === undefined ? {} : { capture:input.capture }),
     };
   },
-  penecho_read_feedback(input) {
-    object(input, "arguments");
-    exactKeys(input, new Set(["sessionId", "after", "limit", "capture"]), "arguments");
-    if (input.capture !== undefined && typeof input.capture !== "boolean") invalid("capture is invalid.");
-    return {
-      sessionId:string(input.sessionId, "sessionId"),
-      ...(input.after === undefined ? {} : { after:integer(input.after, "after", { min:0, max:Number.MAX_SAFE_INTEGER }) }),
-      limit:input.limit === undefined ? 20 : integer(input.limit, "limit", { min:1, max:MAX_FEEDBACK_ENTRIES }),
-      capture:input.capture !== false,
-    };
-  },
   penecho_inspect_session(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId"]), "arguments");
@@ -586,7 +573,7 @@ function presentationSchema({allowSize = true,allowInspect = false} = {}) {
   const properties = {
     intent:{type:"string",enum:[...PRESENTATION_INTENTS].filter(value => allowInspect || value !== "inspect"),default:"deliver"},
     role:{type:"string",enum:[...PRESENTATION_ROLES],default:"primary"},
-    ...(allowSize ? {size:{type:"string",enum:[...PRESENTATION_SIZES],default:"page",description:"Viewport preferences (CSS content pixels, independent of Canvas world coordinates). Widget default/page uses the available unobscured viewport and its aspect ratio; explicit dimensions and other presets are capped independently to that viewport without scaling text. Presets: base 480×360 (one compact idea), wide 992×360, tall 480×752, large 992×752, page 1200×800 (desktop UI). Omit width/height when using a preset. Later source updates preserve user geometry."}} : {}),
+    ...(allowSize ? {size:{type:"string",enum:[...PRESENTATION_SIZES],default:"page",description:"Preferred CSS viewport: base480×360, wide992×360, tall480×752, large992×752, page1200×800. Widget page/default fits available viewport; other dimensions are capped. Presets exclude width/height; source updates preserve geometry."}} : {}),
     relativeTo:{type:"string",minLength:1,maxLength:128},
     relation:{type:"string",enum:[...PRESENTATION_RELATIONS]},
     attention:{type:"string",enum:[...PRESENTATION_ATTENTION]},
@@ -606,72 +593,113 @@ function presentationSchema({allowSize = true,allowInspect = false} = {}) {
 }
 
 const TOOLS = [
+  {name:"penecho_inbox",description:"Read independent message/feedback pages; preserve both cursors. Only mode:ack marks IDs. Screenshots are opt-in.",inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},mode:{type:"string",enum:["read","ack"],default:"read"},messageAfter:{type:"integer",minimum:0,default:0},feedbackAfter:{type:"integer",minimum:0},limit:{type:"integer",minimum:1,maximum:50,default:10},capture:{type:"boolean",default:false},quality:{type:"string",enum:["basic","detail"]},ids:{type:"array",minItems:1,maxItems:50,uniqueItems:true,items:{type:"string",minLength:1,maxLength:128}},status:{type:"string",enum:[...MESSAGE_STATUSES]},message:{type:"string",maxLength:1000}},allOf:[{if:{properties:{mode:{const:"ack"}},required:["mode"]},then:{required:["ids","status"],properties:{messageAfter:false,feedbackAfter:false,limit:false,capture:false,quality:false}},else:{properties:{ids:false,status:false,message:false}}},{if:{required:["quality"]},then:{required:["capture"],properties:{capture:{const:true}}}}]}},
   {
     name:"penecho_get_guidance",
-    description:"Read shared authoring guidance on demand without a Canvas connection. Choose visual-explorer for explanations, general-html for UI pages/tools, or the closest scientific supplement. Reuse the returned version/hash for unchanged guidance.",
+    description:"Read task-specific authoring guidance: brief by default, full for complete examples and rules. Reuse unchanged version/hash.",
     annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},
-    inputSchema:{type:"object",additionalProperties:false,required:["id"],properties:{id:{type:"string",enum:[...GUIDANCE_IDS]}}},
+    inputSchema:{type:"object",additionalProperties:false,required:["id"],properties:{id:{type:"string",enum:[...GUIDANCE_IDS]},detail:{type:"string",enum:["brief","full"],default:"brief"}}},
   },
   {
     name:"penecho_list_canvases",
     annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},
-    description:`List live opted-in Canvas connections across local PenEcho instances. ${INVOCATION_INSTRUCTIONS} Empty or partial discovery reports unavailable instances separately from instances with no opted-in Canvas.`,
+    description:"List opted-in connections and unavailable instances. Choose exact instanceId/canvasId; never guess across hosts.",
     inputSchema:{ type:"object", additionalProperties:false, properties:{} },
   },
-  { name:"penecho_open_canvas", description:"Create or open a persistent PenEcho document through one exact opted-in browser connection. Supply documentId, locator, or both to verify an exact saved copy; create is exclusive. The current view changes only when show:true.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId","requestId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256},locator:{type:"object",additionalProperties:false,required:["location","id"],properties:{location:{type:"string",enum:[...STORAGE_LOCATIONS]},id:{type:"string",minLength:1,maxLength:512}}},create:{type:"boolean",default:false},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},requestId:{type:"string",minLength:1,maxLength:128},show:{type:"boolean",default:false}},allOf:[{if:{properties:{create:{const:true}},required:["create"]},then:{properties:{documentId:false,locator:false}},else:{anyOf:[{required:["documentId"]},{required:["locator"]}],properties:{title:false}}}]} },
-  { name:"penecho_find_canvases", description:"Find authorized document candidates and per-provider statuses through one exact opted-in browser connection. This does not guess across PenEcho hosts.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256}}} },
+  { name:"penecho_open_canvas", description:"Open an exact saved document or create one. show:true changes the view only on user request. requestId is idempotent.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId","requestId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256},locator:{type:"object",additionalProperties:false,required:["location","id"],properties:{location:{type:"string",enum:[...STORAGE_LOCATIONS]},id:{type:"string",minLength:1,maxLength:512}}},create:{type:"boolean",default:false},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},requestId:{type:"string",minLength:1,maxLength:128},show:{type:"boolean",default:false}},allOf:[{if:{properties:{create:{const:true}},required:["create"]},then:{properties:{documentId:false,locator:false}},else:{anyOf:[{required:["documentId"]},{required:["locator"]}],properties:{title:false}}}]} },
+  { name:"penecho_find_canvases", description:"Find authorized saved documents through one exact browser; return per-provider availability.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256}}} },
   {
     name:"penecho_start_session",
-    description:"Start or restore an owned conversation. With direct HTTP, omit instanceId/canvasId to select the latest registered browser for a new conversation; an existing sessionKey keeps its original browser/document binding. Pass documentId to reopen a closed Canvas before associating it; only a confirmed missing document creates a replacement (restore:false disables replacement). Use a unique sessionKey per conversation and a stable client name; retain returned sessionId/documentId. Use target:current to attach to the visible Canvas without creating a document or renaming it; target and documentId are exclusive. Without either, a new unbound conversation gets a new background Canvas even when the visible Canvas is empty. This default applies only to new conversations; reuse an existing binding across turns and reconnects. Give the new Canvas a concise descriptive name through title. This does not create a browser tab or progress board; boardObjectId may be null. A concise title also names an untitled Canvas.",
+    description:"Use unique stable sessionKey/client; retain sessionId/documentId. New sessions get a background Canvas on the latest opted-in browser; target:current binds the visible document. documentId restores an exact document; existing bindings stay. Only confirmed missing documents permit replacement; restore:false forbids it. show:true changes view.",
     inputSchema:{ type:"object", additionalProperties:false, required:["title"], not:{required:["target","documentId"]}, properties:{ canvasId:{type:"string",minLength:1,maxLength:128}, instanceId:{type:"string",minLength:1,maxLength:128}, documentId:{type:"string",minLength:1,maxLength:256}, target:{type:"string",enum:["current"]}, takeover:{type:"boolean",default:false}, title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS}, client:{type:"string",minLength:1,maxLength:120}, sessionKey:{type:"string",minLength:1,maxLength:128}, restore:{type:"boolean",default:true}, show:{type:"boolean",default:false} } },
   },
-  { name:"penecho_list_files", description:"List bounded virtual public files for the session document. Paths are Canvas virtual paths, never host filesystem paths.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",default:"/",maxLength:1024},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},offset:{type:"integer",minimum:0,default:0},limit:{type:"integer",minimum:1,maximum:MAX_FILES_PER_PAGE,default:50}}} },
-  { name:"penecho_read_file", description:"Read bounded public source content from one virtual Canvas file. This never exposes a physical filesystem path.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","path"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",minLength:1,maxLength:1024},startLine:{type:"integer",minimum:1},endLine:{type:"integer",minimum:1}}} },
-  { name:"penecho_patch_file", description:"Apply one strict unified diff to an existing virtual source file. Read first and use its contentHash. Use --- a/<path>, +++ b/<path>, then @@ -oldStart,oldCount +newStart,newCount @@; prefix every hunk line with space, - or + and make counts match those lines. Small exact replacements may use one-line hunks. Do not use Begin Patch envelopes or copy read-file line numbers into source. Retry an unknown outcome with the same requestId. Geometry is edited separately.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","path","contentHash","patch","requestId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",minLength:1,maxLength:1024},contentHash:{type:"string",minLength:1,maxLength:256},patch:{type:"string",maxLength:MAX_FILE_BYTES},requestId:{type:"string",minLength:1,maxLength:128}}} },
-  { name:"penecho_upload_image", description:"Save a named image attachment in the bound document without placing a Canvas object. Idempotent requestId. Returns assetId, source, name, mediaType, bytes, width, height, documentId and revision. Reuse the returned penecho-asset source for placement or replacement.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","requestId","name","source"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},requestId:{type:"string",minLength:1,maxLength:128},name:{type:"string",minLength:1,maxLength:200},source:{type:"string",maxLength:MAX_FILE_BYTES,description:"Full PNG/JPEG/WebP base64 Data URL, at most 800000 UTF-8 bytes including prefix; or authorized same-document penecho-asset:<64 lowercase hex sha256> / penecho-ref:objects/<id>/image. No host paths or remote URLs."}}} },
-  { name:"penecho_place_image", description:"Place an image on the bound Canvas, idempotently by requestId. source accepts a full PNG/JPEG/WebP base64 Data URL (800000 UTF-8 bytes), or authorized same-document penecho-asset:<sha256> or penecho-ref:objects/<id>/image. Omit region for automatic layout. region x/y explicitly position it; region w/h do not size it. Optional width/height set image dimensions, each at least 80 world units. If only one dimension is supplied, the other is derived proportionally and must also be at least 80. No baseRevision. Returns objectId, source, revision, documentId and applied:true.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","requestId","source"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},requestId:{type:"string",minLength:1,maxLength:128},source:{type:"string",maxLength:MAX_FILE_BYTES},width:{type:"number",minimum:80,maximum:1_000_000_000},height:{type:"number",minimum:80,maximum:1_000_000_000},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}}}} },
-  { name:"penecho_edit_canvas", description:"Perform one bounded idempotent Canvas edit. create_text: choose placement by purpose. To annotate existing Canvas content, supply region using the target content geometry and current Canvas evidence. For standalone text display, send only sessionId, requestId, action and text; omit region to let the host find clear space in the current viewport (background documents use their own layout). Never invent coordinates. User-provided coordinates also support explicit placement. Read runtime/viewport.json through penecho_read_file when spatial evidence is needed; active:false has no current viewport. create_text rejects baseRevision, objectId, source, width, height and strokes. Mutating existing content requires baseRevision to prevent overwrites. draw_ink adds native round brush strokes on the active document only; requires baseRevision and strokes with world-coordinate points, explicit #RRGGBB color and width 1–64. Up to 16 strokes, 256 points each, 1024 total points in a 2048 × 2048 region. Preserves the selected user brush. Image replacement accepts only data URLs or authorized same-document penecho-ref or penecho-asset references; arbitrary fetching is unavailable.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","requestId","action"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},requestId:{type:"string",minLength:1,maxLength:128},action:{type:"string",enum:[...EDIT_ACTIONS]},objectId:{type:"string",minLength:1,maxLength:128},text:{type:"string",maxLength:MAX_FILE_BYTES},source:{description:"replace_image only: full data:image/png|jpeg|webp;base64,... URL (800000 UTF-8 bytes including prefix), or same-document penecho-ref:objects/<id>/image from image.json or penecho-asset:<64 lowercase hex sha256>. Raw Base64, local paths and HTTP(S) URLs are unsupported.",type:"string",maxLength:MAX_FILE_BYTES},region:{description:"Canvas world coordinates, not screen pixels or penecho_draw scene coordinates. Required for move/erase_ink; For create_text annotations, specify position from the annotated content geometry; for standalone text display, omit region for auto-layout. For create_text, x/y position the text; w/h do not size the text box.",type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},width:{type:"number",exclusiveMinimum:0},height:{type:"number",exclusiveMinimum:0},strokes:{type:"array",minItems:1,maxItems:16,items:{type:"object",additionalProperties:false,required:["points","color","width"],properties:{color:{type:"string",pattern:"^#[0-9a-fA-F]{6}$"},width:{type:"number",minimum:1,maximum:64},points:{type:"array",minItems:1,maxItems:256,items:{type:"object",additionalProperties:false,required:["x","y"],properties:{x:{type:"number",minimum:0,maximum:20000},y:{type:"number",minimum:0,maximum:20000}}}}}}},baseRevision:{description:"Current canvas.json revision for edits to existing content and draw_ink. Forbidden for create_text and show.",type:"integer",minimum:0}},allOf:Object.entries(EDIT_FIELDS).map(([action,{required,optional=[]}])=>({if:{properties:{action:{const:action}},required:["action"]},then:{...(required.length?{required}:{}),properties:Object.fromEntries(EDIT_ARGUMENT_FIELDS.filter(key=>![...required,...optional].includes(key)).map(key=>[key,false])),...(action==="replace_image"?{dependencies:{width:["height"],height:["width"]}}:{})}}))} },
-  { name:"penecho_capture_canvas", description:"Read what the user drew or wrote: when asked to follow Canvas handwriting, sketches, circles, arrows or annotations (“请按照我画的内容来执行”, “请按照我写的来进行操作”), use this tool only if execution depends on unseen, changed or unclear visual content that existing context or images do not resolve. Source/JSON cannot establish missing ink or spatial details. Reuse already understood unchanged drawings or sufficient supplied/feedback images; no mandatory capture or image review on every turn, ordinary source edit or fully specified text instruction. Explicitly capture bounded existing Canvas content from the visible session document. Targets include the viewport, Canvas, selection, region, or one object. This never shows a hidden document implicitly; CANVAS_NOT_VISIBLE includes retry guidance.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},target:{type:"string",enum:[...CAPTURE_TARGETS],default:"viewport"},objectId:{type:"string",minLength:1,maxLength:128},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},quality:{type:"string",enum:[...CAPTURE_QUALITIES],default:"basic"}},allOf:[{if:{properties:{target:{const:"object"}},required:["target"]},then:{required:["objectId"]},else:{properties:{objectId:false}}},{if:{properties:{target:{const:"region"}},required:["target"]},then:{required:["region"]},else:{properties:{region:false}}}]} },
-  { name:"penecho_read_messages", description:"Pull bounded user messages for this session. Reading does not acknowledge receipt and never wakes a stopped client automatically.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},after:{type:"integer",minimum:0,default:0},limit:{type:"integer",minimum:1,maximum:MAX_MESSAGES_PER_PAGE,default:20}}} },
-  { name:"penecho_ack_messages", description:"Explicitly acknowledge pulled user message request IDs with a bounded processing status.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","ids","status"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},ids:{type:"array",minItems:1,maxItems:MAX_REQUEST_IDS,uniqueItems:true,items:{type:"string",minLength:1,maxLength:128}},status:{type:"string",enum:[...MESSAGE_STATUSES]},message:{type:"string",maxLength:1000}}} },
+  { name:"penecho_list_files", description:"Page virtual Canvas files, optionally in a region. Paths are virtual, never host paths.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",default:"/",maxLength:1024},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},offset:{type:"integer",minimum:0,default:0},limit:{type:"integer",minimum:1,maximum:MAX_FILES_PER_PAGE,default:50}}} },
+  { name:"penecho_read_file", description:"Read virtual source and contentHash; optional line range. Runtime files are observations, not editable source.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","path"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",minLength:1,maxLength:1024},startLine:{type:"integer",minimum:1},endLine:{type:"integer",minimum:1}}} },
+  { name:"penecho_patch_file", description:"Apply one strict unified diff to the read path/contentHash. Use --- a/<path>, +++ b/<path> and exact @@ hunk counts; no Begin Patch envelopes or line-number prefixes. SOURCE_CONFLICT needs a fresh read and requestId; unknown outcomes need identical retries.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","path","contentHash","patch","requestId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",minLength:1,maxLength:1024},contentHash:{type:"string",minLength:1,maxLength:256},patch:{type:"string",maxLength:MAX_FILE_BYTES},requestId:{type:"string",minLength:1,maxLength:128}}} },
+  { name:"penecho_upload_image", description:"Save an image without placement. Reuse returned source in Widget HTML or place_image. requestId is idempotent.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","requestId","name","source"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},requestId:{type:"string",minLength:1,maxLength:128},name:{type:"string",minLength:1,maxLength:200},source:{type:"string",maxLength:MAX_FILE_BYTES,description:"Full PNG/JPEG/WebP base64 Data URL, at most 800000 UTF-8 bytes including prefix; or authorized same-document penecho-asset:<64 lowercase hex sha256> / penecho-ref:objects/<id>/image. No host paths or remote URLs."}}} },
+  { name:"penecho_place_image", description:"Place an authorized image. Omit region for auto-layout; region positions, width/height size (minimum80). One dimension preserves aspect ratio. Reuse requestId on uncertain outcomes.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","requestId","source"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},requestId:{type:"string",minLength:1,maxLength:128},source:{type:"string",maxLength:MAX_FILE_BYTES},width:{type:"number",minimum:80,maximum:1_000_000_000},height:{type:"number",minimum:80,maximum:1_000_000_000},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}}}} },
+  { name:"penecho_edit_canvas", description:"One idempotent edit. create_text without region uses auto-layout; annotate existing content with evidenced world region. Existing geometry/destructive edits require baseRevision. draw_ink requires world points, #RRGGBB and width1\u201364, at most1024 points in2048\u00d72048. Image sources must be document-owned references or data URLs.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","requestId","action"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},requestId:{type:"string",minLength:1,maxLength:128},action:{type:"string",enum:[...EDIT_ACTIONS]},objectId:{type:"string",minLength:1,maxLength:128},text:{type:"string",maxLength:MAX_FILE_BYTES},source:{description:"replace_image: PNG/JPEG/WebP data URL (800000 bytes), or same-document penecho-ref:objects/<id>/image / penecho-asset:<64 lowercase hex sha256>. No raw Base64, host paths or remote URLs.",type:"string",maxLength:MAX_FILE_BYTES},region:{description:"World coordinates (not screen/scene). move/erase_ink require region. create_text annotations use existing geometry; standalone text omits region. x/y position text; w/h do not size it.",type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},width:{type:"number",exclusiveMinimum:0},height:{type:"number",exclusiveMinimum:0},strokes:{type:"array",minItems:1,maxItems:16,items:{type:"object",additionalProperties:false,required:["points","color","width"],properties:{color:{type:"string",pattern:"^#[0-9a-fA-F]{6}$"},width:{type:"number",minimum:1,maximum:64},points:{type:"array",minItems:1,maxItems:256,items:{type:"object",additionalProperties:false,required:["x","y"],properties:{x:{type:"number",minimum:0,maximum:20000},y:{type:"number",minimum:0,maximum:20000}}}}}}},baseRevision:{description:"Current canvas.json revision for edits to existing content and draw_ink. Forbidden for create_text and show.",type:"integer",minimum:0}},allOf:Object.entries(EDIT_FIELDS).map(([action,{required,optional=[]}])=>({if:{properties:{action:{const:action}},required:["action"]},then:{...(required.length?{required}:{}),properties:Object.fromEntries(EDIT_ARGUMENT_FIELDS.filter(key=>![...required,...optional].includes(key)).map(key=>[key,false])),...(action==="replace_image"?{dependencies:{width:["height"],height:["width"]}}:{})}}))} },
+  { name:"penecho_capture_canvas", description:"Capture unresolved visual evidence only; reuse unchanged images. Hidden documents return CANVAS_NOT_VISIBLE without navigation. target:artifact requires artifactId; object/region require matching selector. Default basic; detail only for legibility.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},target:{type:"string",enum:[...CAPTURE_TARGETS],default:"viewport"},objectId:{type:"string",minLength:1,maxLength:128},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},quality:{type:"string",enum:[...CAPTURE_QUALITIES],default:"basic"}},allOf:[{if:{properties:{target:{const:"object"}},required:["target"]},then:{required:["objectId"]},else:{properties:{objectId:false}}},{if:{properties:{target:{const:"region"}},required:["target"]},then:{required:["region"]},else:{properties:{region:false}}}]} },
+
+
   {
     name:"penecho_update_session",
-    description:"Queue a bounded public progress update for a PenEcho session. Send concise findings, decisions, blockers and final status at natural work boundaries without delaying initial output. Batch related facts and reuse IDs; no periodic busywork, token streaming or screenshots for progress. The acknowledgement says queued; inspect_session reports whether the browser applied it and whether its surface was visible, without claiming pixel-level paint proof.",
+    description:"Queue public progress/status when useful. Response is acceptance, not paint proof. Prefer mutation completion for final status; no routine progress round trips.",
     inputSchema:{ type:"object", additionalProperties:false, required:["sessionId"], properties:{ sessionId:{type:"string",minLength:1,maxLength:128}, title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS}, status:{type:"string",enum:[...SESSION_STATUSES]}, summary:{type:"string",maxLength:MAX_SUMMARY_CHARS}, steps:{type:"array",maxItems:MAX_STEPS,items:{type:"object",additionalProperties:false,required:["id","label"],properties:{id:{type:"string",minLength:1,maxLength:64},label:{type:"string",minLength:1,maxLength:160},status:{type:"string",enum:[...STEP_STATUSES]}}}}, events:{type:"array",maxItems:MAX_EVENTS_PER_UPDATE,items:{type:"object",additionalProperties:false,required:["id","text"],properties:{id:{type:"string",minLength:1,maxLength:64},text:{type:"string",minLength:1,maxLength:500},kind:{type:"string",enum:[...EVENT_KINDS]}}}} },anyOf:["title","status","summary","steps","events"].map(key=>({required:[key]})) },
   },
   {
     name:"penecho_present_widget",
-    description:"Present HTML in the exact session using stable artifactId. presentation controls purpose, placement and attention. New Widgets fit the available unobscured display viewport; dimensions are preferred CSS content dimensions, not Canvas world geometry. Use the returned actual viewport as rendering evidence. Source updates preserve existing artifact geometry. intent:inspect requires capture:true and returns an ephemeral render at the exact requested viewport without a Canvas object. " + VISUAL_TOOL_INSTRUCTIONS,
-    inputSchema:{ type:"object", additionalProperties:false, required:["sessionId","artifactId","title","html"], properties:{sessionId:{type:"string",minLength:1,maxLength:128},artifactId:{type:"string",minLength:1,maxLength:128},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},html:{type:"string",minLength:1,maxLength:MAX_HTML_CHARS},width:{type:"number",minimum:300,maximum:4096,description:"Preferred CSS content width, capped to available display width on creation; exact for inspect."},height:{type:"number",minimum:200,maximum:4096,description:"Preferred CSS content height, capped independently to available display height on creation; exact for inspect."},capture:{type:"boolean",default:false},quality:{type:"string",enum:["basic","detail"]},presentation:presentationSchema({allowInspect:true})}, allOf:[{if:{required:["quality"]},then:{required:["capture"],properties:{capture:{const:true}}}},{if:{properties:{presentation:{properties:{intent:{const:"inspect"}},required:["intent"]}},required:["presentation"]},then:{required:["capture"],properties:{capture:{const:true}}}},{if:{properties:{presentation:{required:["size"]}},required:["presentation"]},then:{not:{anyOf:[{required:["width"]},{required:["height"]}]}}}] },
+    description:"Create/update stable artifactId with HTML, preserving geometry; returned viewport is actual CSS size. relativeTo is a known artifactId. inspect requires capture:true and renders exact dimensions without saving an object. Capture failures may leave applied:true. Format source for patches.",
+    inputSchema:{ type:"object", additionalProperties:false, required:["sessionId","artifactId","title","html"], properties:{sessionId:{type:"string",minLength:1,maxLength:128},artifactId:{type:"string",minLength:1,maxLength:128},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},html:{type:"string",minLength:1,maxLength:MAX_HTML_CHARS},width:{type:"number",minimum:300,maximum:4096,description:"CSS width: capped on creation, exact for inspect."},height:{type:"number",minimum:200,maximum:4096,description:"CSS height: independently capped on creation, exact for inspect."},capture:{type:"boolean",default:false},quality:{type:"string",enum:["basic","detail"]},presentation:presentationSchema({allowInspect:true})}, allOf:[{if:{required:["quality"]},then:{required:["capture"],properties:{capture:{const:true}}}},{if:{properties:{presentation:{properties:{intent:{const:"inspect"}},required:["intent"]}},required:["presentation"]},then:{required:["capture"],properties:{capture:{const:true}}}},{if:{properties:{presentation:{required:["size"]}},required:["presentation"]},then:{not:{anyOf:[{required:["width"]},{required:["height"]}]}}}] },
   },
-  {
-    name:"penecho_capture_widget",
-    description:"Capture one requested widget from the exact PenEcho session. No screenshot is taken unless this tool is called.",
-    inputSchema:{ type:"object", additionalProperties:false, required:["sessionId","artifactId"], properties:{sessionId:{type:"string",minLength:1,maxLength:128},artifactId:{type:"string",minLength:1,maxLength:128},quality:{type:"string",enum:["basic","detail"]}} },
-  },
+
   {
     name:"penecho_draw",
-    description:"Create or replace a stable artifact with native Canvas text and rasterized shapes. Item x/y are local scene coordinates, not Canvas world positions; the host places the complete artifact. Omit item coordinates for automatic scene layout. presentation may express intent, role, relative placement, and attention; drawings use natural scene bounds and reject size or inspect. Rectangles and ellipses may include labels and have an 80 px minimum footprint. The result is saved with the Canvas and can be moved or resized; MCP can replace it by artifactId, but it has no editable vector handles and is not an iframe Widget. Set capture:true only when a bounded screenshot is needed. A capture error leaves the applied artifact in place, so retry with the same artifactId.",
+    description:"Create/update native raster shapes/text using stable artifactId. Item coordinates are local scene coordinates; omit for auto-layout. Rect/ellipse minimum80. Host places the artifact. No editable vector handles; capture is opt-in.",
     inputSchema:{ type:"object", additionalProperties:false, required:["sessionId","artifactId","title","items"], properties:{ sessionId:{type:"string",minLength:1,maxLength:128}, artifactId:{type:"string",minLength:1,maxLength:128}, title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS}, items:{type:"array",minItems:1,maxItems:MAX_DRAW_ITEMS,items:{type:"object",additionalProperties:false,required:["id","type"],properties:{id:{type:"string",minLength:1,maxLength:64},type:{type:"string",enum:[...DRAW_TYPES]},text:{type:"string",minLength:1,maxLength:1_000},x:{type:"number",minimum:0,maximum:2_400},y:{type:"number",minimum:0,maximum:2_400},width:{type:"number",minimum:8,maximum:1_200},height:{type:"number",minimum:8,maximum:1_200},color:{type:"string",pattern:COLOR_PATTERN.source},fill:{type:"string",pattern:COLOR_PATTERN.source},fontSize:{type:"number",minimum:12,maximum:64},strokeWidth:{type:"number",minimum:1,maximum:12},points:{type:"array",minItems:2,maxItems:MAX_DRAW_POINTS,items:{type:"object",additionalProperties:false,required:["x","y"],properties:{x:{type:"number",minimum:0,maximum:2_400},y:{type:"number",minimum:0,maximum:2_400}}}},from:{type:"string",minLength:1,maxLength:64},to:{type:"string",minLength:1,maxLength:64}},allOf:[{if:{required:["type"],properties:{type:{enum:["rect","ellipse"]}}},then:{properties:{width:{minimum:80},height:{minimum:80}}}}]}}, capture:{type:"boolean",default:false}, presentation:presentationSchema({allowSize:false}) } },
   },
   {
     name:"penecho_plot",
-    description:"Create or replace a stable native Canvas plot from a bounded mathematical expression. presentation may express intent, role, preset viewport, stable relative placement, and attention; inspect is reserved for Widgets. PenEcho compiles the expression safely without eval. The raster plot is saved with the Canvas and can be moved or resized; MCP can replace it by artifactId, but it has no editable vector handles and is not an iframe Widget. Set capture:true only when a bounded screenshot is needed. A capture error leaves the applied artifact in place, so retry with the same artifactId.",
+    description:"Create/update a native raster function plot safely from expression. Stable artifactId; no editable vector handles. Host places it. Capture is opt-in.",
     inputSchema:{ type:"object", additionalProperties:false, required:["sessionId","artifactId","title","expression"], properties:{sessionId:{type:"string",minLength:1,maxLength:128},artifactId:{type:"string",minLength:1,maxLength:128},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},expression:{type:"string",minLength:1,maxLength:180},width:{type:"number",minimum:300,maximum:1_600},height:{type:"number",minimum:200,maximum:1_200},xMin:{type:"number",minimum:-1_000_000,maximum:1_000_000},xMax:{type:"number",minimum:-1_000_000,maximum:1_000_000},yMin:{type:"number",minimum:-1_000_000,maximum:1_000_000},yMax:{type:"number",minimum:-1_000_000,maximum:1_000_000},color:{type:"string",pattern:COLOR_PATTERN.source},capture:{type:"boolean",default:false},presentation:presentationSchema()}, allOf:[{if:{properties:{presentation:{required:["size"]}},required:["presentation"]},then:{not:{anyOf:[{required:["width"]},{required:["height"]}]}}}] },
   },
-  {
-    name:"penecho_read_feedback",
-    description:"Read bounded user feedback added to the exact PenEcho session since its start baseline or a supplied cursor. This does not consume feedback. A bounded screenshot is returned with changes by default; set capture:false for metadata only.",
-    inputSchema:{ type:"object", additionalProperties:false, required:["sessionId"], properties:{sessionId:{type:"string",minLength:1,maxLength:128},after:{type:"integer",minimum:0},limit:{type:"integer",minimum:1,maximum:MAX_FEEDBACK_ENTRIES,default:20},capture:{type:"boolean",default:true}} },
-  },
-  { name:"penecho_inspect_session", description:"Inspect an owned session, applied browser state and bounded attention metadata (pending content, view blocker, scale). No screenshot; use to diagnose a specific issue, not idle polling.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128}}} },
-  { name:"penecho_close_session", description:"Close one owned PenEcho session on its exact canvas.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128}}} },
+
+  { name:"penecho_inspect_session", description:"Inspect state/attention to diagnose an issue; no pixels or idle polling.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128}}} },
+  { name:"penecho_close_session", description:"Close the bound session; retain its document content.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128}}} },
 ];
+
+const COMMON_TOOL_NAMES = Object.freeze(["penecho_start_session","penecho_present_widget","penecho_read_file","penecho_patch_file","penecho_edit_canvas","penecho_inbox"]);
+const MUTATION_TOOLS = new Set(["penecho_present_widget","penecho_patch_file","penecho_edit_canvas","penecho_upload_image","penecho_place_image","penecho_draw","penecho_plot"]);
+for (const tool of TOOLS) {
+  if(!COMMON_TOOL_NAMES.includes(tool.name))tool._meta={"penecho/usage":"specialized"};
+  if(MUTATION_TOOLS.has(tool.name)) Object.assign(tool.inputSchema.properties,{
+    output:{type:"string",enum:["concise","detailed"],default:"concise"},
+    completion:{type:"object",additionalProperties:false,required:["status"],properties:{status:{type:"string",enum:[...COMPLETION_STATUSES]},summary:{type:"string",maxLength:600},handledMessageIds:{type:"array",maxItems:50,uniqueItems:true,items:{type:"string",minLength:1,maxLength:128}}}},
+  });
+  if(["penecho_present_widget","penecho_draw","penecho_plot"].includes(tool.name)) {tool.inputSchema.properties.requestId={type:"string",minLength:1,maxLength:128};tool.inputSchema.required.push("requestId");}
+  if(["penecho_patch_file","penecho_edit_canvas","penecho_place_image","penecho_draw","penecho_plot"].includes(tool.name)) {
+    tool.inputSchema.properties.capture={type:"boolean",default:false};
+    tool.inputSchema.properties.quality={type:"string",enum:[...CAPTURE_QUALITIES]};
+    (tool.inputSchema.allOf ||= []).push({if:{required:["quality"]},then:{required:["capture"],properties:{capture:{const:true}}}});
+  }
+  if(tool.name==="penecho_capture_canvas") {
+    tool.inputSchema.properties.target.enum=[...CAPTURE_TARGETS];
+    tool.inputSchema.allOf.push({if:{properties:{target:{const:"artifact"}},required:["target"]},then:{required:["artifactId"]},else:{properties:{artifactId:false}}});
+    tool.inputSchema.properties.artifactId={type:"string",minLength:1,maxLength:128};
+  }
+}
 
 function validateToolArguments(name, input) {
   const validate = validators[name];
   if (!validate) throw new McpBridgeError("tool_not_found", `Unknown tool: ${String(name || "")}.`, 404);
-  return validate(input);
+  if (!MUTATION_TOOLS.has(name)) return validate(input);
+  object(input,"arguments");
+  const {output,completion,...operation}=input;
+  const extendedCapture=["penecho_patch_file","penecho_edit_canvas","penecho_place_image","penecho_draw","penecho_plot"].includes(name);
+  const quality=extendedCapture?operation.quality:undefined;
+  if(extendedCapture)delete operation.quality;
+  const newCapture=["penecho_patch_file","penecho_edit_canvas","penecho_place_image"].includes(name);
+  const capture=newCapture?operation.capture:undefined;
+  if(newCapture)delete operation.capture;
+  const artifactMutation=["penecho_present_widget","penecho_draw","penecho_plot"].includes(name);
+  const requestId=artifactMutation?operation.requestId:undefined;
+  if(artifactMutation)delete operation.requestId;
+  const result=validate(operation);
+  if(newCapture&&capture!==undefined){if(typeof capture!=="boolean")invalid("capture is invalid.");result.capture=capture;}
+  if(extendedCapture&&quality!==undefined){if(result.capture!==true)invalid("quality requires capture to be true.");result.quality=enumValue(quality,CAPTURE_QUALITIES,"quality");}
+  if(artifactMutation)result.requestId=string(requestId,"requestId");
+  if(completion!==undefined && !result.requestId)invalid("completion requires requestId.");
+  if(output!==undefined) result.output=enumValue(output,new Set(["concise","detailed"]),"output");
+  if(completion!==undefined) {
+    object(completion,"completion");exactKeys(completion,new Set(["status","summary","handledMessageIds"]),"completion");
+    result.completion={status:enumValue(completion.status,COMPLETION_STATUSES,"completion.status")};
+    if(completion.summary!==undefined)result.completion.summary=string(completion.summary,"completion.summary",{min:0,max:600});
+    if(completion.handledMessageIds!==undefined){
+      if(!Array.isArray(completion.handledMessageIds)||completion.handledMessageIds.length>MAX_REQUEST_IDS)invalid("completion.handledMessageIds is invalid.");
+      const ids=completion.handledMessageIds.map(id=>string(id,"message ID"));if(new Set(ids).size!==ids.length)invalid("completion.handledMessageIds contains duplicates.");result.completion.handledMessageIds=ids;
+    }
+  }
+  return result;
 }
 
 module.exports = {
@@ -682,5 +710,7 @@ module.exports = {
   MAX_FILE_BYTES,
   McpBridgeError,
   TOOLS,
+  COMMON_TOOL_NAMES,
+  MUTATION_TOOLS,
   validateToolArguments,
 };

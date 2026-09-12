@@ -32,7 +32,13 @@ test("desktop and CLI share home registry across application state directories",
     assert.equal(readRecords(recordsDirectory()).length, 2);
     assert.equal(fs.existsSync(recordsDirectory(desktopState)), false);
     assert.equal(fs.existsSync(recordsDirectory(cliState)), false);
-    for (const service of services) assert.deepEqual(service.status().config.args.slice(-2), ["--state-directory", shared]);
+    // HTTP bootstrap is asynchronous; read the authorized status endpoint before
+    // inspecting the generated stdio launcher and shared credential directory.
+    for (const server of servers) {
+      const response=await fetch(`http://127.0.0.1:${server.address().port}/api/mcp/status`);
+      const status=await response.json();
+      assert.deepEqual(status.config.args.slice(-2), ["--state-directory", path.join(shared,"mcp")]);
+    }
     const bridge = new PenEchoStdioServer({stateDirectory:desktopState});
     assert.deepEqual(new Set(bridge.records().map(record => record.instanceId)), new Set(services.map(service => service.instanceId)));
     assert.equal(selectRecord({stateDirectory:cliState, instanceId:services[1].instanceId}).instanceId, services[1].instanceId);

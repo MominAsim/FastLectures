@@ -398,8 +398,11 @@
     if(path.endsWith("/widget.html"))canvasImageAssetsForHtml(args.content,doc);
     const parts=canvasDocumentIdentity.parsePath(path),object=parts[0]==="objects"?canvasDocumentsObject(doc,decodeURIComponent(parts[1])):null;
     if(!object)throw canvasDocumentsError("READ_ONLY_FILE","This is a derived runtime file. Use a Canvas action instead.");
-    if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
     const field=parts[2],item=object.item;let replacement={...item};
+    // Widget source commits use a source lock without waiting for gestures.
+    // A selected Widget keeps widgetEdit after pointer-up; the generic mutation
+    // gate would incorrectly reject every patch after a user drag/resize.
+    if(canvasDocumentsIsActive(doc)&&!(object.kind==="widget"&&field!=="geometry.json"))canvasAgentMutationIdle(execution);
     if(field!=="geometry.json"&&!canvasDocumentsSourceEditable(object))throw canvasDocumentsError("READ_ONLY_FILE","Professional Diagram and private plugin source editing is unavailable. Existing content is preserved.");
     if(field==="geometry.json") {
       let geometry;try{geometry=JSON.parse(args.content);}catch{throw canvasDocumentsError("INVALID_JSON","Geometry must be valid JSON.");}
@@ -430,7 +433,7 @@
         const edit=widgetEditContext(item,"agent"),sourceHash=await canvasAgentHash(canvasAgentWidgetSourceState(edit));
         if(canvasDocumentsFile(doc,path)!==before)throw canvasDocumentsError("SOURCE_CONFLICT","Source changed before applying. Read it again and retry.");
         const result=await canvasAgentReplaceWidget({objectId:item.id,expectedSourceHash:sourceHash,changeId:args.requestId,command:{...replacement,tool:replacement.widgetType}},execution);
-        canvasDocumentsChanged(doc,"source",item.id);return {...result,applied:true,contentHash:await canvasAgentHash(canvasDocumentsFile(doc,path))};
+        canvasDocumentsChanged(doc,"source",item.id);return {...result,applied:true,objectId:item.id,viewport:{width:item.contentW,height:item.contentH},contentHash:await canvasAgentHash(canvasDocumentsFile(doc,path))};
       }
     } else throw canvasDocumentsError("READ_ONLY_FILE","This file is read-only. Use replace_image or a Canvas action.");
     canvasAgentAssertToolExecution(execution);
@@ -703,7 +706,7 @@
   // existing Agent socket is the authority: this does not opt in a public MCP
   // connection, allocate a new Canvas, or give access to other documents.
   async function canvasAgentDocumentOperation(input,execution) {
-    const allowed=new Set(["mcp_list_files","mcp_read_file","mcp_prepare_patch","mcp_apply_patch","mcp_edit_canvas","mcp_upload_image","mcp_place_image","mcp_present_widget","mcp_draw","mcp_plot","mcp_capture_canvas","mcp_capture_widget","mcp_capture_primitives","mcp_read_feedback","mcp_inspect_session","mcp_read_messages","mcp_ack_messages"]);
+    const allowed=new Set(["mcp_list_files","mcp_read_file","mcp_patch_file","mcp_edit_canvas","mcp_upload_image","mcp_place_image","mcp_present_widget","mcp_draw","mcp_plot","mcp_capture_canvas","mcp_capture_widget","mcp_capture_primitives","mcp_read_feedback","mcp_inspect_session","mcp_inbox"]);
     if(!input||Object.keys(input).some(key=>!["operation","arguments","bindingKey"].includes(key))||!allowed.has(input.operation))throw canvasDocumentsError("UNSUPPORTED_OPERATION","This Agent document operation is unavailable.");
     const key=input.bindingKey,args=input.arguments;
     if(typeof key!=="string"||!/^agent-[a-f0-9]{64}$/.test(key)||!args||args.sessionId!==key)throw canvasDocumentsError("BINDING_CONFLICT","The Agent document binding is invalid.");
@@ -725,6 +728,23 @@
     }
     execution.documentEpoch=epoch;execution.documentId=activeId;execution.activeDocumentId=activeId;
     return canvasDocumentsExecute(input.operation,args,execution);
+  }
+  function canvasDocumentsMessageEntries(doc,session,ids) {
+    const allowed=new Set(ids),entries=doc.messages.filter(m=>allowed.has(m.id)&&m.bindingKey===session.sessionKey&&m.client===session.client);
+    if(entries.length!==allowed.size)throw canvasDocumentsError("MESSAGE_NOT_FOUND","One or more messages do not belong to this conversation.");
+    if(entries.some(m=>m.status==="cancelled"))throw canvasDocumentsError("MESSAGE_CANCELLED","The user cancelled this instruction. Do not execute it.");
+    return entries;
+  }
+  function canvasDocumentsAcknowledge(doc,session,ids,status,message) {
+    const entries=canvasDocumentsMessageEntries(doc,session,ids);
+    for(const entry of entries){entry.status=status;entry.detail=message||"";entry.updatedAt=Date.now();}
+    canvasDocumentsSyncExtension(doc);canvasDocumentsRender();return {acknowledged:entries.map(m=>m.id),status};
+  }
+  async function canvasDocumentsCaptureArtifact(doc,session,args,execution) {
+    if(!canvasDocumentsIsActive(doc))throw canvasDocumentsError("CANVAS_NOT_VISIBLE","Show this Canvas before capturing. Its content is retained.",{documentId:doc.id,retryable:true});
+    const artifact=session.artifacts.get(args.artifactId);
+    if(!artifact)throw canvasDocumentsError("ARTIFACT_NOT_FOUND","Read this session's artifacts and retry.");
+    return mcpExecute(artifact.kind?"mcp_capture_primitives":"mcp_capture_widget",args,execution);
   }
   async function canvasDocumentsExecute(name,args,execution) {
     if(name==="mcp_start_session"&&!args.client)args={...args,client:"External AI"};
@@ -767,15 +787,6 @@
     if(!session||session.closed||session.documentId&&!canvasDocuments.records.has(session.documentId))throw canvasDocumentsError("SESSION_EXPIRED","The session is no longer connected. Reopen its documentId and reconnect, then retry.");
     doc=canvasDocuments.records.get(session.documentId)||canvasDocumentsCurrent();
     execution.documentId=doc.id;execution.activeDocumentId=canvasDocumentsIsActive(doc)?doc.id:null;execution.documentEpoch=canvasDocuments.epoch;
-    if(name==="mcp_prepare_patch") {
-      const receipt=doc.receipts.get(args.requestId);
-      if(receipt) {
-        const previous=JSON.parse(receipt.signature);
-        if(previous.sessionId!==args.sessionId||previous.path!==args.path||previous.expectedHash!==args.expectedHash)throw canvasDocumentsError("REQUEST_ID_CONFLICT","This patch request ID belongs to different content. Use a new ID.");
-        return {alreadyApplied:true,result:receipt.result};
-      }
-      return canvasDocumentsReadFile(doc,args,true);
-    }
     if(name==="mcp_present_widget")canvasImageAssetsForHtml(args.html,doc);
     if(name==="mcp_present_widget"&&args.presentation?.intent==="inspect")return {...await mcpInspectHtml(args,execution),revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision,documentId:doc.id};
     if(name==="mcp_present_widget") {
@@ -783,42 +794,81 @@
       if(object&&!canvasDocumentsSourceEditable(object))throw canvasDocumentsError("READ_ONLY_FILE","Professional Diagram and private plugin source editing is unavailable. Existing content is preserved.");
     }
     const work=async()=>{
+      if(args.completion)canvasDocumentsMessageEntries(doc,session,args.completion.handledMessageIds||[]);
       let result;
       if(name==="mcp_list_files") {
         const path=canvasDocumentsPath(args.path||""),files=canvasDocumentsFilePaths(doc).filter(file=>(!path||file.path===path||file.path.startsWith(path+"/"))&&(!args.region||!file.bounds||intersection(file.bounds,args.region))),offset=args.offset||0,limit=args.limit||60;
         return {documentId:doc.id,entries:files.slice(offset,offset+limit),total:files.length,nextOffset:offset+limit<files.length?offset+limit:null};
       }
-      if(name==="mcp_read_file"||name==="mcp_prepare_patch")return canvasDocumentsReadFile(doc,args,name==="mcp_prepare_patch");
+      if(name==="mcp_read_file")return canvasDocumentsReadFile(doc,args);
       if(name==="mcp_capture_canvas") {
         if(!canvasDocumentsIsActive(doc))throw canvasDocumentsError("CANVAS_NOT_VISIBLE","Show this Canvas before capturing it, then retry. Its content is retained.",{documentId:doc.id,retryable:true});
         let target=args.target||"viewport",region=args.region;
+        if(target==="artifact")return canvasDocumentsCaptureArtifact(doc,session,args,execution);
         if(target==="object"){const object=canvasDocumentsObject(doc,args.objectId);if(!object)throw canvasDocumentsError("OBJECT_NOT_FOUND","The object was removed. List Canvas files and retry.");region=canvasDocumentsBounds(object);target="region";}
         return canvasAgentCapture({target,quality:args.quality||"basic",coordinates:"metadata",...(region?{region:{x:region.x,y:region.y,width:region.w,height:region.h}}:{})},{signal:execution.controller.signal,assertCurrent:()=>canvasAgentAssertToolExecution(execution)});
       }
-      if(name==="mcp_apply_patch")result=await canvasDocumentsApplyFile(doc,args,execution);
+      if(name==="mcp_patch_file") {
+        const path=canvasDocumentsPath(args.path),source=canvasDocumentsFile(doc,path),contentHash=await canvasAgentHash(source);
+        if(contentHash!==args.expectedHash)throw canvasDocumentsError("SOURCE_CONFLICT","This file changed after reading. Read it again and retry with its new hash.",{currentHash:contentHash});
+        const content=globalThis.PenEchoCanvasFilePatch.applyCanvasFilePatch(source,args.patch,path);
+        result={...await canvasDocumentsApplyFile(doc,{...args,content},execution),sourcePath:path};
+      }
       else if(name==="mcp_edit_canvas")result=await canvasDocumentsEdit(doc,args,execution);
       else if(name==="mcp_upload_image")result=await canvasDocumentsUploadImage(doc,args,execution);
       else if(name==="mcp_place_image")result=await canvasDocumentsPlaceImage(doc,args,execution);
-      else if(name==="mcp_read_messages") {
-        const all=doc.messages.filter(m=>m.bindingKey===session.sessionKey&&m.client===session.client),pending=all.filter(m=>m.cursor>(args.after||0)),entries=pending.slice(0,args.limit||20);
-        return {documentId:doc.id,entries,nextCursor:entries.at(-1)?.cursor||args.after||0,latestCursor:doc.messageSequence,hasMore:pending.length>entries.length,delivery:"pull; reading does not acknowledge a message"};
-      } else if(name==="mcp_ack_messages") {
-        const allowed=new Set(args.ids),entries=doc.messages.filter(m=>allowed.has(m.id)&&m.bindingKey===session.sessionKey&&m.client===session.client);
-        if(entries.length!==allowed.size)throw canvasDocumentsError("MESSAGE_NOT_FOUND","One or more messages do not belong to this conversation.");
-        if(entries.some(m=>m.status==="cancelled"))throw canvasDocumentsError("MESSAGE_CANCELLED","The user cancelled this instruction. Do not execute it.");
-        for(const message of entries){message.status=args.status;message.detail=args.message||"";message.updatedAt=Date.now();}
-        canvasDocumentsSyncExtension(doc);canvasDocumentsRender();result={acknowledged:entries.map(m=>m.id),status:args.status};
+      else if(name==="mcp_inbox") {
+        if(args.mode==="ack")result={sessionId:session.sessionId,...canvasDocumentsAcknowledge(doc,session,args.ids,args.status,args.message)};
+        else {
+          const after=args.messageAfter||0,all=doc.messages.filter(m=>m.bindingKey===session.sessionKey&&m.client===session.client),pending=all.filter(m=>m.cursor>after),messages=pending.slice(0,args.limit||10);
+          if(after>doc.messageSequence)throw canvasDocumentsError("INVALID_CURSOR","Message cursor is beyond this Canvas.");
+          const feedbackArgs={...args,after:args.feedbackAfter,limit:args.limit||10,capture:args.capture===true};
+          const feedback=canvasDocumentsIsActive(doc)?await mcpReadFeedback(session,feedbackArgs,execution):await canvasDocumentsBackground(doc,"mcp_read_feedback",feedbackArgs,execution);
+          return {sessionId:session.sessionId,messages:{messages,after,nextCursor:messages.at(-1)?.cursor||after,latestCursor:doc.messageSequence,hasMore:pending.length>messages.length},feedback,documentId:doc.id};
+        }
       } else result=canvasDocumentsIsActive(doc)?await mcpExecute(name,args,execution):await canvasDocumentsBackground(doc,name,args,execution);
+      if(["mcp_present_widget","mcp_draw","mcp_plot","mcp_patch_file","mcp_edit_canvas","mcp_upload_image","mcp_place_image"].includes(name)) {
+        result={...result,applied:true};
+        if(name==="mcp_present_widget"&&result.objectId) {
+          const sourcePath=`objects/${result.objectId}/widget.html`;
+          result={...result,sourcePath,contentHash:await canvasAgentHash(canvasDocumentsFile(doc,sourcePath))};
+        }
+        if(args.capture===true) {
+          try {
+            const artifactId=args.artifactId||[...session.artifacts].find(([,a])=>a.objectId===result.objectId)?.[0];
+            const captured=artifactId?await canvasDocumentsCaptureArtifact(doc,session,{...args,artifactId},execution):await canvasDocumentsExecute("mcp_capture_canvas",{sessionId:session.sessionId,target:result.objectId?"object":"viewport",objectId:result.objectId,quality:args.quality},execution);
+            result={...result,...captured,pixelVerified:true};
+          } catch(error) {
+            result={...result,pixelVerified:false,captureFailure:{code:error.code||"CAPTURE_FAILED",message:String(error.message),retryTool:"penecho_capture_canvas",retryArguments:{sessionId:session.sessionId,...(args.artifactId?{target:"artifact",artifactId:args.artifactId}:result.objectId?{target:"object",objectId:result.objectId}:{target:"viewport"})}}};
+          }
+        }
+        if(args.completion&&!result.captureFailure) {
+          try {
+          canvasAgentAssertToolExecution(execution);
+          const completion=args.completion;
+          // Check again after asynchronous rendering: a user cancellation must remain final.
+          canvasDocumentsMessageEntries(doc,session,completion.handledMessageIds||[]);
+          const progress={sessionId:session.sessionId,status:completion.status,...(completion.summary!==undefined?{summary:completion.summary}:{})};
+          if(canvasDocumentsIsActive(doc))await mcpExecute("mcp_update_session",progress,execution);else await canvasDocumentsBackground(doc,"mcp_update_session",progress,execution);
+          const ack=canvasDocumentsAcknowledge(doc,session,completion.handledMessageIds||[],completion.status==="waiting"?"received":completion.status,completion.summary);
+          result.completion={...completion,handledMessageIds:ack.acknowledged};
+          } catch(error) {result.completionFailure={code:error.code||"COMPLETION_FAILED",message:String(error.message)};}
+        }
+        const pending=doc.messages.filter(m=>m.bindingKey===session.sessionKey&&m.client===session.client&&!["done","cancelled"].includes(m.status));
+        let remaining=600;
+        result.inboxSummary={messages:pending.slice(0,3).map(m=>{const text=m.text.slice(0,remaining);remaining-=text.length;return {id:m.id,cursor:m.cursor,status:m.status,text,...(text.length<m.text.length?{truncated:true}:{})};}),hasMore:pending.length>3,latestMessageCursor:doc.messageSequence,latestFeedbackCursor:canvasDocumentsIsActive(doc)?mcpRuntime.feedbackSequence:doc.feedbackSequence};
+      }
       if(!["mcp_inspect_session","mcp_read_feedback"].includes(name)) {
         doc.revision=canvasDocumentsIsActive(doc)?state.userRevision:doc.revision;canvasDocumentsSyncExtension(doc);
       }
       return {...result,documentId:doc.id};
     };
     // Image receipts retain a digest, not another copy of uploaded Base64.
-    const receiptArgs=["mcp_upload_image","mcp_place_image"].includes(name)?{...args,source:await canvasAgentHash(args.source),operation:name}:args;
+    const receiptArgs={...args,sessionId:JSON.stringify([session.client,session.sessionKey,doc.id]),operation:name,...(["mcp_upload_image","mcp_place_image"].includes(name)?{source:await canvasAgentHash(args.source)}:{})};
     const result=await canvasDocumentsOnce(doc.receipts,args.requestId,receiptArgs,work);
-    if(!canvasDocumentsIsActive(doc)&&!["mcp_list_files","mcp_read_file","mcp_prepare_patch","mcp_read_messages","mcp_inspect_session","mcp_read_feedback"].includes(name))await canvasDocumentsPersist(doc);
-    return result;
+    if(!canvasDocumentsIsActive(doc)&&!["mcp_list_files","mcp_read_file","mcp_inbox","mcp_inspect_session","mcp_read_feedback"].includes(name))await canvasDocumentsPersist(doc);
+    const normalize=value=>Array.isArray(value)?value.map(normalize):value&&typeof value==="object"?Object.fromEntries(Object.entries(value).map(([key,entry])=>[key,key==="sessionId"?session.sessionId:normalize(entry)])):value;
+    return normalize(result);
   }
   function canvasDocumentsWidgetAction(widget,message) {
     if(typeof message.text!=="string"||!message.text.trim()||message.text.length>4000)return;

@@ -1,7 +1,7 @@
 "use strict";
 
 const { TOOLS } = require("./schema.js");
-const { WORKSPACE_INSTRUCTIONS } = require("./guidance.js");
+const { PUBLIC_INSTRUCTIONS } = require("./guidance.js");
 
 const DISCOVERY_URI = "penecho://guidance/discovery";
 const SKILL_URI = "penecho://guidance/skill";
@@ -16,8 +16,17 @@ function readResource(uri, prompts) {
     throw Object.assign(new Error("Unknown PenEcho resource URI."), { code:-32602 });
   }
   const text = uri === SKILL_URI
-    ? `# PenEcho live workspace guidance\n\nUse PenEcho as a spatial workspace for visual explanations, architectures and proposed changes.\n\n- Use PenEcho to explain this idea.\n- Echo this folder’s architecture.\n- Put the proposed changes on canvas.\n- 在画布上解释这个方案。\n\n${WORKSPACE_INSTRUCTIONS}\n\n${DISCOVERY_INSTRUCTIONS}\n\nAn installed local skill is a static bootstrap; reading this live resource provides current guidance but does not overwrite the installed skill file.`
-    : `# PenEcho capability discovery\n\nresources/list discovers resources, not tools. If PenEcho tools are absent from your client, refresh tool discovery or reconnect; the resource itself does not execute tools. Call tools/list for current tool names, descriptions and input schemas, prompts/list then prompts/get for current workflows, and resources/list then resources/read for current guidance. Follow nextCursor with cursor on list responses until complete. Read ${SKILL_URI} for the current workspace skill. Use tools/call with name penecho_get_guidance and arguments matching its current tools/list schema for task-specific authoring guidance.\n\nThe connection bridge forwards MCP protocol requests transparently; newly supported server tools, prompts and resources need no remote connection configuration rewrite. Clients that cache discovery may require a tool refresh or reconnect after a server update. Unsupported protocol methods still return Method not found. Local installed skill files remain static bootstraps and are not automatically overwritten. resources/templates/list is empty because these resources use fixed URIs.\n\nCurrent tools (derived from this server's registry):\n${TOOLS.map(tool => `- ${tool.name}`).join("\n")}\n\nCurrent prompts (derived from this server's registry):\n${prompts.map(prompt => `- ${prompt.name}`).join("\n")}`;
+    ? `# PenEcho / echo / 画布 guidance v2 (local skill is a static bootstrap)
+
+${PUBLIC_INSTRUCTIONS}`
+    : `# PenEcho discovery
+
+Use tools/list for all tools and schemas, tools/call to invoke; prompts/list and prompts/get for workflows; resources/list and resources/read for guidance; follow nextCursor. Resources are not tools. For stale client catalogs, refresh or reconnect. Local skills are not automatically overwritten. Common tools: start_session, present_widget, read_file, patch_file, edit_canvas, inbox. All other tools remain directly callable. Read penecho_get_guidance only for the relevant task; brief is default, detail:full retains complete guidance.
+
+${TOOLS.map(tool => `- ${tool.name}`).join("\n")}
+
+Prompts: ${prompts.map(prompt=>prompt.name).join(", ")}`;
+
   return { contents:[{ uri, mimeType:"text/markdown", text }] };
 }
 

@@ -80,7 +80,7 @@ Windows 生命周期脚本 `scripts/mcp-codex-session-lifecycle.cjs` 默认测�
 
 ### 用户画布反馈
 
-`penecho_read_feedback` 默认返回压缩截图及简洁的游标、hasFeedback/changeCount，不再公开文字/笔画/图片分类条目。内部分别在文字确认、笔画结束和图片导入完成时记录区域，最多保留 200 条，不清空内置 dirty。Session 建立时记录反馈基线，即使没有进度板；present 返回应用后的 feedbackCursor，但不会重置会话已保留的未读反馈。客户端处理后再保存 nextCursor；失败可用同一游标重试。
+`penecho_inbox` 默认 `mode:"read", limit:10, capture:false`，分别返回 messages / feedback 分页。messageAfter 和 feedbackAfter 独立，不自动确认消息。需要像素时显式 capture:true；quality 默认 basic，可选 detail。内部反馈在文字确认、笔画结束、图片导入时记录，保留会话基线与未读游标；失败同游标重试。
 
 截图包含新增 dirty 附近的当前设计和用户层，使用 120 个画布单位的边距；相距过远的标注自动分批，不受用户后来平移视野的影响。当前笔画未结束时拒绝截图，避免读取半截标注；没有反馈或 capture:false 时不截图。它不是历史快照或 OCR。后续修改前先读反馈，不自动唤醒停止工作的客户端。
 
@@ -183,15 +183,7 @@ Virtual source tools never touch Node's filesystem APIs. Listing and reading are
 browser operations over public Canvas virtual files. Patch requests are limited
 to 800,000 bytes, reject traversal/backslash/NUL paths, and parse exactly one
 existing-file unified diff whose headers match the requested virtual path.
-`diff.applyPatch` runs with fuzz factor zero. The server reads browser-owned
-source through `mcp_prepare_patch`, verifies the caller's content hash, and sends
-the complete replacement plus expected hash to `mcp_apply_patch`. A bounded
-per-session request map returns completed retries before a new preparatory read;
-after an unknown apply outcome it resends the same final mutation and request ID.
-`SOURCE_CONFLICT` instructs the client to read again and use a new request ID.
-Patch preparation also carries the request ID and expected hash. A browser-held
-successful receipt can return `alreadyApplied` plus the original result before a
-source reread, recovering a response lost after the browser committed the edit.
+The shared `src/shared/canvas-file-patch.js` parser validates the same strict diff on both server and browser. The server sends exactly one `mcp_patch_file` RPC with `{sessionId,path,patch,expectedHash,requestId,completion?}`. The browser checks the current source hash and applies the patch atomically using fuzz factor zero, retaining a receipt before returning. Completed retries return the cached result; unknown outcomes resend identical arguments and requestId. `SOURCE_CONFLICT` requires a fresh read and new requestId. No source is transferred back for a preparatory round trip.
 
 Canvas edits use strict action-specific arguments. Image replacement accepts a
 bounded PNG/JPEG/WebP data URL or `penecho-ref:objects/<encoded-id>/image`, which
@@ -199,12 +191,11 @@ the browser resolves only inside the bound document. Source replacement and
 geometry edits are distinct operations. Move, resize, delete, erase, and replace
 also require a current base revision, preventing a stale client from overwriting
 newer user work. The inbox is pull-based:
-`penecho_read_messages` never means receipt, and `penecho_ack_messages` explicitly
-records received/working/done/error for named request IDs. There is no push wake,
+`penecho_inbox` mode:read never means receipt; mode:ack explicitly records received/working/done/error for named IDs. There is no push wake,
 automatic polling, Git integration, history API, or playback API in this version.
 
 `penecho_capture_canvas` is the explicit bounded screenshot path for existing
-Canvas content. It supports canvas, viewport, selection, region, and object
+Canvas content. It supports canvas, viewport, selection, region, object, and artifact (artifactId required)
 targets with basic/detail quality, validates the returned image MIME type,
 dimensions, encoded byte count, and revision, and reports `pixelVerified:true`
 only after an actual image result. A background document returns structured
@@ -337,3 +328,14 @@ Clients may still need to refresh/reconnect to replace their own tool snapshot.
 Reading live guidance does not silently rewrite an installed skill file.
 
 MCP creation default: when size and dimensions are omitted, new Widgets and plots use `page` (1200×800). Explicit `base` remains 480×360; source updates preserve existing geometry.
+
+
+## Compact MCP contract v2
+
+The registry exposes all 19 tools. The common six are start_session, present_widget, read_file, patch_file, edit_canvas, and inbox; specialized metadata is a hint, never an access restriction or mandatory catalog-loading step. Retired capture_widget/read_messages/read_feedback/ack_messages names are not aliases. The built-in Agent exposes 13 current-document tools, omits external lifecycle tools, and removes sessionId from its input schema.
+
+All content mutations require requestId, including present_widget/draw/plot. Mutations accept output:"concise" (default) or "detailed" and optional completion:{status,summary?,handledMessageIds?}, where status is done/waiting/error. All mutations except upload_image also accept opt-in capture with basic/detail quality. The browser applies content, performs any requested capture, then updates status/explicit acknowledgements in the same RPC. Failed capture preserves applied:true and captureFailure, without marking done. A failed final status/ack stage returns completionFailure rather than repeating the mutation. Source paths/hashes, viewport, identity, revision, image evidence and actionable errors survive concise output; detailed adds diagnostics/timing. An optional inboxSummary is limited to three messages and 600 total text characters, and never acknowledges them.
+
+Session start returns guidanceVersion instead of repeating instructions. penecho_get_guidance defaults to detail:"brief"; detail:"full" retains full source guidance and examples. Reuse returned version/hash. Resources and initialization contain compact operational rules rather than repeated design manuals.
+
+Run `node scripts/check-mcp-contract-budget.js` to report reproducible character/4 estimates (not provider-tokenizer counts). Use `--strict` to fail on all budget targets; validation semantics take priority over the 6000/all and 3000/common targets. The script always checks 19 tools, six common tools, and the 250-token public instruction target. Runtime latency must be measured separately from token estimates.

@@ -23,7 +23,7 @@ function createDirectHttpService({preferredPort=3922,getHostnames=()=>{const hos
   let identity, server, announcer, timer, startedAt, addresses = [], transition = Promise.resolve(), active = 0;
   const sessions = new Map(), sockets = new Set();
   const limits = {sessions:maxSessions,requestsPerSession:maxSessionRequests,requests:maxRequests,tcpConnections:512};
-  const timeouts = {sessionIdleMs,pressureIdleMs:60000,keepAliveMs:5000,headersMs:10000,requestUploadMs:15000};
+  const timeouts = {sessionIdleMs,pressureIdleMs:60000,keepAliveMs:30000,headersMs:10000,requestUploadMs:15000};
   const notify = () => { try { onChange(); } catch {} };
   const currentAddresses = () => [...new Set(getAddresses().filter(isPrivateAddress))].sort();
   function refresh() {
@@ -83,7 +83,7 @@ function createDirectHttpService({preferredPort=3922,getHostnames=()=>{const hos
         try {
           const name = body.params?.name, args = body.params?.arguments ?? {};
           if (typeof name !== 'string' || !args || typeof args !== 'object' || Array.isArray(args)) return error(-32602,'Invalid params');
-          const value = name === 'penecho_get_guidance' ? getAuthoringGuidance(validateToolArguments(name,args).id) : await callTool(session.ownerId,name,args,{signal});
+          const value = name === 'penecho_get_guidance' ? getAuthoringGuidance(validateToolArguments(name,args).id, args.detail) : await callTool(session.ownerId,name,args,{signal});
           return result(value?.image ? captureToolResult(value) : normal(value));
         } catch (e) { return result({...normal(toolFailure(e)),isError:true}); }
       }

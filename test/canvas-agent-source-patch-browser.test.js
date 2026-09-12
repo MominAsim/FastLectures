@@ -175,6 +175,7 @@ function replaceHarness({ onDigestStart = null } = {}) {
     functionSource(canvasRuntimeSource, "widgetEditContext"),
     functionSource(agentRuntimeSource, "canvasAgentHash"),
     functionSource(agentRuntimeSource, "canvasAgentWidgetSourceState"),
+    functionSource(agentRuntimeSource, "canvasAgentIsolateSourceHistory"),
     functionSource(agentRuntimeSource, "canvasAgentReplaceWidget"),
   ].join("\n");
   const replace = vm.runInNewContext(`(()=>{const VISUAL_EXPLAINER_SOURCE_FORMAT=${JSON.stringify(visualExplorerSourceFormat)};${functionSourceText}\nreturn canvasAgentReplaceWidget;})()`, {
@@ -317,7 +318,7 @@ test("selected widgetEdit seals geometry history before the source history entry
   seal();
   assert.deepEqual(saved, ["geometry-history"]);
   assert.equal(state.widgetEdit.changed, false);
-  assert.equal(JSON.stringify(state.widgetEdit.before), JSON.stringify({ x:100, y:200, w:900, h:600, contentW:900, contentH:600 }));
+  assert.equal(JSON.stringify(state.widgetEdit.before), JSON.stringify({ x:100, y:200, w:900, h:600, contentW:900, contentH:600, fitContent:false, fitContentAxes:null }));
   assert.equal(state.widgetHistoryBefore, null);
 });
 
@@ -351,4 +352,32 @@ test("re-entering the selected widget edit reopens geometry history without repl
   assert.equal(state.widgetEdit, edit, "same-widget begin must preserve the active edit object");
   assert.equal(state.widgetHistoryBefore, "geometry-snapshot");
   assert.equal(serializedCalls, 1);
+});
+
+for (const hit of ["move", "resize"]) test(`source patch commits during active ${hit}, preserves ongoing gesture and independent Undo`, async () => {
+  const widget=htmlWidget(),other=htmlWidget({id:"widget-2"}),client=clientFunctions();
+  const expected=await browserSourceHash(client,widget);
+  const original=structuredClone([widget,other]),history=[];
+  const ink=new Map([["pending-ink",{stroke:true}]]),images={pending:true},texts={pending:true};
+  const state={widgets:[widget,other],userRevision:7,widgetEdit:{id:widget.id,before:{x:100,y:200,w:900,h:600,contentW:900,contentH:600,fitContent:false,fitContentAxes:null},changed:false},widgetHistoryBefore:original,
+    historyBefore:ink,imageHistoryBefore:images,textBoxHistoryBefore:texts,animationHistoryBefore:null,drawing:true,textEditors:new Set(["active"])};
+  const snapshot=()=>structuredClone(state.widgets.map(({visualDiagnosticWaiters,...item})=>item));
+  const save=()=>{assert.equal(state.historyBefore.size,0,"source write must not consume pending ink");assert.equal(state.imageHistoryBefore,null);assert.equal(state.textBoxHistoryBefore,null);if(state.widgetHistoryBefore)history.push({before:state.widgetHistoryBefore,after:snapshot()});state.widgetHistoryBefore=null;};
+  const source=[...['widgetBox','widgetLayout','normalizedWidgetSource','widgetSourceMirrorsHtml','widgetUsesHtmlCopySource','widgetEditContext','finishWidgetGesture','cancelWidgetEdit'].map(n=>functionSource(canvasRuntimeSource,n)),...['canvasAgentHash','canvasAgentWidgetSourceState','canvasAgentIsolateSourceHistory','canvasAgentSealWidgetGeometryEdit','canvasAgentReplaceWidget'].map(n=>functionSource(agentRuntimeSource,n))].join('\n');
+  const api=vm.runInNewContext(`(()=>{${source};return {replace:canvasAgentReplaceWidget,finish:finishWidgetGesture,cancel:cancelWidgetEdit};})()`,{TextEncoder,crypto:webcrypto,state,structuredClone,VISUAL_EXPLORER_SOURCE_FORMAT:visualExplorerSourceFormat,VISUAL_EXPLAINER_SOURCE_FORMAT:visualExplorerSourceFormat,
+    canvasAgentAssertToolExecution:()=>{},canvasAgentObject:id=>({kind:'widget',item:state.widgets.find(w=>w.id===id)}),canvasAgentToolError:(code,message)=>Object.assign(Error(message),{code}),canvasAgentWidgetPluginAllowed:()=>true,widgetRecord:r=>({...widget,...r}),save,saveUserCanvasChange:save,serializedWidgets:snapshot,
+    positionWidget:()=>{},sendWidgetInit:()=>{},sendWidgetHostState:()=>{},requestRender:()=>{},canvasAgentSyncState:()=>{},canvasAgentRecordChange:()=>{},resetCanvasCursor:()=>{},refreshHandObjectToolbar:()=>{},requestInteractionLayerRender:()=>{},clearHandToolbarTarget:()=>{},setWidgetStackIndex:()=>{},restoreCanvasObjectFrontKinds:()=>{},syncWidgetHostStates:()=>{},setStatusKey:()=>{}});
+  const gesture={id:19,widget,hit,start:{x:100,y:200,w:900,h:600},startPoint:{x:0,y:0},changed:true};state.widgetGesture=gesture;
+  if(hit==='move')widget.x=444;else widget.w=1200;
+  const midpoint={x:widget.x,w:widget.w};
+  const result=await api.replace({objectId:widget.id,expectedSourceHash:expected.hash,changeId:'while-pointer-held',command:{...widget,tool:'html_widget',html:widget.html.replace('Old','New')}},{});
+  assert.equal(result.ok,true);assert.equal(state.widgetGesture,gesture,'pointer remains active without waiting');assert.equal(widget.x,midpoint.x);assert.equal(widget.w,midpoint.w);assert.match(widget.html,/New/);
+  assert.equal(state.historyBefore,ink);assert.equal(state.imageHistoryBefore,images);assert.equal(state.textBoxHistoryBefore,texts);assert.equal(ink.size,1);assert.equal(history.length,2,'pre-patch geometry and source each have their own undo entry');
+  assert.match(history[0].after[0].html,/Old/);assert.match(history[1].before[0].html,/Old/);assert.match(history[1].after[0].html,/New/);
+  // Continue back to the original gesture anchor: gesture.changed can be false,
+  // but this still differs from the source commit's geometry boundary.
+  if(hit==='move')widget.x=100;else widget.w=900;gesture.changed=false;
+  api.finish({pointerId:19});assert.equal(state.widgetEdit.changed,true);
+  assert.match(state.widgetHistoryBefore[0].html,/New/,'later geometry Undo preserves patched source');
+  api.cancel();assert.equal(widget.x,midpoint.x);assert.equal(widget.w,midpoint.w);assert.match(widget.html,/New/,'cancel restores geometry only');
 });

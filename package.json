@@ -28,6 +28,7 @@
     "server.js",
     "src/",
     "scripts/build-client.js",
+    "scripts/build-canvas-file-patch.js",
     "scripts/build-visual-explainer-vendor.js",
     "scripts/build-harness-backports.cjs",
     "public/index.html",

@@ -4326,25 +4326,18 @@
     files.push({path:"widget.source",content:raw(edit.widgetType==="diagram_source"||!edit.sourceMirrorsHtml?edit.source:"")});
     return {version:1,files};
   }
-  async function canvasAgentWaitForSourceCommit(execution) {
-    const deadline=performance.now()+1500;
-    while(state.widgetGesture) {
-      canvasAgentAssertToolExecution(execution);
-      if(performance.now()>=deadline)throw canvasAgentToolError("CANVAS_BUSY","The Widget is still being dragged. Retry the same source patch after the gesture; no source reread or capture is needed.");
-      await new Promise(resolve=>setTimeout(resolve,25));
-    }
-    canvasAgentAssertToolExecution(execution);
-    if(state.drawing||state.pending||state.pendingWidget||state.pendingWidgetReplacement||state.selection||state.selectionGesture
-      ||state.imageEdit||state.imageGesture||state.imageImporting||state.animationEdit||state.animationGesture||state.textEditors.size) {
-      throw canvasAgentToolError("CANVAS_BUSY","An active Canvas transaction must finish before the source patch can commit. The source snapshot may be reused if unchanged.");
-    }
+  function canvasAgentIsolateSourceHistory() {
+    // Source writes must not consume an unrelated in-progress ink/image/text edit.
+    const fields=["historyBefore","animationHistoryBefore","imageHistoryBefore","textBoxHistoryBefore"],pending={};
+    for(const field of fields){pending[field]=state[field];state[field]=field==="historyBefore"?new Map():null;}
+    return ()=>{for(const field of fields)state[field]=pending[field];};
   }
   function canvasAgentSealWidgetGeometryEdit() {
     const edit=state.widgetEdit,widget=edit&&state.widgets.find(item=>item.id===edit.id);
     if(!edit)return;
     // Seal only an existing geometry change, keeping selection and iframe alive.
     // The following source change gets its own history entry.
-    if(edit.changed) {
+    if(edit.changed||widget&&JSON.stringify(widgetLayout(widget))!==JSON.stringify(edit.before)) {
       state.userRevision++;
       saveUserCanvasChange();
     }
@@ -4386,7 +4379,7 @@
   }
   async function canvasAgentReplaceWidget(args,execution) {
     const sourceOnly=typeof args.expectedSourceHash === "string" && Boolean(args.expectedSourceHash);
-    if(sourceOnly)await canvasAgentWaitForSourceCommit(execution);
+    if(sourceOnly)canvasAgentAssertToolExecution(execution);
     else {canvasAgentAssertRevision(args.baseRevision);canvasAgentMutationIdle(execution);}
     const object = canvasAgentObject(String(args.objectId || ""));
     if (!object || object.kind !== "widget") throw Error("Widget was not found.");
@@ -4398,7 +4391,7 @@
     }
     canvasAgentAssertToolExecution(execution);
     if(sourceOnly) {
-      await canvasAgentWaitForSourceCommit(execution);
+      canvasAgentAssertToolExecution(execution);
       const latest=canvasAgentObject(String(args.objectId||""));
       if(!latest||latest.item!==object.item||JSON.stringify(canvasAgentWidgetSourceState(widgetEditContext(latest.item,"agent")))!==sourceSignature) {
         throw canvasAgentToolError("SOURCE_CONFLICT","Widget source or identity changed before commit.");
@@ -4411,12 +4404,15 @@
     if (!record) throw Error("Patched widget content was rejected by Canvas validation.");
     const sourceHash=sourceOnly?await canvasAgentHash(canvasAgentWidgetSourceState(widgetEditContext(record,"agent"))):null;
     if(sourceOnly) {
-      await canvasAgentWaitForSourceCommit(execution);
+      canvasAgentAssertToolExecution(execution);
       const latest=canvasAgentObject(String(args.objectId||""));
       if(!latest||latest.item!==object.item||JSON.stringify(canvasAgentWidgetSourceState(widgetEditContext(latest.item,"agent")))!==sourceSignature)throw canvasAgentToolError("SOURCE_CONFLICT","Widget source changed before commit.");
       for(const field of ["x","y","w","h","contentW","contentH"])record[field]=object.item[field];
-      canvasAgentSealWidgetGeometryEdit();
     }
+    const restoreHistory=sourceOnly?canvasAgentIsolateSourceHistory():()=>{};
+    let result;
+    try {
+    if(sourceOnly)canvasAgentSealWidgetGeometryEdit();
     const previousRevision=state.userRevision;
     save();
     state.widgetHistoryBefore = serializedWidgets();
@@ -4438,9 +4434,13 @@
     sendWidgetHostState(object.item, undefined, undefined, true);
     state.userRevision++;
     const entry=save(),changeId=String(args.changeId||canvasClientId());canvasAgentRecordChange(changeId,entry);
+    if(sourceOnly&&state.widgetEdit)state.widgetHistoryBefore=serializedWidgets();
     requestRender();
     canvasAgentSyncState();
-    return { ok:true, previousRevision, revision:state.userRevision, changeId, ...(sourceHash?{sourceHash,geometry:{x:record.x,y:record.y,w:record.w,h:record.h,contentW:record.contentW,contentH:record.contentH}}:{}), receipts:[{type:"patch_widget",status:"applied",objectId:record.id,...(sourceHash?{sourceHash}:{}),contentHash:await canvasAgentHash(widgetEditContext(record,"agent"))}] };
+    result = { ok:true, previousRevision, revision:state.userRevision, changeId, ...(sourceHash?{sourceHash,geometry:{x:record.x,y:record.y,w:record.w,h:record.h,contentW:record.contentW,contentH:record.contentH}}:{}), receipts:[{type:"patch_widget",status:"applied",objectId:record.id,...(sourceHash?{sourceHash}:{}),}] };
+    } finally {restoreHistory();}
+    result.receipts[0].contentHash=await canvasAgentHash(widgetEditContext(record,"agent"));
+    return result;
   }
   function canvasAgentFramePlan(region,padding=80) {
     const width=Math.max(0,view.clientWidth),height=Math.max(0,view.clientHeight),full={x:0,y:0,w:width,h:height},stages=[full],panelGap=12;

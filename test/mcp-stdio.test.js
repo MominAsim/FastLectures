@@ -48,19 +48,19 @@ test("stdio MCP negotiates 2025-11-25, lists tools, emits image blocks, and keep
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
       owners.push(body.ownerId);
       if (body.name === "penecho_inspect_session") return;
-      if (body.name === "penecho_ack_messages") {
+      if (body.name === "penecho_inbox" && body.arguments.mode === "ack") {
         const bytes = Buffer.from(JSON.stringify({error:{code:"SOURCE_CONFLICT",message:"Retry after reading.",details:{retry:"read-before-patch"}}}));
         res.writeHead(409,{"content-type":"application/json","content-length":bytes.length}).end(bytes);
         return;
       }
       let result = { instanceId, canvases:[{canvasId:"canvas-a",instanceId,title:"Board"}] };
       if (body.name === "penecho_start_session") result = {sessionId:"session-a",boardObjectId:null,revision:1};
-      if (body.name === "penecho_capture_widget") result = { sessionId:"session-a", artifactId:"chart", image:{mimeType:"image/png",data:"AQID",bytes:3},width:10,height:20 };
-      if (body.name === "penecho_capture_canvas") result = { sessionId:"session-a", target:"viewport", image:{mimeType:"image/webp",data:"AQIDBA==",bytes:4},pixelVerified:true,width:24,height:12,encodedBytes:4,revision:7 };
-      if (body.name === "penecho_present_widget") result = { sessionId:"session-a", artifactId:"combined", objectId:"object-a", image:{mimeType:"image/png",data:"BAUG",bytes:3},width:30,height:40 };
-      if (body.name === "penecho_draw") result = { sessionId:"session-a", artifactId:"drawing", objectId:"draw-a", objectIds:["draw-a"], kind:"drawing", applied:true, pixelVerified:true, image:{mimeType:"image/webp",data:"CgsM",bytes:3},width:16,height:12 };
-      if (body.name === "penecho_plot") result = { sessionId:"session-a", artifactId:"plot", objectId:"plot-a", objectIds:["plot-a"], kind:"plot", applied:true, pixelVerified:false };
-      if (body.name === "penecho_read_feedback") result = { sessionId:"session-a", after:0, nextCursor:1, latestCursor:1, hasMore:false, truncated:false, hasFeedback:true, changeCount:1, image:{mimeType:"image/webp",data:"BwgJ",bytes:3},pixelVerified:true,width:12,height:8 };
+      if (body.name === "penecho_capture_canvas" && body.arguments.target === "artifact") result = { sessionId:"session-a", artifactId:"chart",requestId:"chart", image:{mimeType:"image/png",data:"AQID",bytes:3},width:10,height:20 };
+      if (body.name === "penecho_capture_canvas" && body.arguments.target !== "artifact") result = { sessionId:"session-a", target:"viewport", image:{mimeType:"image/webp",data:"AQIDBA==",bytes:4},pixelVerified:true,width:24,height:12,encodedBytes:4,revision:7 };
+      if (body.name === "penecho_present_widget") result = { sessionId:"session-a", artifactId:"combined",requestId:"combined", objectId:"object-a", image:{mimeType:"image/png",data:"BAUG",bytes:3},width:30,height:40 };
+      if (body.name === "penecho_draw") result = { sessionId:"session-a", artifactId:"drawing",requestId:"drawing", objectId:"draw-a", objectIds:["draw-a"], kind:"drawing", applied:true, pixelVerified:true, image:{mimeType:"image/webp",data:"CgsM",bytes:3},width:16,height:12 };
+      if (body.name === "penecho_plot") result = { sessionId:"session-a", artifactId:"plot",requestId:"plot", objectId:"plot-a", objectIds:["plot-a"], kind:"plot", applied:true, pixelVerified:false };
+      if (body.name === "penecho_inbox" && body.arguments.mode !== "ack") result = { sessionId:"session-a", messages:{messages:[],after:0,nextCursor:0,latestCursor:0,hasMore:false},feedback:{after:0,nextCursor:1,latestCursor:1,hasMore:false,truncated:false,entries:[{cursor:1,kind:"text",text:"Feedback"}]}, image:{mimeType:"image/webp",data:"BwgJ",bytes:3},pixelVerified:true,width:12,height:8 };
       const bytes = Buffer.from(JSON.stringify({ result }));
       res.writeHead(200, {"content-type":"application/json","content-length":bytes.length}).end(bytes);
     });
@@ -76,29 +76,16 @@ test("stdio MCP negotiates 2025-11-25, lists tools, emits image blocks, and keep
   send({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:PROTOCOL_VERSION,capabilities:{},clientInfo:{name:"test",version:"1"}}});
   const initialized = await next();
   assert.equal(initialized.result.protocolVersion, PROTOCOL_VERSION);
-  assert.match(initialized.result.instructions, /never send private chain-of-thought/i);
-  assert.match(initialized.result.instructions, /keep message, feedback and file cursors independent/i);
-  assert.match(initialized.result.instructions, /with a selected live Canvas, use it proactively/i);
-  assert.match(initialized.result.instructions, /keep the first useful output fast/i);
-  assert.match(initialized.result.instructions, /batch meaningful public findings/i);
-  assert.match(initialized.result.instructions, /use capture:false ordinarily/i);
-  assert.match(initialized.result.instructions, /image-input tokens/i);
-  assert.match(initialized.result.instructions, /use draw for simple native diagrams/i);
-  assert.match(initialized.result.instructions, /present_widget for interactive HTML/i);
-  assert.match(initialized.result.instructions, /hidden Canvas capture returns CANVAS_NOT_VISIBLE/i);
-  assert.match(initialized.result.instructions, /data-penecho-action plus a bounded data-penecho-prompt/i);
-  assert.match(initialized.result.instructions, /inspect reports state, not pixel proof/i);
-  assert.match(initialized.result.instructions, /no progress boards/i);
-  const { INVOCATION_INSTRUCTIONS, PAGE_PREVIEW_INSTRUCTIONS } = require("../src/server/mcp/guidance.js");
-  assert.ok(initialized.result.instructions.includes(INVOCATION_INSTRUCTIONS), "initialize exposes explicit natural-language workspace routing");
-  assert.match(initialized.result.instructions, /stopped client is never auto-woken/i);
-  assert.ok(initialized.result.instructions.includes(PAGE_PREVIEW_INSTRUCTIONS), "initialize exposes the single-page delivery contract");
+  assert.equal(initialized.result.instructions,require("../src/server/mcp/guidance.js").PUBLIC_INSTRUCTIONS);
+  assert.ok(initialized.result.instructions.length/4<=250);
+  assert.match(initialized.result.instructions,/cursors are independent/);
+  assert.match(initialized.result.instructions,/mark done only after success/);
   send({jsonrpc:"2.0",method:"notifications/initialized"});
   send({jsonrpc:"2.0",id:2,method:"tools/list",params:{}});
   const listedTools = await next();
-  assert.deepEqual(listedTools.result.tools.map(tool => tool.name), ["penecho_get_guidance","penecho_list_canvases","penecho_open_canvas","penecho_find_canvases","penecho_start_session","penecho_list_files","penecho_read_file","penecho_patch_file","penecho_edit_canvas","penecho_capture_canvas","penecho_read_messages","penecho_ack_messages","penecho_update_session","penecho_present_widget","penecho_capture_widget","penecho_draw","penecho_plot","penecho_read_feedback","penecho_inspect_session","penecho_close_session"]);
-  assert.ok(listedTools.result.tools.find(tool => tool.name === "penecho_present_widget").description.includes(PAGE_PREVIEW_INSTRUCTIONS), "tools-only clients receive the same single-page contract");
-  assert.ok(listedTools.result.tools.find(tool => tool.name === "penecho_list_canvases").description.includes(INVOCATION_INSTRUCTIONS), "tools-only clients receive invocation guidance");
+  assert.deepEqual(listedTools.result.tools,require("../src/server/mcp/schema.js").TOOLS);
+  assert.equal(listedTools.result.tools.length,19);
+  assert.ok(listedTools.result.tools.find(tool=>tool.name==="penecho_inbox"));
   const widgetPresentation = listedTools.result.tools.find(tool => tool.name === "penecho_present_widget").inputSchema.properties.presentation;
   assert.deepEqual(widgetPresentation.properties.size.enum, ["base","wide","tall","large","page"]);
   assert.equal(listedTools.result.tools.find(tool => tool.name === "penecho_present_widget").inputSchema.properties.capture.default, false);
@@ -110,16 +97,16 @@ test("stdio MCP negotiates 2025-11-25, lists tools, emits image blocks, and keep
   const visualPrompt = (await next()).result.messages[0].content.text;
   const { visualExplorerPrompt } = require("../src/server/mcp/guidance.js");
   assert.equal(visualPrompt, visualExplorerPrompt());
-  assert.ok(visualPrompt.includes(PAGE_PREVIEW_INSTRUCTIONS), "optional Visual Explorer keeps the same contract");
+  assert.ok(visualPrompt.includes(require("../src/server/mcp/guidance.js").PAGE_PREVIEW_INSTRUCTIONS), "optional Visual Explorer keeps the same contract");
   assert.match(visualPrompt, /Concise Document Mode/);
   assert.match(visualPrompt, /penecho_present_widget/);
   assert.match(visualPrompt, /preserve the target product UI, its page background, and real local interactions/);
   assert.match(visualPrompt, /Inspect must faithfully render the supplied HTML at the requested viewport/);
   assert.doesNotMatch(visualPrompt, /canvas_create|load_visual_skill|plannedWidget/);
   assert.ok(initialized.result.instructions.length < 5000, "default instructions stay compact");
-  assert.match(initialized.result.instructions, /当前画布/);
-  assert.match(initialized.result.instructions, /penecho_start_session target:"current"/);
-  assert.match(initialized.result.instructions, /distinct stable attachment sessionKey/);
+  assert.match(listedTools.result.tools.find(t=>t.name==="penecho_start_session").description,/target:current binds the visible document/);
+  assert.deepEqual(listedTools.result.tools.find(t=>t.name==="penecho_start_session").inputSchema.properties.target.enum,["current"]);
+  assert.match(initialized.result.instructions,/stable sessionKey per conversation/);
   send({jsonrpc:"2.0",id:17,method:"prompts/get",params:{name:"penecho_explain_selection",arguments:{}}});
   const selectionPrompt = (await next()).result.messages[0].content.text;
   assert.match(selectionPrompt, /target:"current" before reading the current selection/);
@@ -135,7 +122,7 @@ test("stdio MCP negotiates 2025-11-25, lists tools, emits image blocks, and keep
   const started = await next();
   assert.equal(started.result.structuredContent.sessionId, "session-a");
   assert.equal(started.result.structuredContent.boardObjectId, null);
-  send({jsonrpc:"2.0",id:5,method:"tools/call",params:{name:"penecho_capture_widget",arguments:{sessionId:"session-a",artifactId:"chart",quality:"detail"}}});
+  send({jsonrpc:"2.0",id:5,method:"tools/call",params:{name:"penecho_capture_canvas",arguments:{sessionId:"session-a",target:"artifact",artifactId:"chart",quality:"detail"}}});
   const capture = await next();
   assert.deepEqual(capture.result.content[0], {type:"image",data:"AQID",mimeType:"image/png"});
   assert.deepEqual(capture.result.structuredContent.image, {mimeType:"image/png",bytes:3});
@@ -145,31 +132,31 @@ test("stdio MCP negotiates 2025-11-25, lists tools, emits image blocks, and keep
   assert.deepEqual(canvasCapture.result.content[0], {type:"image",data:"AQIDBA==",mimeType:"image/webp"});
   assert.deepEqual(canvasCapture.result.structuredContent.image, {mimeType:"image/webp",bytes:4});
   assert.equal(canvasCapture.result.structuredContent.pixelVerified, true);
-  send({jsonrpc:"2.0",id:6,method:"tools/call",params:{name:"penecho_present_widget",arguments:{sessionId:"session-a",artifactId:"combined",title:"Combined",html:"<p>Combined</p>",capture:true,quality:"basic"}}});
+  send({jsonrpc:"2.0",id:6,method:"tools/call",params:{name:"penecho_present_widget",arguments:{sessionId:"session-a",artifactId:"combined",requestId:"combined",title:"Combined",html:"<p>Combined</p>",capture:true,quality:"basic"}}});
   const combined = await next();
   assert.deepEqual(combined.result.content[0], {type:"image",data:"BAUG",mimeType:"image/png"});
   assert.equal(combined.result.structuredContent.objectId, "object-a");
   assert.equal(combined.result.structuredContent.image.data, undefined);
-  send({jsonrpc:"2.0",id:9,method:"tools/call",params:{name:"penecho_draw",arguments:{sessionId:"session-a",artifactId:"drawing",title:"Drawing",items:[{id:"n",type:"rect"}],capture:true}}});
+  send({jsonrpc:"2.0",id:9,method:"tools/call",params:{name:"penecho_draw",arguments:{sessionId:"session-a",artifactId:"drawing",requestId:"drawing",title:"Drawing",items:[{id:"n",type:"rect"}],capture:true}}});
   const drawing = await next();
   assert.deepEqual(drawing.result.content[0], {type:"image",data:"CgsM",mimeType:"image/webp"});
   assert.deepEqual(drawing.result.structuredContent.objectIds, ["draw-a"]);
   assert.equal(drawing.result.structuredContent.kind, "drawing");
   assert.equal(drawing.result.structuredContent.image.data, undefined);
-  send({jsonrpc:"2.0",id:10,method:"tools/call",params:{name:"penecho_plot",arguments:{sessionId:"session-a",artifactId:"plot",title:"Plot",expression:"x*x"}}});
+  send({jsonrpc:"2.0",id:10,method:"tools/call",params:{name:"penecho_plot",arguments:{sessionId:"session-a",artifactId:"plot",requestId:"plot",title:"Plot",expression:"x*x"}}});
   const plot = await next();
   assert.deepEqual(plot.result.structuredContent.objectIds, ["plot-a"]);
   assert.equal(plot.result.structuredContent.kind, "plot");
   assert.equal(plot.result.content[0].type, "text");
-  send({jsonrpc:"2.0",id:7,method:"tools/call",params:{name:"penecho_read_feedback",arguments:{sessionId:"session-a"}}});
+  send({jsonrpc:"2.0",id:7,method:"tools/call",params:{name:"penecho_inbox",arguments:{sessionId:"session-a",capture:true}}});
   const feedback = await next();
   assert.deepEqual(feedback.result.content[0], {type:"image",data:"BwgJ",mimeType:"image/webp"});
   assert.equal(feedback.result.structuredContent.entries, undefined);
-  assert.equal(feedback.result.structuredContent.hasFeedback, true);
-  assert.equal(feedback.result.structuredContent.changeCount, 1);
+  assert.equal(feedback.result.structuredContent.feedback.entries.length, 1);
+  assert.equal(feedback.result.structuredContent.feedback.nextCursor, 1);
   assert.equal(feedback.result.structuredContent.pixelVerified, true);
   assert.equal(feedback.result.structuredContent.image.data, undefined);
-  send({jsonrpc:"2.0",id:13,method:"tools/call",params:{name:"penecho_ack_messages",arguments:{sessionId:"session-a",ids:["request-a"],status:"working"}}});
+  send({jsonrpc:"2.0",id:13,method:"tools/call",params:{name:"penecho_inbox",arguments:{sessionId:"session-a",mode:"ack",ids:["request-a"],status:"working"}}});
   const structuredError = await next();
   assert.equal(structuredError.result.isError,true);
   assert.deepEqual(structuredError.result.structuredContent,{code:"SOURCE_CONFLICT",message:"Retry after reading.",details:{retry:"read-before-patch"}});
@@ -198,11 +185,12 @@ test("stdio keeps pending updates compact and acknowledges pull messages directl
       if (body.name === "penecho_start_session") result = {sessionId:"session-a",boardObjectId:null,revision:1};
       if (body.name === "penecho_update_session") result = {accepted:true,applied:false,pixelVerified:false,queuedAt:123,sessionId:"session-a"};
       if (body.name === "penecho_present_widget") result = {sessionId:"session-a",artifactId:args.artifactId,objectId:"object-a",applied:true,pixelVerified:false};
-      if (body.name === "penecho_read_messages") {
+      if (body.name === "penecho_inbox" && body.arguments.mode !== "ack") {
         const id = messageIndex++ === 0 ? "request-done" : "request-error";
-        result = {sessionId:"session-a",after:args.after || 0,nextCursor:messageIndex,latestCursor:messageIndex,messages:[{id,cursor:messageIndex,text:"Continue"}]};
+        result = {sessionId:"session-a",after:args.messageAfter || 0,nextCursor:messageIndex,latestCursor:messageIndex,hasMore:false,messages:[{id,cursor:messageIndex,text:"Continue"}]};
       }
-      if (body.name === "penecho_ack_messages") result = {sessionId:"session-a",acknowledged:args.ids,status:args.status};
+      if (body.name === "penecho_inbox" && body.arguments.mode === "ack") result = {sessionId:"session-a",acknowledged:args.ids,status:args.status};
+      if(body.name==="penecho_inbox"&&body.arguments.mode!=="ack")result={sessionId:"session-a",messages:result,feedback:{after:0,nextCursor:0,latestCursor:0,hasMore:false,truncated:false,entries:[]}};
       const bytes = Buffer.from(JSON.stringify({result}));
       res.writeHead(200,{"content-type":"application/json","content-length":bytes.length}).end(bytes);
     });
@@ -230,20 +218,20 @@ test("stdio keeps pending updates compact and acknowledges pull messages directl
   assert.doesNotMatch(update.result.content[0].text,/instructions|history|image/i);
   assert.deepEqual(bodies.find(body => body.name === "penecho_update_session").arguments,{sessionId:"session-a",status:"working",summary:"Queued"});
 
-  send({jsonrpc:"2.0",id:5,method:"tools/call",params:{name:"penecho_present_widget",arguments:{sessionId:"session-a",artifactId:"default-capture",title:"Preview",html:"<p>Preview</p>"}}});
+  send({jsonrpc:"2.0",id:5,method:"tools/call",params:{name:"penecho_present_widget",arguments:{sessionId:"session-a",artifactId:"default-capture",requestId:"default-capture",title:"Preview",html:"<p>Preview</p>"}}});
   const presented = await next();
   assert.equal(presented.result.structuredContent.image,undefined);
   assert.equal(presented.result.content.length,1);
   assert.equal(bodies.find(body => body.name === "penecho_present_widget").arguments.capture,undefined);
 
-  send({jsonrpc:"2.0",id:6,method:"tools/call",params:{name:"penecho_read_messages",arguments:{sessionId:"session-a"}}});
+  send({jsonrpc:"2.0",id:6,method:"tools/call",params:{name:"penecho_inbox",arguments:{sessionId:"session-a"}}});
   const doneMessage = await next();
-  send({jsonrpc:"2.0",id:7,method:"tools/call",params:{name:"penecho_ack_messages",arguments:{sessionId:"session-a",ids:[doneMessage.result.structuredContent.messages[0].id],status:"done"}}});
+  send({jsonrpc:"2.0",id:7,method:"tools/call",params:{name:"penecho_inbox",arguments:{sessionId:"session-a",mode:"ack",ids:[doneMessage.result.structuredContent.messages.messages[0].id],status:"done"}}});
   assert.deepEqual((await next()).result.structuredContent,{sessionId:"session-a",acknowledged:["request-done"],status:"done"});
 
-  send({jsonrpc:"2.0",id:8,method:"tools/call",params:{name:"penecho_read_messages",arguments:{sessionId:"session-a",after:1}}});
+  send({jsonrpc:"2.0",id:8,method:"tools/call",params:{name:"penecho_inbox",arguments:{sessionId:"session-a",messageAfter:1}}});
   const errorMessage = await next();
-  send({jsonrpc:"2.0",id:9,method:"tools/call",params:{name:"penecho_ack_messages",arguments:{sessionId:"session-a",ids:[errorMessage.result.structuredContent.messages[0].id],status:"error",message:"Could not continue"}}});
+  send({jsonrpc:"2.0",id:9,method:"tools/call",params:{name:"penecho_inbox",arguments:{sessionId:"session-a",mode:"ack",ids:[errorMessage.result.structuredContent.messages.messages[0].id],status:"error",message:"Could not continue"}}});
   assert.deepEqual((await next()).result.structuredContent,{sessionId:"session-a",acknowledged:["request-error"],status:"error"});
 
   assert.equal(new Set(bodies.map(body => body.ownerId)).size,1);
@@ -281,7 +269,8 @@ test("stdio starts before PenEcho, discovers multiple live instances, and pins s
         let result = {instanceId,canvases:[{canvasId:`canvas-${index}`,instanceId,title:`Board ${index}`}]};
         if (body.name === "penecho_start_session") result = {sessionId:`session-${index}`,boardObjectId:`object-${index}`,revision:1};
         if (body.name === "penecho_update_session") result = {accepted:true,applied:false,pixelVerified:false};
-        const bytes = Buffer.from(JSON.stringify({result}));
+        if(body.name==="penecho_inbox"&&body.arguments.mode!=="ack")result={sessionId:"session-a",messages:result,feedback:{after:0,nextCursor:0,latestCursor:0,hasMore:false,truncated:false,entries:[]}};
+      const bytes = Buffer.from(JSON.stringify({result}));
         res.writeHead(200,{"content-type":"application/json","content-length":bytes.length}).end(bytes);
       });
     });
@@ -306,7 +295,7 @@ test("stdio starts before PenEcho, discovers multiple live instances, and pins s
 });
 
 test("penecho mcp enters stdio directly without an app banner or model preflight", {timeout:5_000}, async () => {
-  assert.match(require("../src/cli/main.js").helpText(), /penecho mcp \[--state-directory DIR\]/);
+  assert.match(require("../src/cli/main.js").helpText(), /penecho mcp connect --host-id ID/);
   const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cli-mcp-"));
   const child = spawn(process.execPath, [path.resolve(__dirname, "../cli.js"), "mcp", "--state-directory", stateDirectory], {
     cwd:path.resolve(__dirname, ".."),

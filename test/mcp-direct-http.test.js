@@ -177,7 +177,7 @@ test('TCP capacity is independent of protocol sessions and status reports bounde
   const sockets=[];t.after(()=>sockets.forEach(socket=>socket.destroy()));
   const summary=await request(status,undefined,{method:'GET',path:'/status'});
   assert.deepEqual(summary.body.limits,{sessions:256,requestsPerSession:8,requests:32,tcpConnections:512});
-  assert.deepEqual(summary.body.timeouts,{sessionIdleMs:1800000,pressureIdleMs:60000,keepAliveMs:5000,headersMs:10000,requestUploadMs:15000});
+  assert.deepEqual(summary.body.timeouts,{sessionIdleMs:1800000,pressureIdleMs:60000,keepAliveMs:30000,headersMs:10000,requestUploadMs:15000});
   const port=Number(new URL(status.localUrl).port);
   await Promise.all(Array.from({length:65},()=>new Promise((resolve,reject)=>{
     const socket=tls.connect({host:'127.0.0.1',port,ca:status.certificatePem},resolve);sockets.push(socket);socket.on('error',reject);

@@ -6,7 +6,7 @@ const { TOOLS, validateToolArguments } = require("../src/server/mcp/schema.js");
 
 const baseDraw = {
   sessionId:"session-a",
-  artifactId:"diagram-a",
+  artifactId:"diagram-a",requestId:"diagram-a",
   title:"Native diagram",
   items:[
     {id:"source",type:"text",text:"First line\nSecond line",x:10,y:20,width:180,height:80,color:"#A0B1C2",fontSize:14},
@@ -22,7 +22,7 @@ test("native drawing schema accepts bounded nodes, referenced edges, paths, and 
   assert.equal(tool.inputSchema.properties.items.maxItems, 24);
   assert.equal(tool.inputSchema.properties.capture.default, false);
   assert.equal(tool.inputSchema.properties.items.items.allOf[0].then.properties.width.minimum, 80);
-  assert.match(tool.description, /not an iframe Widget/);
+  assert.match(tool.description, /native raster/);
 });
 
 test("native drawing schema rejects ambiguous geometry, unsafe text, references, and aggregate size", () => {
@@ -54,11 +54,11 @@ test("native drawing schema rejects ambiguous geometry, unsafe text, references,
 });
 
 test("native plot schema validates dimensions, domain pairs, color, and expression without evaluating it", () => {
-  const input = {sessionId:"session-a",artifactId:"plot-a",title:"Plot",expression:"sin(x) + sqrt(abs(x))",width:640.4,height:360.2,xMin:-10,xMax:10,yMin:-5,yMax:5,color:"#ABCDEF",capture:true};
+  const input = {sessionId:"session-a",artifactId:"plot-a",requestId:"plot-a",title:"Plot",expression:"sin(x) + sqrt(abs(x))",width:640.4,height:360.2,xMin:-10,xMax:10,yMin:-5,yMax:5,color:"#ABCDEF",capture:true};
   assert.deepEqual(validateToolArguments("penecho_plot", input), {...input,width:640,height:360});
   const tool = TOOLS.find(entry => entry.name === "penecho_plot");
   assert.equal(tool.inputSchema.properties.capture.default, false);
-  assert.match(tool.description, /without eval/);
+  assert.match(tool.description, /safely/);
 
   for (const patch of [
     {width:299},
@@ -79,7 +79,7 @@ test("native plot schema validates dimensions, domain pairs, color, and expressi
 });
 
 test("presentation semantics normalize defaults, viewport presets, and legacy dimensions", () => {
-  const widget = {sessionId:"session-a",artifactId:"widget-a",title:"Widget",html:"<main>Hi</main>"};
+  const widget = {sessionId:"session-a",artifactId:"widget-a",requestId:"widget-a",title:"Widget",html:"<main>Hi</main>"};
   assert.deepEqual(validateToolArguments("penecho_present_widget", widget), {...widget,width:1200,height:800});
   assert.deepEqual(validateToolArguments("penecho_present_widget", {...widget,presentation:{intent:"compare",role:"alternative",size:"large",relativeTo:"source"}}), {
     ...widget,
@@ -99,8 +99,8 @@ test("presentation semantics normalize defaults, viewport presets, and legacy di
   const mobile = {...widget,width:390,height:844};
   assert.deepEqual(validateToolArguments("penecho_present_widget", mobile), mobile);
   assert.throws(() => validateToolArguments("penecho_present_widget", {...mobile,presentation:{size:"page"}}), /cannot be combined/);
-  assert.deepEqual(validateToolArguments("penecho_plot", {sessionId:"s",artifactId:"p",title:"P",expression:"x",presentation:{intent:"review",size:"page"}}), {
-    sessionId:"s",artifactId:"p",title:"P",expression:"x",width:1200,height:800,
+  assert.deepEqual(validateToolArguments("penecho_plot", {sessionId:"s",artifactId:"p",requestId:"p",title:"P",expression:"x",presentation:{intent:"review",size:"page"}}), {
+    sessionId:"s",artifactId:"p",requestId:"p",title:"P",expression:"x",width:1200,height:800,
     presentation:{intent:"review",role:"primary",size:"page",attention:"request"},
   });
   assert.deepEqual(validateToolArguments("penecho_draw", {...baseDraw,presentation:{role:"supporting",relativeTo:"widget-a"}}).presentation, {
@@ -108,14 +108,14 @@ test("presentation semantics normalize defaults, viewport presets, and legacy di
   });
   const presentationSchema = TOOLS.find(entry => entry.name === "penecho_present_widget").inputSchema.properties.presentation;
   assert.deepEqual(presentationSchema.properties.intent.enum, ["explain","deliver","compare","review","inspect"]);
-  assert.match(presentationSchema.properties.size.description, /base 480×360/);
-  assert.match(presentationSchema.properties.size.description, /page 1200×800 \(desktop UI\)/);
+  assert.match(presentationSchema.properties.size.description, /base480×360/);
+  assert.match(presentationSchema.properties.size.description, /page1200×800/);
   assert.equal(TOOLS.find(entry => entry.name === "penecho_plot").inputSchema.properties.presentation.properties.size.description, presentationSchema.properties.size.description);
   assert.equal(presentationSchema.additionalProperties, false);
 });
 
 test("presentation semantics reject conflicting or unsupported placement and inspect requests", () => {
-  const widget = {sessionId:"session-a",artifactId:"widget-a",title:"Widget",html:"<main>Hi</main>"};
+  const widget = {sessionId:"session-a",artifactId:"widget-a",requestId:"widget-a",title:"Widget",html:"<main>Hi</main>"};
   for (const presentation of [
     {intent:"unknown"},
     {size:"wide",unexpected:true},
@@ -155,9 +155,9 @@ test("persistent document, virtual file, edit, and inbox schemas are strict and 
   assert.throws(() => validateToolArguments("penecho_capture_canvas", {sessionId:"s",target:"object"}), /objectId is required/);
   assert.throws(() => validateToolArguments("penecho_capture_canvas", {sessionId:"s",target:"region",region:{x:0,y:0,w:1,h:1},objectId:"extra"}), /only for object capture/);
   assert.throws(() => validateToolArguments("penecho_capture_canvas", {sessionId:"s",target:"selection",region:{x:0,y:0,w:1,h:1}}), /only for region capture/);
-  assert.deepEqual(validateToolArguments("penecho_read_messages", {sessionId:"s"}), {sessionId:"s",after:0,limit:20});
-  assert.throws(() => validateToolArguments("penecho_ack_messages", {sessionId:"s",ids:["a","a"],status:"done"}), /duplicates/);
-  for (const name of ["penecho_open_canvas","penecho_find_canvases","penecho_list_files","penecho_read_file","penecho_patch_file","penecho_edit_canvas","penecho_capture_canvas","penecho_read_messages","penecho_ack_messages"]) assert.ok(TOOLS.some(tool => tool.name === name));
+  assert.deepEqual(validateToolArguments("penecho_inbox", {sessionId:"s"}), {sessionId:"s",mode:"read",messageAfter:0,limit:10,capture:false});
+  assert.throws(() => validateToolArguments("penecho_inbox", {sessionId:"s",mode:"ack",ids:["a","a"],status:"done"}), /duplicates/);
+  for (const name of ["penecho_open_canvas","penecho_find_canvases","penecho_list_files","penecho_read_file","penecho_patch_file","penecho_edit_canvas","penecho_capture_canvas","penecho_inbox"]) assert.ok(TOOLS.some(tool => tool.name === name));
 });
 
 test("current session target is explicit and exclusive with documentId", () => {
@@ -179,25 +179,21 @@ test("draw_ink accepts explicit arbitrary brush colors and enforces action and r
 
 test("discovery advertises bounded natural-language workspace requests through canonical tools", () => {
   const description = TOOLS.find(tool => tool.name === "penecho_list_canvases").description;
-  for (const phrase of ["penecho", "echo", "canvas", "画布", "echo一下这个想法", "penecho一下文件夹的架构", "把你要做的修改放到canvas"]) {
-    assert.ok(description.includes(phrase), `discovery includes ${phrase}`);
-  }
-  assert.match(description, /explicit visual-workspace requests/);
-  assert.match(description, /exact opted-in connection/);
-  assert.match(description, /Ordinary shell echo commands and unrelated canvas mentions are not triggers/);
+  assert.match(description,/opted-in/);
+  assert.match(description,/exact instanceId\/canvasId/);
   assert.equal(new Set(TOOLS.map(tool => tool.name)).size, TOOLS.length);
   assert.ok(TOOLS.every(tool => tool.name.startsWith("penecho_")), "invocation phrases do not introduce alias tools");
 });
 
 test("widget role or intent alone keeps page dimensions while plot defaults remain base", () => {
-  const widget = {sessionId:"s",artifactId:"w",title:"W",html:"<p>Hello</p>"};
+  const widget = {sessionId:"s",artifactId:"w",requestId:"w",title:"W",html:"<p>Hello</p>"};
   for (const presentation of [{role:"supporting"}, {intent:"deliver"}, {intent:"inspect"}]) {
     const result = validateToolArguments("penecho_present_widget", {...widget,presentation,...(presentation.intent === "inspect" ? {capture:true} : {})});
     assert.equal(result.presentation.size, "page");
     assert.equal(result.width, 1200);
     assert.equal(result.height, 800);
   }
-  const plot = validateToolArguments("penecho_plot", {sessionId:"s",artifactId:"p",title:"P",expression:"x",presentation:{role:"supporting"}});
+  const plot = validateToolArguments("penecho_plot", {sessionId:"s",artifactId:"p",requestId:"p",title:"P",expression:"x",presentation:{role:"supporting"}});
   assert.equal(plot.presentation.size, "base");
   assert.equal(plot.width, 480);
   assert.equal(plot.height, 360);
@@ -209,12 +205,12 @@ test("widget role or intent alone keeps page dimensions while plot defaults rema
 test("create_text advertises auto-layout and rejects unrelated action fields", () => {
   const tool=TOOLS.find(entry=>entry.name==="penecho_edit_canvas"),base={sessionId:"s",requestId:"r",action:"create_text",text:"Hello"};
   assert.deepEqual(validateToolArguments(tool.name,base),base);
-  assert.match(tool.description,/omit region/);
-  assert.match(tool.description,/To annotate existing Canvas content, supply region/);
-  assert.match(tool.description,/For standalone text display/);
-  assert.match(tool.description,/runtime\/viewport.json/);
+  assert.match(tool.description,/without region/);
+  assert.match(tool.description,/annotate existing content with evidenced world region/);
+  assert.match(tool.description,/auto-layout/);
+  assert.match(tool.description,/baseRevision/);
   assert.match(tool.inputSchema.properties.region.description,/w\/h do not size/);
-  const branch=tool.inputSchema.allOf.find(rule=>rule.if.properties.action.const==="create_text").then;
+  const branch=tool.inputSchema.allOf.find(rule=>rule.if.properties?.action?.const==="create_text").then;
   assert.deepEqual(branch.required,["text"]);
   assert.equal(branch.properties.region,undefined);
   for(const [key,value] of Object.entries({baseRevision:1,width:600,height:120,objectId:"o",source:"data:image/png;base64,AA==",strokes:[{color:"#123456",width:2,points:[{x:10,y:10}]}]})) {
@@ -223,10 +219,10 @@ test("create_text advertises auto-layout and rejects unrelated action fields", (
   }
   const region={x:200,y:200,w:600,h:120};
   assert.deepEqual(validateToolArguments(tool.name,{...base,region}).region,region);
-  const show=tool.inputSchema.allOf.find(rule=>rule.if.properties.action.const==="show").then;
+  const show=tool.inputSchema.allOf.find(rule=>rule.if.properties?.action?.const==="show").then;
   assert.equal(show.properties.baseRevision,false);
   assert.equal(show.properties.region,false);
-  assert.equal(tool.inputSchema.allOf.length,tool.inputSchema.properties.action.enum.length);
+  assert.equal(tool.inputSchema.allOf.length,tool.inputSchema.properties.action.enum.length+1);
 });
 
 test("capture, open and progress advertise their conditional parameter restrictions", () => {
@@ -264,5 +260,29 @@ test('image attachment tools accept bounded canonical sources and reject externa
     assert.equal(tool.inputSchema.properties[key].minimum,80);
     assert.equal(validateToolArguments(tool.name,{sessionId:'s',requestId:'p',source:'penecho-asset:'+'a'.repeat(64),[key]:80})[key],80);
   }
-  assert.match(tool.description,/derived proportionally and must also be at least 80/);
+  assert.match(tool.description,/One dimension preserves aspect ratio/);
+});
+
+test('v2 registry is complete and retired names do not remain aliases',()=>{
+  assert.equal(TOOLS.length,19);
+  const {COMMON_TOOL_NAMES}=require('../src/server/mcp/schema.js');
+  assert.equal(COMMON_TOOL_NAMES.length,6);
+  for(const name of ['penecho_capture_widget','penecho_read_feedback','penecho_read_messages','penecho_ack_messages'])assert.throws(()=>validateToolArguments(name,{}),{code:'tool_not_found'});
+  assert.deepEqual(validateToolArguments('penecho_capture_canvas',{sessionId:'s',target:'artifact',artifactId:'a'}),{sessionId:'s',target:'artifact',artifactId:'a',quality:'basic'});
+  for(const args of [{target:'artifact'},{target:'viewport',artifactId:'a'}])assert.throws(()=>validateToolArguments('penecho_capture_canvas',{sessionId:'s',...args}),{code:'invalid_arguments'});
+});
+
+test('mutation completion is explicit, bounded and attached to an idempotent request',()=>{
+  const base={sessionId:'s',artifactId:'a',title:'A',html:'<p>A</p>'};
+  assert.throws(()=>validateToolArguments('penecho_present_widget',base),/requestId/);
+  const completion={status:'done',summary:'Ready',handledMessageIds:['m1','m2']};
+  const result=validateToolArguments('penecho_present_widget',{...base,requestId:'r',completion,output:'detailed'});
+  assert.deepEqual(result.completion,completion);assert.equal(result.output,'detailed');
+  for(const patch of [{output:'verbose'},{completion:{status:'finished'}},{completion:{status:'done',summary:'x'.repeat(601)}},{completion:{status:'done',handledMessageIds:['x','x']}},{completion:{status:'done',unexpected:true}}])assert.throws(()=>validateToolArguments('penecho_present_widget',{...base,requestId:'r',...patch}),{code:'invalid_arguments'});
+});
+
+test('inbox modes cannot mix acknowledgement and read fields or silently enable capture',()=>{
+  assert.deepEqual(validateToolArguments('penecho_inbox',{sessionId:'s'}),{sessionId:'s',mode:'read',messageAfter:0,limit:10,capture:false});
+  assert.deepEqual(validateToolArguments('penecho_inbox',{sessionId:'s',mode:'ack',ids:['m'],status:'done'}),{sessionId:'s',mode:'ack',ids:['m'],status:'done'});
+  for(const extra of [{quality:'detail'},{mode:'read',ids:['m']},{mode:'ack',ids:['m'],status:'done',capture:true},{messageAfter:-1},{feedbackAfter:-1},{limit:51}])assert.throws(()=>validateToolArguments('penecho_inbox',{sessionId:'s',...extra}),{code:'invalid_arguments'});
 });

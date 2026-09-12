@@ -2404,7 +2404,10 @@
     gesture.widget.shell?.classList.remove("is-resizing");
     state.widgetGesture = null;
     resetCanvasCursor();
-    if (gesture.changed && !gesture.pending && state.widgetEdit?.id === gesture.widget.id) state.widgetEdit.changed = true;
+    if (!gesture.pending && state.widgetEdit?.id === gesture.widget.id) {
+      // A concurrent source commit may rebase the geometry Undo boundary.
+      state.widgetEdit.changed ||= JSON.stringify(widgetLayout(gesture.widget)) !== JSON.stringify(state.widgetEdit.before);
+    }
     positionWidget(gesture.widget);
     if (!gesture.pending) refreshHandObjectToolbar();
     requestInteractionLayerRender();

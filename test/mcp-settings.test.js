@@ -253,7 +253,7 @@ test("one-step setup includes launch configuration and live guidance without ins
   assert.equal(h.clipboard.length,1);const prompt=h.clipboard[0];
   assert.match(prompt,/"transport": "stdio-http"/);
   assert.match(prompt,/Optional helper skill/);
-  assert.match(prompt,/penecho:\/\/guidance\/skill/);
+  assert.match(prompt,/get_guidance only for the needed topic/);
   assert.equal(h.requests.filter(r=>r.url.endsWith("\/skill")).length,0);
   assert.equal(h.nodes.get("mcpSetupStatus").textContent,"Copied");
 });
@@ -414,11 +414,11 @@ test("default setup uses the session CLI without changing global AI trust",async
   assert.match(prompt,/idle for 30 minutes releases only HTTP/);
   assert.doesNotMatch(prompt,/--idle-exit-ms/);
   assert.match(prompt,/same complete sequence runs if reconnecting after idle release fails/);
-  assert.match(prompt,/One-shot examples/);
-  assert.match(prompt,/Use PenEcho to draw a simple flowchart/);
-  assert.match(prompt,/Echo this idea as a diagram/);
-  assert.match(prompt,/Show this architecture on a canvas/);
-  assert.match(prompt,/在画布上比较这两个方案/);
+  const skill=prompt.slice(prompt.indexOf("---\nname: penecho-mcp"),prompt.indexOf("If skill creation is unavailable"));
+  assert.ok(skill.length<800,"bootstrap stays compact");
+  assert.match(skill,/search only missing deferred tools/);
+  assert.match(skill,/Read source\/contentHash before patching/);
+  assert.doesNotMatch(skill,/tools\/list|resources\/list|prompts\/list/);
   assert.match(prompt,/sessionKey/);assert.match(prompt,/documentId/);
   assert.match(prompt,/192\.168\.1\.2:3922/);
   assert.doesNotMatch(prompt,/CODEX_CA_CERTIFICATE/);

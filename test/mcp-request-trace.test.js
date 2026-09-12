@@ -133,7 +133,7 @@ test("enabled MCP request tracing records browser RPC timing, queued application
   const address = await listen(server), ws = await openCanvas(address.port, message => {
     if (message.name === "mcp_start_session") return { ok:true, result:{ sessionId:message.arguments.sessionId, boardObjectId:"board-object", revision:1 } };
     if (message.name === "mcp_update_session") return { ok:true, result:{ applied:true, visible:false, revision:2 } };
-    if (message.name === "mcp_capture_widget") return { ok:true, result:{ dataUrl:"data:image/png;base64,AQID", mediaType:"image/png", width:1, height:1, revision:3, runtimeDiagnostics:{ authorization:"Bearer browser-secret-token" } } };
+    if (message.name === "mcp_capture_canvas") return { ok:true, result:{ dataUrl:"data:image/png;base64,AQID", mediaType:"image/png", width:1, height:1, revision:3, runtimeDiagnostics:{ authorization:"Bearer browser-secret-token" } } };
     return { ok:false, error:"unexpected browser call" };
   });
   const ownerId = crypto.randomUUID();
@@ -150,8 +150,8 @@ test("enabled MCP request tracing records browser RPC timing, queued application
   assert.equal(typeof updateTrace.browserInteractions[0].durationMs, "number");
   assert.equal(typeof updateTrace.durationMs, "number");
 
-  await service.callTool(ownerId, "penecho_capture_widget", { sessionId:started.sessionId, artifactId:"artifact-a" });
-  const captureTrace = traces(traceDirectory).find(trace => trace.request.tool === "penecho_capture_widget");
+  await service.callTool(ownerId, "penecho_capture_canvas", { sessionId:started.sessionId,target:"artifact", artifactId:"artifact-a" });
+  const captureTrace = traces(traceDirectory).find(trace => trace.request.tool === "penecho_capture_canvas");
   assert.equal(captureTrace.status, "completed");
   assert.equal(captureTrace.browserInteractions[0].result.dataUrl, "<encoded image omitted>");
   assert.equal(captureTrace.outcome.image.data, "<encoded image omitted>");
@@ -216,7 +216,7 @@ test("MCP request tracing records failures without changing errors and prunes on
   assert.equal(queuedFailure.queuedUpdate.applied, false);
   assert.equal(JSON.stringify(queuedFailure).includes("queued-update-secret"), false);
   await assert.rejects(
-    service.callTool(ownerId, "penecho_present_widget", { sessionId:started.sessionId, artifactId:"artifact-a", title:"Failure", html:`<img src="data:image/png;base64,${"A".repeat(600)}">` }),
+    service.callTool(ownerId, "penecho_present_widget", { sessionId:started.sessionId,requestId:"failure-1", artifactId:"artifact-a", title:"Failure", html:`<img src="data:image/png;base64,${"A".repeat(600)}">` }),
     error => error.code === "canvas_call_failed" && error.message.includes("browser-failure-secret"),
   );
   const failedTrace = traces(traceDirectory).find(trace => trace.request.tool === "penecho_present_widget");

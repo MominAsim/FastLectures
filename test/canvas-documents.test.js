@@ -7,6 +7,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
+const patchText = (file, before, after) => require("diff").createTwoFilesPatch(`a/${file}`, `b/${file}`, before, after);
+
 const ROOT = path.join(__dirname, "..");
 
 function clientFunction(file, name) {
@@ -69,6 +71,7 @@ function harness(options = {}) {
   };
   const listeners = {};
   const context = vm.createContext({
+    PenEchoCanvasFilePatch: require("../src/shared/canvas-file-patch"),
     SIZE: 32768, TILE: 512, MAX_HISTORY: 50, state, crypto: options.crypto || crypto.webcrypto,
     TextEncoder, TextDecoder, Blob, URL, structuredClone, queueMicrotask,
     AbortController, AbortSignal, setTimeout, clearTimeout, performance,
@@ -319,25 +322,23 @@ test("virtual source edits preserve geometry, reject stale hashes, and recover m
   const geometry = { x: widget.x, y: widget.y, w: widget.w, h: widget.h };
 
   await assert.rejects(
-    h.canvasDocumentsExecute("mcp_apply_patch", { sessionId: "files-session", path: pathName, content: "<p>stale</p>", expectedHash: "stale", requestId: "stale-patch" }, {}),
+    h.canvasDocumentsExecute("mcp_patch_file", { sessionId: "files-session", path: pathName, patch: patchText(pathName,"<p>old</p>","<p>stale</p>"), expectedHash: "stale", requestId: "stale-patch" }, {}),
     error => error.code === "SOURCE_CONFLICT" && error.details.currentHash === read.contentHash,
   );
   assert.equal(widget.html, "<p>old</p>");
 
-  const prepared = await h.canvasDocumentsExecute("mcp_prepare_patch", { sessionId: "files-session", path: pathName, expectedHash: read.contentHash, requestId: "source-patch" }, {});
-  assert.equal(prepared.content, "<p>old</p>");
   h.control.persistFailures = 1;
-  const applyArgs = { sessionId: "files-session", path: pathName, content: "<p>new</p>", expectedHash: read.contentHash, requestId: "source-patch" };
-  await assert.rejects(h.canvasDocumentsExecute("mcp_apply_patch", applyArgs, {}), /simulated persistence failure/);
+  const applyArgs = { sessionId: "files-session", path: pathName, patch: patchText(pathName,"<p>old</p>","<p>new</p>"), expectedHash: read.contentHash, requestId: "source-patch" };
+  await assert.rejects(h.canvasDocumentsExecute("mcp_patch_file", applyArgs, {}), /simulated persistence failure/);
   const revisionAfterMutation = doc.revision;
-  const retry = await h.canvasDocumentsExecute("mcp_apply_patch", applyArgs, {});
+  const retry = await h.canvasDocumentsExecute("mcp_patch_file", applyArgs, {});
   assert.equal(retry.applied, true);
   assert.equal(doc.revision, revisionAfterMutation);
   assert.equal(widget.html, "<p>new</p>");
   assert.deepEqual({ x: widget.x, y: widget.y, w: widget.w, h: widget.h }, geometry);
-  const recovered = await h.canvasDocumentsExecute("mcp_prepare_patch", { sessionId: "files-session", path: pathName, expectedHash: read.contentHash, requestId: "source-patch" }, {});
-  assert.equal(recovered.alreadyApplied, true);
-  assert.equal(recovered.result.contentHash, retry.contentHash);
+  await assert.rejects(h.canvasDocumentsExecute("mcp_patch_file", {...applyArgs,patch:patchText(pathName,"<p>old</p>","<p>different</p>")}, {}),{code:"REQUEST_ID_CONFLICT"});
+  assert.equal(retry.sourcePath,pathName);
+
 });
 
 test("existing-content edits require the current document revision", async () => {
@@ -365,16 +366,16 @@ test("pull inbox is isolated by client and key, reading does not acknowledge, an
     { id: "b-queued", cursor: 2, bindingKey: "key-b", client: "Claude", text: "B", status: "queued" },
     { id: "a-cancelled", cursor: 3, bindingKey: "key-a", client: "Codex", text: "Stop", status: "cancelled" },
   );
-  const read = await h.canvasDocumentsExecute("mcp_read_messages", { sessionId: "session-a", after: 0, limit: 20 }, {});
-  assert.equal(read.entries.map(entry => entry.id).join(","), "a-queued,a-cancelled");
+  const read = await h.canvasDocumentsExecute("mcp_inbox", { sessionId: "session-a", after: 0, limit: 20 }, {});
+  assert.equal(read.messages.messages.map(entry => entry.id).join(","), "a-queued,a-cancelled");
   assert.equal(doc.messages[0].status, "queued");
-  assert.match(read.delivery, /does not acknowledge/);
+  assert.equal(read.feedback.entries.length,0);
   await assert.rejects(
-    h.canvasDocumentsExecute("mcp_ack_messages", { sessionId: "session-a", ids: ["b-queued"], status: "received", requestId: "wrong-owner" }, {}),
+    h.canvasDocumentsExecute("mcp_inbox", { mode:"ack", sessionId: "session-a", ids: ["b-queued"], status: "received", requestId: "wrong-owner" }, {}),
     error => error.code === "MESSAGE_NOT_FOUND",
   );
   await assert.rejects(
-    h.canvasDocumentsExecute("mcp_ack_messages", { sessionId: "session-a", ids: ["a-cancelled"], status: "working", requestId: "cancelled" }, {}),
+    h.canvasDocumentsExecute("mcp_inbox", { mode:"ack", sessionId: "session-a", ids: ["a-cancelled"], status: "working", requestId: "cancelled" }, {}),
     error => error.code === "MESSAGE_CANCELLED",
   );
   assert.equal(doc.messages[2].status, "cancelled");
@@ -756,7 +757,7 @@ test("explicit current attaches populated Canvas, preserves title, and stays pin
   assert.equal(read.documentId,visible.id);
   const textPath="objects/existing-text/content.txt";
   const textRead=await h.canvasDocumentsExecute("mcp_read_file",{sessionId:"attached",path:textPath},{});
-  await h.canvasDocumentsExecute("mcp_apply_patch",{sessionId:"attached",path:textPath,expectedHash:textRead.contentHash,content:"Updated original work",requestId:"pinned-edit"},{});
+  await h.canvasDocumentsExecute("mcp_patch_file",{sessionId:"attached",path:textPath,expectedHash:textRead.contentHash,patch:patchText(textPath,textRead.content,"Updated original work"),requestId:"pinned-edit"},{});
   assert.equal(visible.stored.item.textBoxes[0].text,"Updated original work");
   assert.equal(h.state.textBoxes.length,0);
   await assert.rejects(()=>h.canvasDocumentsExecute("mcp_start_session",{...args,client:"Other"},{}),e=>e.code==="BINDING_CONFLICT");
@@ -834,12 +835,12 @@ test("internal and external Agents use the same current-document source and pres
     assert.equal(read.content,"<main>Page</main>");
     assert.ok(read.contentHash);
     const context=await invoke(h,builtin,"mcp_read_file",{path:"context.md"});
-    const args={path:"context.md",expectedHash:context.contentHash,content:"Shared context",requestId:"context-write"};
-    await invoke(h,builtin,"mcp_apply_patch",args);
-    const repeated=await invoke(h,builtin,"mcp_apply_patch",args);
+    const args={path:"context.md",expectedHash:context.contentHash,patch:patchText("context.md",context.content,"Shared context"),requestId:"context-write"};
+    await invoke(h,builtin,"mcp_patch_file",args);
+    const repeated=await invoke(h,builtin,"mcp_patch_file",args);
     assert.equal(repeated.applied,true);
     assert.equal((await invoke(h,builtin,"mcp_read_file",{path:"context.md"})).content,"Shared context");
-    await assert.rejects(invoke(h,builtin,"mcp_apply_patch",{...args,requestId:"stale-write",content:"Lost update"}),e=>e.code==="SOURCE_CONFLICT");
+    await assert.rejects(invoke(h,builtin,"mcp_patch_file",{...args,requestId:"stale-write",patch:patchText("context.md",context.content,"Lost update")}),e=>e.code==="SOURCE_CONFLICT");
     assert.equal(h.state.widgets.length,1);
   }
   assert.deepEqual(internal.state.widgets.map(w=>[w.w,w.h,w.html]),external.state.widgets.map(w=>[w.w,w.h,w.html]));
@@ -877,7 +878,7 @@ test("shared document tools preserve retired plugin content without allowing sou
     assert.equal(source.writable,false);
     const current=await run("mcp_read_file",{path:source.path});
     assert.equal(current.content,widget.source||widget.html);
-    await assert.rejects(run("mcp_apply_patch",{path:source.path,content:"Changed",expectedHash:current.contentHash,requestId:"retired-edit"}),{code:"READ_ONLY_FILE"});
+    await assert.rejects(run("mcp_patch_file",{path:source.path,patch:patchText(source.path,current.content,"Changed"),expectedHash:current.contentHash,requestId:"retired-edit"}),{code:"READ_ONLY_FILE"});
     h.mcpRuntime.sessions.get(id).artifacts.set("saved-artifact",{objectId:"saved"});
     await assert.rejects(run("mcp_present_widget",{artifactId:"saved-artifact",title:"Overwrite",html:"<p>Replacement</p>"}),{code:"READ_ONLY_FILE"});
     assert.equal(h.state.widgets[0].source||h.state.widgets[0].html,widget.source||widget.html);
@@ -992,7 +993,7 @@ test("HTML patches retain canonical copy source above the independent source lim
   const file=`objects/${item.id}/widget.html`;
   async function patch(content,id) {
     const read=await h.canvasDocumentsExecute("mcp_read_file",{sessionId:"large-html-session",path:file},{});
-    const result=await h.canvasDocumentsExecute("mcp_apply_patch",{sessionId:"large-html-session",path:file,expectedHash:read.contentHash,content,requestId:id},{});
+    const result=await h.canvasDocumentsExecute("mcp_patch_file",{sessionId:"large-html-session",path:file,expectedHash:read.contentHash,patch:patchText(file,read.content,content),requestId:id},{});
     assert.equal(result.contentHash,await h.context.canvasAgentHash(content));
     assert.equal(JSON.stringify([item.x,item.y,item.w,item.h,item.contentW,item.contentH]),geometry);
     return read.contentHash;
@@ -1001,7 +1002,7 @@ test("HTML patches retain canonical copy source above the independent source lim
   const oldHash=await patch(next,"large-first");
   assert.equal(h.context.widgetCopySource(item),next);
   assert.equal(item.copyText,undefined);
-  await assert.rejects(h.canvasDocumentsExecute("mcp_apply_patch",{sessionId:"large-html-session",path:file,expectedHash:oldHash,content:html,requestId:"large-stale"},{}),{code:"SOURCE_CONFLICT"});
+  await assert.rejects(h.canvasDocumentsExecute("mcp_patch_file",{sessionId:"large-html-session",path:file,expectedHash:oldHash,patch:patchText(file,next,html),requestId:"large-stale"},{}),{code:"SOURCE_CONFLICT"});
   item.copyText=next; // Legacy HTML mirrors must also be cleared on merge.
   await patch(html,"large-legacy");
   assert.equal(item.copyText,undefined);
@@ -1213,9 +1214,48 @@ test("legacy routing and external takeover keep the composer on PenEcho while Wi
   h.mcpRuntime.sessions.get("choice-owner").artifacts.set("choice-artifact", { objectId: widget.id });
   h.context.choiceWidget = widget;
   vm.runInContext('canvasDocumentsWidgetAction(choiceWidget, {text:"Use option B", action:"choice"})', h.context);
-  const inbox = await h.canvasDocumentsExecute("mcp_read_messages", { sessionId: "choice-owner", after: 0 }, {});
-  assert.equal(inbox.entries.length, 1);
-  assert.equal(inbox.entries[0].text, "Use option B");
-  assert.equal(inbox.entries[0].source, "widget");
+  const inbox = await h.canvasDocumentsExecute("mcp_inbox", { sessionId: "choice-owner", after: 0 }, {});
+  assert.equal(inbox.messages.messages.length, 1);
+  assert.equal(inbox.messages.messages[0].text, "Use option B");
+  assert.equal(inbox.messages.messages[0].source, "widget");
   assert.equal(doc.processor.kind, "penecho");
+});
+
+test("compound completion acknowledges only owned messages after the committed mutation and retries exactly once",async()=>{
+  const h=harness(),opened=await createHidden(h,"compound-doc","Compound");await startHidden(h,opened.documentId,"compound","compound-key","Test");
+  const doc=h.canvasDocuments.records.get(opened.documentId);doc.messageSequence=1;doc.messages.push({id:"owned",cursor:1,bindingKey:"compound-key",client:"Test",text:"Make it",status:"queued"});
+  const args={sessionId:"compound",artifactId:"compound-artifact",requestId:"compound-write",title:"Compound",html:"<p>Done</p>",completion:{status:"done",summary:"Finished",handledMessageIds:["owned"]}};
+  const result=await h.canvasDocumentsExecute("mcp_present_widget",args,{});assert.equal(result.applied,true);assert.equal(result.completion.status,"done");assert.equal(doc.messages[0].status,"done");const rev=doc.revision;
+  assert.equal((await h.canvasDocumentsExecute("mcp_present_widget",args,{})).objectId,result.objectId);assert.equal(doc.revision,rev);assert.equal(doc.stored.item.widgets.length,1);
+  await assert.rejects(h.canvasDocumentsExecute("mcp_present_widget",{...args,requestId:"wrong-message",html:"<p>Bad</p>",completion:{status:"done",handledMessageIds:["not-owned"]}},{}),{code:"MESSAGE_NOT_FOUND"});assert.equal(doc.stored.item.widgets[0].html,"<p>Done</p>");
+});
+test("failed required capture retains one applied artifact without completing or acknowledging",async()=>{
+  const h=harness(),opened=await createHidden(h,"capture-doc","Capture");await startHidden(h,opened.documentId,"capture-session");
+  const args={sessionId:"capture-session",artifactId:"capture-artifact",requestId:"capture-write",title:"Capture",html:"<p>Retained</p>",capture:true,completion:{status:"done"}};
+  const result=await h.canvasDocumentsExecute("mcp_present_widget",args,{}),doc=h.canvasDocuments.records.get(opened.documentId);
+  assert.equal(result.applied,true);assert.equal(result.pixelVerified,false);assert.equal(result.captureFailure.code,"CANVAS_NOT_VISIBLE");assert.equal(result.completion,undefined);assert.notEqual(h.mcpRuntime.sessions.get("capture-session").status,"done");
+  const retry=await h.canvasDocumentsExecute("mcp_present_widget",args,{});assert.equal(retry.objectId,result.objectId);assert.equal(doc.stored.item.widgets.length,1);
+});
+test("same stable binding retries an artifact receipt after its transport session changes",async()=>{
+ const h=harness(),opened=await createHidden(h,"restore-receipt","Restore");await startHidden(h,opened.documentId,"old-id","stable-key","Test");
+ const args={artifactId:"stable",requestId:"stable-request",title:"Stable",html:"<p>Once</p>",completion:{status:"done"}};
+ const original=await h.canvasDocumentsExecute("mcp_present_widget",{...args,sessionId:"old-id"},{});
+ await startHidden(h,opened.documentId,"new-id","stable-key","Test");
+ const result=await h.canvasDocumentsExecute("mcp_present_widget",{...args,sessionId:"new-id"},{});
+ assert.equal(result.objectId,original.objectId);assert.equal(h.canvasDocuments.records.get(opened.documentId).stored.item.widgets.length,1);
+ await startHidden(h,opened.documentId,"other-id","other-key","Test");
+ await assert.rejects(h.canvasDocumentsExecute("mcp_present_widget",{...args,sessionId:"other-id"},{}),{code:"REQUEST_ID_CONFLICT"});
+});
+test("routed source patch permits a selected Widget after user geometry edits but still rejects changed source",async()=>{
+ const h=harness();await h.canvasDocumentsReady();await h.canvasDocumentsExecute("mcp_start_session",{sessionId:"geometry-source",sessionKey:"geometry-key",client:"Test",target:"current",title:"Geometry"},{});
+ const created=await h.canvasDocumentsExecute("mcp_present_widget",{sessionId:"geometry-source",artifactId:"geometry",requestId:"geometry-create",title:"Geometry",html:"<p>Before</p>"},{});
+ const file=created.sourcePath,read=await h.canvasDocumentsExecute("mcp_read_file",{sessionId:"geometry-source",path:file},{}),widget=h.state.widgets[0];
+ Object.assign(widget,{x:600,y:900,w:920,h:620,contentW:460,contentH:310});h.state.widgetEdit={id:widget.id,changed:true};h.state.userRevision+=2;
+ h.context.canvasAgentMutationIdle=()=>{throw Error("generic geometry gate must not block source-only commits");};
+ h.context.widgetEditContext=w=>({...w});h.context.canvasAgentWidgetSourceState=w=>({html:w.html});
+ let usedSourceLock=false;h.context.canvasAgentReplaceWidget=async args=>{assert.ok(args.expectedSourceHash);assert.equal(args.baseRevision,undefined);usedSourceLock=true;widget.html=args.command.html;return {revision:++h.state.userRevision};};
+ const args={sessionId:"geometry-source",path:file,expectedHash:read.contentHash,patch:patchText(file,read.content,"<p>After</p>"),requestId:"after-geometry"};
+ const result=await h.canvasDocumentsExecute("mcp_patch_file",args,{});assert.equal(result.applied,true);assert.equal(result.objectId,widget.id);assert.equal(usedSourceLock,true);
+ assert.deepEqual([widget.x,widget.y,widget.w,widget.h,widget.contentW,widget.contentH],[600,900,920,620,460,310]);assert.equal(widget.html,"<p>After</p>");
+ await assert.rejects(h.canvasDocumentsExecute("mcp_patch_file",{...args,requestId:"stale-source"},{}),{code:"SOURCE_CONFLICT"});
 });

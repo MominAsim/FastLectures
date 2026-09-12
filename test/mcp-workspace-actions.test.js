@@ -242,7 +242,7 @@ test("Follow latest frames a newer same-document region that arrives during an i
 });
 
 test("MCP completion hook only marks content producing tools and excludes reads/progress/inspect",()=>{
-  const match=mcpRuntimeSource.match(/if\(\["mcp_present_widget","mcp_draw","mcp_plot","mcp_apply_patch","mcp_edit_canvas"\][\s\S]*?noteMcpContentUpdate\?\.\(result\.documentId,region\);/);
+  const match=mcpRuntimeSource.match(/if\(\["mcp_present_widget","mcp_draw","mcp_plot","mcp_patch_file","mcp_edit_canvas","mcp_place_image"\][\s\S]*?noteMcpContentUpdate\?\.\(result\.documentId,region\);/);
   assert.ok(match,"content update hook whitelist should remain explicit");assert.doesNotMatch(match[0],/mcp_read_feedback|mcp_update_session|mcp_inspect_session|mcp_capture_widget/);assert.match(match[0],/presentation\?\.intent!=="inspect"/);assert.match(match[0],/message\.arguments\?\.action!=="show"/);
 });
 

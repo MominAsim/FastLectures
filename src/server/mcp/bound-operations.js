@@ -1,8 +1,8 @@
 "use strict";
 
 const crypto = require("node:crypto");
-const { applyPatch, parsePatch } = require("diff");
-const { MAX_FILE_BYTES, McpBridgeError, validateToolArguments } = require("./schema.js");
+const { validateCanvasFilePatch, applyCanvasFilePatch } = require("../../shared/canvas-file-patch.js");
+const { MAX_FILE_BYTES, McpBridgeError, validateToolArguments, MUTATION_TOOLS } = require("./schema.js");
 
 const MAX_CAPTURE_BYTES = 8 * 1024 * 1024;
 const MAX_FEEDBACK_CAPTURE_BYTES = 700 * 1024;
@@ -16,28 +16,6 @@ const MAX_MUTATION_REQUESTS = 32;
 const MAX_UNRESOLVED_PATCHES = 4;
 
 function bridgeError(code, message, status = 400) { return new McpBridgeError(code, message, status); }
-
-function appliedCaptureFailure(error, applied, callOptions) {
-  // Generic browser failures also include revoked sessions and cancellation. Only
-  // recognize the known capture-readiness failure, never arbitrary browser text.
-  const readinessFailure = ["WIDGET_READY_TIMEOUT", "WIDGET_CAPTURE_TIMEOUT"].includes(error?.code)
-    || error?.code === "CANVAS_TOOL_FAILED"
-      && error.message === "A live widget could not be captured. Wait for it to finish loading and try again.";
-  const transportFailure = ["canvas_timeout", "canvas_busy", "canvas_disconnected", "canvas_send_failed"].includes(error?.code);
-  const hiddenDocument = error?.code === "CANVAS_NOT_VISIBLE";
-  if (callOptions.signal?.aborted || (!readinessFailure && !transportFailure && !hiddenDocument)) throw error;
-  return {
-    ...applied,
-    captureFailure:{
-      code:error.code,
-      message:hiddenDocument
-        ? "The artifact was applied in its background Canvas. Explicitly show that session's Canvas before capturing the existing artifact; do not recreate it."
-        : "The artifact was applied, but its screenshot is unavailable. Wait for the Canvas to be ready, then capture the existing artifact without recreating it.",
-      retryTool:applied.kind ? "penecho_capture_canvas" : "penecho_capture_widget",
-      retryArguments:applied.kind ? {sessionId:applied.sessionId,target:"canvas"} : {sessionId:applied.sessionId,artifactId:applied.artifactId},
-    },
-  };
-}
 
 function safeString(value, max, label) {
   if (typeof value !== "string" || !value || value.length > max || /[\u0000-\u001f\u007f]/.test(value)) throw bridgeError("invalid_browser_message", `${label} is invalid.`, 400);
@@ -89,48 +67,10 @@ function mutationSignature(args) {
   return crypto.createHash("sha256").update(JSON.stringify(args)).digest("hex");
 }
 
-function patchParseDiagnostic(error) {
-  const message = typeof error?.message === "string" ? error.message : "";
-  const bounded = (value, minimum = 1) => {
-    const number = Number(value);
-    return Number.isSafeInteger(number) && number >= minimum && number <= MAX_FILE_BYTES ? number : null;
-  };
-  let match = /^Added line count did not match for hunk at line (\d+)$/.exec(message);
-  if (match) {
-    const line = bounded(match[1]);
-    if (line !== null) return `Added line count did not match for hunk at line ${line}.`;
-  }
-  match = /^Removed line count did not match for hunk at line (\d+)$/.exec(message);
-  if (match) {
-    const line = bounded(match[1]);
-    if (line !== null) return `Removed line count did not match for hunk at line ${line}.`;
-  }
-  match = /^Hunk at line (\d+) has more lines than expected \(expected (\d+) old lines and (\d+) new lines\)$/.exec(message);
-  if (match) {
-    const line = bounded(match[1]), oldLines = bounded(match[2],0), newLines = bounded(match[3],0);
-    if (line !== null && oldLines !== null && newLines !== null) return `Hunk at line ${line} has more lines than expected (expected ${oldLines} old lines and ${newLines} new lines).`;
-  }
-  match = /^Hunk at line (\d+) contained invalid line /.exec(message);
-  if (match) {
-    const line = bounded(match[1]);
-    if (line !== null) return `Hunk at line ${line} contains an invalid line.`;
-  }
-  return "patch must be a valid unified diff.";
+function sharedPatchCall(fn,...args) {
+  try{return fn(...args);}catch(error){throw bridgeError(error.code||"invalid_patch",error.message,error.status||400);}
 }
-
-function patchVirtualFile(source, patchText, virtualPath) {
-  const fileName = virtualPath.replace(/^\/+/, "");
-  let parsed;
-  try { parsed = parsePatch(patchText); }
-  catch (error) { throw bridgeError("invalid_patch", patchParseDiagnostic(error), 400); }
-  if (parsed.length !== 1 || parsed[0].oldFileName !== `a/${fileName}` || parsed[0].newFileName !== `b/${fileName}` || !parsed[0].hunks.length) {
-    throw bridgeError("invalid_patch", `patch must modify exactly --- a/${fileName} and +++ b/${fileName}.`, 400);
-  }
-  const content = applyPatch(source, parsed[0], { fuzzFactor:0 });
-  if (content === false) throw bridgeError("PATCH_CONFLICT", "The patch no longer applies exactly. Re-read the virtual file and create a new patch and requestId.", 409);
-  if (Buffer.byteLength(content, "utf8") > MAX_FILE_BYTES) throw bridgeError("patch_too_large", "The patched content exceeds the 800,000-byte limit.", 413);
-  return content;
-}
+const patchVirtualFile = (...args)=>sharedPatchCall(applyCanvasFilePatch,...args);
 
 function browserRevision(value) {
   if (!Number.isSafeInteger(value) || value < 0) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid revision.", 502);
@@ -151,7 +91,7 @@ function browserMetadata(result) {
   const output = {};
   if (typeof result?.browserElapsedMs === "number" && Number.isFinite(result.browserElapsedMs) && result.browserElapsedMs >= 0 && result.browserElapsedMs <= 600_000) output.browserElapsedMs = result.browserElapsedMs;
   let remaining = 64 * 1024;
-  for (const key of ["runtimeDiagnostics", "viewport", "mapping"]) {
+  for (const key of ["runtimeDiagnostics", "viewport", "mapping", "sourcePath", "contentHash", "completion", "completionFailure", "inboxSummary"]) {
     if (result?.[key] === undefined) continue;
     try {
       const json = JSON.stringify(result[key]);
@@ -347,21 +287,18 @@ function extractCapture(result, maximumBytes = MAX_CAPTURE_BYTES, label = "widge
   return { mimeType:result?.mediaType && result.mediaType === match[1] ? result.mediaType : match[1], data:match[2], bytes:data.length };
 }
 
-const BOUND_CANVAS_TOOL_NAMES = Object.freeze(["penecho_list_files", "penecho_read_file", "penecho_read_messages", "penecho_ack_messages", "penecho_patch_file", "penecho_edit_canvas", "penecho_upload_image", "penecho_place_image", "penecho_capture_canvas", "penecho_present_widget", "penecho_draw", "penecho_plot", "penecho_capture_widget", "penecho_read_feedback", "penecho_inspect_session"]);
+const BOUND_CANVAS_TOOL_NAMES = Object.freeze(["penecho_list_files", "penecho_read_file", "penecho_inbox", "penecho_patch_file", "penecho_edit_canvas", "penecho_upload_image", "penecho_place_image", "penecho_capture_canvas", "penecho_present_widget", "penecho_draw", "penecho_plot", "penecho_inspect_session"]);
 
 // Shared document operations. The caller owns authentication and session lifecycle.
-async function executeBoundCanvasTool({name,args,session,canvasCall,flushUpdate = async () => {},sessionSnapshot = session => ({sessionId:session.id}),callOptions = {}}) {
+async function executeBoundOperation({name,args,session,canvasCall,flushUpdate = async () => {},sessionSnapshot = session => ({sessionId:session.id}),callOptions = {}}) {
   if (!BOUND_CANVAS_TOOL_NAMES.includes(name)) throw bridgeError("tool_not_found", "Unknown bound Canvas tool.", 404);
-  args = validateToolArguments(name, args);
   if (args.sessionId !== session.id) throw bridgeError("session_mismatch", "The tool must target its bound Canvas session.", 409);
-  if (name === "penecho_list_files" || name === "penecho_read_file" || name === "penecho_read_messages" || name === "penecho_ack_messages") {
-    const operation = ({penecho_list_files:"mcp_list_files",penecho_read_file:"mcp_read_file",penecho_read_messages:"mcp_read_messages",penecho_ack_messages:"mcp_ack_messages"})[name];
+  if (name === "penecho_list_files" || name === "penecho_read_file") {
+    const operation = ({penecho_list_files:"mcp_list_files",penecho_read_file:"mcp_read_file"})[name];
     const { result, timing } = await canvasCall(session.connection, operation, args, callOptions);
     browserObject(result, `${name} result`);
     if (result.sessionId !== undefined && result.sessionId !== session.id) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned a mismatched session result.", 502);
     if (name === "penecho_list_files") for (const key of ["files", "entries"]) if (result[key] !== undefined && (!Array.isArray(result[key]) || result[key].length > args.limit)) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid bounded virtual file list.", 502);
-    if (name === "penecho_read_messages") for (const key of ["messages", "entries"]) if (result[key] !== undefined && (!Array.isArray(result[key]) || result[key].length > args.limit)) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid bounded message list.", 502);
-    if (name === "penecho_ack_messages" && result.acknowledged !== undefined && (!Array.isArray(result.acknowledged) || result.acknowledged.length > args.ids.length)) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid acknowledgement result.", 502);
     if (name === "penecho_read_file") {
       if (typeof result.content !== "string" || Buffer.byteLength(result.content, "utf8") > MAX_FILE_BYTES || typeof result.contentHash !== "string" || !result.contentHash || result.contentHash.length > 256) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned invalid virtual file content.", 502);
     }
@@ -371,47 +308,27 @@ async function executeBoundCanvasTool({name,args,session,canvasCall,flushUpdate 
     const signature = mutationSignature({tool:name,...args}), prior = session.mutationRequests.get(args.requestId);
     if (prior && prior.signature !== signature) throw bridgeError("REQUEST_ID_CONFLICT", "requestId was already used with different patch arguments. Use a new requestId.", 409);
     if (prior?.response) return {...prior.response,reused:true};
-    if (prior && !prior.applyArguments) throw bridgeError("REQUEST_IN_PROGRESS", "The patch request is still being prepared. Retry the same requestId shortly.", 409);
     let entry = prior;
     if (!entry) {
-      if ([...session.mutationRequests.values()].filter(value => !value.response).length >= MAX_UNRESOLVED_PATCHES) throw bridgeError("request_limit", "Too many unresolved mutation outcomes are retained for this session. Resolve or retry them before starting another patch.", 429);
-      if (session.mutationRequests.size >= MAX_MUTATION_REQUESTS) {
-        const completed = [...session.mutationRequests].find(([, value]) => value.response);
-        if (completed) session.mutationRequests.delete(completed[0]);
-        else throw bridgeError("request_limit", "Too many unresolved mutation request IDs are retained for this session.", 429);
+      if ([...session.mutationRequests.values()].filter(value=>!value.response).length >= MAX_UNRESOLVED_PATCHES) throw bridgeError("request_limit","Resolve pending mutations before another patch.",429);
+      if(session.mutationRequests.size >= MAX_MUTATION_REQUESTS) {
+        const completed=[...session.mutationRequests].find(([,value])=>value.response);
+        if(completed)session.mutationRequests.delete(completed[0]);else throw bridgeError("request_limit","Resolve pending mutations.",429);
       }
-      entry = {signature};
-      session.mutationRequests.set(args.requestId, entry);
-      try {
-        const prepared = await canvasCall(session.connection, "mcp_prepare_patch", {sessionId:session.id,path:args.path,requestId:args.requestId,expectedHash:args.contentHash}, callOptions);
-        browserObject(prepared.result, "patch source");
-        if (prepared.result.alreadyApplied === true) {
-          browserObject(prepared.result.result, "recovered patch result");
-          const response = {...safeJsonValue(prepared.result.result, "recovered patch result"),timing:prepared.timing,reused:true};
-          entry.response = response;
-          return response;
-        }
-        if (prepared.result.alreadyApplied !== undefined && prepared.result.alreadyApplied !== false) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid patch receipt state.", 502);
-        if (typeof prepared.result.content !== "string" || Buffer.byteLength(prepared.result.content, "utf8") > MAX_FILE_BYTES || typeof prepared.result.contentHash !== "string" || !prepared.result.contentHash || prepared.result.contentHash.length > 256) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned invalid patch source content.", 502);
-        if (prepared.result.contentHash !== args.contentHash) {
-          const error = bridgeError("SOURCE_CONFLICT", "The virtual source changed. Re-read it, create a new patch, and use a new requestId.", 409);
-          error.details = {currentContentHash:prepared.result.contentHash,retry:"read-before-patch"};
-          throw error;
-        }
-        entry.applyArguments = {sessionId:session.id,path:args.path,content:patchVirtualFile(prepared.result.content,args.patch,args.path),expectedHash:args.contentHash,requestId:args.requestId};
-      } catch (error) {
-        session.mutationRequests.delete(args.requestId);
-        throw error;
-      }
+      // Validate syntax and exact file scope before dispatch; browser owns the
+      // atomic current-source hash check and application to avoid a round trip.
+      sharedPatchCall(validateCanvasFilePatch,args.patch,args.path);
+      entry={signature,applyArguments:{sessionId:session.id,path:args.path,patch:args.patch,expectedHash:args.contentHash,requestId:args.requestId,...(args.capture!==undefined?{capture:args.capture}:{}),...(args.quality?{quality:args.quality}:{}),...(args.completion?{completion:args.completion}:{})}};
+      session.mutationRequests.set(args.requestId,entry);
     }
     try {
-      const applied = await canvasCall(session.connection, "mcp_apply_patch", entry.applyArguments, callOptions);
+      const applied = await canvasCall(session.connection, "mcp_patch_file", entry.applyArguments, callOptions);
       browserObject(applied.result, "patch result");
-      const response = {...safeJsonValue(applied.result, "patch result"),timing:applied.timing};
+      const response = mutationBrowserResult(applied.result,applied.timing);
       entry.response = response;
       return response;
     } catch (error) {
-      if (error?.code === "SOURCE_CONFLICT" || error?.code === "invalid_browser_result") session.mutationRequests.delete(args.requestId);
+      if (["SOURCE_CONFLICT","PATCH_CONFLICT","patch_too_large","invalid_patch","invalid_arguments","FILE_NOT_FOUND","FILE_NOT_EDITABLE","invalid_browser_result"].includes(error?.code)) session.mutationRequests.delete(args.requestId);
       throw error;
     }
   }
@@ -429,11 +346,11 @@ async function executeBoundCanvasTool({name,args,session,canvasCall,flushUpdate 
     session.mutationRequests.set(args.requestId, entry);
     const applied = await canvasCall(session.connection, name.replace(/^penecho_/, "mcp_"), args, callOptions);
     browserObject(applied.result, "canvas edit result");
-    const response = {...safeJsonValue(applied.result, "canvas edit result"),timing:applied.timing};
+    const response = mutationBrowserResult(applied.result,applied.timing);
     entry.response = response;
     return response;
   }
-  if (name === "penecho_capture_canvas") {
+  if (name === "penecho_capture_canvas" && args.target !== "artifact") {
     await flushUpdate(session);
     const { result, timing } = await canvasCall(session.connection, "mcp_capture_canvas", args, callOptions);
     browserObject(result, "Canvas capture result");
@@ -455,6 +372,10 @@ async function executeBoundCanvasTool({name,args,session,canvasCall,flushUpdate 
       artifactId:args.artifactId,
       title:args.title,
       html:args.html,
+      capture:args.capture===true,
+      ...(args.quality?{quality:args.quality}:{}),
+      ...(args.requestId ? {requestId:args.requestId}:{}),
+      ...(args.completion ? {completion:args.completion}:{}),
       width:args.width,
       height:args.height,
       ...(args.presentation === undefined ? {} : {presentation:args.presentation}),
@@ -497,101 +418,108 @@ async function executeBoundCanvasTool({name,args,session,canvasCall,flushUpdate 
       };
     }
     const presentation = { sessionId:session.id, artifactId:args.artifactId, objectId:safeString(result.objectId, 128, "objectId"), revision:browserRevision(result.revision), ...(result.feedbackCursor === undefined ? {} : {feedbackCursor:browserCursor(result.feedbackCursor)}), ...(args.presentation === undefined ? {} : {presentation:args.presentation}), applied:true, pixelVerified:false, timing, ...browserMetadata(result) };
+    if (result.captureFailure) return {...presentation,captureFailure:publicCaptureFailure(result.captureFailure,session.id,args.artifactId)};
     if (args.capture !== true) return presentation;
-    let captured;
-    try { captured = await canvasCall(session.connection, "mcp_capture_widget", {
-      sessionId:session.id,
-      artifactId:args.artifactId,
-      ...(args.quality === undefined ? {} : {quality:args.quality}),
-    }, callOptions); }
-    catch (error) { return appliedCaptureFailure(error, presentation, callOptions); }
-    browserObject(captured.result, "capture result");
-    const image = extractCapture(captured.result);
-    const width = Number.isSafeInteger(captured.result.width) && captured.result.width > 0 && captured.result.width <= 16_384 ? captured.result.width : undefined;
-    const height = Number.isSafeInteger(captured.result.height) && captured.result.height > 0 && captured.result.height <= 16_384 ? captured.result.height : undefined;
-    const captureRevision = captured.result.revision === undefined ? undefined : browserRevision(captured.result.revision);
-    return {
-      ...presentation,
-      image,
-      pixelVerified:true,
-      ...(width ? {width} : {}),
-      ...(height ? {height} : {}),
-      ...(captureRevision === undefined ? {} : {captureRevision}),
-      timing:{
-        requestedAt:timing.requestedAt,
-        completedAt:captured.timing.completedAt,
-        durationMs:captured.timing.completedAt - timing.requestedAt,
-        present:timing,
-        capture:captured.timing,
-      },
-      presentationMetadata:browserMetadata(result),
-      ...browserMetadata(captured.result),
-    };
+    const image=extractCapture(result);
+    return {...presentation,image,pixelVerified:true,...browserCanvasCaptureMetadata(result,image)};
   }
   if (name === "penecho_draw" || name === "penecho_plot") {
     await flushUpdate(session);
-    const kind = name === "penecho_draw" ? "drawing" : "plot";
-    const { capture, ...artifactArgs } = args;
-    const { result, timing } = await canvasCall(session.connection, name === "penecho_draw" ? "mcp_draw" : "mcp_plot", artifactArgs, callOptions);
-    const artifact = browserArtifactResult(result, args.artifactId, kind);
-    const applied = { sessionId:session.id, ...artifact, ...(args.presentation === undefined ? {} : {presentation:args.presentation}), applied:true, pixelVerified:false, timing, ...browserMetadata(result) };
-    if (capture !== true) return applied;
-    let captured;
-    try { captured = await canvasCall(session.connection, "mcp_capture_primitives", { sessionId:session.id, artifactId:args.artifactId }, callOptions); }
-    catch (error) { return appliedCaptureFailure(error, applied, callOptions); }
-    browserObject(captured.result, "primitive capture result");
-    const image = extractCapture(captured.result, MAX_FEEDBACK_CAPTURE_BYTES, "primitive");
-    return {
-      ...applied,
-      image,
-      pixelVerified:true,
-      ...browserPrimitiveCaptureMetadata(captured.result, image, args.artifactId),
-      timing:{
-        requestedAt:timing.requestedAt,
-        completedAt:captured.timing.completedAt,
-        durationMs:captured.timing.completedAt - timing.requestedAt,
-        apply:timing,
-        capture:captured.timing,
-      },
-      applicationMetadata:browserMetadata(result),
-      ...browserMetadata(captured.result),
-    };
+    const kind=name==="penecho_draw"?"drawing":"plot";
+    const {result,timing}=await canvasCall(session.connection,name.replace(/^penecho_/,"mcp_"),args,callOptions);
+    const artifact=browserArtifactResult(result,args.artifactId,kind);
+    const applied={sessionId:session.id,...artifact,...(args.presentation?{presentation:args.presentation}:{}),applied:true,pixelVerified:false,timing,...browserMetadata(result)};
+    if(result.captureFailure)return {...applied,captureFailure:publicCaptureFailure(result.captureFailure,session.id,args.artifactId)};
+    if(args.capture!==true)return applied;
+    const image=extractCapture(result,MAX_FEEDBACK_CAPTURE_BYTES,"primitive");
+    return {...applied,image,pixelVerified:true,...browserPrimitiveCaptureMetadata(result,image,args.artifactId)};
   }
-  if (name === "penecho_capture_widget") {
+
+  if (name === "penecho_capture_canvas" && args.target === "artifact") {
     await flushUpdate(session);
-    const { result, timing } = await canvasCall(session.connection, "mcp_capture_widget", args, callOptions);
+    const { result, timing } = await canvasCall(session.connection, "mcp_capture_canvas", args, callOptions);
     browserObject(result, "capture result");
     const image = extractCapture(result);
     const width = Number.isSafeInteger(result.width) && result.width > 0 && result.width <= 16_384 ? result.width : undefined;
     const height = Number.isSafeInteger(result.height) && result.height > 0 && result.height <= 16_384 ? result.height : undefined;
     return { sessionId:session.id, artifactId:args.artifactId, image, pixelVerified:true, ...(width ? {width} : {}), ...(height ? {height} : {}), ...(result.revision === undefined ? {} : {revision:browserRevision(result.revision)}), timing, ...browserMetadata(result) };
   }
-  if (name === "penecho_read_feedback") {
-    const { result, timing } = await canvasCall(session.connection, "mcp_read_feedback", args, callOptions);
-    const feedback = browserFeedbackResult(result, session.id, args.after, args.limit);
-    const entries = feedback.entries, changeCount = entries.length;
-    const summary = {
-      sessionId:feedback.sessionId,
-      after:feedback.after,
-      nextCursor:feedback.nextCursor,
-      latestCursor:feedback.latestCursor,
-      hasMore:feedback.hasMore,
-      truncated:feedback.truncated,
-      hasFeedback:changeCount > 0,
-      changeCount,
-    };
-    const source = typeof result?.dataUrl === "string" ? result.dataUrl : typeof result?.imageUrl === "string" ? result.imageUrl : "";
-    if (args.capture !== true || changeCount === 0) return { ...summary, pixelVerified:false, timing };
-    if (!source) throw bridgeError("feedback_capture_required", "PenEcho found feedback but did not return the requested screenshot. Refresh the PenEcho Canvas and try again.", 502);
-    const image = extractCapture(result, MAX_FEEDBACK_CAPTURE_BYTES, "feedback");
-    const metadata = browserFeedbackCaptureMetadata(result, image);
-    return { ...summary, image, pixelVerified:true, ...metadata, timing };
+  if (name === "penecho_inbox") {
+    const {result,timing}=await canvasCall(session.connection,"mcp_inbox",args,callOptions);
+    browserObject(result,"inbox");
+    if(result.sessionId!==session.id)throw bridgeError("invalid_browser_result","Inbox session mismatch.",502);
+    if(args.mode==="ack") {
+      if(!Array.isArray(result.acknowledged)||result.acknowledged.length>args.ids.length||result.acknowledged.some(id=>!args.ids.includes(typeof id==="string"?id:id.requestId)))throw bridgeError("invalid_browser_result","Invalid acknowledgement IDs.",502);
+      return {...publicVirtualResult(result,"inbox acknowledgement"),timing};
+    }
+    const messages=browserObject(result.messages,"message page"), entries=messages.messages;
+    if(!Array.isArray(entries)||entries.length>args.limit)throw bridgeError("invalid_browser_result","Invalid bounded message page.",502);
+    const after=browserCursor(messages.after,"message after"),nextCursor=browserCursor(messages.nextCursor,"message next"),latestCursor=browserCursor(messages.latestCursor,"message latest");
+    if(after<args.messageAfter||nextCursor<after||nextCursor>latestCursor||typeof messages.hasMore!=="boolean")throw bridgeError("invalid_browser_result","Invalid message pagination.",502);
+    const feedback=browserFeedbackResult({...result.feedback,sessionId:session.id},session.id,args.feedbackAfter,args.limit);
+    const response={sessionId:session.id,messages:publicVirtualResult(messages,"message page"),feedback:publicVirtualResult(feedback,"feedback page"),timing};
+    if(args.capture && feedback.entries.length) {
+      const image=extractCapture(result.feedback,args.quality==="detail"?INSPECT_CAPTURE_POLICIES.detail.maxBytes:MAX_FEEDBACK_CAPTURE_BYTES,"feedback");
+      Object.assign(response,{image,pixelVerified:true,...(args.quality==="detail"?browserCanvasCaptureMetadata(result.feedback,image):browserFeedbackCaptureMetadata(result.feedback,image))});
+    }
+    return response;
   }
   if (name === "penecho_inspect_session") {
     await flushUpdate(session);
     const { result, timing } = await canvasCall(session.connection, "mcp_inspect_session", args, callOptions);
     return { ...sessionSnapshot(session), browser:result, timing };
   }
+}
+
+function publicCaptureFailure(value,sessionId,artifactId) {
+  browserObject(value,"capture failure");
+  return {code:safeString(value.code,80,"capture failure code"),message:"Content was applied; capture the existing artifact after resolving visibility/readiness.",retryTool:"penecho_capture_canvas",retryArguments:{sessionId,target:"artifact",artifactId}};
+}
+function mutationBrowserResult(result,timing) {
+  const {dataUrl,imageUrl,...metadata}=result;
+  return {...safeJsonValue(metadata,"mutation result"),...((dataUrl||imageUrl)?{image:extractCapture(result),pixelVerified:true}:{}),timing};
+}
+function conciseResult(result) {
+  if(!result||typeof result!=="object")return result;
+  const {timing,runtimeDiagnostics,presentationMetadata,applicationMetadata,browserElapsedMs,...rest}=result;
+  if(rest.sourcePath&&rest.contentHash) {
+    // Only the virtual-file contentHash is valid for the next MCP patch. The
+    // internal Widget receipt hashes include different state and must not look
+    // like alternative edit tokens in the default response.
+    const {sourceHash,receipts,changeId,previousRevision,ok,rasterMs,...sourceResult}=rest;
+    return sourceResult;
+  }
+  return rest;
+}
+async function executeBoundCanvasTool(options) {
+  const args=validateToolArguments(options.name,options.args);
+  const wasCompleted=!!options.session.mutationRequests.get(args.requestId)?.response;
+  if(args.completion&&!wasCompleted)await options.flushUpdate?.(options.session);
+  let result;
+  const artifactMutation=["penecho_present_widget","penecho_draw","penecho_plot"].includes(options.name);
+  if(artifactMutation) {
+    const signature=mutationSignature({tool:options.name,...args}),cache=options.session.mutationRequests,prior=cache.get(args.requestId);
+    if(prior&&prior.signature!==signature)throw bridgeError("REQUEST_ID_CONFLICT","requestId already has different arguments.",409);
+    if(prior?.response)result={...prior.response,reused:true};
+    else {
+      if(prior?.running)throw bridgeError("REQUEST_IN_PROGRESS","Retry the same requestId shortly.",409);
+      if(!prior&&cache.size>=MAX_MUTATION_REQUESTS){const completed=[...cache].find(([,v])=>v.response);if(completed)cache.delete(completed[0]);else throw bridgeError("request_limit","Resolve pending mutations.",429);}
+      const entry=prior||{signature};entry.running=true;cache.set(args.requestId,entry);
+      try {result=await executeBoundOperation({...options,args});entry.response=result;}finally{entry.running=false;}
+    }
+  } else result=await executeBoundOperation({...options,args});
+  if(result?.completion) {
+    if(!args.completion||result.completion.status!==args.completion.status)throw bridgeError("invalid_browser_result","Completion does not match the requested status.",502);
+    const ids=result.completion.handledMessageIds||[];
+    if(!Array.isArray(ids)||ids.length>(args.completion.handledMessageIds||[]).length||ids.some(id=>!args.completion.handledMessageIds?.includes(id)))throw bridgeError("invalid_browser_result","Completion acknowledged unrequested messages.",502);
+  }
+  if(MUTATION_TOOLS.has(options.name)&&result?.completion?.status==="done"&&(result.captureFailure||result.applied===false))throw bridgeError("invalid_browser_result","Failed work cannot be marked done.",502);
+  if(args.completion&&result?.completion&&!result.captureFailure&&!result.completionFailure&&result.applied!==false&&!wasCompleted) {
+    options.session.status=result.completion.status;
+    if(result.completion.summary!==undefined)options.session.summary=result.completion.summary;
+    options.session.updatedAt=Date.now();
+  }
+  return args.output==="detailed" ? result : conciseResult(result);
 }
 
 module.exports = { BOUND_CANVAS_TOOL_NAMES, executeBoundCanvasTool, MAX_CAPTURE_BYTES, MAX_MUTATION_REQUESTS, safeString, safeJsonValue, browserSessionProgress, publicVirtualResult, mutationSignature, patchVirtualFile, browserRevision, browserCursor, browserObject, browserMetadata, browserArtifactResult, browserPrimitiveCaptureMetadata, browserCanvasCaptureMetadata, browserFeedbackBounds, browserFeedbackResult, browserFeedbackCaptureMetadata };

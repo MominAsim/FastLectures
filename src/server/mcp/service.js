@@ -14,7 +14,7 @@ const { sessionClientBundle } = require("./session-client-bundle.js");
 const path = require("node:path");
 const { WebSocket, WebSocketServer } = require("ws");
 const { configureClient, inspectConfiguredClients: defaultInspectConfiguredClients } = require("./configure.js");
-const { SESSION_INSTRUCTIONS } = require("./guidance.js");
+const { GUIDANCE_VERSION } = require("./guidance.js");
 const { registryStateDirectory, recordsDirectory, removeRecord, writeRecord } = require("./records.js");
 const { createMcpRequestTracer } = require("./request-trace.js");
 const { MAX_EVENTS_PER_UPDATE, McpBridgeError, validateToolArguments } = require("./schema.js");
@@ -560,7 +560,7 @@ function createMcpService(options) {
                 bindings.write({...existing,documentId,client:args.client});
                 existing.documentId = documentId;
                 existing.render = {...existing.render,...timing,revision};
-                return {...sessionSnapshot(existing),instructions:SESSION_INSTRUCTIONS,reused:true,...(result.recovery ? {recovery:safeJsonValue(result.recovery,"recovery")} : {})};
+                return {...sessionSnapshot(existing),guidanceVersion:GUIDANCE_VERSION,reused:true,...(result.recovery ? {recovery:safeJsonValue(result.recovery,"recovery")} : {})};
               } finally { existing.activeCalls--; existing.lastUsed = businessNow(); }
             }
             if (args.target === "current") {
@@ -568,7 +568,7 @@ function createMcpService(options) {
               browserObject(result, "session result");
               if (result.sessionId !== existing.id || !existing.documentId || result.documentId !== existing.documentId) throw bridgeError("session_key_conflict", "That session key is bound to another Canvas. Use a distinct attachment sessionKey.", 409);
             }
-            return { ...sessionSnapshot(existing), instructions:SESSION_INSTRUCTIONS, reused:true };
+            return { ...sessionSnapshot(existing), guidanceVersion:GUIDANCE_VERSION, reused:true };
           }
         }
       }
@@ -599,7 +599,7 @@ function createMcpService(options) {
       if(callOptions.direct)bindings.write({...session,client:args.client});
       sessions.set(sessionId, session);
       if (args.sessionKey) sessionKeys.set(bindingKey, sessionId);
-      return { ...sessionSnapshot(session), boardObjectId, revision, ...(result.recovery?{recovery:safeJsonValue(result.recovery,"recovery")}:{}), instructions:SESSION_INSTRUCTIONS };
+      return { ...sessionSnapshot(session), boardObjectId, revision, ...(result.recovery?{recovery:safeJsonValue(result.recovery,"recovery")}:{}), guidanceVersion:GUIDANCE_VERSION };
       } finally { if (callOptions.direct) { const count=(pendingBusinessStarts.get(ownerId) || 1)-1; if (count) pendingBusinessStarts.set(ownerId,count); else pendingBusinessStarts.delete(ownerId); } }
     }
     const session = ownedSession(ownerId, args.sessionId);

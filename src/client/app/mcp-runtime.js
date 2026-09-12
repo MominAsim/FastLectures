@@ -624,21 +624,12 @@ Optional helper skill: if this Agent supports local skills, create or update pen
 
 ---
 name: penecho-mcp
-description: Find and use PenEcho MCP when the user mentions PenEcho, asks to echo an idea, show work on a canvas or 画布, or use a spatial workspace. Also trigger for “请按照我画的内容来执行” or “请按照我写的来进行操作” when referring to the connected Canvas. Interpret these phrases in context.
+description: Create, read, or edit PenEcho canvases, including following the user's drawings and notes.
 ---
 
-When the user asks to work visually, discover the PenEcho MCP server and its deferred tools through tool search. Read penecho://guidance/discovery with resources/read for current discovery instructions. Use tools/list for all current tools and their input schemas, prompts/list then prompts/get for available prompts, and resources/list then resources/read for live resources; follow pagination when a nextCursor is returned. Read penecho://guidance/skill for the latest PenEcho skill guidance and penecho_get_guidance for the relevant authoring instructions. Use the live server descriptions rather than a remembered method list. If tools are missing, check the configured server and refresh or reconnect MCP tool discovery; an empty resource list is not an empty tool list. After ordinary server upgrades, rediscover these catalogs using the existing remote configuration. Client tool caches may require reconnecting or a new conversation. Local installed skill files are bootstrap instructions, not automatically rewritten by MCP; read the live skill resource to get current guidance. Transport-breaking upgrades or an explicitly reset host certificate may still require an updated setup.
+Use connected tools; search only missing deferred tools. Bind once with start_session; retain sessionId/documentId and stable client/sessionKey. Use target:current for the user's current Canvas.
 
-When the user refers to Canvas drawings, handwriting, circles, arrows or annotations (e.g. “请按照我画的内容来执行”, “请按照我写的来进行操作”, “follow what I drew/wrote”), decide whether the requested action depends on visual information missing from the available context. These phrases are routing cues, not mandatory screenshot triggers. Reuse already understood drawings, supplied images or readable feedback captures when sufficient; do not re-view or recapture unchanged content on every turn or edit. Ordinary source edits and fully specified text instructions need no image. If execution depends on unseen, changed or unclear ink or spatial relationships, inspect the relevant image; source/JSON alone cannot establish those visual details. Only when existing image evidence is insufficient, call penecho_capture_canvas with quality:"basic" and the relevant selection, region, object or viewport target; use target:"canvas" for whole-Canvas context. Request detail only if needed to read the marks. Use the intended document/session; never silently switch documents. If capture fails or handwriting is ambiguous, resolve that specific gap before dependent edits. Read source as needed for implementation.
-
-Keep the same client/sessionKey/documentId across turns and HTTP recovery. The CLI stays on stdin; after idle HTTP release it tries known IP, shared cache and discovery as needed. One-shot means finish this visual request and return; it does not mean kill the CLI, close the Canvas, or poll while idle. Ordinary shell echo commands and unrelated canvas mentions are not triggers.
-
-One-shot examples (one trigger phrase per example):
-- Use PenEcho to draw a simple flowchart.
-- Echo this idea as a diagram.
-- Show this architecture on a canvas.
-- 在画布上比较这两个方案。
-- Use a spatial workspace to explain this process.
+Follow live schemas; get_guidance only for the needed topic. Keep artifact IDs. Read source/contentHash before patching. Retry uncertain writes with identical arguments/requestId. Capture when visual evidence is needed; combine final mutation and completion. Inbox reads do not acknowledge.
 
 If skill creation is unavailable or fails, simply skip it and continue MCP setup; no extra user action is needed.`;
     if(direct?.transport==="http")return `Configure PenEcho using native Streamable HTTP MCP on THIS Agent's computer. Preserve unrelated client configuration. No Gateway, background daemon, or stdio bridge is needed.
@@ -682,7 +673,7 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
           const previousRegion=message.name==="mcp_edit_canvas"&&message.arguments?.action==="delete"?mcpContentUpdateRegion({documentId:message.arguments.documentId||mcpRuntime.sessions.get(message.arguments.sessionId)?.documentId},message.arguments):null;
           const result=typeof canvasDocumentsExecute==="function"?await canvasDocumentsExecute(message.name,message.arguments||{},execution):await mcpExecute(message.name,message.arguments||{},execution);
           canvasAgentAssertToolExecution(execution);
-          if(["mcp_present_widget","mcp_draw","mcp_plot","mcp_apply_patch","mcp_edit_canvas","mcp_place_image"].includes(message.name)&&message.arguments?.presentation?.intent!=="inspect"&&message.arguments?.action!=="show"&&!result.reused){
+          if(["mcp_present_widget","mcp_draw","mcp_plot","mcp_patch_file","mcp_edit_canvas","mcp_place_image"].includes(message.name)&&message.arguments?.presentation?.intent!=="inspect"&&message.arguments?.action!=="show"&&!result.reused){
             const region=mcpContentUpdateRegion(result,message.arguments||{})||previousRegion;
             window.PenEchoStudioNavigator?.noteMcpContentUpdate?.(result.documentId,region);
           }
@@ -856,14 +847,14 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
       if(state.drawing)throw Error("Finish the current stroke before capturing.");
       const bounds=mcpTaskBounds(session,artifact.objectIds);if(!bounds)throw Error("Drawing was removed.");
       const x=Math.max(0,bounds.x-24),y=Math.max(0,bounds.y-24),region={x,y,width:Math.min(SIZE,bounds.x+bounds.w+24)-x,height:Math.min(SIZE,bounds.y+bounds.h+24)-y};
-      const capture=await canvasAgentCapture({target:"region",region,quality:"basic",coordinates:"metadata"},{signal:execution.controller?.signal,assertCurrent:()=>canvasAgentAssertToolExecution(execution)});
+      const capture=await canvasAgentCapture({target:"region",region,quality:args.quality||"basic",coordinates:"metadata"},{signal:execution.controller?.signal,assertCurrent:()=>canvasAgentAssertToolExecution(execution)});
       canvasAgentAssertToolExecution(execution);if(state.drawing)throw Error("Finish the current stroke before capturing.");
       return {...capture,artifactId:args.artifactId,revision:state.userRevision};
     }
     if(name==="mcp_capture_widget"){
       const artifact=session.artifacts.get(args.artifactId);if(!artifact)throw Error("Preview not found in this session. Present the Widget first.");
       const object=canvasAgentObject(artifact.objectId);if(!object)throw Error("Preview was removed.");
-      if(object.kind!=="widget")throw Error("This tool captures Widgets only. Read user annotations with penecho_read_feedback.");
+      if(object.kind!=="widget")throw Error("This tool captures Widgets only. Read user annotations with penecho_inbox.");
       return mcpCaptureWidget(object.item,args,execution);
     }
     if(name==="mcp_inspect_session")return {sessionId:session.sessionId,boardObjectId:board?.id||null,...mcpProgressData(session),attention:mcpAttentionState(session),artifacts:[...session.artifacts].map(([artifactId,value])=>{const object=canvasAgentObject(value.objectId);return {artifactId,title:value.title,presentation:value.presentation,kind:value.kind||"widget",objectId:value.objectId,...(value.objectIds?{objectIds:value.objectIds,elements:(value.elements||[]).map(([id,entry])=>{const child=canvasAgentObject(entry.objectId);return {id,objectId:entry.objectId,kind:entry.kind,...(child?{bounds:canvasAgentBox(child)}:{removed:true})};})}:{}),...(object?{bounds:value.objectIds?mcpTaskBounds(session,value.objectIds):canvasAgentBox(object)}:{removed:true})};}),revision:state.userRevision};

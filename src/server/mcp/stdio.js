@@ -15,7 +15,7 @@ const PROTOCOL_VERSION = "2025-11-25";
 const MAX_INPUT_LINE_BYTES = 3 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 12 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 50_000;
-const INSTRUCTIONS = "PenEcho binds persistent documentId to an exact opted-in instanceId/canvasId and returned sessionId; never guess across hosts. Open with show:true only when the user requests a view change. Read virtual files before patching with contentHash; SOURCE_CONFLICT requires a fresh read and requestId, an unknown outcome an identical retry. Use baseRevision for geometry/destructive edits. Virtual paths are not host files. Keep message, feedback and file cursors independent. Widget choices enter a pull inbox, never automatically call a model or grant approval. Use draw for simple native diagrams, plot for functions, and present_widget for interactive HTML. Hidden Canvas capture returns CANVAS_NOT_VISIBLE; never show it implicitly. Inspect reports state, not pixel proof. A viewed image may consume image-input tokens. Keep the primary task moving during bridge outages." + "\n\n" + SESSION_INSTRUCTIONS + "\n\n" + VISUAL_INSTRUCTIONS;
+const INSTRUCTIONS = require("./guidance.js").PUBLIC_INSTRUCTIONS;
 
 const PROMPTS = [
   {name:"penecho_visual_explorer",description:"Author a clear spatial explanation using PenEcho’s shared Visual Explorer design standard.",arguments:[]},
@@ -252,7 +252,7 @@ class PenEchoStdioServer {
       try {
         if (name === "penecho_get_guidance") {
           const { id:guidanceId } = validateToolArguments(name, args);
-          return this.send({ jsonrpc:"2.0", id, result:normalToolResult(getAuthoringGuidance(guidanceId)) });
+          return this.send({ jsonrpc:"2.0", id, result:normalToolResult(getAuthoringGuidance(guidanceId,args.detail)) });
         }
         const record = name === "penecho_list_canvases" ? null : this.recordForCall(name, args);
         const value = name === "penecho_list_canvases"

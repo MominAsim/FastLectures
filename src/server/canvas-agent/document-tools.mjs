@@ -35,12 +35,7 @@ export function validateDocumentToolArguments(name, input, session) {
   return validateToolArguments(name,{...input,sessionId:id})
 }
 
-export const DOCUMENT_TOOL_INSTRUCTIONS = `The current Canvas is already bound by the host. Use the penecho_* document tools; omit sessionId (the host supplies it). Do not discover, open, or switch documents to perform this task.
-Read canvas.json for the current revision and objects/index.json or penecho_list_files for exact virtual paths. Read source with penecho_read_file and patch its exact path using contentHash and requestId. SOURCE_CONFLICT needs a fresh read and new requestId; an uncertain outcome needs identical arguments and the same requestId. Runtime files are observations, not editable source. Keep source edits separate from geometry.
-Save image attachments with penecho_upload_image (source or a session-owned attachmentId), then use its returned source directly in Widget HTML img src or CSS url(), penecho_place_image, or replace_image. Upload does not place an object; placement uses automatic layout unless region is supplied. Create HTML with penecho_present_widget, simple native marks with penecho_draw, functions with penecho_plot. Automatic/relative placement belongs to the host. relativeTo must be a known artifactId in this session, never an objectId or guessed title; omit it for independent work. Use penecho_edit_canvas with action:"draw_ink" with world coordinates for annotation over handwriting. Keep artifactId stable. Combine present and capture:true when pixel evidence is needed; do not add routine inspect/capture rounds. A capture failure may leave content applied: inspect and reuse the artifact, never create a duplicate.
-Finish once the requested answer is complete, readable and usable. Continue only for material errors, missing requirements or broken interaction; optional cosmetic polish does not justify more read/patch/capture cycles.
-For UI pages preserve the requested product's actual layout, background and interaction; do not turn them into explanatory infographics. Use penecho_get_guidance only for the relevant authoring path. Professional Diagram and private plugin authoring/editing are unavailable. Existing saved content remains visible.
-${ROUTING || ''}`
+export const DOCUMENT_TOOL_INSTRUCTIONS = `The host binds the current Canvas; omit sessionId. Read virtual source and contentHash before patching; retry uncertain outcomes with identical requestId, conflicts with a fresh read. Use baseRevision for geometry edits. Upload session-owned image attachments and reuse returned sources in Widget HTML img src or CSS url(). Use stable artifactId; host handles placement. Capture only unresolved visual evidence; failed captures may leave applied content. Inbox reads do not acknowledge; keep message and feedback cursors independent. Use mutation completion for successful final status/handled IDs. Load relevant guidance on demand. Stop when correct, readable and usable.`
 
 export function createDocumentTools(session, { wrap, output, saveImage, readImage, onGuidance } = {}) {
   const names = new Set(BOUND_CANVAS_TOOL_NAMES)
@@ -49,6 +44,7 @@ export function createDocumentTools(session, { wrap, output, saveImage, readImag
   return TOOLS.filter(tool=>names.has(tool.name)||tool.name==='penecho_get_guidance').map(definition=>{
     const schema=structuredClone(definition.inputSchema)
     if (schema.properties.sessionId) schema.required=(schema.required||[]).filter(key=>key!=='sessionId')
+    delete schema.properties.sessionId
     if(definition.name==='penecho_upload_image') {
       schema.required=schema.required.filter(key=>key!=='source')
       schema.properties.attachmentId={type:'string',description:'Instead of source, use an image attachmentId from this session host references. Never supply a host path.'}
@@ -60,7 +56,7 @@ export function createDocumentTools(session, { wrap, output, saveImage, readImag
       isConcurrencySafe:()=>false,
       async execute(input, exec) {
         if (definition.name==='penecho_get_guidance') {
-          const args=validateToolArguments(definition.name,input),guidance=getAuthoringGuidance(args.id)
+          const args=validateToolArguments(definition.name,input),guidance=getAuthoringGuidance(args.id,args.detail)
           onGuidance?.(guidance)
           return guidance
         }

@@ -1,180 +1,104 @@
 "use strict";
-const assert = require("node:assert/strict");
-const { test } = require("node:test");
-const { BOUND_CANVAS_TOOL_NAMES, executeBoundCanvasTool, patchVirtualFile } = require("../src/server/mcp/bound-operations.js");
-function harness(respond, callOptions = {}) {
-  const session = {id:"bound",connection:{},mutationRequests:new Map()}, calls = [];
-  return {session,calls,run:(name,args) => executeBoundCanvasTool({name,args:{sessionId:session.id,...args},session,canvasCall:async (connection,operation,args) => {
-    assert.equal(connection,session.connection); calls.push({operation,args});
-    return {result:await respond(operation,args),timing:{requestedAt:calls.length*10,completedAt:calls.length*10+5,durationMs:5}};
-  },callOptions})};
+const assert=require('node:assert/strict');
+const {test}=require('node:test');
+const {BOUND_CANVAS_TOOL_NAMES,executeBoundCanvasTool,patchVirtualFile}=require('../src/server/mcp/bound-operations.js');
+function harness(respond,callOptions={}) {
+ const session={id:'bound',connection:{},mutationRequests:new Map()},calls=[];
+ return {session,calls,run:(name,args)=>executeBoundCanvasTool({name,args:{sessionId:session.id,...args},session,canvasCall:async(connection,operation,args)=>{assert.equal(connection,session.connection);calls.push({operation,args});return {result:await respond(operation,args),timing:{requestedAt:10,completedAt:15,durationMs:5}};},callOptions})};
 }
-test("bound tools exclude external session lifecycle and enforce schema and binding", async () => {
-  for (const name of ["penecho_list_canvases","penecho_open_canvas","penecho_start_session","penecho_close_session"]) assert.ok(!BOUND_CANVAS_TOOL_NAMES.includes(name));
-  const h=harness(() => ({}));
-  await assert.rejects(h.run("penecho_read_file",{path:"/notes.md",unexpected:true}));
-  await assert.rejects(h.run("penecho_read_file",{sessionId:"other",path:"/notes.md"}),{code:"session_mismatch"});
-  assert.equal(h.calls.length,0);
+const widgetArgs={requestId:'widget-1',artifactId:'chart',title:'Chart',html:'<p>chart</p>',capture:true};
+const pixels={dataUrl:'data:image/webp;base64,AQIDBA==',width:480,height:360,encodedBytes:4,revision:7};
+test('bound tools exclude lifecycle and reject retired aliases and wrong bindings',async()=>{
+ const h=harness(()=>({}));
+ for(const name of ['penecho_list_canvases','penecho_open_canvas','penecho_start_session','penecho_close_session','penecho_read_feedback','penecho_read_messages','penecho_ack_messages','penecho_capture_widget'])assert.ok(!BOUND_CANVAS_TOOL_NAMES.includes(name));
+ await assert.rejects(h.run('penecho_read_file',{path:'/notes.md',unexpected:true}));
+ await assert.rejects(h.run('penecho_read_file',{sessionId:'other',path:'/notes.md'}),{code:'session_mismatch'});
+ assert.equal(h.calls.length,0);
+});
+test('one presentation RPC preserves applied receipt for a failed optional capture and never marks done',async()=>{
+ for(const code of ['CANVAS_NOT_VISIBLE','WIDGET_READY_TIMEOUT','WIDGET_CAPTURE_TIMEOUT','canvas_timeout']){
+ const h=harness(()=>({artifactId:'chart',objectId:'widget',revision:7,captureFailure:{code,message:'Capture existing artifact after readiness',retryTool:'penecho_capture_canvas',retryArguments:{sessionId:'bound',target:'artifact',artifactId:'chart'}}}));
+ const r=await h.run('penecho_present_widget',widgetArgs);
+ assert.equal(r.applied,true);assert.equal(r.pixelVerified,false);assert.equal(r.image,undefined);assert.equal(r.completion,undefined);assert.equal(r.captureFailure.code,code);assert.equal(h.calls.length,1);
+ assert.deepEqual(h.calls[0].args.capture,true);
+ assert.equal((await h.run('penecho_present_widget',widgetArgs)).reused,true);assert.equal(h.calls.length,1);
+ }
+ const bad=harness(()=>({artifactId:'chart',objectId:'widget',revision:7,captureFailure:{code:'WIDGET_CAPTURE_TIMEOUT'},completion:{status:'done'}}));
+ await assert.rejects(bad.run('penecho_present_widget',widgetArgs),{code:'invalid_browser_result'});
+});
+test('cancellation and session failures remain errors rather than applied results',async()=>{
+ for(const code of ['request_cancelled','CANVAS_TOOL_FAILED','invalid_browser_result']){
+ const error=Object.assign(new Error('failure'),{code}),h=harness(()=>{throw error;});
+ await assert.rejects(h.run('penecho_present_widget',widgetArgs),e=>e===error);assert.equal(h.calls.length,1);
+ }
+});
+test('combined presentation returns pixel evidence, source receipt and completion with detailed timing',async()=>{
+ const completion={status:'done',summary:'Ready',handledMessageIds:['m1']};
+ const h=harness(()=>({artifactId:'chart',objectId:'widget',...pixels,sourcePath:'/objects/widget/source.html',contentHash:'hash',viewport:{width:480,height:360},completion}));
+ const r=await h.run('penecho_present_widget',{...widgetArgs,output:'detailed',completion});
+ assert.equal(r.pixelVerified,true);assert.deepEqual(r.image,{mimeType:'image/webp',data:'AQIDBA==',bytes:4});assert.deepEqual(r.completion,completion);assert.equal(r.sourcePath,'/objects/widget/source.html');assert.equal(r.contentHash,'hash');assert.equal(r.timing.durationMs,5);assert.equal(h.calls.length,1);assert.deepEqual(h.calls[0].args.completion,completion);
+ await assert.rejects(h.run('penecho_present_widget',{...widgetArgs,html:'changed'}),{code:'REQUEST_ID_CONFLICT'});
+ const invalid=harness(()=>({artifactId:'chart',objectId:'widget',revision:7}));
+ await assert.rejects(invalid.run('penecho_present_widget',widgetArgs),{code:'invalid_capture'});
+});
+test('draw and plot combine optional capture and retain their bounded validated artifact identities',async()=>{
+ for(const [name,kind,extra] of [['penecho_draw','drawing',{items:[{id:'n',type:'rect'}]}],['penecho_plot','plot',{expression:'x'}]]){
+ const args={requestId:'native',artifactId:'native',title:'Native',...extra,capture:true};
+ const h=harness(()=>({artifactId:'native',kind,objectIds:['object'],feedbackCursor:0,...pixels}));
+ const r=await h.run(name,args);assert.equal(r.pixelVerified,true);assert.deepEqual(r.objectIds,['object']);assert.equal(h.calls.length,1);
+ const invalid=harness(()=>({artifactId:'other',kind,objectIds:['object'],feedbackCursor:0,...pixels}));await assert.rejects(invalid.run(name,args),{code:'invalid_browser_result'});
+ }
+});
+test('single patch RPC preserves exact conflict and retry receipts without reading source over the bridge',async()=>{
+ const h=harness((op,args)=>{assert.equal(op,'mcp_patch_file');if(args.expectedHash!=='hash-1')throw Object.assign(new Error('Changed'),{code:'SOURCE_CONFLICT'});assert.equal(patchVirtualFile('hello\n',args.patch,args.path),'world\n');return {applied:true,contentHash:'hash-2'};});
+ const args={path:'/notes.md',contentHash:'hash-1',requestId:'patch-1',patch:'--- a/notes.md\n+++ b/notes.md\n@@ -1 +1 @@\n-hello\n+world\n'};
+ await assert.rejects(h.run('penecho_patch_file',{...args,contentHash:'stale'}),{code:'SOURCE_CONFLICT'});assert.equal(h.session.mutationRequests.size,0);
+ assert.equal((await h.run('penecho_patch_file',args)).applied,true);assert.equal(h.calls.at(-1).args.patch,args.patch);assert.equal(h.calls.at(-1).args.content,undefined);
+ const count=h.calls.length;assert.equal((await h.run('penecho_patch_file',args)).reused,true);assert.equal(h.calls.length,count);
+ await assert.rejects(h.run('penecho_patch_file',{...args,patch:args.patch.replace('world','again')}),{code:'REQUEST_ID_CONFLICT'});
+});
+test('malformed patches are rejected before any browser RPC and diagnostics never expose source',async()=>{
+ const h=harness(()=>assert.fail('must not dispatch'));
+ await assert.rejects(h.run('penecho_patch_file',{path:'/notes.md',contentHash:'h',requestId:'bad',patch:'--- a/notes.md\n+++ b/notes.md\n@@ -1,2 +1,2 @@\n-hello\n+world'}),e=>{assert.equal(e.code,'invalid_patch');assert.match(e.message,/line 3/);assert.doesNotMatch(e.message,/hello|world/);return true;});assert.equal(h.calls.length,0);
+ const secret='PRIVATE_SOURCE_SHOULD_NOT_BE_ECHOED';assert.throws(()=>patchVirtualFile('hello\n',`--- a/notes.md\n+++ b/notes.md\n@@ -1 +1 @@\n-hello\n${secret}\n+world`,'/notes.md'),e=>{assert.equal(e.code,'invalid_patch');assert.doesNotMatch(e.message,new RegExp(secret));return true;});
+ assert.throws(()=>patchVirtualFile('hello\n',undefined,'/notes.md'),{code:'invalid_patch'});
+});
+test('image mutations preserve independent request receipts and document binding',async()=>{
+ const h=harness(op=>({operation:op,revision:2,documentId:'doc'})),source='penecho-asset:'+'a'.repeat(64);
+ for(const [name,args] of [['penecho_upload_image',{requestId:'u',name:'Image',source}],['penecho_place_image',{requestId:'p',source}]]){
+ assert.equal((await h.run(name,args)).operation,name.replace('penecho_','mcp_'));assert.equal((await h.run(name,args)).reused,true);
+ await assert.rejects(h.run(name,{...args,source:'penecho-asset:'+'b'.repeat(64)}),{code:'REQUEST_ID_CONFLICT'});
+ await assert.rejects(h.run(name,{...args,sessionId:'foreign'}),{code:'session_mismatch'});
+ }
+ await assert.rejects(h.run('penecho_edit_canvas',{requestId:'p',action:'show'}),{code:'REQUEST_ID_CONFLICT'});assert.equal(h.calls.length,2);
+});
+test('inbox preserves two independent pages and acknowledges only explicit IDs',async()=>{
+ const h=harness((op,args)=>{assert.equal(op,'mcp_inbox');return args.mode==='ack'?{sessionId:'bound',acknowledged:args.ids}:{sessionId:'bound',messages:{after:4,nextCursor:5,latestCursor:9,hasMore:true,messages:[{id:'m5',cursor:5,text:'Continue'}]},feedback:{sessionId:'bound',after:7,nextCursor:7,latestCursor:7,hasMore:false,truncated:false,entries:[]}};});
+ const r=await h.run('penecho_inbox',{messageAfter:4,feedbackAfter:7});assert.equal(r.messages.nextCursor,5);assert.equal(r.feedback.nextCursor,7);assert.equal(r.image,undefined);assert.equal(h.calls[0].args.capture,false);assert.equal(h.calls[0].args.limit,10);
+ assert.deepEqual((await h.run('penecho_inbox',{mode:'ack',ids:['m5'],status:'done'})).acknowledged,['m5']);assert.equal(h.calls.length,2);
 });
 
-const captureNotReady = () => Object.assign(new Error("A live widget could not be captured. Wait for it to finish loading and try again."), {code:"CANVAS_TOOL_FAILED",details:{privatePath:"/private/should-not-escape"}});
-const widgetArgs = {artifactId:"chart",title:"Chart",html:"<p>chart</p>",capture:true};
-test("a background capture failure preserves the committed artifact without navigating or retrying", async () => {
-  const h=harness(op => {
-    if(op === "mcp_present_widget") return {artifactId:"chart",objectId:"widget",revision:7,visible:false};
-    throw Object.assign(new Error("Show this Canvas"),{code:"CANVAS_NOT_VISIBLE",details:{privatePath:"must-not-escape"}});
-  });
-  const result=await h.run("penecho_present_widget",widgetArgs);
-  assert.equal(result.applied,true);
-  assert.equal(result.pixelVerified,false);
-  assert.equal(result.objectId,"widget");
-  assert.equal(result.captureFailure.code,"CANVAS_NOT_VISIBLE");
-  assert.match(result.captureFailure.message,/Explicitly show/);
-  assert.ok(!JSON.stringify(result).includes("must-not-escape"));
-  assert.deepEqual(h.calls.map(c=>c.operation),["mcp_present_widget","mcp_capture_widget"]);
-});
-test("post-commit capture readiness failure retains the receipt without retrying or exposing browser details", async () => {
-  const h=harness(op => {
-    if (op === "mcp_present_widget") return {artifactId:"chart",objectId:"widget",revision:7,feedbackCursor:3};
-    throw captureNotReady();
-  });
-  const result=await h.run("penecho_present_widget",widgetArgs);
-  assert.equal(result.applied,true);
-  assert.equal(result.pixelVerified,false);
-  assert.equal(result.objectId,"widget");
-  assert.equal(result.revision,7);
-  assert.equal(result.feedbackCursor,3);
-  assert.deepEqual(result.timing,{requestedAt:10,completedAt:15,durationMs:5});
-  assert.equal(result.image,undefined);
-  assert.equal(result.captureFailure.code,"CANVAS_TOOL_FAILED");
-  assert.equal(result.captureFailure.retryTool,"penecho_capture_widget");
-  assert.deepEqual(result.captureFailure.retryArguments,{sessionId:"bound",artifactId:"chart"});
-  assert.ok(!JSON.stringify(result).includes("should-not-escape"));
-  assert.deepEqual(h.calls.map(call=>call.operation),["mcp_present_widget","mcp_capture_widget"]);
-});
-test("post-commit capture preserves cancellation, session failures, and invalid browser responses", async () => {
-  for (const error of [Object.assign(new Error("cancelled"),{code:"request_cancelled"}), Object.assign(new Error("Session revoked"),{code:"CANVAS_TOOL_FAILED"}), Object.assign(new Error("Preview load was cancelled."),{code:"CANVAS_TOOL_FAILED"}), Object.assign(new Error("invalid metadata"),{code:"invalid_browser_result"})]) {
-    const h=harness(op => {if(op==="mcp_present_widget")return {artifactId:"chart",objectId:"widget",revision:1};throw error;});
-    await assert.rejects(h.run("penecho_present_widget",widgetArgs),value=>value===error);
-  }
-  const controller=new AbortController(),error=captureNotReady();
-  const h=harness(op=>{if(op==="mcp_present_widget")return {artifactId:"chart",objectId:"widget",revision:1};controller.abort();throw error;},{signal:controller.signal});
-  await assert.rejects(h.run("penecho_present_widget",widgetArgs),value=>value===error);
-  const invalid=harness(op=>op==="mcp_present_widget"?{artifactId:"chart",objectId:"widget",revision:1}:{dataUrl:"data:image/webp;base64,AQIDBA==",revision:-1});
-  await assert.rejects(invalid.run("penecho_present_widget",widgetArgs),{code:"invalid_browser_result"});
-  const applyError=captureNotReady(),failedApply=harness(()=>{throw applyError;});
-  await assert.rejects(failedApply.run("penecho_present_widget",widgetArgs),value=>value===applyError);
-  assert.equal(failedApply.calls.length,1);
-});
-test("structured Widget capture deadlines preserve applied receipts but never override cancellation", async () => {
-  for (const code of ["WIDGET_READY_TIMEOUT","WIDGET_CAPTURE_TIMEOUT"]) {
-    const error=Object.assign(new Error("Capture deadline reached"),{code,details:{stage:"host-ready"}});
-    const controller=new AbortController();
-    let abort=false;
-    const h=harness(op=>{
-      if(op==="mcp_present_widget")return {artifactId:"chart",objectId:"widget",revision:9};
-      if(abort)controller.abort();
-      throw error;
-    },{signal:controller.signal});
-    const result=await h.run("penecho_present_widget",widgetArgs);
-    assert.equal(result.applied,true);
-    assert.equal(result.pixelVerified,false);
-    assert.equal(result.objectId,"widget");
-    assert.equal(result.revision,9);
-    assert.equal(result.captureFailure.code,code);
-    assert.equal(h.calls.length,2);
-    abort=true;
-    await assert.rejects(h.run("penecho_present_widget",widgetArgs),value=>value===error);
-  }
-});
-test("draw and plot retain applied receipts when optional capture transport fails", async () => {
-  for (const [name,kind,args] of [["penecho_draw","drawing",{items:[{id:"n",type:"rect"}]}],["penecho_plot","plot",{expression:"x"}]]) {
-    const h=harness(op=>{if(op==="mcp_capture_primitives")throw Object.assign(new Error("timeout"),{code:"canvas_timeout"});return {artifactId:"native",kind,objectIds:["object"],revision:8,feedbackCursor:4};});
-    const result=await h.run(name,{artifactId:"native",title:"Native",...args,capture:true});
-    assert.equal(result.applied,true);
-    assert.equal(result.pixelVerified,false);
-    assert.equal(result.revision,8);
-    assert.deepEqual(result.objectIds,["object"]);
-    assert.equal(result.captureFailure.code,"canvas_timeout");
-    assert.equal(result.captureFailure.retryTool,"penecho_capture_canvas");
-    assert.deepEqual(result.captureFailure.retryArguments,{sessionId:"bound",target:"canvas"});
-    assert.equal(h.calls.length,2);
-    const invalid=harness(op=>op==="mcp_capture_primitives"?{artifactId:"other",dataUrl:"data:image/webp;base64,AQIDBA==",width:100,height:100,encodedBytes:4}:{artifactId:"native",kind,objectIds:["object"],revision:8,feedbackCursor:4});
-    await assert.rejects(invalid.run(name,{artifactId:"native",title:"Native",...args,capture:true}),{code:"invalid_browser_result"});
-  }
-});
-test("bound patch keeps exact source conflict and retry receipt semantics", async () => {
-  const h=harness((op,args) => op === "mcp_prepare_patch" ? {content:"hello\n",contentHash:"hash-1"} : {applied:true,contentHash:"hash-2"});
-  const args={path:"/notes.md",contentHash:"hash-1",requestId:"patch-1",patch:"--- a/notes.md\n+++ b/notes.md\n@@ -1 +1 @@\n-hello\n+world\n"};
-  await assert.rejects(h.run("penecho_patch_file",{...args,contentHash:"stale"}),{code:"SOURCE_CONFLICT"});
+test('definite precommit patch failures release unresolved capacity; uncertain outcomes retain IDs',async()=>{
+  let fail=true;
+  const h=harness(()=>{if(fail)throw Object.assign(new Error('does not apply'),{code:'PATCH_CONFLICT'});return {applied:true,contentHash:'new'};});
+  const base={path:'/notes.md',contentHash:'h',patch:'--- a/notes.md\n+++ b/notes.md\n@@ -1 +1 @@\n-a\n+b\n'};
+  for(let i=0;i<5;i++)await assert.rejects(h.run('penecho_patch_file',{...base,requestId:`r${i}`}),{code:'PATCH_CONFLICT'});
   assert.equal(h.session.mutationRequests.size,0);
-  assert.equal((await h.run("penecho_patch_file",args)).applied,true);
-  assert.equal(h.calls.at(-1).args.content,"world\n");
-  const count=h.calls.length;
-  assert.equal((await h.run("penecho_patch_file",args)).reused,true);
-  assert.equal(h.calls.length,count);
-  await assert.rejects(h.run("penecho_patch_file",{...args,patch:args.patch.replace("world","again")}),{code:"REQUEST_ID_CONFLICT"});
-});
-test("malformed hunk counts keep parse diagnostics and never write", async () => {
-  let applied = false;
-  const h = harness((op) => {
-    if (op === "mcp_prepare_patch") return {content:"hello\n",contentHash:"hash-1"};
-    applied = true;
-    return {applied:true,contentHash:"hash-2"};
-  });
-  const args = {
-    path:"/notes.md",contentHash:"hash-1",requestId:"bad-hunk-count",
-    // No trailing newline keeps the malformed count visible to the parser.
-    patch:"--- a/notes.md\n+++ b/notes.md\n@@ -1,2 +1,2 @@\n-hello\n+world",
-  };
-  await assert.rejects(h.run("penecho_patch_file",args),error => {
-    assert.equal(error.code,"invalid_patch");
-    assert.match(error.message,/Added line count did not match for hunk at line 3\./);
-    assert.doesNotMatch(error.message,/hello|world/);
-    return true;
-  });
-  assert.equal(applied,false);
-  assert.deepEqual(h.calls.map(call => call.operation),["mcp_prepare_patch"]);
-  assert.equal(h.session.mutationRequests.size,0);
-});
-test("patch parse diagnostics redact invalid lines and use a generic message for unknown errors", () => {
-  const secret = "PRIVATE_SOURCE_SHOULD_NOT_BE_ECHOED";
-  assert.throws(() => patchVirtualFile("hello\n",`--- a/notes.md\n+++ b/notes.md\n@@ -1 +1 @@\n-hello\n${secret}\n+world`,"/notes.md"),error => {
-    assert.equal(error.code,"invalid_patch");
-    assert.match(error.message,/Hunk at line 3 contains an invalid line\./);
-    assert.doesNotMatch(error.message,new RegExp(secret));
-    return true;
-  });
-  assert.throws(() => patchVirtualFile("hello\n",undefined,"/notes.md"),error => {
-    assert.equal(error.code,"invalid_patch");
-    assert.equal(error.message,"patch must be a valid unified diff.");
-    return true;
-  });
-});
-test("bound presentation only verifies pixels after capture and merges timing", async () => {
-  const h=harness((op,args) => op === "mcp_present_widget" ? {artifactId:args.artifactId,objectId:"widget",revision:1} : {dataUrl:"data:image/webp;base64,AQIDBA==",width:480,height:360,revision:2});
-  const args={artifactId:"chart",title:"Chart",html:"<p>chart</p>"};
-  assert.equal((await h.run("penecho_present_widget",args)).pixelVerified,false);
-  const result=await h.run("penecho_present_widget",{...args,capture:true});
-  assert.equal(result.pixelVerified,true);
-  assert.deepEqual(result.image,{mimeType:"image/webp",data:"AQIDBA==",bytes:4});
-  assert.equal(result.captureRevision,2);
-  assert.equal(result.timing.durationMs,15);
-  assert.deepEqual(h.calls.map(c => c.operation),["mcp_present_widget","mcp_present_widget","mcp_capture_widget"]);
-  const invalid=harness((op,args) => ({artifactId:args.artifactId,objectId:"widget",revision:1}));
-  await assert.rejects(invalid.run("penecho_present_widget",{...args,capture:true}),{code:"invalid_capture"});
+  fail=false;assert.equal((await h.run('penecho_patch_file',{...base,requestId:'valid'})).applied,true);
+  const unknown=harness(()=>{throw Object.assign(new Error('timeout'),{code:'canvas_timeout'});});
+  await assert.rejects(unknown.run('penecho_patch_file',{...base,requestId:'unknown'}),{code:'canvas_timeout'});assert.equal(unknown.session.mutationRequests.size,1);
 });
 
-test('image upload and placement share owned binding, exact routing and isolated idempotency', async () => {
-  const h=harness(operation=>({operation,revision:2,documentId:'doc'}));
-  const source='penecho-asset:'+'a'.repeat(64);
-  for(const [name,args] of [['penecho_upload_image',{requestId:'u',name:'Image',source}],['penecho_place_image',{requestId:'p',source}]]) {
-    const result=await h.run(name,args);
-    assert.equal(result.operation,name.replace('penecho_','mcp_'));
-    assert.equal((await h.run(name,args)).reused,true);
-    await assert.rejects(h.run(name,{...args,source:'penecho-asset:'+'b'.repeat(64)}),{code:'REQUEST_ID_CONFLICT'});
-    await assert.rejects(h.run(name,{...args,sessionId:'foreign'}),{code:'session_mismatch'});
-  }
-  await assert.rejects(h.run('penecho_edit_canvas',{requestId:'p',action:'show'}),{code:'REQUEST_ID_CONFLICT'});
-  assert.equal(h.calls.length,2);
+test('completion flushes queued progress before mutation and synchronizes session state only once',async()=>{
+  const order=[],session={id:'bound',connection:{},status:'working',summary:'old',mutationRequests:new Map()};
+  const args={sessionId:'bound',requestId:'done-edit',action:'create_text',text:'Done',completion:{status:'done',summary:'Ready'}};
+  const run=()=>executeBoundCanvasTool({name:'penecho_edit_canvas',args,session,flushUpdate:async()=>order.push('flush-working'),canvasCall:async()=>{order.push('mutation-done');return {result:{applied:true,completion:args.completion},timing:{requestedAt:1,completedAt:2,durationMs:1}};}});
+  await run();assert.deepEqual(order,['flush-working','mutation-done']);assert.equal(session.status,'done');assert.equal(session.summary,'Ready');
+  session.status='waiting';await run();assert.equal(session.status,'waiting');assert.deepEqual(order,['flush-working','mutation-done']);
+});
+
+test('presentation presets are normalized once before RPC, without conflicting synthesized dimensions',async()=>{
+  const h=harness((op,args)=>({artifactId:args.artifactId,kind:'plot',objectIds:['plot'],revision:1,feedbackCursor:0}));
+  await h.run('penecho_plot',{requestId:'plot-size',artifactId:'plot',title:'Plot',expression:'x',presentation:{size:'wide'}});
+  assert.equal(h.calls[0].args.width,992);assert.equal(h.calls[0].args.height,360);assert.equal(h.calls[0].args.presentation.size,'wide');
 });
