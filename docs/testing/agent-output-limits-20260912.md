@@ -20,3 +20,23 @@
 - MCP本身不发起外部客户端的模型请求，不能替外部客户端设置输出预算；这里修改PenEcho自己负责的生成链路。
 
 未声称64000可以保证模型及时执行工具。现有应用/Agent会话可能仍保留旧profile，之前47b安装包不含这次修复；需在更新运行时后检查新的实际outbound参数。没有操作production、没有推送代码。
+
+## 深层原因补查（不是只提高额度）
+
+- DeepSeek 官方思考模式文档明确 medium→high，low→low；Anthropic兼容接口支持output_config.effort，忽略thinking.budget_tokens。不能把界面medium解释成上游独立的中等档位。来源：https://api-docs.deepseek.com/guides/thinking_mode/ 、https://api-docs.deepseek.com/guides/anthropic_api/ 。此映射是已知行为，尚不能单独证明原请求的全部生成原因。
+- 后端publicSessionEvent原样转发max-tokens，客户端turn_end只在reason.kind=error时建立错误提示，因而输出耗尽可能表现为停止后没有解释。dd44e64通过既有错误路径投影MODEL_OUTPUT_EXHAUSTED并保留terminationReason，不销毁会话、不删除已应用Canvas内容、不自动重复请求；94项测试通过。该修复改善故障反馈，不等于减少生成量。
+- 1.2.0 PERSONA明确对较大Widget先交付可用版本再补全；当前brief仅要求完整HTML文档，缺少原有大型产物分步交付提示。此为已确认行为差异，正在单变量测试其实际影响，不能先断言它是原请求的唯一原因。
+
+真实供应商第二轮重放（同模型deepseek-v4-flash-vision-exp、相同失败前上下文、相同21工具、64000上限；用规范转换构造Anthropic消息，非原始HTTP字节重放）：
+
+| 推理设置 | 耗时 | output tokens | 下一步输出 |
+|---|---:|---:|---|
+| low | 70.137秒 | 19,147 | 2个present_widget调用 |
+| medium | 187.693秒 | 47,960 | 1个present_widget调用 |
+| medium + 大型Widget先可用再补全指导 | 106.001秒 | 27,889 | 2个present_widget调用 |
+
+此对照每组仅一个成功样本，不能据此承诺固定加速比例。只验证生成到工具调用的阶段，未执行这批Widget，不代表地图内容/可读性/全流程成功。首次两组请求返回TypeError，初始记录未保留message，不能精确归因；low随后重试成功，medium改用产品的ProviderHttpClient后成功。传输实现不同、缓存命中不同，因此耗时差异不能全部归因于effort；output与工具结果表明额度增加后能继续，仍不足以将产品整体标记修复完成。实验只保存事件类型、字段名、耗时和usage，不保存或分析隐藏思考文本。
+
+单变量追加大型Widget渐进交付指导的样本，比同HTTP客户端的medium基线较早进入工具调用；缓存仍不同，且每组仅1个样本，不能视为稳定速度保证。已将本次试验的原文作为有条件的大型Widget指导恢复到Agent/MCP共享规则，要求完成全部剩余内容，禁止停在占位符。与1.2.0的渐进交付方向一致，不恢复任意时间/轮数硬限。
+
+本轮建议：保持64000主输出额度；日常强调交互速度的DeepSeek任务可显式选择low；大型产物先交付有用内容再补齐；触顶明确显示未完成并保留会话/已应用结果。完整15天地图的内容与像素验收及多次稳定性对照尚未完成，不宣称上述三个单轮探针等同全流程验收。

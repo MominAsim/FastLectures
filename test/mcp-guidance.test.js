@@ -127,6 +127,8 @@ test("rendering guidance separates Canvas delivery, chat source, and explicit im
     assert.match(document, /a diagram type or chat source language alone does not select HTML/);
     assert.match(document, /select the Canvas representation by the task/);
     assert.match(document, /edit existing objects in their current form/);
+    assert.match(document, /first create a small coherent usable version/);
+    assert.match(document, /remaining requested content must still be completed/);
     assert.match(document, /both a rendered Canvas diagram and Mermaid\/PlantUML chat source/);
     assert.match(document, /Source-only requests do not require a Canvas artifact/);
     assert.match(document, /Respect an explicit ban on using HTML\/Widgets for implementation/);
