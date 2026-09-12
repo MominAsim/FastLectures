@@ -1,6 +1,6 @@
 # Agent 时序图回归：证据与修复验收
 
-状态：代码修复和针对性自动化测试已完成，真实模型与应用效果验收进行中；不能据此宣称版本可发布。
+状态：代码修复、真实模型路由测试、最终 macOS 包验收及 Windows 构建/包内运行验证已完成。部分视觉和发布条件尚未覆盖，不能据此宣称版本可发布。
 
 ## 基准与要求
 
@@ -38,4 +38,67 @@
 
 恢复限制有输入成本，不能继续沿用删掉限制后得到的 token 节省数字。当前 13 个实际 Agent 工具的 parameters JSON 为 23,293 UTF-8 bytes；这不是 token 数，也不是完整请求长度。
 
-真实测试使用隔离本机服务、原始文字请求、glm-5.3-flash/xhigh、空白测试画布，尚待检查工具选择与实际像素。它没有完整复现 Windows 原会话上下文。Windows 新包、mac 新包及本次完整发布验收尚未完成，已安装 1.3.0 不因本地源码修改自动修复。
+真实测试使用隔离本机服务、原始文字请求、UI 选择 glm-5.3-flash/xhigh、空白测试画布，完成了 Widget 图文时序图和最终 Mermaid 源码交付，没有聊天 HTML 源码。未指定业务主题时，模型明确选用 JWT 登录示例。观察到读取 VE 指导、一次尺寸预设与显式宽高冲突的拒绝、纠正后成功创建；没有 native draw 反复试错。失败次数如实保留，不能宣称零重试。
+
+这是功能与可见结果证据；截图中时序图的小标签在当前显示比例较小，未据此宣称视觉质量全面等同用户满意的 1.2.0。测试没有完整复现 Windows 原会话上下文，未开启该隔离实例请求追踪，因此没有准确分阶段耗时/token；不能从本轮推算普遍加速百分比。
+
+- [实际 Widget 与聊天源码](agent-routing-regression-20260912/real-glm-widget.png)
+- [最终界面文字](agent-routing-regression-20260912/real-glm-visible-result.txt)
+- [原 Windows 请求脱敏统计](agent-routing-regression-20260912/windows-original-summary.json)
+
+首次源码服务测试结束后，测试页、临时服务和复制的模型连接文件已清理，3939/13922 端口释放。后续双平台包验收见下文；已安装 1.3.0 不因本地源码修改自动修复。
+
+
+## 中间版本 7eff 的 macOS 包与 UAT 验收
+
+- 从精确运行时代码提交 `7eff4d1` 的隔离 archive 构建 arm64 DMG/ZIP；主工作区其他未提交 UI/图标修改未进入该包。
+- 新包实际 Electron 43.2.0 / Node 24.18.0 执行：完整 Agent runtime 导入、13 个实际工具 SDK 验证、25 项绘图在 browser RPC 前拒绝，四个修复文件与提交内容逐字节一致。
+- 冻结代码全量 `npm run check`：首次发现 MCP service 测试仍匹配旧模糊错误文字；改为核对具体范围/实际值后，1731 pass、0 fail、1 skip。唯一 skip 为隔离目录缺少 sibling Cloud；已在主工作区补跑对应 cloud-viewer-mode 文件 11/11 pass。
+- [最终 47b macOS 构建产物和 SHA-256](agent-routing-regression-20260912/mac-artifacts.json)
+- [最终 47b 包内实际 Electron 验证](agent-routing-regression-20260912/mac-packaged-smoke.json)
+- UAT app 已重启加载 Cloud `7616b4d`，容器状态 healthy；实际容器中的 13 工具 SDK、限制和路由检查通过，本机 healthz/readyz 正常。公网 UAT 入口仍保留 Basic 访问保护，未认证请求为 401；没有关闭保护。没有部署 production。
+
+## 最终运行代码与新增可见性修复
+
+运行代码为 `47b567d2c4f98e457acc92143fb2c35e61d0545a`，包含路由/约束修复 `7eff4d1`。Cloud 运行时镜像 `7616b4d`、前端镜像 `bc8fdf5`。全部为本地提交，未推送 GitHub。
+
+实际 macOS 7eff 包的原生绘图测试，模型成功画框并把 Hello 移至中心；文件几何证明坐标正确，但浏览器截图中 Hello 不可见。原因是原生形状转换为不透明图片，当前图层顺序把图片画在文字之上。此次修复让首次含文字的原生 artifact 使用既有文字前景规则；后续更新保留用户选择，后台 Canvas 写入自己的图层元数据。没有增加渲染队列或改变坐标。历史 1.2.0 的原生创建路径也未设置此前景规则，因此不能把该独立问题确定归因为本次提示精简。
+
+最终 47b 包重放相同方框/文字参数，再执行中心移动，MCP 均成功；通过 CUA 检查实际安装包服务，Hello 清晰可见。该验证针对层级缺陷，未重新调用模型，不把成功截图等同于所有原生图文排版质量已达标。
+
+- [修复前：文字被遮挡](agent-routing-regression-20260912/mac-native-only.png)
+- [修复后：中心文字可见](agent-routing-regression-20260912/mac-native-layer-fixed.png)
+- [修复后实际几何](agent-routing-regression-20260912/native-layer-final-evidence.json)
+
+最终 macOS 包：7 个关键服务端/客户端文件逐字节匹配冻结代码，实际 Electron 完整 Agent runtime 导入、13 工具 SDK 合约验证及超限拒绝通过。全量 `npm run check` 为 **1733 pass / 0 fail / 1 skip**；隔离目录缺 sibling Cloud 的单项 skip 已在主工作区对应 11/11 测试中补验。新增原生/后台文档测试 63/63、相关界面控制测试 117/117。
+
+## 实际模型边界测试
+
+在隔离 macOS 7eff 安装包服务中，通过 UI 选择 glm-5.3-flash/medium：
+
+| 请求 | 结果 | 调用与用量 |
+|---|---|---|
+| 只要 Mermaid，不创建 Canvas 内容 | 成功返回 Mermaid；无工具调用 | 1 模型调用，8.197 秒，9207 prompt / 63 output tokens |
+| 明确原生方框 Hello，禁止 HTML/Widget | native draw + move，无参数拒绝；发现上述文字遮挡，后由 47b 修复验证 | 3 模型调用，2 工具，32300 prompt / 715 output tokens |
+
+[真实模型脱敏证据](agent-routing-regression-20260912/mac-app-boundaries.json) 仅保留公开输出、工具参数与统计，不包含隐藏思考或凭据。实际输出请求同时证实模型可见 24 项和 1..12 限制。
+
+仍需区分：路由功能通过，不等于全面恢复用户满意的 1.2.0 视觉质量；xhigh 原始文字测试仍有一次 presentation 尺寸纠正。没有从一次测试推算普遍速度收益。Windows 原生 UI/新包真实模型重放、签名/公证及正式安装升级、生产环境凭据/IAM仍未完成，本报告不解除发布报告中的其他前置条件。
+
+## UAT 与清理记录
+
+通过官方 `local-uat-deploy.mjs auto` 部署已审核的 7 个变化文件；该次采用 app restart，1.4 秒完成。最终 staged app.js 与 Cloud 镜像逐字节一致，healthz/readyz 均 200，见 [UAT 核验](agent-routing-regression-20260912/uat-final.json)。未变更公网 Basic 保护或 production。
+
+最终 macOS 测试页已关闭、仅本次隔离应用进程已停止，3945 监听端口确认释放。测试模型连接复制文件及原始 trace 已清理；报告仅保留脱敏结果。未停止用户原有应用。
+
+测试脚本首次调用 draw 遗漏 MCP 必填 requestId，被严格拒绝后补齐；这是人工测试 harness 错误，不计入真实模型重试统计，未改变产品验证规则。
+
+## 最终 Windows 包
+
+精确提交 `47b567d` 在独立 Windows 构建目录正常 `make` 完成，exit 0。针对性测试 **116/116 pass，0 fail / 0 skip**。实际打包 Electron 执行完整 runtime 导入、13 个工具 SDK 验证，25 项拒绝且 browser RPC 为 0。主任务另将 7 个包内文件 SHA-256 与 Git 提交内容逐一核对，全部一致。Squirrel nupkg 中嵌入的 app.asar 与已测试 app.asar 哈希一致。
+
+- [Windows 最终包及包内验证摘要](agent-routing-regression-20260912/windows-final-summary.json)
+- 本机安装包：`/tmp/penecho-agent-routing-20260912/windows-build/PenEcho-Setup-1.3.0-win-x64-47b567d.exe`
+- 大小：253,030,912 bytes；SHA-256：`310789345f8cfcfb7b13e26f94c477e48caf50a6466e7b7bdbd5a362b9404a4d`，主任务再次计算确认。
+
+此项是 Windows 实际包内运行验证，未操作新包原生窗口、未进行新包真实模型调用，也未覆盖旧用户应用。不能用 macOS 浏览器结果代替这些未完成项。
