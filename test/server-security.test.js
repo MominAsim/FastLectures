@@ -478,7 +478,7 @@ test("canvas settings expose no API secret and save validated configuration for 
     assert.equal(Object.hasOwn(current, "apiKey"), false);
     assert.equal(Object.hasOwn(current, "deepseekSearchApiKey"), false);
     assert.equal(Object.hasOwn(current, "tavilyApiKey"), false);
-    assert.equal(current.maxTokens, 63000);
+    assert.equal(current.maxTokens, 64000);
     assert.equal(current.canvasAgentTurnLimit,100);
     const invalidSearchTestResponse=await fetch(`${origin}/api/settings/search/test`,{method:"POST",headers,body:JSON.stringify({deepSeekSearchProvider:"opencode-go",deepseekSearchApiKey:"bad\nkey",tavilyApiKey:""})}),invalidSearchTest=await invalidSearchTestResponse.json();
     assert.equal(invalidSearchTestResponse.status,400);
@@ -523,7 +523,7 @@ test("canvas settings expose no API secret and save validated configuration for 
     assert.equal(afterSystem.aiProvider, "codex-cli");
     const updatedText = await fs.promises.readFile(path.join(stateDir, "config.env"), "utf8");
     assert.match(updatedText, /^AUTO_AI_DELAY_SECONDS=2\.5$/m);
-    assert.match(updatedText, /^MAX_TOKENS=63000$/m);
+    assert.match(updatedText, /^MAX_TOKENS=64000$/m);
     assert.match(updatedText, /^PENECHO_CANVAS_AGENT_TURN_LIMIT=1000000$/m);
     const invalidMaxTokens = await fetch(`${origin}/api/settings`, { method:"POST", headers, body:JSON.stringify({ ...current, scope:"system", maxTokens:14999 }) });
     assert.equal(invalidMaxTokens.status, 400);
@@ -1033,7 +1033,7 @@ test("page reasoning effort maps to OpenAI and Anthropic request fields", { time
     assert.equal(disabledResponse.status,200);
     const disabledRequest=JSON.parse(openai.requests[0]);
     assert.equal(disabledRequest.stream,true);
-    assert.equal(disabledRequest.max_tokens,63000);
+    assert.equal(disabledRequest.max_tokens,64000);
     assert.equal(disabledRequest.reasoning_effort,"none");
     assert.equal(Object.hasOwn(disabledRequest,"temperature"),false);
     assert.match(disabledRequest.messages[0].content,/Never spend more than one half of the available output-token allowance on internal reasoning/);
@@ -1075,7 +1075,7 @@ test("page reasoning effort maps to OpenAI and Anthropic request fields", { time
     assert.deepEqual(request.thinking,{type:"adaptive"});
     assert.equal(request.output_config.effort,"max");
     assert.equal(Object.hasOwn(request,"temperature"),false);
-    assert.equal(request.max_tokens,63000);
+    assert.equal(request.max_tokens,64000);
     assert.match(request.system,/Treat the canvas as an existing document to extend/);
     assert.match(request.system,/place only `5` immediately after the equals sign/);
     assert.match(request.system,/within approximately 6144 tokens/);
@@ -1102,7 +1102,7 @@ test("page reasoning effort maps to OpenAI and Anthropic request fields", { time
     assert.deepEqual(request.thinking,{type:"disabled"});
     assert.equal(request.output_config,undefined);
     assert.equal(Object.hasOwn(request,"temperature"),false);
-    assert.equal(request.max_tokens,63000);
+    assert.equal(request.max_tokens,64000);
     assert.match(request.system,/Never spend more than one half of the available output-token allowance on internal reasoning/);
   } finally { await stopServer(disabledServer.child); await new Promise(resolve=>disabled.server.close(resolve)); }
 });
@@ -1162,7 +1162,7 @@ test("Anthropic output exhaustion reports the real response limit instead of a J
   try {
     const response=await fetch(`${running.origin}/api/ai/command`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(validPayload())}),body=await response.json();
     assert.equal(response.status,502);
-    assert.match(body.error,/63000-token response allowance/);
+    assert.match(body.error,/64000-token response allowance/);
     assert.doesNotMatch(body.error,/Unexpected end of JSON input/);
   } finally { await stopServer(running.child); await new Promise(resolve=>upstream.server.close(resolve)); }
 });

@@ -2,7 +2,7 @@
 
 const { DEFAULT_REASONING_EFFORT, apiReasoningParameters } = require("../providers/reasoning-effort.js");
 
-const DEFAULT_MAX_TOKENS = 63000;
+const DEFAULT_MAX_TOKENS = 64000;
 const MIN_MAX_TOKENS = 15000;
 
 function resolveApiConfig(value, formatOverride) {

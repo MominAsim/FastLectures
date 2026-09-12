@@ -40,17 +40,17 @@ test("Anthropic protocol preserves effort values while encoding disabled or adap
   assert.deepEqual(anthropicEffortParameters("Provider_Native", true, { model:"claude-sonnet-4-5" }), {
     thinking:{ type:"adaptive" }, output_config:{ effort:"Provider_Native" },
   });
-  assert.equal(anthropicResponseMaxTokens("none"), 63000);
-  assert.equal(anthropicResponseMaxTokens("low"), 63000);
-  assert.equal(anthropicResponseMaxTokens("medium"), 63000);
-  assert.equal(anthropicResponseMaxTokens("high"), 63000);
-  assert.equal(anthropicResponseMaxTokens("max"), 63000);
+  assert.equal(anthropicResponseMaxTokens("none"), 64000);
+  assert.equal(anthropicResponseMaxTokens("low"), 64000);
+  assert.equal(anthropicResponseMaxTokens("medium"), 64000);
+  assert.equal(anthropicResponseMaxTokens("high"), 64000);
+  assert.equal(anthropicResponseMaxTokens("max"), 64000);
 });
 
-test("API response-token limits default to 63000 and require more than 15000", () => {
-  assert.equal(configuredMaxTokens(undefined), 63000);
-  assert.equal(configuredMaxTokens(null), 63000);
-  assert.equal(configuredMaxTokens("  "), 63000);
+test("API response-token limits default to 64000 and require more than 15000", () => {
+  assert.equal(configuredMaxTokens(undefined), 64000);
+  assert.equal(configuredMaxTokens(null), 64000);
+  assert.equal(configuredMaxTokens("  "), 64000);
   assert.equal(configuredMaxTokens("20000"), 20000);
   assert.equal(configuredMaxTokens("15000"), null);
   assert.equal(configuredMaxTokens("15001"), 15001);
@@ -60,6 +60,6 @@ test("API response-token limits default to 63000 and require more than 15000", (
 });
 
 test("OpenAI output limits follow the exact upstream endpoint without changing their value", () => {
-  for (const url of ["https://api.openai.com/v1", "https://API.OPENAI.COM./v1/chat/completions"]) assert.deepEqual(openAiOutputTokenParameters(url, 63000), {max_completion_tokens:63000});
-  for (const url of ["https://api.deepseek.com/v1", "https://gateway.test/v1", "https://api.openai.com.example.org/v1"]) assert.deepEqual(openAiOutputTokenParameters(url, 63000), {max_tokens:63000});
+  for (const url of ["https://api.openai.com/v1", "https://API.OPENAI.COM./v1/chat/completions"]) assert.deepEqual(openAiOutputTokenParameters(url, 64000), {max_completion_tokens:64000});
+  for (const url of ["https://api.deepseek.com/v1", "https://gateway.test/v1", "https://api.openai.com.example.org/v1"]) assert.deepEqual(openAiOutputTokenParameters(url, 64000), {max_tokens:64000});
 });
