@@ -28,6 +28,27 @@ test("shared guidance preserves the complete authoritative design and scientific
   assert.throws(() => getAuthoringGuidance("../private","full"), RangeError);
 });
 
+test("default and explicit brief deliver the complete Visual Explorer contract through Agent and MCP", async () => {
+  const { createDocumentTools } = await import("../src/server/canvas-agent/document-tools.mjs");
+  const agent = createDocumentTools({id:"guidance-quality-test"}).find(tool => tool.name === "penecho_get_guidance");
+  const messages = [];
+  const server = new PenEchoStdioServer({output:{write:text => messages.push(JSON.parse(text))}});
+  server.records = () => { throw new Error("guidance must not discover a Canvas"); };
+  await server.handle({jsonrpc:"2.0",id:1,method:"initialize",params:{}});
+  const full = getAuthoringGuidance("visual-explorer", "full");
+  for (const args of [{id:"visual-explorer"}, {id:"visual-explorer",detail:"brief"}]) {
+    const direct = getAuthoringGuidance(args.id, args.detail);
+    const actualAgent = await agent.execute(args, {});
+    await server.handle({jsonrpc:"2.0",id:messages.length+1,method:"tools/call",params:{name:"penecho_get_guidance",arguments:args}});
+    const actualMcp = messages.at(-1).result.structuredContent;
+    for (const result of [direct, actualAgent, actualMcp]) {
+      assert.equal(result.document, full.document);
+      assert.equal(result.hash, full.hash);
+      assert.doesNotMatch(result.document, /ordinary HTML\/SVG explanations can proceed from this brief/);
+    }
+  }
+});
+
 test("general HTML retains canonical runtime safety and authoring rules", () => {
   const contract = read("general-html-contract.md");
   const general = getAuthoringGuidance("general-html","full").document;
