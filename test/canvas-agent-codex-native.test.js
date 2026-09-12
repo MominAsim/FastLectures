@@ -1726,14 +1726,22 @@ test("Codex Native known-turn cancel settles once and preserves the process and 
   const harness=await createNativeHarness();
   t.after(()=>harness.cleanup());
   const session=await harness.connect(),process=harness.processes[0];
+  let resolveStarted;
+  const started = new Promise(resolve => { resolveStarted = resolve; });
   process.requestHandler=async method=>{
     if(method!=="turn/start")return {};
     const turnId="cancel-turn";
-    setImmediate(()=>process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:turnId}}));
+    setImmediate(()=>{
+      process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:turnId}});
+      resolveStarted();
+    });
     return {turn:{id:turnId}};
   };
   const submitted=harness.host.submit(session,"cancel me",false,[],{},null);
-  await waitFor(()=>session.active?.turnId==="cancel-turn");
+  // The start RPC response can bind turnId before its queued notification runs.
+  // Deliver that notification before cancellation so it cannot spill into the next turn.
+  await started;
+  assert.equal(session.active?.turnId,"cancel-turn");
   const originalInterrupt=process.interrupt.bind(process);
   process.interrupt=async(threadId,turnId)=>{
     process.emitNotification("turn/completed",{threadId,turn:{id:turnId,status:"cancelled",items:[]}});

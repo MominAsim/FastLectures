@@ -59,7 +59,8 @@ test('single patch RPC preserves exact conflict and retry receipts without readi
 });
 test('malformed patches are rejected before any browser RPC and diagnostics never expose source',async()=>{
  const h=harness(()=>assert.fail('must not dispatch'));
- await assert.rejects(h.run('penecho_patch_file',{path:'/notes.md',contentHash:'h',requestId:'bad',patch:'--- a/notes.md\n+++ b/notes.md\n@@ -1,2 +1,2 @@\n-hello\n+world'}),e=>{assert.equal(e.code,'invalid_patch');assert.match(e.message,/line 3/);assert.doesNotMatch(e.message,/hello|world/);return true;});assert.equal(h.calls.length,0);
+ await assert.rejects(h.run('penecho_patch_file',{path:'/notes.md',contentHash:'h',requestId:'bad',patch:'--- a/notes.md\n+++ b/notes.md\n@@ -1,2 +1,2 @@\n-hello\nunprefixed private body\n+world'}),e=>{assert.equal(e.code,'invalid_patch');assert.match(e.message,/line 3/);assert.doesNotMatch(e.message,/hello|world|private/);return true;});assert.equal(h.calls.length,0);
+ await assert.rejects(h.run('penecho_patch_file',{path:'/notes.md',contentHash:'h',requestId:'bad-multi',patch:'--- a/notes.md\n+++ b/notes.md\n@@ -1,2 +1,2 @@\n-hello\n+world\n@@ -5,2 +5,2 @@\n-secret old\n+secret new\n'}),e=>{assert.equal(e.code,'invalid_patch');assert.doesNotMatch(e.message,/hello|world|secret/);return true;});assert.equal(h.calls.length,0);
  const secret='PRIVATE_SOURCE_SHOULD_NOT_BE_ECHOED';assert.throws(()=>patchVirtualFile('hello\n',`--- a/notes.md\n+++ b/notes.md\n@@ -1 +1 @@\n-hello\n${secret}\n+world`,'/notes.md'),e=>{assert.equal(e.code,'invalid_patch');assert.doesNotMatch(e.message,new RegExp(secret));return true;});
  assert.throws(()=>patchVirtualFile('hello\n',undefined,'/notes.md'),{code:'invalid_patch'});
 });

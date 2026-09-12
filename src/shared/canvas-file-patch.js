@@ -33,12 +33,50 @@ function patchParseDiagnostic(error) {
 }
 
 
+// Correct only cardinalities in an unambiguous single hunk; never rewrite edit bytes.
+function repairSingleHunkCounts(patch, fileName) {
+  const lines = patch.split("\n");
+  const headerLine = (line) => line?.replace(/\r$/, "");
+  if(headerLine(lines[0]) !== `--- a/${fileName}` || headerLine(lines[1]) !== `+++ b/${fileName}`) return null;
+  const match = /^@@ -(0|[1-9]\d*)(?:,(0|[1-9]\d*))? \+(0|[1-9]\d*)(?:,(0|[1-9]\d*))? @@(.*)$/.exec(headerLine(lines[2]));
+  if(!match || match.slice(1,5).some(value => value !== undefined && (!Number.isSafeInteger(Number(value)) || Number(value) > MAX_FILE_BYTES))) return null;
+  let oldCount = 0, newCount = 0, previous = null, oldEnded = false, newEnded = false;
+  const end = lines.length - (lines.at(-1) === "" ? 1 : 0);
+  for(let i = 3; i < end; i++) {
+    const line = headerLine(lines[i]);
+    if(line === "\\ No newline at end of file") {
+      if(!previous) return null;
+      if(previous !== "+") oldEnded = true;
+      if(previous !== "-") newEnded = true;
+      previous = null;
+      continue;
+    }
+    // File-like headers in the body are ambiguous even when they could be edits.
+    if(/^(---|\+\+\+)\s/.test(line) || !/^[ +-]/.test(line)) return null;
+    const operation = line[0];
+    if(operation !== "+") { if(oldEnded) return null; oldCount++; }
+    if(operation !== "-") { if(newEnded) return null; newCount++; }
+    previous = operation;
+  }
+  if((!oldCount && !newCount) || (oldCount && match[1] === "0") || (newCount && match[3] === "0")) return null;
+  if(oldCount === Number(match[2] ?? 1) && newCount === Number(match[4] ?? 1)) return null;
+  lines[2] = `@@ -${match[1]},${oldCount} +${match[3]},${newCount} @@${match[5]}${lines[2].endsWith("\r") ? "\r" : ""}`;
+  const repaired = lines.join("\n");
+  return new TextEncoder().encode(repaired).length <= MAX_FILE_BYTES ? repaired : null;
+}
+
+
 function validateCanvasFilePatch(patch, virtualPath) {
   const fileName = virtualPath.replace(/^\/+/, "");
   if(typeof patch !== "string" || new TextEncoder().encode(patch).length > MAX_FILE_BYTES) throw bridgeError("invalid_patch", "patch must be a bounded unified diff.", 400);
   let parsed;
   try { parsed = parsePatch(patch); }
-  catch(error) { throw bridgeError("invalid_patch", patchParseDiagnostic(error), 400); }
+  catch(error) {
+    const repaired = repairSingleHunkCounts(patch, fileName);
+    if(repaired === null) throw bridgeError("invalid_patch", patchParseDiagnostic(error), 400);
+    try { parsed = parsePatch(repaired); }
+    catch(repairError) { throw bridgeError("invalid_patch", patchParseDiagnostic(repairError), 400); }
+  }
   if(parsed.length !== 1 || parsed[0].oldFileName !== `a/${fileName}` || parsed[0].newFileName !== `b/${fileName}` || !parsed[0].hunks.length)
     throw bridgeError("invalid_patch", `patch must modify exactly --- a/${fileName} and +++ b/${fileName}.`, 400);
   return parsed[0];
