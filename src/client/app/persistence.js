@@ -309,13 +309,14 @@
   }
   async function saveCurrentCanvas() {
     if (snapshotSaveInProgress) return;
-    const location = state.currentSnapshotLocation || state.snapshotLocation,
+    const location = window.PENECHO_CONFIG?.browserCanvasEditing ? "cloud" : state.currentSnapshotLocation || state.snapshotLocation,
       overwriteId = state.currentSnapshotId && state.currentSnapshotLocation === location ? state.currentSnapshotId : null,
       requestedName = document.querySelector("#historyName")?.value.trim(),
       name = requestedName || currentCanvasDisplayName();
     setHistorySaveBusy(true);
     showHistoryNoticeKey("snapshotSaving", "busy", 0);
     try {
+      if (location === "cloud" && !overwriteId) await cloudSnapshotItems();
       const selectionBusy = selectionAIBusy(),
         selectionBusyKey = selectionAIStatusKey(),
         id = await saveSnapshot({ overwriteId, name, location });
@@ -1737,6 +1738,14 @@
     // used to surface a misleading 502 after an otherwise successful load.
     openHistoryPanel(false);
     return true;
+  }
+  async function saveEchoToCloud(name) {
+    if (window.PENECHO_CONFIG?.runtime !== "cloud" || !window.PENECHO_CONFIG?.browserCanvasEditing) throw Error("Cloud browser editing is unavailable");
+    await cloudSnapshotItems();
+    setSnapshotLocation("cloud", { refresh:false });
+    const id = await saveSnapshot({ location:"cloud", overwriteId:null, name:String(name || currentCanvasDisplayName() || "Untitled Canvas"), allowEmpty:true });
+    if (!id) throw Error("The Cloud copy could not be saved");
+    return id;
   }
   async function openCloudCanvas(canvasId) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(canvasId || ""))) throw Error("Invalid Cloud Canvas");

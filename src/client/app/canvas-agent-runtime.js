@@ -214,6 +214,7 @@
     });
   const canvasAgent = {
     socket:null,
+    socketCloudCanvasId:"",
     connectPromise:null,
     connectResolve:null,
     connectReject:null,
@@ -326,10 +327,27 @@
     const runtime = window.PENECHO_CONFIG?.runtime;
     return runtime !== "viewer" && (window.PENECHO_CONFIG?.canvasAgent !== false || window.PENECHO_CONFIG?.hostedCanvasAgent === true && canvasAgentUsesCloudHost());
   }
+  function canvasAgentCloudCanvasId() {
+    const id=String(state.currentSnapshotId||"");
+    return window.PENECHO_CONFIG?.runtime === "cloud" && state.currentSnapshotLocation === "cloud"
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id) ? id : "";
+  }
+  function canvasAgentReconcileCloudCanvas() {
+    if (!canvasAgent.socketCloudCanvasId || canvasAgent.socketCloudCanvasId === canvasAgentCloudCanvasId()) return;
+    const socket=canvasAgent.socket;
+    // Detach before close: late frames and close handlers belong to the old Canvas.
+    canvasAgent.socket=null;
+    canvasAgent.socketCloudCanvasId="";
+    canvasAgentInvalidateSubmitExecution(Object.assign(Error("PenEcho Agent Canvas changed."),{code:"SESSION_CHANGED"}));
+    canvasAgentDropSessionIdentity();
+    canvasAgent.requestPending=false;
+    canvasAgentSetRunning(false);
+    try { socket?.close(1000,"PenEcho Agent Canvas changed"); } catch {}
+  }
   function canvasAgentUsesCloudHost(connectionId = null) {
     return window.PENECHO_CONFIG?.runtime === "cloud" && window.PENECHO_CONFIG?.hostedCanvasAgent === true
       && /^hosted:[0-9a-f-]{36}$/i.test(connectionId ?? selectedAiConnectionId())
-      && /^\/canvas\/[0-9a-f-]{36}\/?$/i.test(location.pathname);
+      && Boolean(canvasAgentCloudCanvasId());
   }
   function canvasAgentContextProjectId() {
     return canvasAgentUsesCloudHost() ? "" : canvasAgent.projectId;
@@ -433,9 +451,14 @@
       canvasAgentContextDidChange(true);
     }
   }
+  function canvasAgentUnavailableMessage() {
+    return t(window.PENECHO_CONFIG?.runtime === "cloud" && window.PENECHO_CONFIG?.browserCanvasEditing === true
+      && window.PENECHO_CONFIG?.hostedCanvasAgent === true && /^hosted:[0-9a-f-]{36}$/i.test(selectedAiConnectionId())
+      && !canvasAgentCloudCanvasId() ? "canvasAgentCloudSaveRequired" : "canvasAgentNoConnections");
+  }
   function canvasAgentSetStatus(text, kind = "") {
     const unavailable = !canvasAgentExecutionAvailable();
-    canvasAgentStatus.textContent = unavailable ? t("canvasAgentNoConnections") : text;
+    canvasAgentStatus.textContent = unavailable ? canvasAgentUnavailableMessage() : text;
     canvasAgentPanel.dataset.status = unavailable ? "unavailable" : kind;
   }
   function canvasAgentSetComposerActionLabel(button,key) {
@@ -1153,7 +1176,7 @@
     }finally{canvasAgentProjectRemoveConfirm.removeAttribute("aria-busy");}
   }
   function canvasAgentCloudFileScope() {
-    const canvasId=location.pathname.match(/^\/canvas\/([0-9a-f-]{36})\/?$/i)?.[1],conversationId=canvasAgent.currentConversation?.id;
+    const canvasId=canvasAgentCloudCanvasId(),conversationId=canvasAgent.currentConversation?.id;
     if(!canvasId||!conversationId)throw Error(t("canvasAgentCloudFileScopeChanged"));
     return {canvasId,conversationId};
   }
@@ -1685,6 +1708,7 @@
     });
   }
   function canvasAgentCanvasDidChange(identity = null,options = null) {
+    canvasAgentReconcileCloudCanvas();
     // The MCP connection owns a workspace. Its sessions keep their original documentId.
     if(typeof canvasDocuments==="undefined")mcpDisconnect();
     const clearProject=options?.clearProject===true,deferConversationStart=options?.deferConversationStart===true;
@@ -1722,6 +1746,11 @@
     return historyEntry;
   }
   function canvasAgentCanvasDidPersist(location,id) {
+    canvasAgentReconcileCloudCanvas();
+    if (window.PENECHO_CONFIG?.runtime === "cloud") {
+      canvasAgentUpdateConnectionButton();
+      if (canvasAgentPanel.dataset.status === "unavailable" && canvasAgentExecutionAvailable()) canvasAgentSetStatus(t("canvasAgentReadyConnect"),"ready");
+    }
     if (!location||!id) return;
     const previousKey=state.canvasAgentCanvasKey, nextKey=canvasAgentCanvasIdentity({location,id});
     if (previousKey===nextKey) {
@@ -3535,7 +3564,7 @@
   }
   function canvasAgentSocketUrl(connectionId = selectedAiConnectionId()) {
     const path=canvasAgentUsesCloudHost(connectionId)
-      ? `/api/v1/hosted/canvases/${location.pathname.split("/")[2]}/agent`
+      ? `/api/v1/hosted/canvases/${canvasAgentCloudCanvasId()}/agent`
       : window.PENECHO_CONFIG?.runtime === "cloud" ? "/api/v1/remote-canvas/canvas-agent" : "/api/canvas-agent/socket";
     return `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${path}`;
   }
@@ -3579,6 +3608,7 @@
     return {version:1,professionalEnabled:false,privatePluginIds:[]};
   }
   async function canvasAgentStartNewConversation(connectionId = selectedAiConnectionId(), {resetProjection=true,submitExecution=null,preserveDraft=false,preserveConversation=false}={}) {
+    canvasAgentReconcileCloudCanvas();
     connectionId=String(connectionId||"");
     if (resetProjection) canvasAgentBeginLocalConversation({submitExecution,preserveDraft});
     else if(submitExecution)canvasAgentAssertSubmitExecution(submitExecution);
@@ -3654,9 +3684,13 @@
     canvasAgent.pendingContextChange=null;
   }
   async function canvasAgentConnect(options) {
+    canvasAgentReconcileCloudCanvas();
+    const cloudCanvasId=canvasAgentCloudCanvasId();
+    const assertCloudCanvas=()=>{if(cloudCanvasId!==canvasAgentCloudCanvasId())throw Object.assign(Error("PenEcho Agent Canvas changed."),{code:"SESSION_CHANGED"});};
     if (!canvasAgentExecutionAvailable()) throw Object.assign(Error(t("canvasAgentNoConnections")),{code:"CANVAS_AGENT_NO_CONNECTION"});
     const {submitExecution=null}=options||{};
     await canvasAgentEnsureProjects();
+    assertCloudCanvas();
     if(submitExecution)canvasAgentAssertSubmitExecution(submitExecution);
     const connectionId = selectedAiConnectionId();
     if (canvasAgent.socket && canvasAgentUsesCloudHost(connectionId)!==canvasAgentUsesCloudHost(canvasAgent.connectionId)) {
@@ -3683,6 +3717,7 @@
     }
     canvasAgentSetStatus(t("canvasAgentConnecting"),"connecting");
     const widgetCapabilities=await canvasAgentCurrentWidgetCapabilities();
+    assertCloudCanvas();
     if (!canvasAgentExecutionAvailable()) throw Object.assign(Error(t("canvasAgentNoConnections")),{code:"CANVAS_AGENT_NO_CONNECTION"});
     if(submitExecution)canvasAgentAssertSubmitExecution(submitExecution);
     if(selectedAiConnectionId()!==connectionId)return canvasAgentConnect({submitExecution});
@@ -3692,8 +3727,10 @@
       const previousSocket=canvasAgent.socket;
       const socket = new WebSocket(canvasAgentSocketUrl());
       canvasAgent.socket = socket;
+      canvasAgent.socketCloudCanvasId=canvasAgentUsesCloudHost(connectionId)?cloudCanvasId:"";
       if(previousSocket&&previousSocket!==socket){try{previousSocket.close(1000,"PenEcho Agent session replaced");}catch{}}
       socket.addEventListener("open",()=>{
+        canvasAgentReconcileCloudCanvas();
         if(socket!==canvasAgent.socket){socket.close();return;}
         canvasAgent.outgoingSeq = 0;
         canvasAgent.incomingSeq = 0;
@@ -3712,7 +3749,7 @@
           ...(conversationHistory.length?{conversationHistory}:{}),
         });
       });
-      socket.addEventListener("message",event=>{if(socket===canvasAgent.socket)void canvasAgentHandleMessage(event);});
+      socket.addEventListener("message",event=>{canvasAgentReconcileCloudCanvas();if(socket===canvasAgent.socket)void canvasAgentHandleMessage(event);});
       socket.addEventListener("close",()=>{
         if (socket !== canvasAgent.socket) return;
         const wasPending = Boolean(canvasAgent.connectReject),hadActiveTurn=canvasAgent.requestPending||canvasAgent.running;
@@ -3726,6 +3763,7 @@
         canvasAgent.connectResolve = canvasAgent.connectReject = null;
         canvasAgent.connectPromise = null;
         canvasAgent.socket = null;
+        canvasAgent.socketCloudCanvasId="";
         canvasAgentResolveApproval(false);
         canvasAgent.requestPending = false;
         canvasAgent.running = false;

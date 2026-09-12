@@ -1267,6 +1267,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentReadyConnect: "Ready to connect",
       canvasAgentReady: "Ready",
       canvasAgentNoConnections: "No available connections",
+      canvasAgentCloudSaveRequired: "Save this Canvas to Cloud before using AI.",
       canvasAgentConnecting: "Connecting…",
       canvasAgentResumed: "Conversation resumed",
       canvasAgentWorking: "Agent is working…",
@@ -11414,13 +11415,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   async function saveCurrentCanvas() {
     if (snapshotSaveInProgress) return;
-    const location = state.currentSnapshotLocation || state.snapshotLocation,
+    const location = window.PENECHO_CONFIG?.browserCanvasEditing ? "cloud" : state.currentSnapshotLocation || state.snapshotLocation,
       overwriteId = state.currentSnapshotId && state.currentSnapshotLocation === location ? state.currentSnapshotId : null,
       requestedName = document.querySelector("#historyName")?.value.trim(),
       name = requestedName || currentCanvasDisplayName();
     setHistorySaveBusy(true);
     showHistoryNoticeKey("snapshotSaving", "busy", 0);
     try {
+      if (location === "cloud" && !overwriteId) await cloudSnapshotItems();
       const selectionBusy = selectionAIBusy(),
         selectionBusyKey = selectionAIStatusKey(),
         id = await saveSnapshot({ overwriteId, name, location });
@@ -12842,6 +12844,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     // used to surface a misleading 502 after an otherwise successful load.
     openHistoryPanel(false);
     return true;
+  }
+  async function saveEchoToCloud(name) {
+    if (window.PENECHO_CONFIG?.runtime !== "cloud" || !window.PENECHO_CONFIG?.browserCanvasEditing) throw Error("Cloud browser editing is unavailable");
+    await cloudSnapshotItems();
+    setSnapshotLocation("cloud", { refresh:false });
+    const id = await saveSnapshot({ location:"cloud", overwriteId:null, name:String(name || currentCanvasDisplayName() || "Untitled Canvas"), allowEmpty:true });
+    if (!id) throw Error("The Cloud copy could not be saved");
+    return id;
   }
   async function openCloudCanvas(canvasId) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(canvasId || ""))) throw Error("Invalid Cloud Canvas");
@@ -17685,6 +17695,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     });
   const canvasAgent = {
     socket:null,
+    socketCloudCanvasId:"",
     connectPromise:null,
     connectResolve:null,
     connectReject:null,
@@ -17797,10 +17808,27 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const runtime = window.PENECHO_CONFIG?.runtime;
     return runtime !== "viewer" && (window.PENECHO_CONFIG?.canvasAgent !== false || window.PENECHO_CONFIG?.hostedCanvasAgent === true && canvasAgentUsesCloudHost());
   }
+  function canvasAgentCloudCanvasId() {
+    const id=String(state.currentSnapshotId||"");
+    return window.PENECHO_CONFIG?.runtime === "cloud" && state.currentSnapshotLocation === "cloud"
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id) ? id : "";
+  }
+  function canvasAgentReconcileCloudCanvas() {
+    if (!canvasAgent.socketCloudCanvasId || canvasAgent.socketCloudCanvasId === canvasAgentCloudCanvasId()) return;
+    const socket=canvasAgent.socket;
+    // Detach before close: late frames and close handlers belong to the old Canvas.
+    canvasAgent.socket=null;
+    canvasAgent.socketCloudCanvasId="";
+    canvasAgentInvalidateSubmitExecution(Object.assign(Error("PenEcho Agent Canvas changed."),{code:"SESSION_CHANGED"}));
+    canvasAgentDropSessionIdentity();
+    canvasAgent.requestPending=false;
+    canvasAgentSetRunning(false);
+    try { socket?.close(1000,"PenEcho Agent Canvas changed"); } catch {}
+  }
   function canvasAgentUsesCloudHost(connectionId = null) {
     return window.PENECHO_CONFIG?.runtime === "cloud" && window.PENECHO_CONFIG?.hostedCanvasAgent === true
       && /^hosted:[0-9a-f-]{36}$/i.test(connectionId ?? selectedAiConnectionId())
-      && /^\/canvas\/[0-9a-f-]{36}\/?$/i.test(location.pathname);
+      && Boolean(canvasAgentCloudCanvasId());
   }
   function canvasAgentContextProjectId() {
     return canvasAgentUsesCloudHost() ? "" : canvasAgent.projectId;
@@ -17904,9 +17932,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentContextDidChange(true);
     }
   }
+  function canvasAgentUnavailableMessage() {
+    return t(window.PENECHO_CONFIG?.runtime === "cloud" && window.PENECHO_CONFIG?.browserCanvasEditing === true
+      && window.PENECHO_CONFIG?.hostedCanvasAgent === true && /^hosted:[0-9a-f-]{36}$/i.test(selectedAiConnectionId())
+      && !canvasAgentCloudCanvasId() ? "canvasAgentCloudSaveRequired" : "canvasAgentNoConnections");
+  }
   function canvasAgentSetStatus(text, kind = "") {
     const unavailable = !canvasAgentExecutionAvailable();
-    canvasAgentStatus.textContent = unavailable ? t("canvasAgentNoConnections") : text;
+    canvasAgentStatus.textContent = unavailable ? canvasAgentUnavailableMessage() : text;
     canvasAgentPanel.dataset.status = unavailable ? "unavailable" : kind;
   }
   function canvasAgentSetComposerActionLabel(button,key) {
@@ -18624,7 +18657,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     }finally{canvasAgentProjectRemoveConfirm.removeAttribute("aria-busy");}
   }
   function canvasAgentCloudFileScope() {
-    const canvasId=location.pathname.match(/^\/canvas\/([0-9a-f-]{36})\/?$/i)?.[1],conversationId=canvasAgent.currentConversation?.id;
+    const canvasId=canvasAgentCloudCanvasId(),conversationId=canvasAgent.currentConversation?.id;
     if(!canvasId||!conversationId)throw Error(t("canvasAgentCloudFileScopeChanged"));
     return {canvasId,conversationId};
   }
@@ -19156,6 +19189,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     });
   }
   function canvasAgentCanvasDidChange(identity = null,options = null) {
+    canvasAgentReconcileCloudCanvas();
     // The MCP connection owns a workspace. Its sessions keep their original documentId.
     if(typeof canvasDocuments==="undefined")mcpDisconnect();
     const clearProject=options?.clearProject===true,deferConversationStart=options?.deferConversationStart===true;
@@ -19193,6 +19227,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return historyEntry;
   }
   function canvasAgentCanvasDidPersist(location,id) {
+    canvasAgentReconcileCloudCanvas();
+    if (window.PENECHO_CONFIG?.runtime === "cloud") {
+      canvasAgentUpdateConnectionButton();
+      if (canvasAgentPanel.dataset.status === "unavailable" && canvasAgentExecutionAvailable()) canvasAgentSetStatus(t("canvasAgentReadyConnect"),"ready");
+    }
     if (!location||!id) return;
     const previousKey=state.canvasAgentCanvasKey, nextKey=canvasAgentCanvasIdentity({location,id});
     if (previousKey===nextKey) {
@@ -21006,7 +21045,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function canvasAgentSocketUrl(connectionId = selectedAiConnectionId()) {
     const path=canvasAgentUsesCloudHost(connectionId)
-      ? `/api/v1/hosted/canvases/${location.pathname.split("/")[2]}/agent`
+      ? `/api/v1/hosted/canvases/${canvasAgentCloudCanvasId()}/agent`
       : window.PENECHO_CONFIG?.runtime === "cloud" ? "/api/v1/remote-canvas/canvas-agent" : "/api/canvas-agent/socket";
     return `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${path}`;
   }
@@ -21050,6 +21089,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return {version:1,professionalEnabled:false,privatePluginIds:[]};
   }
   async function canvasAgentStartNewConversation(connectionId = selectedAiConnectionId(), {resetProjection=true,submitExecution=null,preserveDraft=false,preserveConversation=false}={}) {
+    canvasAgentReconcileCloudCanvas();
     connectionId=String(connectionId||"");
     if (resetProjection) canvasAgentBeginLocalConversation({submitExecution,preserveDraft});
     else if(submitExecution)canvasAgentAssertSubmitExecution(submitExecution);
@@ -21125,9 +21165,13 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     canvasAgent.pendingContextChange=null;
   }
   async function canvasAgentConnect(options) {
+    canvasAgentReconcileCloudCanvas();
+    const cloudCanvasId=canvasAgentCloudCanvasId();
+    const assertCloudCanvas=()=>{if(cloudCanvasId!==canvasAgentCloudCanvasId())throw Object.assign(Error("PenEcho Agent Canvas changed."),{code:"SESSION_CHANGED"});};
     if (!canvasAgentExecutionAvailable()) throw Object.assign(Error(t("canvasAgentNoConnections")),{code:"CANVAS_AGENT_NO_CONNECTION"});
     const {submitExecution=null}=options||{};
     await canvasAgentEnsureProjects();
+    assertCloudCanvas();
     if(submitExecution)canvasAgentAssertSubmitExecution(submitExecution);
     const connectionId = selectedAiConnectionId();
     if (canvasAgent.socket && canvasAgentUsesCloudHost(connectionId)!==canvasAgentUsesCloudHost(canvasAgent.connectionId)) {
@@ -21154,6 +21198,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     }
     canvasAgentSetStatus(t("canvasAgentConnecting"),"connecting");
     const widgetCapabilities=await canvasAgentCurrentWidgetCapabilities();
+    assertCloudCanvas();
     if (!canvasAgentExecutionAvailable()) throw Object.assign(Error(t("canvasAgentNoConnections")),{code:"CANVAS_AGENT_NO_CONNECTION"});
     if(submitExecution)canvasAgentAssertSubmitExecution(submitExecution);
     if(selectedAiConnectionId()!==connectionId)return canvasAgentConnect({submitExecution});
@@ -21163,8 +21208,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       const previousSocket=canvasAgent.socket;
       const socket = new WebSocket(canvasAgentSocketUrl());
       canvasAgent.socket = socket;
+      canvasAgent.socketCloudCanvasId=canvasAgentUsesCloudHost(connectionId)?cloudCanvasId:"";
       if(previousSocket&&previousSocket!==socket){try{previousSocket.close(1000,"PenEcho Agent session replaced");}catch{}}
       socket.addEventListener("open",()=>{
+        canvasAgentReconcileCloudCanvas();
         if(socket!==canvasAgent.socket){socket.close();return;}
         canvasAgent.outgoingSeq = 0;
         canvasAgent.incomingSeq = 0;
@@ -21183,7 +21230,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
           ...(conversationHistory.length?{conversationHistory}:{}),
         });
       });
-      socket.addEventListener("message",event=>{if(socket===canvasAgent.socket)void canvasAgentHandleMessage(event);});
+      socket.addEventListener("message",event=>{canvasAgentReconcileCloudCanvas();if(socket===canvasAgent.socket)void canvasAgentHandleMessage(event);});
       socket.addEventListener("close",()=>{
         if (socket !== canvasAgent.socket) return;
         const wasPending = Boolean(canvasAgent.connectReject),hadActiveTurn=canvasAgent.requestPending||canvasAgent.running;
@@ -21197,6 +21244,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         canvasAgent.connectResolve = canvasAgent.connectReject = null;
         canvasAgent.connectPromise = null;
         canvasAgent.socket = null;
+        canvasAgent.socketCloudCanvasId="";
         canvasAgentResolveApproval(false);
         canvasAgent.requestPending = false;
         canvasAgent.running = false;
@@ -29091,6 +29139,8 @@ var canvasDocumentIdentity = (() => {
     markPublishedOrigin:markPublishedCommunityOrigin,
   });
   window.PenEchoCloudProjects = Object.freeze({
+    currentCanvasId:() => state.currentSnapshotLocation === "cloud" && /^[0-9a-f-]{36}$/i.test(String(state.currentSnapshotId || "")) ? state.currentSnapshotId : null,
+    saveEcho:saveEchoToCloud,
     openHistory:openCloudProjectHistory,
     openCanvas:openCloudCanvas,
     confirmExternalOpen:confirmExternalCanvasOpen,

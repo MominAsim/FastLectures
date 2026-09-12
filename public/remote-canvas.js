@@ -233,14 +233,17 @@
         : unavailableBridgeResponse(state, bridgeDeviceLinked ? "device_offline" : "linked_device_required"));
     }
     const hostedModel = /^hosted:([0-9a-f-]{36})$/i.exec(headers.get("x-penecho-connection") || "");
-    if (sourceUrl.pathname === "/api/ai/command" && method === "POST" && hostedModel && requestedCanvasId) {
+    const executionCanvasId = window.PenEchoCloudProjects?.currentCanvasId?.() || null;
+    if (sourceUrl.pathname === "/api/ai/command" && method === "POST" && hostedModel) {
+      if (!executionCanvasId) return Promise.resolve(jsonResponse({ error:"cloud_canvas_save_required", message:"Save this Canvas to Cloud before using AI." }, 409));
       const command = JSON.parse(options.body || "{}");
       headers.set("idempotency-key", crypto.randomUUID());
       headers.set("content-type", "application/json");
       const execution = { executionSessionId:hostedExecutionSessionId, executionSessionStartedAt:hostedExecutionSessionStartedAt, generation:++hostedGeneration };
-      return nativeFetch(`/api/v1/hosted/canvases/${requestedCanvasId}/execution-fence`, { ...options, method, headers, credentials:"same-origin", body:JSON.stringify(execution) }).then(async (fence) => {
+      return nativeFetch(`/api/v1/hosted/canvases/${executionCanvasId}/execution-fence`, { ...options, method, headers, credentials:"same-origin", body:JSON.stringify(execution) }).then(async (fence) => {
         if (!fence.ok) return fence;
-        return nativeFetch("/api/v1/hosted/commands", { ...options, method, headers, credentials:"same-origin", body:JSON.stringify({ modelId:hostedModel[1], canvasId:requestedCanvasId, command, ...execution }) });
+        if (window.PenEchoCloudProjects?.currentCanvasId?.() !== executionCanvasId) return jsonResponse({ error:"cloud_canvas_changed", message:"The active Canvas changed. Retry on the current Canvas." }, 409);
+        return nativeFetch("/api/v1/hosted/commands", { ...options, method, headers, credentials:"same-origin", body:JSON.stringify({ modelId:hostedModel[1], canvasId:executionCanvasId, command, ...execution }) });
       });
     }
     const cloudBuiltInPluginCatalog = nativeCloudCanvasReadsEnabled && method === "GET" && sourceUrl.pathname === "/api/plugins" && !sourceUrl.search;
@@ -362,7 +365,14 @@
       if (Date.now() >= deadline) throw new Error("PenEcho Canvas did not finish loading.");
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    if (isCommunityCraft) await window.PenEchoCommunityUI.takeFurther(requestedCommunityItemId);
+    if (isCommunityCraft) {
+      const item = await window.PenEchoCommunityUI.takeFurther(requestedCommunityItemId);
+      if (browserEditing) {
+        const canvasId = await window.PenEchoCloudProjects.saveEcho(item?.name);
+        if (!deviceIdPattern.test(String(canvasId || ""))) throw Error("Cloud returned an invalid Canvas identity");
+        location.replace(`/canvas/${canvasId}`);
+      }
+    }
     else await window.PenEchoCloudProjects.openCanvas(requestedCanvasId);
   }
 

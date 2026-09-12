@@ -1745,6 +1745,8 @@
     markPublishedOrigin:markPublishedCommunityOrigin,
   });
   window.PenEchoCloudProjects = Object.freeze({
+    currentCanvasId:() => state.currentSnapshotLocation === "cloud" && /^[0-9a-f-]{36}$/i.test(String(state.currentSnapshotId || "")) ? state.currentSnapshotId : null,
+    saveEcho:saveEchoToCloud,
     openHistory:openCloudProjectHistory,
     openCanvas:openCloudCanvas,
     confirmExternalOpen:confirmExternalCanvasOpen,

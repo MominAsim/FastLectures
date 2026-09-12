@@ -13,6 +13,10 @@ const gateCss = fs.readFileSync(path.join(ROOT, "public", "remote-canvas.css"), 
 
 const CANVAS_ID = "123e4567-e89b-12d3-a456-426614174000";
 const COMMUNITY_ID = "123e4567-e89b-42d3-a456-426614174000";
+const SAVED_CANVAS_ID = "123e4567-e89b-42d3-a456-426614174001";
+const CURRENT_CANVAS_ID = "123e4567-e89b-42d3-a456-426614174002";
+const SWITCHED_CANVAS_ID = "123e4567-e89b-42d3-a456-426614174003";
+const HOSTED_MODEL_ID = "123e4567-e89b-42d3-a456-426614174004";
 
 class FakeElement {
   constructor(tag) {
@@ -43,7 +47,7 @@ function flatten(root) {
   return out;
 }
 
-function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.penecho.test/canvas/", language = "en-US", respond, openCanvas, takeFurther, widgetFrames = [], nativeReads = false, fetchResponse } = {}) {
+function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.penecho.test/canvas/", language = "en-US", respond, openCanvas, takeFurther, saveEcho, currentCanvasId, widgetFrames = [], nativeReads = false, fetchResponse } = {}) {
   const topRow = new FakeElement("div");
   topRow.className = "top-row";
   const brand = new FakeElement("div");
@@ -64,17 +68,27 @@ function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.pene
     getElementById:() => null,
   };
   const redirects = [];
+  const replacements = [];
   const location = {
     pathname,
     origin:"https://cloud.penecho.test",
     href:`https://cloud.penecho.test${pathname}`,
     assign(url) { redirects.push(url); },
+    replace(url) { replacements.push(url); },
   };
   const opened = [];
   const taken = [];
+  const saveEchoCalls = [];
   const windowObject = {
     PENECHO_CONFIG:{ runtime:"cloud", remoteCanvasNativeReads:nativeReads },
-    PenEchoCloudProjects:{ openCanvas:openCanvas || (async (id) => { opened.push(id); }) },
+    PenEchoCloudProjects:{
+      openCanvas:openCanvas || (async (id) => { opened.push(id); }),
+      saveEcho:async (name) => {
+        saveEchoCalls.push(name);
+        return saveEcho ? saveEcho(name) : SAVED_CANVAS_ID;
+      },
+      currentCanvasId:typeof currentCanvasId === "function" ? currentCanvasId : () => currentCanvasId || null,
+    },
     PenEchoCommunityUI:{ takeFurther:takeFurther || (async (id) => { taken.push(id); }) },
   };
   const windowListeners = new Map();
@@ -106,7 +120,7 @@ function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.pene
   };
   vm.runInNewContext(gateScript, context, { filename:"public/remote-canvas.js" });
   const gate = document.body.children[0];
-  return { gate, brand, window:windowObject, redirects, fetchCalls, opened, taken,
+  return { gate, brand, window:windowObject, redirects, replacements, fetchCalls, opened, taken, saveEchoCalls,
     back:topRow.children[0],
     title:flatten(gate).find((el) => el.id === "remoteCanvasTitle"),
     detail:flatten(gate).find((el) => el.className === "remote-canvas-detail"),
@@ -134,7 +148,7 @@ test("Remote Canvas gate only ever contains a single Link Device action", () => 
   assert.equal(link.href, "/dashboard.html#devices");
   assert.equal(link.textContent, "Link Device");
   assert.equal(link.listeners.size, 0);
-  assert.doesNotMatch(gateScript, /retry|Try again|重新连接/i);
+  assert.doesNotMatch(gateScript, /data-action=["']retry["']/i);
   assert.doesNotMatch(gateScript, /downloads\.html|remote-canvas-flow|innerHTML/);
   assert.doesNotMatch(gateCss, /remote-canvas-flow|data-action="retry"|remote-canvas-actions button/);
 });
@@ -413,6 +427,121 @@ test("native community Canvas reads open Echoes without a linked device, while t
     assert.deepEqual(run.taken, []);
     assert.deepEqual(run.opened, []);
   }
+});
+
+test("native community Echo waits for Cloud save before replacing the route with the returned Canvas id", async () => {
+  let releaseSave;
+  const savePending = new Promise((resolve) => { releaseSave = resolve; });
+  const run = boot({
+    pathname:`/canvas/community/${COMMUNITY_ID}`,
+    nativeReads:true,
+    respond:() => ({ device:null }),
+    takeFurther:async () => ({ id:COMMUNITY_ID, name:"Echoed Craft" }),
+    saveEcho:async (name) => {
+      assert.equal(name, "Echoed Craft");
+      return savePending;
+    },
+  });
+  await flush();
+  assert.deepEqual(run.saveEchoCalls, ["Echoed Craft"]);
+  assert.deepEqual(run.replacements, [], "the route must wait for Cloud save completion");
+  assert.equal(run.gate.hidden, false);
+
+  releaseSave(SAVED_CANVAS_ID);
+  await flush();
+  assert.deepEqual(run.replacements, [`/canvas/${SAVED_CANVAS_ID}`]);
+  assert.notEqual(run.replacements[0], `/canvas/${COMMUNITY_ID}`);
+  assert.equal(run.gate.hidden, true);
+});
+
+test("native community Echo keeps the gate visible when Cloud save fails", async () => {
+  const run = boot({
+    pathname:`/canvas/community/${COMMUNITY_ID}`,
+    nativeReads:true,
+    respond:() => ({ device:{ name:"Host", platform:"linux", online:false } }),
+    takeFurther:async () => ({ id:COMMUNITY_ID, name:"Echoed Craft" }),
+    saveEcho:async () => { throw Error("Cloud save unavailable"); },
+  });
+  await flush();
+  assert.deepEqual(run.saveEchoCalls, ["Echoed Craft"]);
+  assert.deepEqual(run.replacements, []);
+  assert.equal(run.gate.dataset.state, "error");
+  assert.equal(run.gate.hidden, false);
+  assert.equal(run.title.textContent, "This Craft could not be continued right now");
+  assert.equal(run.detail.textContent, "Cloud save unavailable");
+});
+
+test("hosted Cloud commands bind the live current Canvas instead of the deep-link pathname", async () => {
+  const run = boot({
+    pathname:`/canvas/${CANVAS_ID}`,
+    currentCanvasId:() => CURRENT_CANVAS_ID,
+    respond:() => ({ device:null }),
+    fetchResponse:(url) => ({ ok:true, status:200, json:async () => ({ url }) }),
+  });
+  const response = await run.window.fetch("/api/ai/command", {
+    method:"POST",
+    headers:{ "x-penecho-connection":`hosted:${HOSTED_MODEL_ID}` },
+    body:JSON.stringify({ action:"inspect" }),
+  });
+  assert.equal(response.status, 200);
+  const fence = run.fetchCalls.find((call) => call.url.includes("/execution-fence"));
+  assert.ok(fence);
+  assert.equal(fence.url, `/api/v1/hosted/canvases/${CURRENT_CANVAS_ID}/execution-fence`);
+  const command = run.fetchCalls.find((call) => call.url === "/api/v1/hosted/commands");
+  assert.ok(command);
+  assert.deepEqual(JSON.parse(command.options.body), {
+    modelId:HOSTED_MODEL_ID,
+    canvasId:CURRENT_CANVAS_ID,
+    command:{ action:"inspect" },
+    executionSessionId:JSON.parse(fence.options.body).executionSessionId,
+    executionSessionStartedAt:JSON.parse(fence.options.body).executionSessionStartedAt,
+    generation:1,
+  });
+  assert.notEqual(fence.url, `/api/v1/hosted/canvases/${CANVAS_ID}/execution-fence`);
+});
+
+test("hosted Cloud commands stop after the active Canvas changes while the fence is pending", async () => {
+  let activeCanvasId = CURRENT_CANVAS_ID, releaseFence;
+  const pendingFence = new Promise((resolve) => { releaseFence = resolve; });
+  const run = boot({
+    currentCanvasId:() => activeCanvasId,
+    respond:() => ({ device:null }),
+    fetchResponse:(url) => url.includes("/execution-fence")
+      ? pendingFence
+      : { ok:true, status:200, json:async () => ({}) },
+  });
+  const request = run.window.fetch("/api/ai/command", {
+    method:"POST",
+    headers:{ "x-penecho-connection":`hosted:${HOSTED_MODEL_ID}` },
+    body:JSON.stringify({ action:"mutate" }),
+  });
+  await flush();
+  assert.equal(run.fetchCalls.filter((call) => call.url.includes("/execution-fence")).length, 1);
+  assert.equal(run.fetchCalls.filter((call) => call.url === "/api/v1/hosted/commands").length, 0);
+  activeCanvasId = SWITCHED_CANVAS_ID;
+  releaseFence({ ok:true, status:200 });
+  const response = await request;
+  assert.equal(response.status, 409);
+  assert.deepEqual(await response.json(), {
+    error:"cloud_canvas_changed",
+    message:"The active Canvas changed. Retry on the current Canvas.",
+  });
+  assert.equal(run.fetchCalls.filter((call) => call.url === "/api/v1/hosted/commands").length, 0);
+});
+
+test("hosted Cloud commands return a save-required 409 without a draft Canvas", async () => {
+  const run = boot({ respond:() => ({ device:null }) });
+  const response = await run.window.fetch("/api/ai/command", {
+    method:"POST",
+    headers:{ "x-penecho-connection":`hosted:${HOSTED_MODEL_ID}` },
+    body:JSON.stringify({ action:"inspect" }),
+  });
+  assert.equal(response.status, 409);
+  assert.deepEqual(await response.json(), {
+    error:"cloud_canvas_save_required",
+    message:"Save this Canvas to Cloud before using AI.",
+  });
+  assert.equal(run.fetchCalls.filter((call) => call.url.includes("/execution-fence") || call.url === "/api/v1/hosted/commands").length, 0);
 });
 
 test("desktop runtime keeps its existing direct Cloud sync path", async () => {

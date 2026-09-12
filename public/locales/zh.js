@@ -557,6 +557,7 @@ window.PENECHO_LOCALES.zh = {
   canvasAgentReadyConnect: "等待连接",
   canvasAgentReady: "就绪",
   canvasAgentNoConnections: "无可用的连接",
+  canvasAgentCloudSaveRequired: "请先将此画布保存到云端，再使用 AI。",
   canvasAgentConnecting: "正在连接…",
   canvasAgentResumed: "已恢复对话",
   canvasAgentWorking: "Agent 正在处理…",

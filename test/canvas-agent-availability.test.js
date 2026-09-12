@@ -99,6 +99,7 @@ test("Canvas Agent browser-only mode keeps the panel launcher but disables sendi
 test("Canvas Agent attachment sync restores sending after project upload and keeps browser-only sending disabled",()=>{
   const attach=button(),send=button(),input={disabled:false},context={
     window:{PENECHO_CONFIG:{runtime:"local",canvasAgent:true}},
+    canvasAgentUsesCloudHost:()=>false,t:localized,canvasAgentFileInput:{accept:""},
     canvasAgentAttach:attach,canvasAgentSend:send,canvasAgentInput:input,
     canvasAgent:{attachmentBusy:false,projectUploadBusy:true},canvasAgentSyncPromptSuggestions() {},
   },sync=vm.runInNewContext(`(()=>{
@@ -133,6 +134,7 @@ test("Canvas Agent unavailable status and connection label remain unavailable ac
     t:localized,canvasAgentSyncSendAvailability(){},
   },run=vm.runInNewContext(`(()=>{
     ${functionSource(source,"canvasAgentExecutionAvailable")}
+    ${functionSource(source,"canvasAgentUnavailableMessage")}
     ${functionSource(source,"canvasAgentSetStatus")}
     ${functionSource(source,"canvasAgentUpdateConnectionButton")}
     return {setStatus:canvasAgentSetStatus,updateConnectionButton:canvasAgentUpdateConnectionButton};
@@ -156,8 +158,10 @@ test("Cloud hosted connections execute without a device only when the hosted Age
   let selected="hosted:db6e5128-0ec7-4a2a-a9bd-6b20c49c322b";
   const context={window:{PENECHO_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true,hostedCanvasAgent:true}},
     location:{pathname:"/canvas/5250fdb4-3cce-44fd-a60c-3b6ee5732ad0",protocol:"https:",host:"uat.example.test"},
+    state:{currentSnapshotLocation:"cloud",currentSnapshotId:"5250fdb4-3cce-44fd-a60c-3b6ee5732ad0"},
     selectedAiConnectionId:()=>selected};
   const run=vm.runInNewContext(`(()=>{
+    ${functionSource(source,"canvasAgentCloudCanvasId")}
     ${functionSource(source,"canvasAgentUsesCloudHost")}
     ${functionSource(source,"canvasAgentExecutionAvailable")}
     ${functionSource(source,"canvasAgentSocketUrl")}
@@ -235,6 +239,7 @@ test("Canvas Agent language refresh keeps unavailable status instead of restorin
   context.canvasAgentReferencePicker.hidden=true;
   const run=vm.runInNewContext(`(()=>{
     ${functionSource(source,"canvasAgentExecutionAvailable")}
+    ${functionSource(source,"canvasAgentUnavailableMessage")}
     ${functionSource(source,"canvasAgentSetStatus")}
     ${functionSource(source,"updateCanvasAgentLanguage")}
     return updateCanvasAgentLanguage;
@@ -247,6 +252,7 @@ test("Canvas Agent language refresh keeps unavailable status instead of restorin
 test("Canvas Agent connect rejects unavailable execution before project loading, capabilities, or WebSocket creation",async()=>{
   const calls={projects:0,websocket:0},context={
     window:{PENECHO_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
+    canvasAgentReconcileCloudCanvas:()=>{},canvasAgentCloudCanvasId:()=>"",
     canvasAgentEnsureProjects:async()=>{calls.projects++},canvasAgentCurrentWidgetCapabilities:async()=>{calls.capabilities=(calls.capabilities||0)+1;return {};},
     canvasAgentSetStatus:()=>{},canvasAgentExecutionAvailable:null,
     t:localized,
@@ -266,6 +272,7 @@ test("Canvas Agent connect rechecks execution after asynchronous capabilities an
   const context={
     window:{PENECHO_CONFIG:{runtime:"cloud",canvasAgent:true,browserCanvasEditing:false}},
     canvasAgent:{socket:null,connectPromise:null},
+    canvasAgentReconcileCloudCanvas:()=>{},canvasAgentCloudCanvasId:()=>"",
     canvasAgentEnsureProjects:async()=>{calls.projects++},
     canvasAgentCurrentWidgetCapabilities:async()=>{
       calls.capabilities++;

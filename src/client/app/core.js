@@ -1149,6 +1149,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentReadyConnect: "Ready to connect",
       canvasAgentReady: "Ready",
       canvasAgentNoConnections: "No available connections",
+      canvasAgentCloudSaveRequired: "Save this Canvas to Cloud before using AI.",
       canvasAgentConnecting: "Connecting…",
       canvasAgentResumed: "Conversation resumed",
       canvasAgentWorking: "Agent is working…",
