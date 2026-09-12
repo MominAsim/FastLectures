@@ -1704,6 +1704,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     state = {
       mode: "pen",
       previousToolMode: "pen",
+      widgetReturnMode: "pen",
       eraserMode: initialEraserMode,
       scale: 0.1,
       panX: 0,

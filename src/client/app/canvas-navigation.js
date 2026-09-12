@@ -210,7 +210,10 @@
   // context menu): it selects the tool that can own Widget interaction first.
   function enterWidgetInteraction(widget) {
     if (!widget || widget.pending || !visibleWidgets().includes(widget)) return false;
-    const returnTool = state.widgetInteractionReturnTool || { viewMode:state.viewMode, mode:state.viewMode ? state.viewTool : state.mode };
+    const returnTool = state.widgetInteractionReturnTool || {
+      viewMode:state.viewMode,
+      mode:state.viewMode ? "hand" : state.mode === "select" ? state.widgetReturnMode || "pen" : state.mode,
+    };
     if (state.viewMode) {
       if (state.viewTool !== "select") setCanvasViewTool("select");
     } else if (state.mode !== "select") {

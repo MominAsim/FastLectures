@@ -93,8 +93,8 @@
       MAX_RUNTIME_ERRORS = 5,
       MOVE_TOLERANCE_PX = 8,
       CONTROL_RADIUS_PX = 26,
-      CONTROL_EDGE_PX = 7,
-      CONTROL_CORNER_PX = 16,
+      CONTROL_EDGE_PX = 14,
+      CONTROL_CORNER_PX = 32,
       MAX_SNAPSHOT_DIMENSION = 2400,
       MAX_SNAPSHOT_PIXELS = 4800000,
       HIGH_RESOLUTION_SNAPSHOT_SCALE = 1.5,
@@ -444,8 +444,8 @@
         height = Math.max(1, document.documentElement.clientHeight),
         rightDistance = (width - clientX) * scaleX,
         bottomDistance = (height - clientY) * scaleY,
-        edge = pointerType === "touch" ? CONTROL_RADIUS_PX : CONTROL_EDGE_PX,
-        corner = pointerType === "touch" ? CONTROL_RADIUS_PX : CONTROL_CORNER_PX;
+        edge = pointerType === "touch" ? CONTROL_RADIUS_PX * 2 : CONTROL_EDGE_PX,
+        corner = pointerType === "touch" ? CONTROL_RADIUS_PX * 2 : CONTROL_CORNER_PX;
       if (rightDistance >= 0 && rightDistance <= corner && bottomDistance >= 0 && bottomDistance <= corner) return "resize";
       if (rightDistance >= 0 && rightDistance <= edge && clientY >= 0 && clientY <= height) return "width";
       if (bottomDistance >= 0 && bottomDistance <= edge && clientX >= 0 && clientX <= width) return "height";

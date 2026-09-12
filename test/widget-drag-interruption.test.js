@@ -223,3 +223,21 @@ test("global interruption events are registered and tool changes clean up before
   const setCanvasMode = functionSource(uiBootstrap, "setCanvasMode");
   assert.match(setCanvasMode, /if \(state\.widgetGesture\) finishInterruptedWidgetGesture\(\{ type:"tool-change" \}\);[\s\S]*?if \(state\.widgetEdit\) acceptWidgetEdit\(\)/);
 });
+
+ test("dragging attached object bars preserves Hand without an implicit selection tool switch", () => {
+   for (const target of ["widget", "image", "animation"]) {
+     const state = { mode:"hand", viewMode:false, spacePan:false };
+     const calls = [];
+     const begin = vm.runInNewContext(`(${functionSource(canvasRuntime, "beginObjectChromeMove")})`, {
+       state, Number, clientPoint: () => ({x:10,y:20}),
+       setCanvasMode: () => assert.fail("dragging must not switch tools"),
+       beginWidgetGesture: () => { calls.push("widget"); return true; },
+       beginImageGesture: () => { calls.push("image"); return true; },
+       beginAnimationGesture: () => { calls.push("animation"); return true; },
+       objectChromeLayer: {setPointerCapture() {}},
+     });
+     assert.equal(begin({button:0,pointerId:1}, {target,object:{id:"object"}}),true);
+     assert.deepEqual(calls,[target]);
+     assert.equal(state.mode,"hand");
+   }
+ });

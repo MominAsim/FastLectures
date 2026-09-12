@@ -1822,6 +1822,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     state = {
       mode: "pen",
       previousToolMode: "pen",
+      widgetReturnMode: "pen",
       eraserMode: initialEraserMode,
       scale: 0.1,
       panX: 0,
@@ -6552,10 +6553,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (widget.styleTransformKey !== transformKey) {
       widget.styleTransformKey = transformKey;
       declaration.transform = `translate3d(${localX}px,${localY}px,0) scale(${scaleX},${scaleY})`;
-      declaration.setProperty?.("--widget-resize-edge-x", `${14 / scaleX}px`);
-      declaration.setProperty?.("--widget-resize-edge-y", `${14 / scaleY}px`);
-      declaration.setProperty?.("--widget-resize-corner-x", `${18 / scaleX}px`);
-      declaration.setProperty?.("--widget-resize-corner-y", `${18 / scaleY}px`);
+      declaration.setProperty?.("--widget-resize-edge-x", `${28 / scaleX}px`);
+      declaration.setProperty?.("--widget-resize-edge-y", `${28 / scaleY}px`);
+      declaration.setProperty?.("--widget-resize-corner-x", `${36 / scaleX}px`);
+      declaration.setProperty?.("--widget-resize-corner-y", `${36 / scaleY}px`);
     }
     updateWidgetRenderVisibility(widget, screenX, screenY);
     sendWidgetHostState(widget, scaleX, scaleY);
@@ -6920,8 +6921,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function widgetResizeHit(box, point, pointerType = "mouse") {
     const scale = Math.max(.03, Number(state.scale) || 1),
-      edge = (pointerType === "touch" ? 22 : 7) / scale,
-      corner = (pointerType === "touch" ? 28 : 16) / scale,
+      edge = (pointerType === "touch" ? 44 : 14) / scale,
+      corner = (pointerType === "touch" ? 56 : 32) / scale,
       right = box.x + box.w,
       bottom = box.y + box.h,
       nearCorner = point.x >= right - corner && point.x <= right + edge
@@ -9361,8 +9362,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     declaration?.setProperty("--widget-refine-confirm-y", `${position.y.toFixed(1)}px`);
   }
   function beginObjectChromeMove(event, spec) {
-    if (state.mode === "hand" && !state.viewMode && !state.spacePan && Number(event.button) === 0 && ["widget", "image", "animation"].includes(spec.target)) setCanvasMode("select");
-    if (state.mode !== "select" || state.viewMode || state.spacePan || Number(event.button) !== 0) return false;
+    const handObjectMove = state.mode === "hand" && ["widget", "image", "animation"].includes(spec.target);
+    if ((state.mode !== "select" && !handObjectMove) || state.viewMode || state.spacePan || Number(event.button) !== 0) return false;
     const point = clientPoint(event);
     let started = false;
     if (spec.target === "pending") {
@@ -27146,7 +27147,10 @@ var canvasDocumentIdentity = (() => {
   // context menu): it selects the tool that can own Widget interaction first.
   function enterWidgetInteraction(widget) {
     if (!widget || widget.pending || !visibleWidgets().includes(widget)) return false;
-    const returnTool = state.widgetInteractionReturnTool || { viewMode:state.viewMode, mode:state.viewMode ? state.viewTool : state.mode };
+    const returnTool = state.widgetInteractionReturnTool || {
+      viewMode:state.viewMode,
+      mode:state.viewMode ? "hand" : state.mode === "select" ? state.widgetReturnMode || "pen" : state.mode,
+    };
     if (state.viewMode) {
       if (state.viewTool !== "select") setCanvasViewTool("select");
     } else if (state.mode !== "select") {
@@ -27833,7 +27837,7 @@ var canvasDocumentIdentity = (() => {
     if (activation?.id === e.pointerId) {
       state.widgetActivationTap = null;
       if (e.type === "pointerup" && Math.hypot(e.clientX - activation.x, e.clientY - activation.y) <= 6 && state.touches.size <= 1) {
-        setWidgetInteraction(activation.widget);
+        enterWidgetInteraction(activation.widget);
       }
     }
     finishCanvasNavigationPreview();
@@ -28126,7 +28130,9 @@ var canvasDocumentIdentity = (() => {
       state.timer = 0;
       hideAutoDelayControl();
     }
+    if (state.mode !== "select") state.widgetReturnMode = state.mode;
     state.mode = mode;
+    if (mode !== "select") state.widgetReturnMode = mode;
     updateAutoControl();
     if (mode !== "pen") updateWidgetRefinePointer(null);
     else refreshWidgetRefineHoverCandidate();

@@ -1682,10 +1682,10 @@
     if (widget.styleTransformKey !== transformKey) {
       widget.styleTransformKey = transformKey;
       declaration.transform = `translate3d(${localX}px,${localY}px,0) scale(${scaleX},${scaleY})`;
-      declaration.setProperty?.("--widget-resize-edge-x", `${14 / scaleX}px`);
-      declaration.setProperty?.("--widget-resize-edge-y", `${14 / scaleY}px`);
-      declaration.setProperty?.("--widget-resize-corner-x", `${18 / scaleX}px`);
-      declaration.setProperty?.("--widget-resize-corner-y", `${18 / scaleY}px`);
+      declaration.setProperty?.("--widget-resize-edge-x", `${28 / scaleX}px`);
+      declaration.setProperty?.("--widget-resize-edge-y", `${28 / scaleY}px`);
+      declaration.setProperty?.("--widget-resize-corner-x", `${36 / scaleX}px`);
+      declaration.setProperty?.("--widget-resize-corner-y", `${36 / scaleY}px`);
     }
     updateWidgetRenderVisibility(widget, screenX, screenY);
     sendWidgetHostState(widget, scaleX, scaleY);
@@ -2050,8 +2050,8 @@
   }
   function widgetResizeHit(box, point, pointerType = "mouse") {
     const scale = Math.max(.03, Number(state.scale) || 1),
-      edge = (pointerType === "touch" ? 22 : 7) / scale,
-      corner = (pointerType === "touch" ? 28 : 16) / scale,
+      edge = (pointerType === "touch" ? 44 : 14) / scale,
+      corner = (pointerType === "touch" ? 56 : 32) / scale,
       right = box.x + box.w,
       bottom = box.y + box.h,
       nearCorner = point.x >= right - corner && point.x <= right + edge
@@ -4491,8 +4491,8 @@
     declaration?.setProperty("--widget-refine-confirm-y", `${position.y.toFixed(1)}px`);
   }
   function beginObjectChromeMove(event, spec) {
-    if (state.mode === "hand" && !state.viewMode && !state.spacePan && Number(event.button) === 0 && ["widget", "image", "animation"].includes(spec.target)) setCanvasMode("select");
-    if (state.mode !== "select" || state.viewMode || state.spacePan || Number(event.button) !== 0) return false;
+    const handObjectMove = state.mode === "hand" && ["widget", "image", "animation"].includes(spec.target);
+    if ((state.mode !== "select" && !handObjectMove) || state.viewMode || state.spacePan || Number(event.button) !== 0) return false;
     const point = clientPoint(event);
     let started = false;
     if (spec.target === "pending") {

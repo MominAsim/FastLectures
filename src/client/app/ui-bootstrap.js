@@ -491,7 +491,7 @@
     if (activation?.id === e.pointerId) {
       state.widgetActivationTap = null;
       if (e.type === "pointerup" && Math.hypot(e.clientX - activation.x, e.clientY - activation.y) <= 6 && state.touches.size <= 1) {
-        setWidgetInteraction(activation.widget);
+        enterWidgetInteraction(activation.widget);
       }
     }
     finishCanvasNavigationPreview();
@@ -784,7 +784,9 @@
       state.timer = 0;
       hideAutoDelayControl();
     }
+    if (state.mode !== "select") state.widgetReturnMode = state.mode;
     state.mode = mode;
+    if (mode !== "select") state.widgetReturnMode = mode;
     updateAutoControl();
     if (mode !== "pen") updateWidgetRefinePointer(null);
     else refreshWidgetRefineHoverCandidate();

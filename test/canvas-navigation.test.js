@@ -119,7 +119,7 @@ test('right-click lists the Widget toolbar and double-click enters interaction f
 });
 
 test('explicit widget interaction restores the originating Hand or Pen tool on exit',()=>{
- for(const mode of ['hand','pen','select']){
+ for(const mode of ['hand','pen','eraser','area-eraser','text']){
   const h=harness({mode});
   assert.equal(h.api.enterWidgetInteraction(h.widgets[0]),true);
   assert.equal(h.state.mode,'select');
@@ -159,3 +159,17 @@ test('a front image blocks the HTML shell beneath it without blocking exposed or
  h.widgets[1].maximized=true;
  assert.equal(h.api.canvasWidgetAtEvent(event),h.widgets[1]);
 });
+
+ test('selection mode exits to the last working tool, never the selection arrow',()=>{
+  for(const mode of ['hand','pen','eraser']){
+   const h=harness({mode:'select',widgetReturnMode:mode});
+   h.api.enterWidgetInteraction(h.widgets[0]);
+   h.api.enterWidgetInteraction(h.widgets[1]);
+   h.api.setWidgetInteraction(null);
+   assert.equal(h.state.mode,mode);
+  }
+  const h=harness({viewMode:true,viewTool:'select'});
+  h.api.enterWidgetInteraction(h.widgets[0]);
+  h.api.setWidgetInteraction(null);
+  assert.equal(h.state.viewTool,'hand');
+ });
