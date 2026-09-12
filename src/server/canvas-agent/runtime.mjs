@@ -1793,7 +1793,10 @@ export function publicSessionEvent(event, session) {
   }
   if (event?.type === 'turn/start') return { kind:'turn_start', turn:data.turn }
   if (event?.type === 'turn/end') {
-    const projected={kind:'turn_end',turn:data.turn,reason:data.reason},completed=data.reason?.kind==='completed'
+    const reason=data.reason?.kind==='max-tokens'
+      ? {kind:'error',terminationReason:'max-tokens',error:{code:'MODEL_OUTPUT_EXHAUSTED',message:'The model exhausted its output budget before completing this turn. Any Canvas changes already applied are preserved.'}}
+      : data.reason
+    const projected={kind:'turn_end',turn:data.turn,reason},completed=data.reason?.kind==='completed'
     if(completed&&session?.canvasTitleRequested&&session.canvasTitleCandidate)projected.canvasTitle=session.canvasTitleCandidate
     if(session){session.canvasTitleRequested=false;session.canvasTitleCandidate='';session.canvasTitleStreams?.clear()}
     return projected

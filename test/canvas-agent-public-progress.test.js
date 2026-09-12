@@ -124,3 +124,19 @@ test("Harness forwards CLI progress to the chat before the CLI decision resolves
     assert.equal(calls, 2);
   } finally { clearTimeout(timer); release(); await submission; }
 });
+
+
+test("output exhaustion reaches the existing error UI without discarding the session or Canvas", async () => {
+  const { publicSessionEvent } = await import("../src/server/canvas-agent/runtime.mjs");
+  const content={revision:7,objects:[{id:"existing-widget"}]};
+  const session={id:"same-session",stateDigest:content,canvasTitleRequested:true,canvasTitleCandidate:"unfinished",canvasTitleStreams:new Map()};
+  const event=publicSessionEvent({type:"turn/end",data:{turn:2,reason:{kind:"max-tokens"}}},session);
+  assert.equal(event.reason.kind,"error");
+  assert.equal(event.reason.terminationReason,"max-tokens");
+  assert.equal(event.reason.error.code,"MODEL_OUTPUT_EXHAUSTED");
+  assert.match(event.reason.error.message,/before completing this turn/);
+  assert.equal(event.canvasTitle,undefined);
+  assert.equal(session.id,"same-session");
+  assert.equal(session.stateDigest,content);
+  assert.equal(publicSessionEvent({type:"turn/end",data:{turn:3,reason:{kind:"cancelled"}}},session).reason.kind,"cancelled");
+});
