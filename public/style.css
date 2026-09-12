@@ -7656,15 +7656,21 @@ body[data-theme="studio"].studio-mcp-docked :is(#pe-button-contract, .mcp-canvas
 /* Remote browser setup must respect the runtime capability disclosure. */
 #settingsPageMcp .mcp-clients[hidden] { display:none; }
 
-/* Palette extension: native color field, using the catalog compact control
-   height and desktop/coarse pointer targets alongside the 4 × 2 presets. */
-.custom-color-control { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 36px; color: var(--pe-ink, var(--ink)); font: 400 12px/1.8 var(--pe-font-ui, system-ui, sans-serif); cursor: pointer; }
-.custom-color-control input[type="color"] { box-sizing: border-box; flex: 0 0 36px; width: 36px; height: 36px; padding: 4px; border: 0; border-radius: 50%; background: conic-gradient(#dc2626, #ea580c, #ca8a04, #16a34a, #0891b2, #2563eb, #9333ea, #dc2626); background-clip: content-box; cursor: pointer; }
-.custom-color-control input[type="color"]::-webkit-color-swatch-wrapper { padding: 5px; }
-.custom-color-control input[type="color"]::-webkit-color-swatch { border: 1px solid var(--pe-line, var(--line)); border-radius: 50%; }
-.custom-color-control input[type="color"]::-moz-color-swatch { border: 5px solid transparent; border-radius: 50%; }
-.custom-color-control input[type="color"]:focus-visible { outline: 2px solid var(--pe-tint, var(--studio-accent, var(--gold-bright))); outline-offset: 1px; }
-@media (pointer: coarse) { .custom-color-control { min-height: 44px; } .custom-color-control input[type="color"] { flex-basis: 44px; width: 44px; height: 44px; padding: 8px; } }
+/* Custom color shares one product-owned editor across platforms. */
+.custom-color-control { grid-column: 1 / -1; width: 100%; }
+/* Anchored popover + native fields/ranges and secondary/primary actions:
+   design catalog #surfaces / #forms. The draft is committed only by Apply. */
+.color-orbit:has(.custom-color-editor:not([hidden])) { width: min(260px, calc(100vw - 24px)); box-sizing: border-box; grid-template-columns: repeat(4, minmax(0, 1fr)); max-height: calc(100dvh - 100px); overflow-y: auto; }
+.custom-color-editor { grid-column: 1 / -1; display: grid; gap: 12px; width: 100%; min-width: 0; padding: 8px; box-sizing: border-box; }
+.custom-color-editor[hidden] { display: none; }
+.custom-color-preview { height: 32px; border: 1px solid var(--pe-line); border-radius: var(--pe-control-radius, 5px); }
+.custom-color-editor label { display: grid; grid-template-columns: 32px minmax(0, 1fr) 28px; align-items: center; gap: 8px; font: 400 13px/1.5 var(--pe-font-ui); }
+.custom-color-editor input[type="text"] { grid-column: 2 / -1; width: 100%; min-width: 0; box-sizing: border-box; font-size: 16px; }
+.custom-color-editor input[type="range"] { width: 100%; min-width: 0; margin: 0; }
+.custom-color-editor output { text-align: end; font-variant-numeric: tabular-nums; }
+.custom-color-actions { display: flex; justify-content: flex-end; gap: 8px; }
+@media (pointer: coarse) { .custom-color-editor label { min-height: 44px; } }
+
 
 /* AI connections: canonical settings architecture + #lists single/double rows.
    Geometry/type/material sourced from penecho-design-language.css; product owns behavior. */

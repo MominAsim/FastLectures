@@ -32,8 +32,6 @@
       previewOnly:"This Craft's full view needs a redemption. Showing the preview.",
       failed:"This Craft could not be opened.",
       backTitle:"Back to Echoes",
-      staticWidgetNotice:"Public data refreshes at most every 5 minutes. Some sources may be unavailable.",
-      dismissNotice:"Hide this message",
     },
     zh: {
       loading:"正在打开这个 Craft…",
@@ -45,8 +43,6 @@
       previewOnly:"查看完整内容需要先赎回，正在展示预览图。",
       failed:"这个 Craft 暂时无法打开。",
       backTitle:"返回 Echoes",
-      staticWidgetNotice:"公开数据最多每 5 分钟刷新一轮，部分数据源可能暂时不可用。",
-      dismissNotice:"隐藏此提示",
     },
   };
   function viewerLanguage() {
@@ -75,20 +71,6 @@
   actions.className = "viewer-actions";
   topbar.append(brand, actions);
   document.body.append(topbar);
-
-  const notice = document.createElement("button");
-  notice.type = "button";
-  notice.dataset.peButton = "ghost";
-  notice.dataset.peDensity = "standard";
-  notice.className = "viewer-notice";
-  notice.textContent = copy.staticWidgetNotice;
-  notice.title = copy.dismissNotice;
-  notice.setAttribute("aria-label", `${copy.staticWidgetNotice} ${copy.dismissNotice}`);
-  notice.addEventListener("click", () => { notice.hidden = true; });
-  // Dock the notice at the bottom of the page (inside the flex-column <main>)
-  // instead of floating it over the canvas; #viewport is flex:1, so it yields
-  // the space and the app's ResizeObserver re-fits the canvas automatically.
-  (document.querySelector("main") || document.body).append(notice);
 
   const status = document.createElement("div");
   status.className = "viewer-status";
@@ -146,9 +128,6 @@
     copy = COPY[viewerLanguage()];
     brand.title = copy.backTitle;
     brand.setAttribute("aria-label", copy.backTitle);
-    notice.textContent = copy.staticWidgetNotice;
-    notice.title = copy.dismissNotice;
-    notice.setAttribute("aria-label", `${copy.staticWidgetNotice} ${copy.dismissNotice}`);
     const statusKey = status.dataset.copyKey;
     if (statusKey && COPY.en[statusKey]) showPreview(statusKey);
     else if (!status.hidden) status.innerHTML = `<div><div class="spinner"></div>${copy.loading}</div>`;

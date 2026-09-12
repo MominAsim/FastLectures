@@ -1066,8 +1066,10 @@
       trigger.setAttribute("aria-expanded", "false");
       if (orbit) {
         orbit.hidden = true;
+        orbit.querySelector(".custom-color-editor").hidden = true;
+        orbit.querySelector("[data-custom-color-open]").setAttribute("aria-expanded", "false");
         orbit.setAttribute("aria-hidden", "true");
-        orbit.querySelectorAll(".orbit-swatch, [data-custom-color]").forEach((button) => button.setAttribute("tabindex", "-1"));
+        orbit.querySelectorAll(".orbit-swatch, [data-custom-color-open]").forEach((button) => button.setAttribute("tabindex", "-1"));
       }
       if (focusedInside) trigger.focus();
     });
@@ -1083,8 +1085,12 @@
       control.classList.toggle("open", open);
       trigger.setAttribute("aria-expanded", String(open));
       orbit.hidden = !open;
+      if (!open) {
+        orbit.querySelector(".custom-color-editor").hidden = true;
+        orbit.querySelector("[data-custom-color-open]").setAttribute("aria-expanded", "false");
+      }
       orbit.setAttribute("aria-hidden", String(!open));
-      orbit.querySelectorAll(".orbit-swatch, [data-custom-color]").forEach((button) => button.setAttribute("tabindex", open ? "0" : "-1"));
+      orbit.querySelectorAll(".orbit-swatch, [data-custom-color-open]").forEach((button) => button.setAttribute("tabindex", open ? "0" : "-1"));
       if (open) {
         positionToolbarPopover(`[data-color-control="${type}"]`, `#${orbit.id}`, { align:"center", gap:6 });
         requestAnimationFrame(positionOpenToolbarPopovers);
@@ -1117,11 +1123,48 @@
       event.stopPropagation();
       closeColorOrbs();
     };
-    if (customInput) {
-      // Commit once when the native picker accepts a color; do not recolor a
-      // selected object or regenerate text previews for every slider event.
-      customInput.onchange = () => selectColor(customInput.value);
+    const customEditor = orbit.querySelector(".custom-color-editor"),
+      customOpen = orbit.querySelector("[data-custom-color-open]"),
+      channels = [...customEditor.querySelectorAll("[data-color-channel]")];
+    function previewCustomColor(color) {
+      if (!/^#[0-9a-f]{6}$/i.test(color)) return;
+      customInput.value = color.toLowerCase();
+      customEditor.querySelector(".custom-color-preview").style.backgroundColor = color;
+      channels.forEach((slider, index) => {
+        slider.value = String(parseInt(color.slice(1 + index * 2, 3 + index * 2), 16));
+        slider.nextElementSibling.value = slider.value;
+      });
     }
+    function closeCustomColor() {
+      customEditor.hidden = true;
+      customOpen.setAttribute("aria-expanded", "false");
+      customOpen.focus({ preventScroll:true });
+      positionOpenToolbarPopovers();
+    }
+    customOpen.onclick = () => {
+      if (!customEditor.hidden) { closeCustomColor(); return; }
+      previewCustomColor(type === "ink" ? state.inkColor : state.aiColor);
+      customEditor.hidden = false;
+      customOpen.setAttribute("aria-expanded", "true");
+      positionOpenToolbarPopovers();
+    };
+    customInput.oninput = () => previewCustomColor(customInput.value);
+    channels.forEach(slider => {
+      slider.oninput = () => previewCustomColor("#" + channels.map(channel => Number(channel.value).toString(16).padStart(2, "0")).join(""));
+    });
+    customEditor.querySelector("[data-custom-color-cancel]").onclick = closeCustomColor;
+    customEditor.onkeydown = event => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeCustomColor();
+    };
+    customEditor.onsubmit = event => {
+      event.preventDefault();
+      if (!customEditor.reportValidity()) return;
+      selectColor(customInput.value);
+      closeColorOrbs();
+    };
     orbit.querySelectorAll(".orbit-swatch").forEach((button) => {
       button.setAttribute("tabindex", "-1");
       button.setAttribute("aria-pressed", String(button.classList.contains("active")));

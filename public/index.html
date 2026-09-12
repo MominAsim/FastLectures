@@ -173,7 +173,13 @@
                 <button type="button" class="orbit-swatch orbit-6 color-green" data-ink-color="#16a34a" data-i18n-aria="colorGreen" aria-label="Green" data-pe-button="icon" data-pe-density="compact"></button>
                 <button type="button" class="orbit-swatch orbit-7 color-cyan" data-ink-color="#0891b2" data-i18n-aria="colorCyan" aria-label="Cyan" data-pe-button="icon" data-pe-density="compact"></button>
                 <button type="button" class="orbit-swatch orbit-8 color-purple" data-ink-color="#9333ea" data-i18n-aria="colorPurple" aria-label="Purple" data-pe-button="icon" data-pe-density="compact"></button>
-                <label class="custom-color-control"><span data-i18n="customColor">Custom…</span><input type="color" data-custom-color="ink" value="#1f2937" data-i18n-aria="customColor" aria-label="Custom color" tabindex="-1"></label>
+                <button type="button" class="custom-color-control" data-custom-color-open aria-expanded="false" aria-controls="inkCustomColor" data-pe-button="ghost"><span data-i18n="customColor">Custom…</span></button>
+                <form id="inkCustomColor" class="custom-color-editor" hidden>
+                  <div class="custom-color-preview" aria-hidden="true"></div>
+                  <label>HEX <input type="text" data-custom-color="ink" value="#1f2937" aria-label="HEX" pattern="#[0-9a-fA-F]{6}" maxlength="7" required spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+                  <label>R <input type="range" data-color-channel="0" aria-label="R" min="0" max="255" step="1"><output></output></label><label>G <input type="range" data-color-channel="1" aria-label="G" min="0" max="255" step="1"><output></output></label><label>B <input type="range" data-color-channel="2" aria-label="B" min="0" max="255" step="1"><output></output></label>
+                  <div class="custom-color-actions"><button type="button" data-custom-color-cancel data-pe-button="secondary" data-i18n="customColorCancel">Cancel</button><button type="submit" data-pe-button="primary" data-i18n="customColorApply">Apply</button></div>
+                </form>
               </div>
             </div>
             <div class="color-orb-control" data-color-control="ai">
@@ -187,7 +193,13 @@
                 <button type="button" class="orbit-swatch orbit-6 color-green" data-ai-color="#16a34a" data-i18n-aria="colorGreen" aria-label="Green" data-pe-button="icon" data-pe-density="compact"></button>
                 <button type="button" class="orbit-swatch orbit-7 color-cyan" data-ai-color="#0891b2" data-i18n-aria="colorCyan" aria-label="Cyan" data-pe-button="icon" data-pe-density="compact"></button>
                 <button type="button" class="orbit-swatch orbit-8 color-purple" data-ai-color="#9333ea" data-i18n-aria="colorPurple" aria-label="Purple" data-pe-button="icon" data-pe-density="compact"></button>
-                <label class="custom-color-control"><span data-i18n="customColor">Custom…</span><input type="color" data-custom-color="ai" value="#2563eb" data-i18n-aria="customColor" aria-label="Custom color" tabindex="-1"></label>
+                <button type="button" class="custom-color-control" data-custom-color-open aria-expanded="false" aria-controls="aiCustomColor" data-pe-button="ghost"><span data-i18n="customColor">Custom…</span></button>
+                <form id="aiCustomColor" class="custom-color-editor" hidden>
+                  <div class="custom-color-preview" aria-hidden="true"></div>
+                  <label>HEX <input type="text" data-custom-color="ai" value="#2563eb" aria-label="HEX" pattern="#[0-9a-fA-F]{6}" maxlength="7" required spellcheck="false" autocomplete="off" autocapitalize="off"></label>
+                  <label>R <input type="range" data-color-channel="0" aria-label="R" min="0" max="255" step="1"><output></output></label><label>G <input type="range" data-color-channel="1" aria-label="G" min="0" max="255" step="1"><output></output></label><label>B <input type="range" data-color-channel="2" aria-label="B" min="0" max="255" step="1"><output></output></label>
+                  <div class="custom-color-actions"><button type="button" data-custom-color-cancel data-pe-button="secondary" data-i18n="customColorCancel">Cancel</button><button type="submit" data-pe-button="primary" data-i18n="customColorApply">Apply</button></div>
+                </form>
               </div>
             </div>
           </div>

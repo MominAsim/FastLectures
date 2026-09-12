@@ -421,6 +421,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       effortMaximum: "Max",
       inkColor: "Ink color",
       customColor: "Custom…",
+      customColorApply: "Apply",
+      customColorCancel: "Cancel",
       fontRounded: "Rounded",
       fontHand: "Handwritten",
       fontSerif: "Classic serif",

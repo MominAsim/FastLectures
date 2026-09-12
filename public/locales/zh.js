@@ -110,6 +110,8 @@ window.PENECHO_LOCALES.zh = {
   effortMaximum: "极高",
   inkColor: "笔迹颜色",
   customColor: "自定义颜色",
+  customColorApply: "应用",
+  customColorCancel: "取消",
   fontRounded: "圆润手写",
   fontHand: "手写体",
   fontSerif: "古典衬线",

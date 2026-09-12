@@ -89,21 +89,8 @@ test("Canvas viewer restores the published bundle in memory without importing it
   assert.doesNotMatch(viewerRestore, /requestLoadSnapshot\(/);
 });
 
-test("the viewer presents its Widget limitation as a localized, transparent caption", () => {
-  const js = read("public/viewer.js"), css = read("public/viewer.css");
-  assert.match(js, /Public data refreshes at most every 5 minutes\. Some sources may be unavailable\./);
-  assert.match(js, /公开数据最多每 5 分钟刷新一轮，部分数据源可能暂时不可用。/);
-  assert.match(js, /createElement\("button"\)/);
-  assert.match(js, /notice\.hidden = true/);
-  assert.match(js, /dismissNotice:"Hide this message"/);
-  assert.match(js, /dismissNotice:"隐藏此提示"/);
-  assert.match(css, /\.viewer-notice\s*\{[\s\S]*?background:\s*transparent;/);
-  assert.match(css, /\.viewer-notice\s*\{[\s\S]*?color:\s*var\(--muted,/);
-  assert.match(css, /white-space:\s*nowrap/);
-  assert.match(css, /text-overflow:\s*ellipsis/);
-  assert.match(css, /\.viewer-notice\[hidden\]\s*\{\s*display:\s*none/);
-  assert.match(css, /safe-area-inset-bottom/);
-  assert.doesNotMatch(css, /\.viewer-notice\s*\{[\s\S]*?background:\s*rgb\(10 9 6/);
+test("the viewer has no obsolete five-minute refresh notice", () => {
+  assert.doesNotMatch(read("public/viewer.js"), /staticWidgetNotice|viewer-notice|5 minutes|5 分钟/);
 });
 
 test("the viewer controls stay quiet until hovered or focused", () => {
@@ -139,7 +126,7 @@ test("Widget hosts stay same-origin in Viewer and Cloud while the local app keep
         configuredAccessSession:"",
         location:{ origin:page.origin },
         window:{ PENECHO_CONFIG:{ runtime } },
-      })({ connect });
+      })({ id:"general", connect });
     };
 
   for (const page of [
@@ -150,6 +137,7 @@ test("Widget hosts stay same-origin in Viewer and Cloud while the local app keep
     const host = new URL(resolveHost("viewer", page, ["https://api.example"]));
     assert.equal(host.origin, new URL(page).origin);
     assert.equal(host.pathname, "/canvas/widget-host.html");
+    assert.equal(host.searchParams.get("public-https"), "1");
     assert.equal(host.searchParams.has("parent-origin"), false);
     assert.deepEqual(host.searchParams.getAll("connect"), ["https://api.example"]);
   }
@@ -262,8 +250,8 @@ test("Viewer fit produces visible transforms for a multi-Widget Canvas", () => {
   const canvas = read("src/client/app/canvas-runtime.js"),
     core = read("src/client/app/core.js"),
     widgets = [
-      { id:"widget-1", x:1000, y:2000, w:600, h:400, contentW:600, contentH:400, styleRule:{ style:{} } },
-      { id:"widget-2", x:2300, y:2400, w:800, h:600, contentW:800, contentH:600, styleRule:{ style:{} } },
+      { id:"widget-1", x:1000, y:2000, w:600, h:400, contentW:600, contentH:400, styleRule:{ style:{ setProperty(name, value) { this[name] = value; } } } },
+      { id:"widget-2", x:2300, y:2400, w:800, h:600, contentW:800, contentH:600, styleRule:{ style:{ setProperty(name, value) { this[name] = value; } } } },
     ];
   for (const widget of widgets) {
     const classes = new Set();

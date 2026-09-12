@@ -227,102 +227,6 @@ test("same-URL concurrent requests share one fetch and return independent ArrayB
   assert.equal(harness.replies[1].transfer.length, 1);
 });
 
-test("a cached response is reused during the five-minute refresh interval", async () => {
-  const harness = createHarness();
-  await request(harness, { requestId: "widget-fetch-1" });
-  harness.clock.advance(4 * 60_000);
-  await request(harness, { requestId: "widget-fetch-2" });
-
-  assert.equal(harness.requests.length, 1);
-  assert.equal(harness.replies.length, 2);
-  assert.deepEqual([...replyBody(harness.replies[1])], [1, 2, 3]);
-});
-
-test("a cache read does not extend the twenty-minute TTL", async () => {
-  const harness = createHarness({ fetchPlan: (call) => {
-    if (call.index === 0) return response({ body: [1], headers: { "x-penecho-cache-expires-at": String(harness.clock.now + 20 * 60_000) } });
-    return response({ body: [9], headers: { "x-penecho-cache-expires-at": String(harness.clock.now + 20 * 60_000) } });
-  } });
-  await request(harness, { requestId: "widget-fetch-1" });
-  harness.clock.advance(4 * 60_000);
-  await request(harness, { requestId: "widget-fetch-2" });
-  assert.equal(harness.requests.length, 1);
-
-  harness.clock.advance(16 * 60_000);
-  // The third request must wait for a new network result instead of receiving
-  // the body that was read at four minutes.
-  await request(harness, { requestId: "widget-fetch-3" });
-  assert.equal(harness.requests.length, 2);
-  assert.equal(harness.replies.length, 3);
-  assert.deepEqual([...replyBody(harness.replies[2])], [9]);
-});
-
-test("server refresh timestamps shorten the local round and permit a retry after a short 429 hold", async () => {
-  const harness = createHarness({ fetchPlan: (call) => {
-    if (call.index === 0) return response({
-      headers: {
-        "x-penecho-refresh-at": String(harness.clock.now + 10_000),
-        "x-penecho-cache-expires-at": String(harness.clock.now + 20 * 60_000),
-      },
-    });
-    return response({
-      body: [9],
-      headers: { "x-penecho-cache-expires-at": String(harness.clock.now + 20 * 60_000) },
-    });
-  } });
-  await request(harness, { requestId: "widget-fetch-1" });
-  harness.clock.advance(10_000);
-  await request(harness, { requestId: "widget-fetch-2" });
-  assert.equal(harness.requests.length, 2);
-  assert.deepEqual([...replyBody(harness.replies[1])], [9]);
-
-  const retryHarness = createHarness({ fetchPlan: (call) => call.index === 0
-    ? response({
-      status: 429,
-      headers: { "x-penecho-refresh-at": String(retryHarness.clock.now + 1_000) },
-    })
-    : response({ body: [7], headers: { "x-penecho-cache-expires-at": String(retryHarness.clock.now + 20 * 60_000) } }) });
-  await request(retryHarness, { requestId: "widget-fetch-1" });
-  retryHarness.clock.advance(1_000);
-  await request(retryHarness, { requestId: "widget-fetch-2" });
-  assert.equal(retryHarness.requests.length, 2);
-  assert.match(retryHarness.replies[0].payload.error, /429/);
-  assert.deepEqual([...replyBody(retryHarness.replies[1])], [7]);
-});
-
-test("failed and non-cacheable responses suppress repeated network requests", async () => {
-  for (const [name, fetchResponse] of [
-    ["failed", response({ status: 503 })],
-    ["no-store", response({ body: [4, 5, 6] })],
-  ]) {
-    const harness = createHarness({ fetchPlan: () => fetchResponse });
-    await request(harness, { requestId: "widget-fetch-1", url: `${widgetUrl}?case=${name}` });
-    await request(harness, { requestId: "widget-fetch-2", url: `${widgetUrl}?case=${name}` });
-
-    assert.equal(harness.requests.length, 1, `${name}: repeated requests should not fetch again`);
-    assert.equal(harness.replies.length, 2, `${name}: both callers should receive a reply`);
-    if (name === "failed") {
-      assert.match(harness.replies[0].payload.error, /503/);
-      assert.match(harness.replies[1].payload.error, /503/);
-    } else {
-      assert.equal(harness.replies[0].payload.status, 200);
-      assert.match(harness.replies[1].payload.error, /cannot be cached/);
-    }
-  }
-});
-
-test("only 32 unique URLs are attempted in one refresh round", async () => {
-  const harness = createHarness();
-  for (let index = 0; index < 32; index++) {
-    await request(harness, { requestId: `widget-fetch-${index + 1}`, url: `https://data.example/item-${index}.json` });
-  }
-  await request(harness, { requestId: "widget-fetch-33", url: "https://data.example/item-32.json" });
-
-  assert.equal(harness.requests.length, 32);
-  assert.equal(harness.replies.length, 33);
-  assert.match(harness.replies[32].payload.error, /refresh limit/);
-});
-
 test("close removes event handling and aborts in-flight work", async () => {
   const gate = deferred();
   let abortError;
@@ -349,4 +253,45 @@ test("close removes event handling and aborts in-flight work", async () => {
   assert.equal(harness.replies.length, 0);
   harness.window.dispatchEvent({ type: "pagehide" });
   assert.equal(harness.listenerCount("pagehide"), 0);
+});
+
+
+
+test("View does not impose a URL quota or cache failures and no-store data", async () => {
+  const h=createHarness({fetchPlan:call=>call.index===0?response({status:503}):response()});
+  await request(h);
+  assert.match(h.replies[0].payload.error,/503/);
+  await request(h,{requestId:"widget-fetch-2"});
+  assert.equal(h.replies[1].payload.status,200);
+  await request(h,{requestId:"widget-fetch-3"});
+  assert.equal(h.requests.length,3);
+  for(let i=0;i<40;i++)await request(h,{url:`https://data.example/${i}`,requestId:`widget-fetch-${i+4}`});
+  assert.equal(h.requests.length,43);
+  assert.ok(h.replies.slice(1).every(r=>r.payload.status===200));
+});
+
+test("View forwards the ordinary channel URL range and rejects credentials", async()=>{
+  const h=createHarness();
+  await request(h,{url:"https://new-image-cdn.example:8443/image?x="+"a".repeat(5000)+"#fragment"});
+  assert.equal(h.requests.length,1);
+  assert.ok(!h.requests[0].url.includes("#"));
+  await request(h,{url:"https://user:password@data.example/"});
+  await request(h,{url:"http://data.example/"});
+  assert.equal(h.requests.length,1);
+});
+
+test("View leaves concurrency scheduling to the canonical server queue", async()=>{
+  const gate=deferred();const h=createHarness({fetchPlan:()=>gate.promise});
+  for(let i=0;i<70;i++)h.send({url:`https://data.example/${i}`,requestId:`widget-fetch-${i+1}`});
+  assert.equal(h.requests.length,70);
+  h.clock.advance(42000);
+  assert.ok(h.requests.every(r=>!r.options.signal.aborted));
+  gate.resolve(response());await h.settle();
+  assert.equal(h.replies.length,70);
+  h.connection.close();
+});
+
+test("View retains the original 4 MiB response boundary",async()=>{
+  const h=createHarness({fetchPlan:()=>response({headers:{"content-length":4*1024*1024+1}})});
+  await request(h);assert.match(h.replies[0].payload.error,/too large/);
 });

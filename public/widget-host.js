@@ -304,7 +304,7 @@
         const timer = setTimeout(() => {
           publicFetchRequests.delete(requestId);
           reject(Error("The public data request timed out"));
-        }, 45000);
+        }, 50000);
         publicFetchRequests.set(requestId, { resolve, reject, timer });
         parent.postMessage({ type:PUBLIC_FETCH_REQUEST, requestId, url }, "*");
       });
@@ -1433,13 +1433,12 @@
   let nextParentPublicFetchId = 1;
   function parentPublicFetch(url) {
     if (parentOrigin !== location.origin || parent === window) return Promise.reject(Error("The public data parent is unavailable"));
-    if (pendingPublicFetches.size >= 32) return Promise.reject(Error("Too many public data requests"));
     return new Promise((resolve, reject) => {
       const requestId = `widget-fetch-${nextParentPublicFetchId++}`;
       const timer = setTimeout(() => {
         pendingPublicFetches.delete(requestId);
         reject(Error("The public data request timed out"));
-      }, 40000);
+      }, 48000);
       pendingPublicFetches.set(requestId, { resolve, reject, timer });
       parent.postMessage({ type:"penecho-widget-host-public-fetch", requestId, url }, parentOrigin);
     });

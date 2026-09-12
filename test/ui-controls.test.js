@@ -3967,7 +3967,7 @@ test("custom ink and AI colors preserve presets and selection behavior", () => {
   const html = read("public/index.html"), app = read("public/app.js");
   for (const type of ["ink", "ai"]) {
     assert.equal((html.match(new RegExp(`data-${type}-color=`, "g")) || []).length, 8);
-    assert.match(html, new RegExp(`type="color" data-custom-color="${type}"[^>]*data-i18n-aria="customColor"[^>]*tabindex="-1"`));
+    assert.match(html, new RegExp(`type="text" data-custom-color="${type}"[^>]*aria-label="HEX"`));
     const swatches = ["#1f2937", "#2563eb"].map((color) => ({
       dataset: { inkColor: color, aiColor: color },
       classList: { toggle(name, value) { this[name] = value; } },
@@ -3998,7 +3998,23 @@ test("custom ink and AI colors preserve presets and selection behavior", () => {
     assert.equal(context.state[`${type}Color`], "#2563eb");
     assert.equal(selected.length, type === "ink" ? 2 : 0);
   }
-  assert.match(app, /customInput\.onchange = \(\) => selectColor\(customInput\.value\)/);
+  assert.doesNotMatch(html, /type="color" data-custom-color/);
+  assert.match(app, /customEditor\.onsubmit[\s\S]*?reportValidity\(\)[\s\S]*?selectColor\(customInput\.value\)/);
+  const sliders = [0, 1, 2].map(() => ({ value: "0", nextElementSibling: {} }));
+  const preview = { style: {} }, input = { value: "" };
+  const previewColor = vm.runInNewContext(`(${functionSource(app, "previewCustomColor")})`, {
+    customInput: input, channels: sliders, customEditor: { querySelector() { return preview; } },
+  });
+  previewColor("#AA12EF");
+  assert.equal(input.value, "#aa12ef");
+  assert.deepEqual(sliders.map(slider => slider.value), ["170", "18", "239"]);
+  assert.deepEqual(sliders.map(slider => slider.nextElementSibling.value), ["170", "18", "239"]);
+  previewColor("#xyz");
+  assert.equal(input.value, "#aa12ef");
+  previewColor("#000000");
+  assert.deepEqual(sliders.map(slider => slider.value), ["0", "0", "0"]);
+  previewColor("#ffffff");
+  assert.deepEqual(sliders.map(slider => slider.value), ["255", "255", "255"]);
   assert.match(read("public/locales/zh.js"), /customColor:/);
 });
 
