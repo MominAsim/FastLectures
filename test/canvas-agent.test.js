@@ -1012,9 +1012,9 @@ test("PenEcho Agent CLI adapter turns isolated CLI decisions into Harness tool c
   const firstRequest=JSON.parse(calls[0].prompt),secondRequest=JSON.parse(calls[1].prompt),visualExplorerContract=read("src/server/canvas-agent/visual-explorer-contract.md").trim(),generalContract=read("src/server/canvas-agent/general-html-contract.md").trim();
   const {BOUND_CANVAS_TOOL_NAMES}=require("../src/server/mcp/bound-operations.js");
   assert.deepEqual(firstRequest.availableTools.map(tool=>tool.name).sort(),[...BOUND_CANVAS_TOOL_NAMES,"penecho_get_guidance","public_api","read_attachment","web_read"].sort());
-  assert.match(calls[0].systemPrompt,/current Canvas is already bound/);
-  assert.match(calls[0].systemPrompt,/contentHash and requestId/);
-  assert.match(calls[0].systemPrompt,/penecho_get_guidance only for the relevant authoring path/);
+  assert.match(calls[0].systemPrompt,/host binds the current Canvas/);
+  assert.match(calls[0].systemPrompt,/contentHash[\s\S]*requestId/);
+  assert.match(calls[0].systemPrompt,/Load relevant guidance on demand/);
   for(const call of calls)for(const contract of [visualExplorerContract,generalContract,read("src/server/canvas-agent/professional-diagrams-contract.md").trim()])assert.equal(call.systemPrompt.includes(contract),false,"authoring contracts are loaded only on demand");
   assert.equal(calls[0].systemPrompt,calls[1].systemPrompt);
   const patchSchema=firstRequest.availableTools.find(tool=>tool.name==="penecho_patch_file").parameters;
@@ -3035,7 +3035,7 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.match(folderPlugin,/No write, edit, bash, or command-execution capability exists/);
   assert.doesNotMatch(folderPlugin,/ToolFs|projectBashTool/);
   assert.match(runtime,/load_project_plugin/);
-  assert.match(runtime,/await import\('pdf-parse'\)/);
+  assert.match(read("src/server/canvas-agent/document-readers.mjs"),/await import\('pdf-parse'\)/);
   assert.doesNotMatch(runtime,/playwright/i);
   assert.match(server,/\/api\/canvas-agent\/projects/);
   assert.match(server,/consumeNativePickerGrant\(\{ token:body\?\.pickerToken, selectedPath:body\?\.path, kind:body\?\.kind \}\)/);
@@ -3083,7 +3083,7 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.match(functionSource(source,"canvasAgentHandleMessage"),/const pendingHandshakeError = envelope\.type === "error" && Boolean\(canvasAgent\.connectPromise\)/);
   assert.match(functionSource(source,"canvasAgentHandleMessage"),/if \(!readyHandshake && !currentSessionEnvelope && !pendingHandshakeError\) return;\s*canvasAgent\.incomingSeq = envelope\.seq/);
   assert.match(functionSource(source,"canvasAgentSyncState"),/canvasAgent\.socket\?\.readyState === WebSocket\.OPEN && canvasAgent\.sessionReady && canvasAgent\.sessionId/);
-  assert.match(functionSource(source,"canvasAgentConnect"),/socket\.addEventListener\("open",\(\)=>\{\s*if\(socket!==canvasAgent\.socket\)\{socket\.close\(\);return;\}/);
+  assert.match(functionSource(source,"canvasAgentConnect"),/socket\.addEventListener\("open",\(\)=>\{\s*canvasAgentReconcileCloudCanvas\(\);\s*if\(socket!==canvasAgent\.socket\)\{socket\.close\(\);return;\}/);
   assert.match(functionSource(source,"canvasAgentConnect"),/socket\.addEventListener\("close",\(\)=>\{\s*if \(socket !== canvasAgent\.socket\) return;/);
   assert.match(source,/function canvasAgentBeginLocalConversation\(\{persistCurrent=true,submitExecution=null,preserveDraft=false\}=\{\}\)\s*\{[\s\S]*canvasAgentBeginSessionTransition\(\);/);
   assert.match(functionSource(source,"canvasAgentBeginSessionTransition"),/canvasAgent\.sessionGeneration\+\+;\s*canvasAgent\.sessionReady = false;[\s\S]*canvasAgent\.pendingHandshakeId = "";[\s\S]*canvasAgentResolveApproval\(false\);/);
@@ -3097,7 +3097,8 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.match(functionSource(mainAi,"validate"),/acceptedTools\.push\("diagram_source"\)[\s\S]*c\.tool === "diagram_source"/);
   assert.match(functionSource(source,"canvasAgentEdit"),/canvasAgentMutationIdle\(execution\)[\s\S]*await canvasAgentPrepareEditOperations[\s\S]*canvasAgentAssertToolExecution\(execution\);save\(\)/);
   const replaceWidgetSource=functionSource(source,"canvasAgentReplaceWidget");
-  assert.match(replaceWidgetSource,/sourceOnly=typeof args\.expectedSourceHash[\s\S]*canvasAgentWaitForSourceCommit\(execution\)[\s\S]*canvasAgentHash\(sourceOnly\?sourceState:currentEdit\)[\s\S]*SOURCE_CONFLICT[\s\S]*REVISION_CONFLICT/);
+  assert.doesNotMatch(replaceWidgetSource,/CANVAS_BUSY|canvasAgentWaitForSourceCommit/);
+  assert.match(replaceWidgetSource,/sourceOnly=typeof args\.expectedSourceHash[\s\S]*canvasAgentAssertToolExecution\(execution\)[\s\S]*canvasAgentHash\(sourceOnly\?sourceState:currentEdit\)[\s\S]*SOURCE_CONFLICT[\s\S]*REVISION_CONFLICT/);
   assert.match(replaceWidgetSource,/sourceOnly\?\{x:object\.item\.x,y:object\.item\.y,w:object\.item\.w,h:object\.item\.h\}:\{\}[\s\S]*canvasAgentSealWidgetGeometryEdit\(\)[\s\S]*save\(\)/);
   assert.match(functionSource(source,"canvasAgentVisualExplainerCreate"),/canvasAgentCreate\(\{baseRevision:args\.baseRevision,items:\[item\],summary:args\.summary,_changeId:args\._changeId\},execution\)/);
   assert.match(functionSource(source,"canvasAgentVisualExplainerUpdate"),/canvasAgentReplaceWidget\(\{objectId:object\.item\.id,baseRevision:args\.baseRevision,expectedHash,changeId:args\._changeId,command\},execution\)/);
@@ -3136,7 +3137,7 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.match(peer,/envelope\.type === 'change_context' \|\| envelope\.type === 'change_connection'[\s\S]*method = envelope\.type === 'change_context' \? 'changeContext' : 'changeConnection'[\s\S]*owner\[method\]\(previous/);
   assert.match(functionSource(source,"canvasAgentSubmitMessage"),/canvasAgentBeginSubmitExecution\(selectedAiConnectionId\(\)\)[\s\S]*canvasAgentBindSubmitExecution\(submitExecution\)[\s\S]*canvasAgentInitialTurnState\(submitExecution\)[\s\S]*canvasAgentAssertSubmitExecution\(submitExecution\)[\s\S]*canvasAgentSendRequest/);
   assert.match(functionSource(source,"canvasAgentExecuteTool"),/canvasAgentCapture\(args,\{signal:execution\.controller\.signal,assertCurrent:\(\)=>canvasAgentAssertToolExecution\(execution\)\}\)/);
-  assert.match(functionSource(canvasRuntime,"requestWidgetSnapshot"),/signal\?\.aborted[\s\S]*pending=\{ widget, resolve, reject, timer, contentVersion:widget\.contentVersion, signal, abort, highResolution \}[\s\S]*signal\?\.addEventListener\("abort",abort/);
+  assert.match(functionSource(canvasRuntime,"requestWidgetSnapshot"),/signal\?\.aborted[\s\S]*pending=\{ widget, resolve, reject, timer, contentVersion:widget\.contentVersion, signal, abort, highResolution, fullContent \}[\s\S]*signal\?\.addEventListener\("abort",abort/);
   assert.match(functionSource(canvasRuntime,"prepareVisibleWidgetSnapshots"),/requestWidgetSnapshot\(widget, WIDGET_SNAPSHOT_TIMEOUT_MS, true, signal, highResolution\)/);
   assert.match(peer,/if \(!envelope\.canvasSessionId \|\| envelope\.canvasSessionId !== state\.session\.id\) return/);
   assert.match(peer,/const generation = state\.sessionGeneration, session = state\.session/);
@@ -3753,7 +3754,7 @@ test("Harness shared document writes recover source conflicts, preserve request 
     {type:"tool_call",name:"penecho_patch_file",arguments:{...patch,contentHash:"stale",requestId:"stale-patch"}},
     {type:"tool_call",name:"penecho_patch_file",arguments:patch},
     {type:"tool_call",name:"penecho_patch_file",arguments:patch},
-    {type:"tool_call",name:"penecho_present_widget",arguments:{artifactId:"chart",title:"Chart",html:"<main>world</main>",capture:true}},
+    {type:"tool_call",name:"penecho_present_widget",arguments:{requestId:"chart-create",artifactId:"chart",title:"Chart",html:"<main>world</main>",capture:true}},
     {type:"final",text:"Patched and verified the rendered chart."},
   ];
   const host=new CanvasHarnessHost({stateDirectory,rootDirectory:ROOT,resolveConnection:()=>connection,listConnections:()=>[connection],callCli:async request=>{requests.push(request);return JSON.stringify(script.shift());}});
@@ -3768,13 +3769,18 @@ test("Harness shared document writes recover source conflicts, preserve request 
     assert.equal(args.sessionId,bindingKey);
     assert.equal(Object.hasOwn(args,"baseRevision"),false,"source writes must not infer or forward Canvas revision");
     let result;
-    if(operation==="mcp_read_file" || operation==="mcp_prepare_patch")result={content:"hello\n",contentHash:"hash-1"};
-    if(operation==="mcp_apply_patch"){
-      assert.equal(args.content,"world\n");assert.equal(args.expectedHash,"hash-1");
+    if(operation==="mcp_read_file")result={content:"hello\n",contentHash:"hash-1"};
+    if(operation==="mcp_patch_file"){
+      assert.equal(args.patch,patch.patch);
+      if(args.expectedHash!=="hash-1"){
+        queueMicrotask(()=>host.resolveToolResult(session,{requestId:payload.requestId,ok:false,error:{code:"SOURCE_CONFLICT",message:"virtual source changed"}}));
+        return;
+      }
+      const {applyCanvasFilePatch}=require("../src/shared/canvas-file-patch.js");
+      assert.equal(applyCanvasFilePatch("hello\n",args.patch,args.path),"world\n");
       result={applied:true,contentHash:"hash-2"};
     }
-    if(operation==="mcp_present_widget")result={artifactId:"chart",objectId:"widget-chart",revision:10};
-    if(operation==="mcp_capture_widget")result={dataUrl:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=",width:1,height:1,revision:10};
+    if(operation==="mcp_present_widget")result={artifactId:"chart",objectId:"widget-chart",dataUrl:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=",width:1,height:1,encodedBytes:68,revision:10};
     assert.ok(result,operation);
     queueMicrotask(()=>host.resolveToolResult(session,{requestId:payload.requestId,ok:true,result}));
   }});
@@ -3784,14 +3790,15 @@ test("Harness shared document writes recover source conflicts, preserve request 
   await waitFor(()=>frames.some(frame=>frame.payload.kind==="turn_end"),4000);
   assert.equal(session.handle,identity);
   assert.equal(requests.length,6);
-  assert.deepEqual(browser.map(call=>call.operation),["mcp_read_file","mcp_prepare_patch","mcp_prepare_patch","mcp_apply_patch","mcp_present_widget","mcp_capture_widget"]);
+  assert.deepEqual(browser.map(call=>call.operation),["mcp_read_file","mcp_patch_file","mcp_patch_file","mcp_present_widget"]);
   assert.equal(new Set(browser.map(call=>call.bindingKey)).size,1);
   const results=JSON.parse(requests.at(-1).prompt).conversation.flatMap(message=>message.content).filter(block=>block.type==="tool_result");
   assert.match(JSON.stringify(results[1]),/SOURCE_CONFLICT|virtual source changed/);
   assert.equal(JSON.parse(results[3].content.find(block=>block.type==="text").text).reused,true);
+  assert.notEqual(results[4].isError,true,JSON.stringify(results[4]));
   const presentation=JSON.parse(results[4].content.find(block=>block.type==="text").text);
   assert.equal(presentation.pixelVerified,true);
-  assert.equal(presentation.captureRevision,10);
+  assert.equal(presentation.revision,10);
   assert.equal(results[4].content.some(block=>block.type==="image"),true);
   assert.equal(frames.findLast(frame=>frame.payload.kind==="turn_end").payload.reason.kind,"completed");
 });

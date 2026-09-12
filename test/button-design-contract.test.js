@@ -121,7 +121,8 @@ test("runtime-created controls opt into the same closed contract", () => {
   assert.match(canvasRuntime, /function textEditorButton\([\s\S]*?peButton\(button, "toolbar", "compact"\)/);
   assert.match(canvasRuntime, /document\.body\.classList\.contains\("studio-agent-docked"\)/);
   assert.match(read("public/cloud-connect.js"), /node\.dataset\.peButton = node\.classList\.contains\("primary"\)/);
-  assert.match(read("public/viewer.js"), /notice\.dataset\.peButton = "ghost"/);
+  assert.match(read("public/viewer.js"), /link\.dataset\.peButton = "primary"/);
+  assert.match(read("public/viewer.js"), /link\.dataset\.peButton = "secondary"/);
 });
 
 test("Studio navigator and view controls keep their location-owned button expression", () => {

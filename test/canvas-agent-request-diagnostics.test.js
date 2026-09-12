@@ -198,19 +198,20 @@ test("PenEcho Agent request trace records document source conflicts and a fresh 
     assert.equal(payload.name,"canvas_document");
     const envelope=payload.arguments,args=envelope.arguments;
     assert.equal(envelope.bindingKey,args.sessionId);
-    if(envelope.operation==="mcp_prepare_patch"){
-      assert.equal(args.path,"/widget.html");
-      queueMicrotask(()=>host.resolveToolResult(session,{requestId:payload.requestId,ok:true,result:{content:html,contentHash:"source-hash"}}));
-      return;
-    }
     if(envelope.operation==="mcp_read_file"){
       assert.equal(args.path,"/widget.html");
       queueMicrotask(()=>host.resolveToolResult(session,{requestId:payload.requestId,ok:true,result:{sessionId:envelope.bindingKey,path:args.path,content:html,contentHash:"source-hash"}}));
       return;
     }
-    assert.equal(envelope.operation,"mcp_apply_patch");
+    assert.equal(envelope.operation,"mcp_patch_file");
     assert.equal(args.path,"/widget.html");
-    assert.equal(args.content,"<h1>New trace body</h1>\n");
+    assert.equal(args.patch,patch);
+    if(args.expectedHash!=="source-hash"){
+      queueMicrotask(()=>host.resolveToolResult(session,{requestId:payload.requestId,ok:false,error:{code:"SOURCE_CONFLICT",message:"virtual source changed"}}));
+      return;
+    }
+    const {applyCanvasFilePatch}=require("../src/shared/canvas-file-patch.js");
+    assert.equal(applyCanvasFilePatch(html,args.patch,args.path),"<h1>New trace body</h1>\n");
     queueMicrotask(()=>host.resolveToolResult(session,{requestId:payload.requestId,ok:true,result:{applied:true,path:args.path,contentHash:"new-source-hash"}}));
   };
   session=await host.connect({clientId:"patch-trace-client",connectionId:connection.id,binding:{},send});
@@ -226,9 +227,9 @@ test("PenEcho Agent request trace records document source conflicts and a fresh 
     const envelope=message.payload.arguments;
     return {operation:envelope.operation,args:envelope.arguments,bindingKey:envelope.bindingKey};
   });
-  assert.deepEqual(browserCalls.map(call=>call.operation),["mcp_prepare_patch","mcp_read_file","mcp_prepare_patch","mcp_apply_patch"]);
+  assert.deepEqual(browserCalls.map(call=>call.operation),["mcp_patch_file","mcp_read_file","mcp_patch_file"]);
   assert.equal(new Set(browserCalls.map(call=>call.bindingKey)).size,1);
-  assert.deepEqual(browserCalls.filter(call=>call.operation==="mcp_prepare_patch").map(call=>({hash:call.args.expectedHash,requestId:call.args.requestId})),[
+  assert.deepEqual(browserCalls.filter(call=>call.operation==="mcp_patch_file").map(call=>({hash:call.args.expectedHash,requestId:call.args.requestId})),[
     {hash:"stale-source-hash",requestId:"patch-stale"},
     {hash:"source-hash",requestId:"patch-retry"},
   ]);

@@ -263,8 +263,15 @@ test("full session payloads preserve large text, source, images and owner isolat
   assert.deepEqual(fs.readFileSync(path.join(second.directory,imageFile)),Buffer.from([1,2,3]));
   const source = fs.readdirSync(first.directory).find(name => name.endsWith(".html"));
   assert.equal(fs.readFileSync(path.join(first.directory,source),"utf8"),html);
-  assert.equal(fs.statSync(first.directory).mode & 0o777,0o700);
-  assert.equal(fs.statSync(path.join(first.directory,"request.json")).mode & 0o777,0o600);
+
+});
+
+test("POSIX request traces have owner-only directory and file permissions",{skip:process.platform==="win32"?"Windows uses inherited DACLs rather than POSIX permission bits":false},()=>{
+  const tracer=createMcpRequestTracer({requestTraceDirectory:tempDirectory()});
+  const request=tracer.begin({ownerId:"permissions",name:"read",arguments:{sessionId:"permissions"}});
+  tracer.complete(request,{});
+  assert.equal(fs.statSync(request.directory).mode & 0o777,0o700);
+  assert.equal(fs.statSync(path.join(request.directory,"request.json")).mode & 0o777,0o600);
 });
 
 test("retention pins running and queued sessions, then prunes completed session groups", () => {

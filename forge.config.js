@@ -84,7 +84,8 @@ module.exports = {
     } : {}),
     ignore:[
       /^\/\./,
-      /^\/build(?:\/|$)/,
+      /^\/build\/(?!icons(?:\/|$)).+/,
+      /^\/build\/icons\/(?!penecho\.png$).+/,
       /^\/docs\/(?!(?:mcp-setup\.md|mcp-agent-instructions\.md)$).+/,
       /^\/fixtures(?:\/|$)/,
       /^\/logs(?:\/|$)/,

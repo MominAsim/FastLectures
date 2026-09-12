@@ -36,7 +36,7 @@ function createHarness(gesture, hidden = false) {
   };
   const state = {
     widgetGesture: gesture,
-    widgetEdit: { id:gesture.widget.id, changed:false },
+    widgetEdit: { id:gesture.widget.id, before:{x:gesture.widget.x-(gesture.changed?1:0),y:gesture.widget.y,w:gesture.widget.w,h:gesture.widget.h}, changed:false },
   };
   const document = { hidden };
   const functions = vm.runInNewContext(`(() => {
@@ -46,6 +46,7 @@ function createHarness(gesture, hidden = false) {
     return { finishWidgetGesture, finishReleasedWidgetGesture, finishInterruptedWidgetGesture };
   })()`, {
     document,
+    widgetLayout:widget=>({x:widget.x,y:widget.y,w:widget.w,h:widget.h}),
     finishHandToolbarOperation: (id) => calls.handToolbarFinish.push(id),
     positionWidget: (widget) => calls.positioned.push(widget),
     refreshHandObjectToolbar: () => calls.toolbarRefresh++,

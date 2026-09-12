@@ -38,9 +38,13 @@ test('trusted HTTPS, auth, host, discovery, independent sessions and restart ide
   const summary = await request(status,undefined,{method:'GET',path:'/status'}); assert.equal(summary.body.hostId,status.hostId); assert.equal(summary.body.accessToken,undefined);
   assert.equal((await request(status,undefined,{session:a,method:'DELETE'})).status,200);
   assert.equal((await request(status,message('ping'),{session:a})).status,404); assert.equal(disposed.length,1);
-  const stored = path.join(directory,'direct-http','identity.json'); assert.equal(fs.statSync(stored).mode & 0o777,0o600);
+  const stored = path.join(directory,'direct-http','identity.json'); assert.equal(fs.statSync(stored).isFile(),true);
   await service.close(); const next = await service.start(); assert.equal(next.accessToken,status.accessToken); assert.equal(next.hostId,status.hostId);
   const restarted = await request(next,message('initialize')); assert.notDeepEqual(first.certificate,restarted.certificate);
+});
+test('POSIX identity file is private to its owner',{skip:process.platform==='win32'?'Windows uses inherited DACLs rather than POSIX permission bits':false},async t=>{
+  const {directory}=await fixture(t);
+  assert.equal(fs.statSync(path.join(directory,'direct-http','identity.json')).mode & 0o777,0o600);
 });
 test('upgrading retains an existing finite-lived CA and token without silently resetting trust',async t => {
   const vm = require('node:vm');
@@ -113,13 +117,15 @@ test('identity rejects symlinks and oversized files without changing external mo
   const directory = fs.mkdtempSync(path.join(os.tmpdir(),'penecho-direct-files-'));
   t.after(() => fs.rmSync(directory,{recursive:true,force:true}));
   const external = path.join(directory,'external'); fs.mkdirSync(external,{mode:0o755});
+  const externalMode=fs.statSync(external).mode;
   const state = path.join(directory,'state'); fs.mkdirSync(state);
   fs.symlinkSync(external,path.join(state,'direct-http'));
-  assert.throws(() => loadDirectHttpIdentity(state),/invalid/); assert.equal(fs.statSync(external).mode & 0o777,0o755);
+  assert.throws(() => loadDirectHttpIdentity(state),/invalid/); assert.equal(fs.statSync(external).mode,externalMode);
   fs.unlinkSync(path.join(state,'direct-http')); fs.mkdirSync(path.join(state,'direct-http'));
   const outside = path.join(external,'outside.json'); fs.writeFileSync(outside,'{}',{mode:0o644});
+  const outsideMode=fs.statSync(outside).mode;
   const file = path.join(state,'direct-http','identity.json'); fs.symlinkSync(outside,file);
-  assert.throws(() => loadDirectHttpIdentity(state),/invalid/); assert.equal(fs.statSync(outside).mode & 0o777,0o644);
+  assert.throws(() => loadDirectHttpIdentity(state),/invalid/); assert.equal(fs.statSync(outside).mode,outsideMode);
   fs.unlinkSync(file); fs.writeFileSync(file,'x'.repeat(65537)); assert.throws(() => loadDirectHttpIdentity(state),/invalid/);
 });
 test('leaf does not rotate on a monthly timer and unsupported protocol does not dispatch',async t => {

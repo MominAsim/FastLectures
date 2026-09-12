@@ -13,7 +13,7 @@ test("hosted models use local account authorization without exposing the credent
     connector.writeConfiguration({ version:2, origin:"https://example.com", accountToken:"test-local-session" });
     global.fetch = async (url, options) => {
       assert.equal(options.headers.authorization, "Bearer test-local-session");
-      return new Response(JSON.stringify(url.endsWith("/models") ? { models:[{ id:modelId, available:true, enabled:true, multiplier:2 }] } : { credits:{ balance:1000 } }));
+      return new Response(JSON.stringify(url.endsWith("/models") ? { models:[{ id:modelId, apiFormat:"openai", available:true, enabled:true, multiplier:2 }] } : { credits:{ balance:1000 } }));
     };
     const catalog = await connector.hostedModels();
     assert.equal(catalog.models[0].id, modelId);

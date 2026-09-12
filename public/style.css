@@ -3670,7 +3670,7 @@ body:not([data-theme="studio"]) .canvas-workspace {top:12px;}
   .canvas-agent-panel[data-status="running"] .canvas-agent-mark { animation: none; }
   .canvas-agent-prompt-row { transition: none; }
   .canvas-agent-prompt-control .canvas-agent-prompt-chevron { transition: none; }
-  .canvas-agent-control.is-busy::after { --canvas-agent-busy-angle: 120deg; animation: none; }
+  .canvas-agent-control.is-busy > #canvasAgentToggle::after { --canvas-agent-busy-angle: 120deg; animation: none; }
   .canvas-agent-resize-edge::after { transition: none; }
 }
 

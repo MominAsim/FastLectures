@@ -323,6 +323,12 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
     return pattern.test(candidate);
   });
   assert.equal(ignoredByDesktopPackage("/docs"),false,"the docs directory must be traversed");
+  for (const iconPath of ["/build", "/build/", "/build/icons", "/build/icons/", "/build/icons/penecho.png"]) {
+    assert.equal(ignoredByDesktopPackage(iconPath),false,"the native window icon must be packaged");
+  }
+  for (const buildPath of ["/build/cache", "/build/toolchain", "/build/icons/penecho.icns", "/build/icons/penecho.png.bak", "/build/icons/private"]) {
+    assert.equal(ignoredByDesktopPackage(buildPath),true,"unrelated build output must remain excluded");
+  }
   assert.equal(ignoredByDesktopPackage("/docs/"),false,"the docs directory with a trailing slash must be traversed");
   assert.equal(ignoredByDesktopPackage("/docs/mcp-setup.md"),false,"the MCP setup guide must be packaged");
   assert.equal(ignoredByDesktopPackage("/docs/mcp-agent-instructions.md"),false,"the MCP agent instructions must be packaged");

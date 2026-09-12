@@ -66,7 +66,7 @@ test('automatic HTTPS startup and persistent conversations route latest only whe
   assert.equal(configuredClient.configured,true);assert.equal(configuredClient.trustRequired,false);
   const savedLaunch=fs.readFileSync(configuredClient.configFile,'utf8');
   assert.equal(savedLaunch.includes('--idle-exit-ms'),false);assert.ok(savedLaunch.includes('command="keep"'));
-  assert.ok(savedLaunch.includes(configured.config.args[0]));
+  assert.ok(savedLaunch.includes(JSON.stringify(configured.config.args[0])));
 
   assert.equal(configured.http.documentLimits.openPerBrowser,64);
   const downloaded=await new Promise((resolve,reject)=>{http.get(`http://127.0.0.1:${current.port}/api/mcp/session-client.js`,res=>{const chunks=[];res.on('data',chunk=>chunks.push(chunk));res.on('end',()=>resolve(Buffer.concat(chunks)));res.on('error',reject);}).on('error',reject);});

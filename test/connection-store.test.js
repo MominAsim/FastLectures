@@ -89,21 +89,23 @@ test("explicit CLI overrides are transient for saved and empty stores", () => {
   assert.deepEqual(empty.connections, []);
   assert.equal(withConnectionOverride(empty, {}).connections.length, 0);
 });
-test("server request routing uses real saved or explicit transient connections and rejects empty state", () => {
+test("server request routing uses real saved or explicit transient connections and rejects empty state", async () => {
   const vm = require("node:vm"), source = fs.readFileSync(path.join(__dirname, "../src/server/main.js"), "utf8");
   const { withConnectionOverride } = require("../src/server/connection-store.js");
   let store = { version:1, connections:[] };
   const context = vm.createContext({
+    browserRequestError:()=>null,
+    cloudConnector:{prepareHostedConnection:async()=>{}},
     connectionStore:() => store,
     findConnection:(value, id) => value.connections.find(item => item.id === id),
     connectionProviderSnapshot:connection => connection,
   });
-  vm.runInContext(source.slice(source.indexOf("function requestProviderSnapshot("), source.indexOf("function providerRequest(")), context);
-  assert.throws(() => context.requestProviderSnapshot({ headers:{} }), /unavailable/);
+  vm.runInContext(source.slice(source.indexOf("async function requestProviderSnapshot("), source.indexOf("function providerRequest(")), context);
+  await assert.rejects(() => context.requestProviderSnapshot({ headers:{} }), /unavailable/);
   store = withConnectionOverride(store, { AI_PROVIDER:"codex-cli" });
-  assert.equal(context.requestProviderSnapshot({ headers:{} }).id, "cli-override");
+  assert.equal((await context.requestProviderSnapshot({ headers:{} })).id, "cli-override");
   store = { version:1, connections:[legacy, { id:"second", provider:"kimi-cli" }] };
-  assert.equal(context.requestProviderSnapshot({ headers:{ "x-penecho-connection":"second" } }).provider, "kimi-cli");
-  assert.equal(context.requestProviderSnapshot({ headers:{} }).id, "default");
-  assert.throws(() => context.requestProviderSnapshot({ headers:{ "x-penecho-connection":"hosted:missing" } }), /unavailable/);
+  assert.equal((await context.requestProviderSnapshot({ headers:{ "x-penecho-connection":"second" } })).provider, "kimi-cli");
+  assert.equal((await context.requestProviderSnapshot({ headers:{} })).id, "default");
+  await assert.rejects(() => context.requestProviderSnapshot({ headers:{ "x-penecho-connection":"hosted:missing" } }), /unavailable/);
 });

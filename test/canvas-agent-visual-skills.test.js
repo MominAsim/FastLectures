@@ -68,7 +68,7 @@ test("scientific visual skills stay out of the cold prompt and return complete s
     callCli:async request => {
       calls.push(request);
       return calls.length === 1
-        ? JSON.stringify({ type:"tool_call", name:"penecho_get_guidance", arguments:{ id:"math-2d" } })
+        ? JSON.stringify({ type:"tool_call", name:"penecho_get_guidance", arguments:{ id:"math-2d", detail:"full" } })
         : JSON.stringify({ type:"final", text:"Loaded the selected skill." });
     },
   });
@@ -86,10 +86,10 @@ test("scientific visual skills stay out of the cold prompt and return complete s
   assert.equal(calls.length, 2);
   const firstRequest = JSON.parse(calls[0].prompt), secondRequest = JSON.parse(calls[1].prompt);
   const schema = firstRequest.availableTools.find(tool => tool.name === "penecho_get_guidance");
-  assert.match(schema.description,/shared authoring guidance on demand/);
+  assert.match(schema.description,/authoring guidance/);
   assert.deepEqual(schema.parameters.properties.id.enum,require("../src/server/mcp/authoring-guidance.js").GUIDANCE_IDS);
   assert.deepEqual(schema.parameters.required,["id"]);
-  assert.match(calls[0].systemPrompt,/penecho_get_guidance/);
+  assert.match(calls[0].systemPrompt,/Load relevant guidance on demand/);
   assert.equal(calls[1].systemPrompt,calls[0].systemPrompt);
   assert.deepEqual(secondRequest.availableTools, firstRequest.availableTools);
   for (const [skill, document] of skillDocuments) {
@@ -98,7 +98,7 @@ test("scientific visual skills stay out of the cold prompt and return complete s
     assert.equal(calls[1].systemPrompt.includes(document), false);
   }
   const selectedDocument = skillDocuments.get("math-2d");
-  const shared=require("../src/server/mcp/authoring-guidance.js").getAuthoringGuidance("math-2d");
+  const shared=require("../src/server/mcp/authoring-guidance.js").getAuthoringGuidance("math-2d","full");
   assert.equal(shared.document.trim(),selectedDocument);
   const toolResult = secondRequest.conversation.flatMap(message => message.content).find(part => part.type === "tool_result");
   const persistedResult = JSON.parse(toolResult.content[0].text);
@@ -144,7 +144,7 @@ test("math-2d function curves use width-based dense sampling and adaptive refine
 test("Visual Explorer coordinates typography across the design and checks it in the final render", () => {
   const document = readText("src/server/canvas-agent/visual-explorer-contract.md");
   assert.match(document, /Coordinate font family, scale, weight, line height, and casing across all regions/);
-  assert.match(require("../src/server/mcp/authoring-guidance.js").getAuthoringGuidance("visual-explorer").document, /Review and patch concrete defects/);
+  assert.match(require("../src/server/mcp/authoring-guidance.js").getAuthoringGuidance("visual-explorer","full").document, /After the initial check, edit only for a data\/logic error, missing requirement, broken interaction or unreadable essential content/);
 });
 
 test("math-3d contract provides bounded interactive camera exploration with visible controls", () => {

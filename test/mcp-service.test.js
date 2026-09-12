@@ -393,9 +393,14 @@ test("MCP service keeps discovery credentials private and binds a session to its
   assert.equal(stolenFeedback.status, 404);
   const stolenDraw = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId:crypto.randomUUID(),name:"penecho_draw",arguments:{sessionId,artifactId:"stolen",requestId:"stolen",title:"Stolen",items:[{id:"n",type:"rect"}]}} });
   assert.equal(stolenDraw.status, 404);
+  const milestoneApplied = new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{ws.off("message",received);reject(new Error("Queued milestone never reached its bound Canvas."));},2000);
+    const received=data=>{const message=JSON.parse(data.toString());if(message.name!=="mcp_update_session"||message.arguments?.summary!=="First milestone")return;clearTimeout(timer);ws.off("message",received);resolve();};
+    ws.on("message",received);
+  });
   const queued = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_update_session",arguments:{sessionId,status:"working",summary:"First milestone",events:[{id:"e1",text:"Collected evidence",kind:"evidence"}]}} });
   assert.deepEqual({ accepted:queued.value.result.accepted, applied:queued.value.result.applied, pixelVerified:queued.value.result.pixelVerified }, { accepted:true, applied:false, pixelVerified:false });
-  await new Promise(resolve => setTimeout(resolve, 140));
+  await milestoneApplied;
   assert.equal(calls.filter(call => call.name === "mcp_update_session").length, 1);
   const inspected = await requestJson(address.port, "/api/mcp/rpc", { headers:rpcHeaders, body:{operation:"call",ownerId,name:"penecho_inspect_session",arguments:{sessionId}} });
   assert.deepEqual({state:inspected.value.result.render.state,applied:inspected.value.result.render.applied,visible:inspected.value.result.render.visible,pixelVerified:inspected.value.result.render.pixelVerified}, {state:"applied",applied:true,visible:true,pixelVerified:false});

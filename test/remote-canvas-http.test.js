@@ -82,7 +82,7 @@ test("Remote Canvas client pins bridged HTTP and PenEcho Agent WebSocket traffic
   assert.match(remoteCanvasClientSource, /deviceIdPattern/);
   assert.match(remoteCanvasClientSource, /bridgeDeviceId\s*=\s*deviceIdPattern\.test/);
   assert.match(remoteCanvasClientSource, /path=\$\{encodeURIComponent[\s\S]*&deviceId=\$\{encodeURIComponent\(bridgeDeviceId\)/);
-  assert.match(remoteCanvasClientSource, /target\.pathname !== "\/api\/v1\/remote-canvas\/canvas-agent"/);
+  assert.match(remoteCanvasClientSource, /!\["\/api\/v1\/remote-canvas\/canvas-agent", "\/api\/v1\/remote-canvas\/mcp"\]\.includes\(target\.pathname\)/);
   assert.match(remoteCanvasClientSource, /target\.searchParams\.set\("deviceId", bridgeDeviceId\)/);
   assert.match(remoteCanvasClientSource, /projects\|roots\|files/);
 });

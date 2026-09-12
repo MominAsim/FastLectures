@@ -1099,7 +1099,7 @@ test("a legacy Cloud hello without acknowledgement support keeps the relay conne
   }
 });
 
-test("relay heartbeat acknowledgements refresh the silence watchdog and missing acknowledgements reconnect", async () => {
+test("relay heartbeat acknowledgements refresh the silence watchdog and missing acknowledgements reconnect", async t => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-heartbeat-test-"));
   const server = new WebSocketServer({ host:"127.0.0.1", port:0 });
   await new Promise((resolve) => server.once("listening", resolve));
@@ -1123,6 +1123,8 @@ test("relay heartbeat acknowledgements refresh the silence watchdog and missing 
     });
     connector.start();
     const remoteSocket = await accepted;
+    t.mock.timers.enable({apis:["setTimeout"]});
+    const helloReceived=new Promise(resolve=>connector.socket.once("message",resolve));
     remoteSocket.send(JSON.stringify({
       type:"hello",
       protocol:1,
@@ -1130,15 +1132,22 @@ test("relay heartbeat acknowledgements refresh the silence watchdog and missing 
       heartbeatSeconds:60,
       heartbeatTimeoutSeconds:150,
     }));
-    await eventually(() => connector.status().connected, "relay did not become connected after hello");
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await helloReceived;
+    assert.equal(connector.status().connected,true);
+    t.mock.timers.tick(40);
+    const acknowledgementReceived=new Promise(resolve=>connector.socket.once("message",resolve));
     remoteSocket.send(JSON.stringify({ type:"heartbeat_ack" }));
-    await new Promise((resolve) => setTimeout(resolve, 55));
+    await acknowledgementReceived;
+    t.mock.timers.tick(55);
     assert.equal(connector.status().connected, true, "the acknowledgement should refresh the watchdog");
-    await eventually(() => connector.status().state === "waiting", "a silent relay did not enter reconnect backoff", 500);
+    const closed=new Promise(resolve=>connector.socket.once("close",resolve));
+    t.mock.timers.tick(26);
+    await closed;
+    assert.equal(connector.status().state,"waiting","a silent relay did not enter reconnect backoff");
     assert.match(connector.status().lastError, /heartbeat acknowledgement timed out/i);
     assert.ok(events.some((entry) => entry.event === "heartbeat-timeout" && entry.timeoutMs === 80));
   } finally {
+    t.mock.timers.reset();
     connector?.close();
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(stateDir, { recursive:true, force:true });

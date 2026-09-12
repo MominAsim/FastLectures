@@ -1108,7 +1108,7 @@
       } else state.aiColor = color;
       trigger.classList.remove(...Object.values(COLOR_CLASS));
       if (COLOR_CLASS[color]) trigger.classList.add(COLOR_CLASS[color]);
-      trigger.style.setProperty("--selected-color", color);
+      runtimeElementStyle(trigger, `color-trigger-${type}`)?.setProperty("--selected-color", color);
       if (customInput) customInput.value = color;
       orbit.querySelectorAll(".orbit-swatch").forEach((item) => {
         const active = (type === "ink" ? item.dataset.inkColor : item.dataset.aiColor) === color;

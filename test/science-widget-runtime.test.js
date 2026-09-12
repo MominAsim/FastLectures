@@ -82,6 +82,7 @@ test("Widget initialization carries its authored source identity", () => {
   assert.equal(sent[0].targetOrigin, "https://canvas.example");
   assert.deepEqual(JSON.parse(JSON.stringify(sent[0].message)), {
     type:"penecho-widget-init",
+    imageAssets:{},
     title:"Fields",
     html:"<main></main>",
     pluginStyles:"/* plugin */",
@@ -108,7 +109,7 @@ test("shared and legacy science modes require supported init metadata and one ex
   assert.equal(gate(parsedFor([meta("math-2d", "PENECHO-VISUAL-SKILL")]), "penecho-visual-explorer+html", "penecho-visual-explorer/1"), false);
   assert.equal(gate(parsedFor([meta("math-2d"), meta("math-3d")]), "penecho-visual-explorer+html", "penecho-visual-explorer/1"), false);
   assert.equal(gate(parsedFor([]), "penecho-visual-explorer+html", "penecho-visual-explorer/1"), false);
-  assert.match(host, /widgetDocument\(message\.html, message\.pluginStyles \|\| "", runtimeVersion, message\.sourceFormat, message\.frameworkVersion\)/);
+  assert.match(host, /widgetDocument\(imageHtml, message\.pluginStyles \|\| "", runtimeVersion, message\.sourceFormat, message\.frameworkVersion\)/);
 });
 
 test("science mode rewrites only exact Manim-Web static and dynamic module imports", () => {
@@ -289,6 +290,7 @@ test("science snapshot hooks are bounded and failures do not displace the ordina
       scienceMode:false,activeSnapshot:null,activeSnapshotRender:null,
       globalThis:{ __penechoScienceSnapshotHooks:{ beforeSnapshot() { throw Error("collision"); } } },
       snapshotDebugLog() {},
+      schedulePresentationSize() {},
       snapshotDocument: async (message, requirePresentedFrame) => {
         snapshotCalls.push(requirePresentedFrame);
         return "ordinary";

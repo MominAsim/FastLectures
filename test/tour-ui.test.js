@@ -164,7 +164,7 @@ test("feature tour persists seen ids, supports replay, and repositions accessibl
   assert.match(app, /window\.visualViewport\?\.addEventListener/);
   assert.match(app, /new ResizeObserver\(scheduleFeatureTourPosition\)/);
   assert.match(app, /function startFeatureTour\([\s\S]*?hideAutoDelayControl\(\);[\s\S]*?hideEffortControl\(\);[\s\S]*?hidePluginControl\(\);[\s\S]*?featureTour\.active = true/);
-  assert.match(app, /requestAnimationFrame\(\(\) => requestAnimationFrame\(maybeStartOnboarding\)\)/);
+  assert.match(app, /loadCanvasSettings\(\)\.finally\(maybeStartOnboarding\)/);
   assert.match(css, /\.tour-layer\s*\{[^}]*position:\s*fixed;[^}]*z-index:\s*80;[^}]*inset:\s*0/);
   assert.match(css, /\.tour-layer\[hidden\]\s*\{\s*display:\s*none/);
   assert.match(app, /--tour-viewport-width/);

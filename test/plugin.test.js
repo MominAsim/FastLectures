@@ -21,7 +21,7 @@ vm.runInNewContext(source, context);
 const plugins = context.window.PENECHO_PLUGINS;
 
 test("Cloud General HTML widgets request browser-direct public HTTPS access", () => {
-  assert.match(canvasRuntime, /runtime === "cloud" && manifest\.id === "general"[\s\S]*?url\.searchParams\.set\("public-https", "1"\)/);
+  assert.match(canvasRuntime, /\(runtime === "cloud" \|\| runtime === "viewer"\) && manifest\.id === "general"[\s\S]*?url\.searchParams\.set\("public-https", "1"\)/);
 });
 
 test("strict Widget snapshot preparation preserves the original capture error", async () => {
@@ -42,8 +42,8 @@ test("strict Widget snapshot preparation preserves the original capture error", 
 });
 
 test("Widget snapshot errors retain the host-provided failure detail", () => {
-  assert.match(functionSource(canvasRuntime, "handleWidgetMessage"), /snapshotFailure = message\.type === "penecho-widget-snapshot-error"[\s\S]*?String\(message\.error[\s\S]*?pending\.reject\(Error\(snapshotFailure\)\)/);
-  assert.match(functionSource(canvasRuntime, "requestWidgetSnapshot"), /reject\(Error\("Widget snapshot timed out"\)\)/);
+  assert.match(functionSource(canvasRuntime, "handleWidgetMessage"), /snapshotFailure = message\.type === "penecho-widget-snapshot-error"[\s\S]*?String\(message\.error[\s\S]*?const error=Error\(snapshotFailure\)[\s\S]*?pending\.reject\(error\)/);
+  assert.match(functionSource(canvasRuntime, "requestWidgetSnapshot"), /captureFailure=\(code,stage\)=>Object\.assign\(Error\("Widget snapshot timed out"\)/);
 });
 
 test("Widget renderer uses the Cloud-injected content version and safely falls back for static hosts", () => {
@@ -692,8 +692,8 @@ test("widget host keeps generated HTML in an opaque inner frame and snapshots it
   assert.match(host, /runtime-installed[\s\S]*?renderer-marker[\s\S]*?document-ready-marker/);
   for (const stage of ["snapshot-host-received", "snapshot-forwarded", "snapshot-host-success"]) assert.match(host, new RegExp(stage));
   assert.doesNotMatch(functionSource(host, "snapshotDebugLog"), /message\.html|dataUrl/);
-  assert.match(host, /setTimeout\(\(\) => snapshotError\(message\.requestId, "Widget snapshot timed out"\), timeoutMs\)/);
-  assert.match(host, /withTimeout\(render\(\), timeoutMs,[\s\S]*?captureExpired = true/);
+  assert.match(host, /setTimeout\(\(\) => snapshotError\(message\.requestId, "Widget snapshot timed out",[\s\S]*?"WIDGET_CAPTURE_TIMEOUT":"WIDGET_READY_TIMEOUT"\), timeoutMs\)/);
+  assert.match(host, /withTimeout\(rendering, remainingMs,[\s\S]*?captureExpired = true/);
   assert.match(host, /penecho-widget-document-ready" && message\.runtimeVersion === runtimeVersion[\s\S]*?innerDocumentReady = true;[\s\S]*?penecho-widget-capture-ready[\s\S]*?forwardSnapshotRequest/);
   assert.match(snapshot, /penecho-widget-snapshot", runtimeVersion/);
   assert.match(host, /for \(const requestId of \[\.\.\.pendingSnapshots\.keys\(\)\]\) snapshotError\(requestId, "Widget changed during snapshot"\)/);
@@ -767,7 +767,7 @@ test("widget host keeps generated HTML in an opaque inner frame and snapshots it
   assert.match(server, /"X-PenEcho-Upstream-Status":String\(result\.status\)/);
   assert.match(host, /data-penecho-snapshot-background/);
   assert.match(snapshot, /finally\s*\{\s*try\s*\{\s*restoreCompatibleColors\(\);\s*\}\s*finally\s*\{\s*restoreSvgStyles\(\);\s*\}/);
-  assert.match(host, /snapshotError\(message\.requestId, message\.error\)/);
+  assert.match(host, /snapshotError\(message\.requestId, message\.error, message\.code, message\.details\|\|\{\}\)/);
   assert.match(flowchart, /injected CSS framework/);
   assert.match(host, /if \(press\.active\)[\s\S]*?event\.preventDefault/);
   assert.match(host, /penecho-widget-dragging[\s\S]*?user-select:none/);
@@ -784,7 +784,7 @@ test("widget host loads generated HTML directly into the opaque sandbox", () => 
     innerLoadRegistration = host.slice(host.indexOf('inner.addEventListener("load"'), host.indexOf("document.body.append(inner)"));
   assert.match(host, /inner\.addEventListener\("load", forwardWidgetState\)/);
   assert.doesNotMatch(innerLoadRegistration, /srcdoc|widgetDocument/);
-  assert.match(host, /const documentSource = widgetDocument\(message\.html, message\.pluginStyles \|\| "", runtimeVersion, message\.sourceFormat, message\.frameworkVersion\);[\s\S]*?inner\.removeAttribute\("src"\);[\s\S]*?inner\.srcdoc = documentSource/);
+  assert.match(host, /const documentSource = widgetDocument\(imageHtml, message\.pluginStyles \|\| "", runtimeVersion, message\.sourceFormat, message\.frameworkVersion\);[\s\S]*?inner\.removeAttribute\("src"\);[\s\S]*?inner\.srcdoc = documentSource/);
   assert.doesNotMatch(host, /innerDocumentUrl|releaseInnerDocumentUrl|URL\.revokeObjectURL\(innerDocumentUrl\)/);
   assert.match(host, /inner\.setAttribute\("sandbox", "allow-scripts allow-popups allow-popups-to-escape-sandbox"\)/);
   assert.doesNotMatch(host, /allow-same-origin/);
@@ -798,6 +798,8 @@ test("widget snapshots wait for one presented frame without pausing the live run
     setTimeout(callback) { timerCallback = callback; return 1; },
     clearTimeout() {},
     nativeRequestAnimationFrame(callback) { frameCallback = callback; return 1; },
+    nativeCancelAnimationFrame() {},
+    flushSnapshotAnimationFrame() {},
   });
   const throttled = settle();
   timerCallback();

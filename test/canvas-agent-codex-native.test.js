@@ -1254,7 +1254,7 @@ test("Codex Native executes a large standard JSON penecho_present_widget carried
   t.after(()=>harness.cleanup());
   const session=await harness.connect(),process=harness.processes[0];
   await session.native.tool("penecho_get_guidance").execute({id:"general-html"},{callId:"standard-json-contract",signal:new AbortController().signal});
-  const html=`<!doctype html>\n<style>.q::after{content:'"\\\\';}</style>\n<script>const path="C:\\\\tmp\\\\widget";</script>\n<main>${"standard-json-long-line\n".repeat(400)}</main>`,args={artifactId:"standard-json",title:"Standard JSON",html,width:900,height:600};
+  const html=`<!doctype html>\n<style>.q::after{content:'"\\\\';}</style>\n<script>const path="C:\\\\tmp\\\\widget";</script>\n<main>${"standard-json-long-line\n".repeat(400)}</main>`,args={requestId:"standard-json-create",artifactId:"standard-json",title:"Standard JSON",html,width:900,height:600};
   process.requestHandler=async method=>{
     if(method!=="turn/start")return{};
     const turnId="native-standard-json-turn";
@@ -2289,9 +2289,9 @@ test("Codex Native loaded guidance remains available in the same process and thr
     if(firstTurn){
       firstTurn=false;
       setImmediate(async()=>{
-        emitRawToolDecision(process,turnId,[{callId:"load-contract",tool:"penecho_get_guidance",arguments:{id:"general-html"}}]);
+        emitRawToolDecision(process,turnId,[{callId:"load-contract",tool:"penecho_get_guidance",arguments:{id:"general-html",detail:"full"}}]);
         await process.serverRequest("item/tool/call",{
-          threadId:process.threadId,turnId,callId:"load-contract",namespace:"penecho",tool:"penecho_get_guidance",arguments:{id:"general-html"},
+          threadId:process.threadId,turnId,callId:"load-contract",namespace:"penecho",tool:"penecho_get_guidance",arguments:{id:"general-html",detail:"full"},
         });
         process.emitNotification("item/agentMessage/delta",{threadId:process.threadId,turnId,delta:"Loaded."});
         process.emitNotification("turn/completed",{threadId:process.threadId,turn:{id:turnId,status:"completed",items:[]}});
