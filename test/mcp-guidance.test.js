@@ -117,3 +117,17 @@ test("live and tool instructions agree on viewport-first delivery and exact insp
   }
   assert.match(MCP_PRESENTATION_INSTRUCTIONS, /page requests 1200×800 for inspect/);
 });
+
+
+test("rendering guidance separates Canvas delivery, chat source, and explicit implementation bans", async () => {
+  const { CANVAS_RENDERING_ROUTING } = require("../src/server/mcp/authoring-guidance.js");
+  const { DOCUMENT_TOOL_INSTRUCTIONS } = await import("../src/server/canvas-agent/document-tools.mjs");
+  for (const document of [DOCUMENT_TOOL_INSTRUCTIONS, getAuthoringGuidance("visual-explorer").document, getAuthoringGuidance("visual-explorer", "full").document]) {
+    assert.ok(document.includes(CANVAS_RENDERING_ROUTING));
+    assert.match(document, /both a rendered Canvas diagram and Mermaid\/PlantUML chat source/);
+    assert.match(document, /Source-only requests do not require a Canvas artifact/);
+    assert.match(document, /Respect an explicit ban on using HTML\/Widgets for implementation/);
+  }
+  assert.match(TOOLS.find(tool => tool.name === "penecho_present_widget").description, /including static diagrams/);
+  assert.match(TOOLS.find(tool => tool.name === "penecho_draw").description, /few simple native.*explicitly requested native/);
+});

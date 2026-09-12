@@ -85,7 +85,11 @@ function string(value, label, { min = 1, max = 128, optional = false } = {}) {
 
 function finiteNumber(value, label, { min, max, optional = false } = {}) {
   if (value === undefined && optional) return undefined;
-  if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) invalid(`${label} is invalid.`);
+  if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
+    const range = min !== undefined && max !== undefined ? ` in range ${min}..${max} (inclusive)` : min !== undefined ? ` >= ${min}` : max !== undefined ? ` <= ${max}` : "";
+    const actual = typeof value === "number" ? String(value) : value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+    invalid(`${label} must be a finite number${range}; received ${actual}.`);
+  }
   return value;
 }
 
@@ -122,7 +126,8 @@ function validatePoint(value, label) {
 }
 
 function validatePoints(value, label, { exact } = {}) {
-  if (!Array.isArray(value) || value.length < 2 || value.length > MAX_DRAW_POINTS || exact !== undefined && value.length !== exact) invalid(`${label} is invalid.`);
+  if (!Array.isArray(value)) invalid(`${label} must be an array of ${exact !== undefined ? `exactly ${exact}` : `2..${MAX_DRAW_POINTS}`} points.`);
+  if (value.length < 2 || value.length > MAX_DRAW_POINTS || exact !== undefined && value.length !== exact) invalid(`${label} has ${value.length} points; expected ${exact !== undefined ? `exactly ${exact}` : `2..${MAX_DRAW_POINTS} (inclusive)`}.`);
   return value.map((entry, index) => validatePoint(entry, `${label}[${index}]`));
 }
 
@@ -131,7 +136,8 @@ function optionalPair(input, first, second, label) {
 }
 
 function validateDrawItems(value) {
-  if (!Array.isArray(value) || !value.length || value.length > MAX_DRAW_ITEMS) invalid("items is invalid.");
+  if (!Array.isArray(value)) invalid(`items must be an array with 1..${MAX_DRAW_ITEMS} entries.`);
+  if (!value.length || value.length > MAX_DRAW_ITEMS) invalid(`items has ${value.length} entries; expected 1..${MAX_DRAW_ITEMS} (inclusive).`);
   const ids = new Set();
   let totalPoints = 0;
   const items = value.map((entry, index) => {
@@ -180,7 +186,7 @@ function validateDrawItems(value) {
     }
     return output;
   });
-  if (totalPoints > MAX_DRAW_POINTS_TOTAL) invalid(`items contain more than ${MAX_DRAW_POINTS_TOTAL} points.`);
+  if (totalPoints > MAX_DRAW_POINTS_TOTAL) invalid(`items contain ${totalPoints} total points; maximum is ${MAX_DRAW_POINTS_TOTAL}.`);
   const nodes = new Map(items.filter(item => DRAW_NODE_TYPES.has(item.type)).map(item => [item.id, item]));
   for (const [index, item] of items.entries()) {
     if (item.from === undefined) continue;
@@ -629,13 +635,13 @@ const TOOLS = [
   },
   {
     name:"penecho_present_widget",
-    description:"Create/update stable artifactId with HTML, preserving geometry; returned viewport is actual CSS size. relativeTo is a known artifactId. inspect requires capture:true and renders exact dimensions without saving an object. Capture failures may leave applied:true. Format source for patches.",
+    description:"Render rich explanations, sequence/flow diagrams (including static diagrams), and product UI as an HTML/CSS/SVG Widget. Create/update stable artifactId, preserving geometry; returned viewport is actual CSS size. relativeTo is a known artifactId. inspect requires capture:true and renders exact dimensions without saving an object. Capture failures may leave applied:true. Format source for patches.",
     inputSchema:{ type:"object", additionalProperties:false, required:["sessionId","artifactId","title","html"], properties:{sessionId:{type:"string",minLength:1,maxLength:128},artifactId:{type:"string",minLength:1,maxLength:128},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},html:{type:"string",minLength:1,maxLength:MAX_HTML_CHARS},width:{type:"number",minimum:300,maximum:4096,description:"CSS width: capped on creation, exact for inspect."},height:{type:"number",minimum:200,maximum:4096,description:"CSS height: independently capped on creation, exact for inspect."},capture:{type:"boolean",default:false},quality:{type:"string",enum:["basic","detail"]},presentation:presentationSchema({allowInspect:true})}, allOf:[{if:{required:["quality"]},then:{required:["capture"],properties:{capture:{const:true}}}},{if:{properties:{presentation:{properties:{intent:{const:"inspect"}},required:["intent"]}},required:["presentation"]},then:{required:["capture"],properties:{capture:{const:true}}}},{if:{properties:{presentation:{required:["size"]}},required:["presentation"]},then:{not:{anyOf:[{required:["width"]},{required:["height"]}]}}}] },
   },
 
   {
     name:"penecho_draw",
-    description:"Create/update native raster shapes/text using stable artifactId. Item coordinates are local scene coordinates; omit for auto-layout. Rect/ellipse minimum80. Host places the artifact. No editable vector handles; capture is opt-in.",
+    description:"Create/update a few simple native raster shapes/text or explicitly requested native drawing using stable artifactId. Prefer present_widget for rich explanations and sequence diagrams. Item coordinates are local scene coordinates; omit for auto-layout. Rect/ellipse minimum80. Host places the artifact. No editable vector handles; capture is opt-in.",
     inputSchema:{ type:"object", additionalProperties:false, required:["sessionId","artifactId","title","items"], properties:{ sessionId:{type:"string",minLength:1,maxLength:128}, artifactId:{type:"string",minLength:1,maxLength:128}, title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS}, items:{type:"array",minItems:1,maxItems:MAX_DRAW_ITEMS,items:{type:"object",additionalProperties:false,required:["id","type"],properties:{id:{type:"string",minLength:1,maxLength:64},type:{type:"string",enum:[...DRAW_TYPES]},text:{type:"string",minLength:1,maxLength:1_000},x:{type:"number",minimum:0,maximum:2_400},y:{type:"number",minimum:0,maximum:2_400},width:{type:"number",minimum:8,maximum:1_200},height:{type:"number",minimum:8,maximum:1_200},color:{type:"string",pattern:COLOR_PATTERN.source},fill:{type:"string",pattern:COLOR_PATTERN.source},fontSize:{type:"number",minimum:12,maximum:64},strokeWidth:{type:"number",minimum:1,maximum:12},points:{type:"array",minItems:2,maxItems:MAX_DRAW_POINTS,items:{type:"object",additionalProperties:false,required:["x","y"],properties:{x:{type:"number",minimum:0,maximum:2_400},y:{type:"number",minimum:0,maximum:2_400}}}},from:{type:"string",minLength:1,maxLength:64},to:{type:"string",minLength:1,maxLength:64}},allOf:[{if:{required:["type"],properties:{type:{enum:["rect","ellipse"]}}},then:{properties:{width:{minimum:80},height:{minimum:80}}}}]}}, capture:{type:"boolean",default:false}, presentation:presentationSchema({allowSize:false}) } },
   },
   {

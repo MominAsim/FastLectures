@@ -44,12 +44,12 @@ test("native drawing schema rejects ambiguous geometry, unsafe text, references,
     assert.throws(() => validateToolArguments("penecho_draw", {...baseDraw,items}), error => error.code === "invalid_arguments");
   }
   assert.throws(() => validateToolArguments("penecho_draw", {...baseDraw,items:[{id:"same",type:"rect"},{id:"same",type:"ellipse"}]}), /Duplicate item id/);
-  assert.throws(() => validateToolArguments("penecho_draw", {...baseDraw,items:[{id:"path",type:"path",points:Array.from({length:257}, (_, index) => ({x:index,y:index}))}]}), /points is invalid/);
+  assert.throws(() => validateToolArguments("penecho_draw", {...baseDraw,items:[{id:"path",type:"path",points:Array.from({length:257}, (_, index) => ({x:index,y:index}))}]}), /points has 257 points; expected 2\.\.256/);
   assert.throws(() => validateToolArguments("penecho_draw", {
     ...baseDraw,
     items:Array.from({length:9}, (_, itemIndex) => ({id:`path-${itemIndex}`,type:"path",points:Array.from({length:256}, (_, index) => ({x:index,y:itemIndex}))})),
-  }), /more than 2048 points/);
-  assert.throws(() => validateToolArguments("penecho_draw", {...baseDraw,items:Array.from({length:25}, (_, index) => ({id:`node-${index}`,type:"rect"}))}), /items is invalid/);
+  }), /2304 total points; maximum is 2048/);
+  assert.throws(() => validateToolArguments("penecho_draw", {...baseDraw,items:Array.from({length:25}, (_, index) => ({id:`node-${index}`,type:"rect"}))}), /items has 25 entries; expected 1\.\.24/);
   assert.throws(() => validateToolArguments("penecho_draw", {...baseDraw,capture:"yes"}), /capture is invalid/);
 });
 

@@ -3,19 +3,10 @@ import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 const { TOOLS, validateToolArguments } = require('../mcp/schema.js')
 const { executeBoundCanvasTool, BOUND_CANVAS_TOOL_NAMES } = require('../mcp/bound-operations.js')
-const { getAuthoringGuidance, ROUTING } = require('../mcp/authoring-guidance.js')
+const { getAuthoringGuidance, CANVAS_RENDERING_ROUTING } = require('../mcp/authoring-guidance.js')
 
-// JSON Schema constraints not represented by Harness's SDK remain enforced by
-// the SAME MCP validator, rather than being reimplemented in a second dialect.
-const schemaKeys = new Set(['type','properties','required','additionalProperties','items','enum','const','oneOf','description','title','default','examples'])
-export function harnessDocumentSchema(schema) {
-  if (Array.isArray(schema)) return schema.map(harnessDocumentSchema)
-  if (!schema || typeof schema !== 'object') return schema
-  return Object.fromEntries(Object.entries(schema).filter(([key])=>schemaKeys.has(key)).map(([key,value])=>[
-    key,key==='properties'?Object.fromEntries(Object.entries(value).map(([name,item])=>[name,harnessDocumentSchema(item)])):
-      ['enum','required','examples','default'].includes(key)?value:harnessDocumentSchema(value),
-  ]))
-}
+import { harnessDocumentSchema } from './document-schema.mjs'
+export { harnessDocumentSchema } from './document-schema.mjs'
 
 export function documentSessionId(session) {
   return `agent-${createHash('sha256').update(String(session.logicalConversationId || session.id)).digest('hex')}`
@@ -35,7 +26,7 @@ export function validateDocumentToolArguments(name, input, session) {
   return validateToolArguments(name,{...input,sessionId:id})
 }
 
-export const DOCUMENT_TOOL_INSTRUCTIONS = `The host binds the current Canvas; omit sessionId. Read virtual source and contentHash before patching; retry uncertain outcomes with identical requestId, conflicts with a fresh read. Use baseRevision for geometry edits. Upload session-owned image attachments and reuse returned sources in Widget HTML img src or CSS url(). Use stable artifactId; host handles placement. Capture only unresolved visual evidence; failed captures may leave applied content. Inbox reads do not acknowledge; keep message and feedback cursors independent. Use mutation completion for successful final status/handled IDs. Load relevant guidance on demand. Stop when correct, readable and usable.`
+export const DOCUMENT_TOOL_INSTRUCTIONS = `${CANVAS_RENDERING_ROUTING} The host binds the current Canvas; omit sessionId. Read virtual source and contentHash before patching; retry uncertain outcomes with identical requestId, conflicts with a fresh read. Use baseRevision for geometry edits. Upload session-owned image attachments and reuse returned sources in Widget HTML img src or CSS url(). Use stable artifactId; host handles placement. Capture only unresolved visual evidence; failed captures may leave applied content. Inbox reads do not acknowledge; keep message and feedback cursors independent. Use mutation completion for successful final status/handled IDs. Load relevant guidance on demand. Stop when correct, readable and usable.`
 
 export function createDocumentTools(session, { wrap, output, saveImage, readImage, onGuidance } = {}) {
   const names = new Set(BOUND_CANVAS_TOOL_NAMES)
