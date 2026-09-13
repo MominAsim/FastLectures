@@ -1831,6 +1831,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       changelogTitle: "Create with Canvas Agent and MCP",
       changelogCanvasAgent: "Canvas Agent works with your canvas, files, and web sources to create and refine editable visual content. Continue the conversation to build on your results.",
       changelogMcpCanvases: "Connect external AI tools through MCP to create and update Canvas documents. Find their canvases in the Navigator and follow the latest updates.",
+      changelogCloudMcp: "New Cloud MCP lets external AI agents such as Codex and Claude connect to your enabled PenEcho Cloud canvases to read content, create and edit results, and follow your handwritten feedback. Cloud MCP and Local MCP are optional connection paths.",
       changelogFrostedStudio: "A simpler frosted Studio brings the toolbar, Navigator, Agent, settings, and dialogs into one restrained visual system. Translucent materials, fine hairlines, and lighter controls keep the Canvas visible and the workspace easy to scan.",
       changelogPerformance: "Drawing, erasing, panning, and zooming feel more immediate. Low-latency live ink and coordinated frame work keep Widgets live and restore sharper text after movement.",
       changelogKeyboardShortcuts: "Customizable keyboard shortcuts are now available in Settings for focusing the Agent, saving, undo and redo, opening the Canvas Library, fullscreen, and Settings.",
@@ -2296,28 +2297,28 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       deleteSnapshotConfirmDevice: "Delete this snapshot from this device?",
       deleteSnapshotConfirmServer: "Delete this shared snapshot from the PenEcho server?",
       deleteSnapshotConfirmCloud: "Move this Cloud Canvas to Trash? It remains recoverable from PenEcho Cloud.",
-      canvasHintWidgetAdded: "Use Pen to mark changes near a widget, then tap AI Refine.",
-      canvasHintWidgetFullscreen: "With Hand or Select, double-click a widget to open it maximized.",
-      canvasHintWidgetInline: "Double-click with Hand or Select to interact; use Maximize to expand the widget.",
-      canvasHintShortcutAgent: "Press {shortcut} to open or close PenEcho Agent.",
-      canvasHintShortcutSave: "Press {shortcut} to save the current canvas.",
-      canvasHintShortcutUndoRedo: "Press {undo} to undo and {redo} to redo.",
-      canvasHintShortcutLibrary: "Press {shortcut} to open the Canvas Library.",
-      canvasHintShortcutFullscreen: "Press {shortcut} to enter or exit fullscreen.",
-      canvasHintShortcutSettings: "Press {shortcut} to open Settings and customize shortcuts.",
-      canvasHintMcp: "Connect your AI client in Settings → MCP to create and edit content on this canvas.",
-      canvasHintMcpConnected: "This canvas is available to MCP. Ask your connected AI client to draw or update content here.",
-      canvasHintHand: "Drag to pan. Click an object to select it. Double-click an image to maximize it.",
-      canvasHintHandAlt: "Hold Space to move the canvas temporarily; release to return to your tool.",
-      canvasHintWidgetTouchHand: "Choose Select, then Interact to use widget content.",
-      canvasHintLasso: "Select an object to move or resize it; drag empty space to lasso ink.",
-      canvasHintLassoAlt: "Choose Interact to use a widget, or double-click it.",
-      canvasHintText: "Text supports Markdown and LaTeX; press Ctrl/Cmd + Enter to confirm.",
-      canvasHintTextAlt: "Choose Text, then click the canvas to add a text box.",
-      canvasHintEraser: "Eraser removes ink only; use Select to delete objects.",
-      canvasHintEraserAlt: "Erase an instruction before AI runs without changing widgets beneath it.",
-      canvasHintAreaEraser: "Drag a rectangle to delete all ink inside it when you release.",
-      canvasHintAreaEraserAlt: "Area erase affects canvas ink only; widgets and other objects stay unchanged.",
+      canvasHintWidgetAdded: "Mark a widget with Pen, then choose AI Refine.",
+      canvasHintWidgetFullscreen: "Double-click a widget to maximize it.",
+      canvasHintWidgetInline: "Double-click a widget to interact.",
+      canvasHintShortcutAgent: "{shortcut}: open or close Agent.",
+      canvasHintShortcutSave: "{shortcut}: save canvas.",
+      canvasHintShortcutUndoRedo: "{undo}: undo · {redo}: redo.",
+      canvasHintShortcutLibrary: "{shortcut}: open Canvas Library.",
+      canvasHintShortcutFullscreen: "{shortcut}: toggle fullscreen.",
+      canvasHintShortcutSettings: "{shortcut}: open Settings.",
+      canvasHintMcp: "Settings → MCP: connect an AI client.",
+      canvasHintMcpConnected: "MCP connected: your AI can edit this canvas.",
+      canvasHintHand: "Drag to pan; click an object to select.",
+      canvasHintHandAlt: "Hold Space to pan temporarily.",
+      canvasHintWidgetTouchHand: "Select → Interact: use widget content.",
+      canvasHintLasso: "Click an object to move or resize; drag empty canvas to lasso.",
+      canvasHintLassoAlt: "Double-click a widget to interact.",
+      canvasHintText: "Markdown/LaTeX; Ctrl/Cmd + Enter to confirm.",
+      canvasHintTextAlt: "Click the canvas to add text.",
+      canvasHintEraser: "Eraser removes ink; Select deletes objects.",
+      canvasHintEraserAlt: "Erase AI marks without affecting widgets.",
+      canvasHintAreaEraser: "Drag a box to erase ink inside.",
+      canvasHintAreaEraserAlt: "Area Eraser affects ink only.",
       ready: "Ready",
       aiBusy: "AI is working. Please wait.",
       noInk: "Write something first",
@@ -3424,19 +3425,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     t,
     currentLanguage:() => state.language,
   });
-  function fitCanvasHint() {
-    if (!canvasHint) return;
-    canvasHint.classList.remove("two-line");
-    if (canvasHint.scrollWidth > canvasHint.clientWidth) canvasHint.classList.add("two-line");
-  }
-
   function renderCanvasHint(restart = false) {
     if (!canvasHint || !state.canvasHintKey) return;
     let message = t(state.canvasHintKey);
     for (const [key, value] of Object.entries(state.canvasHintValues || {})) message = message.replaceAll(`{${key}}`, String(value));
     canvasHint.textContent = `${t("hintPrefix")}: ${message}`;
     canvasHint.hidden = false;
-    fitCanvasHint();
     if (!restart) return;
     canvasHint.classList.remove("is-new");
     void canvasHint.offsetWidth;
@@ -5587,12 +5581,6 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     sendPluginStylesPreview();
   }
   window.addEventListener("message", handlePluginStylesPreviewMessage);
-  let canvasHintResizeScheduled = false;
-  window.addEventListener("resize", () => {
-    if (canvasHintResizeScheduled) return;
-    canvasHintResizeScheduled = true;
-    requestAnimationFrame(() => { canvasHintResizeScheduled = false; fitCanvasHint(); });
-  });
   function updatePluginAuthoringUi() {
     const validation = pluginDraftValidation(),
       status = state.pluginAuthoringStatus || (validation.manifest

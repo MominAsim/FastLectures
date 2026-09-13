@@ -693,10 +693,11 @@ test("contextual Canvas hints share one quiet application-footer line by priorit
   assert.match(css, /\.page-hint-slot\s*\{[^}]*position:\s*relative;[^}]*grid-column:\s*2;[^}]*color:\s*var\(--studio-muted, var\(--pe-ink-3, var\(--muted\)\)\);[^}]*font:\s*400 11px\/16px var\(--pe-font-ui,[^}]*text-align:\s*right;[^}]*pointer-events:\s*none/);
   assert.match(css, /\.page-hint-slot > :is\(\.text-input-hint, \.canvas-navigation-lock-hint, #tip, \.canvas-hint\)\s*\{[^}]*position:\s*absolute;[^}]*top:\s*50%;[^}]*right:\s*0;[^}]*bottom:\s*auto;[^}]*transform:\s*translateY\(-50%\);[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;[^}]*text-align:\s*right/);
   assert.match(css, /\.text-input-hint kbd\s*\{[^}]*padding:\s*0;[^}]*color:\s*inherit;[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*font:\s*inherit/);
-  assert.match(css, /\.canvas-hint\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/);
+  assert.match(css, /\.canvas-hint\s*\{[^}]*max-width:\s*min\(440px, 50vw\)[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/);
   assert.match(css, /main:has\(#viewport:is\(\.is-navigating, \.navigation-locked\)\) \.canvas-hint,[\s\S]*?main:has\(\.text-input-hint:not\(\[hidden\]\)\) #pageHintSlot :is\(#tip, \.canvas-navigation-lock-hint, \.canvas-hint\)\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0/);
   assert.match(css, /main > footer\.penecho-desktop-update-visible \.page-hint-slot\s*\{\s*display:\s*none/);
-  assert.doesNotMatch(css, /canvasHintSettle|\.canvas-hint\.is-new\s*\{[^}]*animation|\.page-hint-slot[^}]*text-shadow/);
+  assert.doesNotMatch(css, /canvasHintSettle|\.canvas-hint\.is-new\s*\{[^}]*animation|\.page-hint-slot[^}]*text-shadow|\.canvas-hint\.two-line/);
+  assert.doesNotMatch(app, /fitCanvasHint|canvasHintResizeScheduled|classList\.(?:add|remove)\("two-line"\)/);
   assert.doesNotMatch(css, /studio-agent-launcher-floating [^{]*(?:\.canvas-hint|#tip|\.canvas-navigation-lock-hint|\.text-input-hint)/);
   assert.match(startWidget, /widget\.widgetType === "html_widget"[\s\S]*?widgetInteractionPresentation\(\) === "maximized" \? "canvasHintWidgetFullscreen" : "canvasHintWidgetInline"/);
   assert.match(acceptWidget, /if \(restoreMode\) finishAIDraftHandMode\(\);[\s\S]*?if \(!replacement && restoreMode\) showCanvasHint\(widgetInteractionPresentation\(\) === "maximized" \? "canvasHintWidgetFullscreen" : "canvasHintWidgetInline"\)/);

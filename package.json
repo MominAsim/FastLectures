@@ -60,6 +60,7 @@
     "public/page-scale.js",
     "public/penecho-mark.png",
     "public/penecho-readme-header.png",
+    "public/penecho-architecture.webp",
     "public/locales/",
     "public/plugins/**/*.md",
     "public/plugins/**/*.css",

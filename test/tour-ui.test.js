@@ -203,7 +203,9 @@ test("1.3.0 release notes include Canvas Agent and MCP in both languages", () =>
   for (const id of ["changelogClose", "changelogTitle"]) assert.match(layer, new RegExp(`id="${id}"`));
   for (const id of ["changelogIntro", "changelogCurrentVersion", "changelogDone"]) assert.doesNotMatch(layer, new RegExp(`id="${id}"`));
   assert.match(layer, />1\.3\.0</);
-  assert.doesNotMatch(layer, /class="changelog-demo"|class="changelog-release changelog-earlier"/);
+  assert.doesNotMatch(layer, /class="changelog-release changelog-earlier"/);
+  assert.match(layer, /<img src="penecho-architecture\.webp"[^>]*loading="lazy"/);
+  assert.ok(read("public/penecho-architecture.webp").length > 0);
   assert.match(app, /CHANGELOG_STORAGE_KEY = "penecho-changelog-seen"/);
   assert.match(app, /CHANGELOG_VERSION = "1\.3\.0"/);
   assert.match(app, /localStorage\.getItem\(CHANGELOG_STORAGE_KEY\) === CHANGELOG_VERSION/);
@@ -212,8 +214,8 @@ test("1.3.0 release notes include Canvas Agent and MCP in both languages", () =>
   assert.match(app, /function closeFeatureTour[\s\S]*?maybeShowChangelog\(\)/);
   assert.match(app, /changelogLayer\.addEventListener\("keydown", handleChangelogKeydown\)/);
   assert.match(css, /\.changelog-layer\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;[^}]*place-items:\s*center/);
-  assert.match(css, /\.changelog-dialog\s*\{[^}]*width:\s*min\(620px,[^}]*max-height:/);
-  for (const key of ["changelogDialog", "changelogBadge", "changelogTitle", "changelogCanvasAgent", "changelogMcpCanvases", "changelogFrostedStudio", "changelogPerformance", "changelogKeyboardShortcuts"]) {
+  assert.match(css, /\.changelog-dialog\s*\{[^}]*width:\s*min\(900px,[^}]*max-height:/);
+  for (const key of ["changelogDialog", "changelogBadge", "changelogTitle", "changelogCanvasAgent", "changelogMcpCanvases", "changelogCloudMcp", "changelogFrostedStudio", "changelogPerformance", "changelogKeyboardShortcuts"]) {
     assert.match(app, new RegExp(`${key}:`), `missing English ${key}`);
     assert.match(zh, new RegExp(`${key}:`), `missing Chinese ${key}`);
   }
@@ -221,7 +223,7 @@ test("1.3.0 release notes include Canvas Agent and MCP in both languages", () =>
     assert.doesNotMatch(app, new RegExp(`${key}:`));
     assert.doesNotMatch(zh, new RegExp(`${key}:`));
   }
-  assert.equal((layer.match(/<li data-i18n="changelog/g) || []).length, 5);
+  assert.equal((layer.match(/<li data-i18n="changelog/g) || []).length, 6);
   assert.match(layer, /changelogFrostedStudio[\s\S]*changelogPerformance[\s\S]*changelogKeyboardShortcuts/);
   assert.match(app, /changelogFrostedStudio:[^\n]*frosted Studio[^\n]*Translucent materials[^\n]*Canvas visible/);
   assert.match(app, /changelogPerformance:[^\n]*Drawing, erasing, panning, and zooming[^\n]*Low-latency live ink/);

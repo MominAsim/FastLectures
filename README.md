@@ -80,6 +80,7 @@ Through MCP, your AI can turn explanations into diagrams and ideas into interact
 | Update | What it adds |
 | --- | --- |
 | **MCP workspace** | Canvas discovery, captures, object editing, interactive Widgets, virtual source files, and user feedback for external agents. Supports opted-in local, LAN, and linked-device Cloud browsers. |
+| **Cloud MCP** | Connect external AI agents directly to your enabled PenEcho Cloud canvases to read content, create and edit results, and follow handwritten feedback. Cloud MCP and Local MCP are optional connection paths. |
 | **PenEcho Cloud Credits API** | Use PenEcho-hosted models with account credits, alongside your own API and CLI connections. View available models, rates, and balance in Settings. |
 | **Connection management** | Save multiple AI connections and choose the active connection for each client. |
 | **Canvas and workbench** | More responsive drawing and navigation, refined Studio controls, an adaptive Agent panel, and customizable keyboard shortcuts. |
@@ -87,10 +88,10 @@ Through MCP, your AI can turn explanations into diagrams and ideas into interact
 ## How it works
 
 <p align="center">
-  <img src="docs/assets/how-it-works.png" alt="PenEcho architecture: local and LAN browsers access Canvas on your computer; remote browsers connect through PenEcho Cloud. External agents read and write through the local MCP server. The built-in Agent uses your CLI, model API, or PenEcho Cloud Credits API." width="1488">
+  <img src="public/penecho-architecture.webp" alt="PenEcho architecture: a browser connects to PenEcho Cloud or your local PC. Cloud includes hosted models and connects to your linked device. Your PC runs PenEcho CLI or App with your LLM API or agents. External AI agents can use Cloud MCP or Local MCP; both connections are optional." width="1483">
 </p>
 
-Run PenEcho on your computer as a desktop app or local server. Open its Canvas locally, from a browser on your LAN, or remotely through a Cloud linked device. The built-in Agent uses the AI connection you select; external agents use the local MCP bridge to work on enabled Canvases.
+Open PenEcho in a browser through PenEcho Cloud or your local PC running the CLI or desktop app. Cloud provides hosted models and can connect to your linked device; your PC can use your own model API or agents. External AI agents such as Codex and Claude can connect through Cloud MCP or Local MCP. Both MCP connections are optional.
 
 See the [architecture notes](docs/architecture.md) for implementation details.
 
@@ -123,6 +124,8 @@ npm start
 
 ## Connect your agent with MCP
 
+For **Local MCP**:
+
 1. Start PenEcho and enable the current Canvas in **Settings → MCP service**.
 2. Use Settings to configure a supported local client or copy its generated launch configuration. For a global npm installation, clients that accept `mcpServers` JSON can use:
 
@@ -136,7 +139,7 @@ npm start
 
 3. Ask your agent: **“Show the architecture we discussed on my PenEcho Canvas.”**
 
-The agent can capture relevant content, edit objects, create visual results, patch document source files, and receive your feedback. Only enabled, connected Canvases are discoverable. The MCP client runs on the PenEcho host; LAN and Cloud browser support does not expose a public MCP endpoint.
+The agent can capture relevant content, edit objects, create visual results, patch document source files, and receive your feedback. Only enabled, connected Canvases are discoverable. With Local MCP, the MCP client runs on the PenEcho host; support for LAN and linked-device browsers does not expose the local MCP endpoint publicly. Cloud MCP is a separate authenticated HTTPS connection for your enabled PenEcho Cloud canvases.
 
 Desktop installations should use the generated configuration, which includes the correct bundled runtime. See [MCP setup](docs/mcp-setup.md) and the optional [agent workflow skill](skills/penecho-mcp/SKILL.md).
 
@@ -150,7 +153,7 @@ Desktop installations should use the generated configuration, which includes the
 | **Your model API** | Configure an OpenAI- or Anthropic-compatible endpoint, model, and API key. Usage is handled by your provider. |
 | **Your CLI** | Use a locally installed and authenticated Codex, Claude Code, or Kimi CLI. Availability and usage depend on that provider's plan. |
 
-Hosted models on your computer require a Cloud sign-in, without device pairing or a separate Credits API key. Remote MCP access requires your online linked device and MCP relay support on both the host and Cloud.
+Hosted models on your computer require a Cloud sign-in, without device pairing or a separate Credits API key. Cloud MCP can access enabled Cloud canvases directly. Accessing a Canvas hosted on your computer through Cloud requires the linked device to be online and the necessary relay support.
 
 Your own API and CLI connections do not spend PenEcho credits. A Cloud account is optional for local use with your own connection. AI features require access to the selected provider; running PenEcho locally does not make a remote model available offline.
 

@@ -14,7 +14,7 @@
   <a href="README.de.md">Deutsch</a>
 </p>
 
-<h1 align="center">A spatial workspace<br>for thinking with AI.</h1>
+<h1 align="center">与 AI 一起思考的<br>空间工作台。</h1>
 <p align="center">手写、探索、创作，让内置 Agent 或你自己的 MCP 助手加入同一块画布。</p>
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.3.0-087f83" alt="版本 1.3.0">
@@ -29,13 +29,13 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_full_demo.webp" alt="PenEcho full demo" width="49%">
-  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins.webp" alt="PenEcho professional diagrams demo" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_full_demo.webp" alt="PenEcho 完整演示" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins.webp" alt="PenEcho 专业图表演示" width="49%">
 </p>
 
 <p align="center">
-  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins_sub_x10.webp" alt="PenEcho plugins demo" width="49%">
-  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/play_patris.webp" alt="PenEcho interactive canvas demo" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins_sub_x10.webp" alt="PenEcho 插件演示" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/play_patris.webp" alt="PenEcho 交互画布演示" width="49%">
 </p>
 
 <p align="center">
@@ -80,6 +80,7 @@
 | 更新 | 带来的能力 |
 | --- | --- |
 | **MCP 工作空间** | 画布发现、截图、对象编辑、交互 Widget、虚拟源文件和用户反馈；支持明确开放的本机、局域网和关联设备云端浏览器。 |
+| **Cloud MCP** | 外部 AI Agent 可直接连接已启用的 PenEcho Cloud 画布，读取内容、创建和编辑成果，并根据手写批注继续完善。Cloud MCP 与 Local MCP 均为可选连接方式。 |
 | **PenEcho Cloud Credits API** | 使用账号积分调用 PenEcho 托管模型，也可继续使用自己的 API 或 CLI；设置中可查看可用模型、费率和余额。 |
 | **连接管理** | 保存多个 AI 连接，为不同客户端选择各自的活动连接。 |
 | **画布与工作台** | 更流畅的绘写和导航、更简洁的 Studio 控件、自适应 Agent 面板与可自定义的快捷键。 |
@@ -87,10 +88,10 @@
 ## 工作原理
 
 <p align="center">
-  <img src="../assets/how-it-works.png" alt="PenEcho 架构：本机和局域网浏览器访问电脑上的 Canvas，远程浏览器通过 PenEcho Cloud 连接；第三方 Agent 使用本地 MCP 读写画布，内置 Agent 使用 CLI、自有模型 API 或云端积分 API。" width="1488">
+  <img src="../../public/penecho-architecture.webp" alt="PenEcho 架构：浏览器连接 PenEcho Cloud 或本机；Cloud 提供云端模型并连接关联设备，本机运行 PenEcho CLI 或 App，使用自有 LLM API 或 Agent。外部 AI Agent 可通过 Cloud MCP 或 Local MCP 连接，两条 MCP 连接均为可选。" width="1483">
 </p>
 
-在电脑上运行 PenEcho 桌面应用或本地服务，通过本机、局域网浏览器或 Cloud 关联设备访问 Canvas。内置 Agent 使用你选择的 AI 连接；外部 Agent 通过本地 MCP 桥接操作已开放的画布。
+通过浏览器访问 PenEcho Cloud，或访问本机运行的 PenEcho CLI / 桌面应用。Cloud 提供云端模型，并可连接你的关联设备；本机可以使用自有模型 API 或 Agent。Codex、Claude 等外部 AI Agent 可通过 Cloud MCP 或 Local MCP 连接，两条 MCP 连接均为可选。
 
 实现细节见[架构文档](../architecture.md)。
 
@@ -123,6 +124,8 @@ npm start
 
 ## 通过 MCP 接入你的 Agent
 
+使用 **Local MCP**：
+
 1. 启动 PenEcho，在 **设置 → MCP 服务** 中开放当前 Canvas。
 2. 在设置中配置受支持的本机客户端，或复制生成的启动配置。全局 npm 安装可在接受 `mcpServers` JSON 的客户端中使用：
 
@@ -136,7 +139,7 @@ npm start
 
 3. 告诉 Agent：**“把刚才讨论的架构展示到我的 PenEcho 画布上。”**
 
-Agent 可以查看相关内容、编辑对象、创建可视化结果、修改文档源文件，并接收你的反馈。只有已开放且连接中的 Canvas 才会被发现。MCP 客户端运行在 PenEcho 主机上；局域网和云端浏览器支持不会开放公共 MCP 接口。
+Agent 可以查看相关内容、编辑对象、创建可视化结果、修改文档源文件，并接收你的反馈。只有已开放且连接中的 Canvas 才会被发现。使用 Local MCP 时，MCP 客户端运行在 PenEcho 主机上；支持局域网和关联设备浏览器不会将本地 MCP 接口公开到互联网。Cloud MCP 则通过独立的、经过身份验证的 HTTPS 连接访问已启用的 PenEcho Cloud 画布。
 
 桌面应用请使用设置生成的配置，其中包含正确的内置运行时。详见 [MCP 配置指南](../mcp-setup.md)和可选的 [Agent 工作流 skill](../../skills/penecho-mcp/SKILL.md)。
 
@@ -150,26 +153,26 @@ Agent 可以查看相关内容、编辑对象、创建可视化结果、修改�
 | **自己的模型 API** | 配置兼容 OpenAI 或 Anthropic 格式的服务地址、模型和 API Key，用量由对应服务商结算。 |
 | **自己的 CLI** | 使用本机已安装并登录的 Codex、Claude Code 或 Kimi CLI，可用性与用量取决于对应服务商套餐。 |
 
-在本机使用托管模型只需登录 Cloud，无需关联设备或另填 Credits API Key。远程 MCP 访问需要关联设备在线，且主机与 Cloud 均支持 MCP 中继。
+在本机使用托管模型只需登录 Cloud，无需关联设备或另填 Credits API Key。Cloud MCP 可直接访问已启用的云端画布。通过 Cloud 访问电脑上托管的画布时，需要关联设备在线并具备相应中继支持。
 
 自有 API 和 CLI 连接不消耗 PenEcho 积分。使用自己的连接在本地工作，无需 Cloud 账号。AI 功能需要访问所选服务；本地运行 PenEcho 不代表远程模型可以离线使用。
 
 ## 模型与效果
 
-以下为现有实测推荐；响应时间会随服务商、画布复杂度和推理设置变化。表内模型、推理等级及效果描述保留原文。
+以下推荐基于 PenEcho 实际画布任务的实测，在回答质量与延迟之间取得平衡；实际响应时间会随服务商、画布复杂度和推理行为变化。
 
-| Model | Effort | Notes | Recommended use |
+| 模型 | 推理强度 | 说明 | 推荐用途 |
 | --- | --- | --- | --- |
-| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `medium` | Strong quality with a better latency balance | Everyday canvas work |
-| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `high` | Higher reasoning quality, longer and more variable waits | Complex handwriting, mathematics, diagrams, or layout |
-| Fable 5 (`claude-fable-5` or `fable`) | `medium` | Often around half the response time of `gpt-5.6-sol` at `xhigh` | Fast, high-quality general use |
-| [Kimi K3](https://platform.kimi.ai?aff=penecho) (`kimi-k3`) | `medium` | Very good quality; `medium` keeps the balance practical | Recommended Kimi default |
-| `gpt-5.6-terra` | `low` to `high` | Surprisingly strong and responsive | Flexible quality and latency targets |
-| `gpt-5.6-luna` | `xhigh` | Very good canvas results with strong speed | Quality-first, still responsive |
-| `gpt-5.6-sol` | `high` | Good enough for most requests, more responsive than `xhigh` | Default when responsiveness matters |
-| `gpt-5.6-sol` | `xhigh` | Very good but slower and more variable | Difficult canvas tasks |
-| `deepseek-v4-flash-vision-exp` | `medium` | Good | Vision-capable work through the DeepSeek API |
-| `glm-5.3-flash` | `medium` | Good | Fast work through the GLM Anthropic-compatible API |
+| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `medium` | 质量强，延迟更均衡 | 日常画布任务 |
+| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `high` | 推理质量更高，等待更长且波动更大 | 复杂手写、数学、图表或布局 |
+| Fable 5 (`claude-fable-5` 或 `fable`) | `medium` | 响应时间通常约为 `gpt-5.6-sol` 在 `xhigh` 下的一半 | 快速、高质量的通用任务 |
+| [Kimi K3](https://platform.kimi.ai?aff=penecho) (`kimi-k3`) | `medium` | 质量很好，`medium` 保持实用的平衡 | Kimi 推荐默认配置 |
+| `gpt-5.6-terra` | `low` 至 `high` | 质量与响应速度表现出色 | 灵活兼顾质量与延迟 |
+| `gpt-5.6-luna` | `xhigh` | 画布效果很好，速度快 | 质量优先，同时兼顾响应 |
+| `gpt-5.6-sol` | `high` | 满足多数请求，比 `xhigh` 响应更快 | 重视响应速度时的默认配置 |
+| `gpt-5.6-sol` | `xhigh` | 质量很好，但更慢且波动更大 | 高难度画布任务 |
+| `deepseek-v4-flash-vision-exp` | `medium` | 良好 | 通过 DeepSeek API 完成视觉任务 |
+| `glm-5.3-flash` | `medium` | 良好 | 通过 GLM Anthropic 兼容 API 快速完成任务 |
 
 ## 社区与许可
 
