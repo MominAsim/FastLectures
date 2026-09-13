@@ -1026,7 +1026,7 @@ async function requestProviderSnapshot(req) {
   }
   const store = connectionStore(),
     connection = findConnection(store, requestedId) || (requestedId === "default" ? store.connections[0] : null);
-  if (!connection) throw Object.assign(new Error("The selected PenEcho model is unavailable. Refresh AI connections."), { status:409 });
+  if (!connection) throw Object.assign(new Error("The selected PenEcho model is unavailable. Refresh AI connections."), { status:409, code:"CONNECTION_STALE" });
   return connectionProviderSnapshot(connection);
 }
 
@@ -1492,6 +1492,21 @@ function listSharedCanvases() {
     } catch {}
   }
   return items.sort((a,b)=>b.updatedAt-a.updatedAt);
+}
+function sharedCanvasListMetadata(item) {
+  const {preview,...metadata}=item;
+  return {...metadata,documentId:item.documentId||null,hasPreview:typeof preview==="string"&&preview.length>0};
+}
+function readSharedCanvasPreview(id) {
+  const file=canvasSnapshotPath(id,true);
+  if(!file)throw Object.assign(new Error("Invalid canvas id."),{status:400});
+  let metadata;
+  try {
+    const stat=fs.statSync(file);
+    if(stat.isFile()&&stat.size<=3*1024*1024)metadata=canonicalSharedCanvasMetadata(JSON.parse(fs.readFileSync(file,"utf8")),id);
+  } catch {}
+  if(!metadata)throw Object.assign(new Error("Canvas preview was not found."),{status:404});
+  return {preview:metadata.preview};
 }
 function listSharedCanvasProjects() {
   const canvases=listSharedCanvases();
@@ -3766,13 +3781,15 @@ const server = http.createServer(async (req, res) => {
       return send(res,status,{error:error?.message||"Unable to access the PenEcho server canvas project."});
     }
   }
-  const sharedCanvasMatch=/^\/api\/canvases\/(\d{10,16}-[a-zA-Z0-9-]{8,64})$/.exec(url.pathname);
-  if(url.pathname==="/api/canvases"||sharedCanvasMatch) {
+  const sharedCanvasMatch=/^\/api\/canvases\/(\d{10,16}-[a-zA-Z0-9-]{8,64})$/.exec(url.pathname),
+    sharedCanvasPreviewMatch=/^\/api\/canvases\/(\d{10,16}-[a-zA-Z0-9-]{8,64})\/preview$/.exec(url.pathname);
+  if(url.pathname==="/api/canvases"||sharedCanvasMatch||sharedCanvasPreviewMatch) {
     try {
       const mutation=req.method!=="GET",
         authorizationError=mutation?browserRequestError(req):sharedCanvasReadError(req);
       if(authorizationError)return send(res,403,{error:authorizationError});
-      if(req.method==="GET"&&url.pathname==="/api/canvases")return send(res,200,{canvases:listSharedCanvases().map(item=>url.searchParams.get("metadataOnly")==="1"?{id:item.id,name:item.name,documentId:item.documentId||null,createdAt:item.createdAt,updatedAt:item.updatedAt}:item)});
+      if(req.method==="GET"&&url.pathname==="/api/canvases")return send(res,200,{canvases:listSharedCanvases().map(item=>url.searchParams.get("metadataOnly")==="1"?sharedCanvasListMetadata(item):item)});
+      if(req.method==="GET"&&sharedCanvasPreviewMatch)return send(res,200,readSharedCanvasPreview(sharedCanvasPreviewMatch[1]));
       if(req.method==="GET"&&sharedCanvasMatch)return send(res,200,{canvas:readSharedCanvas(sharedCanvasMatch[1])});
       if(req.method==="POST"&&url.pathname==="/api/canvases") {
         if(!isJsonRequest(req))return send(res,415,{error:"Canvas storage requires application/json."});
@@ -3860,7 +3877,7 @@ const server = http.createServer(async (req, res) => {
       return send(res,200,{metadata,requestId});
     }catch(error){
       const timedOut=error?.name==="AbortError"||error?.message==="This operation was aborted",upstreamStatus=Number.isInteger(error.status)&&error.status>=400&&error.status<=599?error.status:null,code=timedOut?504:upstreamStatus||502;
-      if(!res.writableEnded&&!res.destroyed)send(res,code,{error:error.message||"Unable to generate community metadata.",requestId});
+      if(!res.writableEnded&&!res.destroyed)send(res,code,{error:error.message||"Unable to generate community metadata.",requestId,...(error.code==="CONNECTION_STALE"?{errorCode:error.code}: {})});
     }finally{finishLocalRequest(localRun);req.removeListener("aborted",abort);res.removeListener("close",abort);}
     return;
   }
@@ -3892,7 +3909,7 @@ const server = http.createServer(async (req, res) => {
     } catch (error) {
       const timedOut = error?.name === "AbortError" || error?.message === "This operation was aborted", upstreamStatus = Number.isInteger(error.status) && error.status >= 400 && error.status <= 599 ? error.status : null,
         code = timedOut ? 504 : upstreamStatus || 502;
-      if (!res.writableEnded && !res.destroyed) send(res, code, { error:error.message || "Unable to improve plugin.", requestId });
+      if (!res.writableEnded && !res.destroyed) send(res, code, { error:error.message || "Unable to improve plugin.", requestId, ...(error.code==="CONNECTION_STALE"?{errorCode:error.code}: {}) });
     } finally {
       finishLocalRequest(localRun);
       req.removeListener("aborted", abort);
@@ -4139,7 +4156,7 @@ ${WIDGET_PATCH_FORMAT_POLICY}`,
         code = clientError ? 400 : timedOut ? 504 : upstreamStatus || 502;
       log({ type:"ai", requestId, ip, status:code, elapsedMs:Date.now()-started, error:clientError?"client-error":timedOut?"timeout":upstreamStatus?"upstream-error":"model-error", ...(REQUEST_TRACE_ENABLED ? { failure:compactErrorLog(error) } : {}) });
       const userMessage=publicModelError(error,{clientError,timedOut,upstreamStatus,provider:providerSnapshot});
-      const responseBody={error:userMessage,requestId};
+      const responseBody={error:userMessage,requestId,...(error.code==="CONNECTION_STALE"?{errorCode:error.code}: {})};
       completeRequestTrace(requestTrace,timedOut?"timeout":"failed",code,responseBody,error);
       sendAiResponse(progress,res,code,responseBody);
     } finally {

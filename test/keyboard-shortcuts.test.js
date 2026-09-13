@@ -68,6 +68,24 @@ test("shortcut normalization treats Control and Command as the same cross-platfo
   assert.equal(chord({ key:"Control", ctrlKey:true, metaKey:false, altKey:false, shiftKey:false }), "");
 });
 
+test("Canvas shortcut hints show the current binding and omit cleared shortcuts", () => {
+  const source = read("src/client/app/keyboard-shortcuts.js"), bindings = {
+    "focus-agent":"Tab", "save-canvas":"Mod+k", undo:"Mod+z", redo:"Mod+Shift+z",
+  };
+  const api = Function("keyboardShortcutBindings", "keyboardShortcutDisplay", `
+    ${functionSource(source, "keyboardShortcutCanvasHint")}
+    ${functionSource(source, "keyboardShortcutUndoRedoHint")}
+    return { keyboardShortcutCanvasHint, keyboardShortcutUndoRedoHint };
+  `)(bindings, (chord) => chord.replace("Mod", "Ctrl"));
+  assert.deepEqual(api.keyboardShortcutCanvasHint("focus-agent", "canvasHintShortcutAgent"), {
+    key:"canvasHintShortcutAgent", values:{ shortcut:"Tab" },
+  });
+  assert.equal(api.keyboardShortcutCanvasHint("canvas-library", "canvasHintShortcutLibrary"), null);
+  assert.deepEqual(api.keyboardShortcutUndoRedoHint(), {
+    key:"canvasHintShortcutUndoRedo", values:{ undo:"Ctrl+z", redo:"Ctrl+Shift+z" },
+  });
+});
+
 test("shortcut recording rejects conflicts, supports clearing, and protects text and modal contexts", () => {
   const source = read("src/client/app/keyboard-shortcuts.js"), assign = functionSource(source, "keyboardShortcutAssign"), handler = functionSource(source, "handleKeyboardShortcutKeydown"), context = functionSource(source, "keyboardShortcutCanRun");
   assert.match(assign, /KEYBOARD_SHORTCUT_COMMANDS\.find\([\s\S]*?keyboardShortcutBindings\[item\.id\] === chord/);

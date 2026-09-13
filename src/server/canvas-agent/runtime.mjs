@@ -4599,7 +4599,7 @@ export class CanvasHarnessHost {
     }
     await this.prepareConnection(connectionId)
     const connection = this.resolveConnection(connectionId)
-    if (!connection) throw new Error('The selected AI connection was not found.')
+    if (!connection) throw Object.assign(new Error('The selected AI connection was not found. Refresh AI connections.'), { code:'CONNECTION_STALE', status:409 })
     await this.refreshProviders()
     const profile = this.modelBackend
       ? await this.modelBackend.profile(connection, { host:this, principal, requestEffort:null })
@@ -4953,7 +4953,8 @@ export class CanvasHarnessHost {
     if (session.handle?.agent?.status !== 'idle') throw new Error('Wait for the current PenEcho Agent turn to finish before changing models.')
     await this.prepareConnection(String(connectionId || ''))
     const connection = this.resolveConnection(String(connectionId || ''))
-    if (!connection || connection.provider === 'codex-cli') throw new Error('The selected AI connection cannot use this PenEcho Agent engine.')
+    if (!connection) throw Object.assign(new Error('The selected AI connection was not found. Refresh AI connections.'), { code:'CONNECTION_STALE', status:409 })
+    if (connection.provider === 'codex-cli') throw new Error('The selected AI connection cannot use this PenEcho Agent engine.')
     const profile = this.modelBackend
       ? await this.modelBackend.profile(connection, { host:this, principal:session.principal, requestEffort:null })
       : connection.provider === 'api' ? connectionProfile(connection, this.modelTimeoutMs(connection.id)) : this.cliModule.cliConnectionProfile(connection)

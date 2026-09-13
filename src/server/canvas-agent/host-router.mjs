@@ -75,7 +75,7 @@ export class CanvasAgentHostRouter {
     const connectionId = String(request?.connectionId || 'default')
     await this.prepareConnection(connectionId)
     const connection = this.resolveConnection(connectionId)
-    if (!connection) throw new Error('The selected AI connection was not found.')
+    if (!connection) throw Object.assign(new Error('The selected AI connection was not found. Refresh AI connections.'), { code:'CONNECTION_STALE', status:409 })
     const engine = this.engineForConnection(connection)
     const owner = await this.owner(engine)
     const session = await owner.connect({ ...request, connectionId, send:this.wrappedSend(request, engine) })
@@ -89,7 +89,7 @@ export class CanvasAgentHostRouter {
     const connectionId = String(request?.connectionId || previous?.connectionId || 'default')
     await this.prepareConnection(connectionId)
     const connection = this.resolveConnection(connectionId)
-    if (!connection) throw new Error('The selected AI connection was not found.')
+    if (!connection) throw Object.assign(new Error('The selected AI connection was not found. Refresh AI connections.'), { code:'CONNECTION_STALE', status:409 })
     const replacement = await this.connect({ ...request, connectionId })
     if (originalOwner) await originalOwner.disposeSession(previous).catch(() => {})
     return replacement
@@ -101,7 +101,7 @@ export class CanvasAgentHostRouter {
     const connectionId = String(request?.connectionId || previous.connectionId || 'default')
     await this.prepareConnection(connectionId)
     const connection = this.resolveConnection(connectionId)
-    if (!connection) throw new Error('The selected AI connection was not found.')
+    if (!connection) throw Object.assign(new Error('The selected AI connection was not found. Refresh AI connections.'), { code:'CONNECTION_STALE', status:409 })
     const initialBacklog = Array.isArray(previous.backlog) ? previous.backlog.slice() : []
     const continuity = this.conversationContinuity(initialBacklog)
     const conversationId = String(request?.conversationId || previous.logicalConversationId || '')
@@ -116,7 +116,7 @@ export class CanvasAgentHostRouter {
     const connectionId = String(request?.connectionId || previous.connectionId || 'default')
     await this.prepareConnection(connectionId)
     const connection = this.resolveConnection(connectionId)
-    if (!connection) throw new Error('The selected AI connection was not found.')
+    if (!connection) throw Object.assign(new Error('The selected AI connection was not found. Refresh AI connections.'), { code:'CONNECTION_STALE', status:409 })
     const engine = this.engineForConnection(connection)
     const send = this.wrappedSend(request, engine)
     if (engine === previous.engine) {

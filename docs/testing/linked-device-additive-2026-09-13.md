@@ -62,3 +62,28 @@ suite53/54 including both modified close-code lifecycle tests; one unrelated
 source-regex assertion against legacy-server.js at the AI loopback boundary
 remains failing. Narrow/zoom visual acceptance for new unavailable labels and
 post-deployment end-to-end relay acceptance remain pending.
+
+## Library gateway failure UI
+
+Design source map: Library shell -> penecho-design-language.html Canvas Library
+manager example; recoverable failure -> Empty / Loading / Error and Modal list
+empty examples. One explanation and one Retry action belong to the content
+region. Grid loading/error states span all columns. Empty/unknown results do
+not inherit another location's count or display a fabricated zero.
+
+Fixed failure path to end and hide the loading activity after request settlement,
+render one full-width error state, preserve previously loaded same-location
+items when available, and retry the exact current location. Switching location
+immediately updates the header even when its request fails. Error state survives
+ordinary list rerenders until retry. Generated app.js and copied app.js,
+style.css and locales/zh.js through the official Cloud sync.
+
+Isolated browser fixture intercepted every request and injected502 for Server
+while Cloud remained successful. Wide English1440px, Chinese720px and480px
+zoom-proxy checks show one error, no active loading overlay, correct Server
+heading, no measured overflow, and successful retry after restoring the mock
+service. Screenshots/report: /tmp/penecho-library-error-acceptance/. This is
+layout and failure-path evidence, not proof that live UAT transport is repaired.
+Targeted Library state tests11/11 passed. Combined ui-controls and Library suite
+124/127 passed; the remaining3 are the previously reported unrelated image,
+widget validation and Studio CSS assertions.

@@ -180,3 +180,20 @@ test("linked AI HTTP execution forwards an explicit connection and preserves fin
   await execute({ operation:"canvas.http", request:{ method:"POST", path:"/api/settings", body:settings } });
   assert.deepEqual(JSON.parse(calls.at(-1).options.body), settings);
 });
+
+test("Remote Canvas metadata-only listing permits one exact read-only flag", () => {
+  assert.equal(remoteCanvasTarget("GET", "/api/canvases?metadataOnly=1"), "/api/canvases?metadataOnly=1");
+  assert.equal(remoteCanvasTarget("GET", "/api/canvases"), "/api/canvases");
+  assert.equal(remoteCanvasTarget("POST", "/api/canvases"), "/api/canvases");
+  for (const query of ["metadataOnly=0", "metadataOnly=", "metadataOnly=true", "metadataOnly=1&metadataOnly=1", "metadataOnly=1&extra=1", "extra=1"])
+    assert.throws(() => remoteCanvasTarget("GET", `/api/canvases?${query}`), /not available/);
+  assert.throws(() => remoteCanvasTarget("POST", "/api/canvases?metadataOnly=1"), /not available/);
+});
+
+test("server canvas previews allow only exact GET paths", () => {
+  const path="/api/canvases/1234567890123-canvasname/preview";
+  assert.equal(remoteCanvasTarget("GET",path),path);
+  for(const method of ["POST","PUT","PATCH","DELETE","HEAD"])assert.throws(()=>remoteCanvasTarget(method,path));
+  for(const suffix of ["?extra=1","?metadataOnly=1","/","/nested"])assert.throws(()=>remoteCanvasTarget("GET",path+suffix));
+  assert.throws(()=>remoteCanvasTarget("GET","/api/canvases/invalid/preview"));
+});

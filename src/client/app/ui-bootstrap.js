@@ -802,12 +802,21 @@
       showHandStatusHint("hand-mode", ["handAutoAIManual", "handAutoAIResume"]);
     }
     if (options.showHint) {
+      const shortcutHints = {
+        agent:keyboardShortcutCanvasHint("focus-agent", "canvasHintShortcutAgent"),
+        save:keyboardShortcutCanvasHint("save-canvas", "canvasHintShortcutSave"),
+        undoRedo:keyboardShortcutUndoRedoHint(),
+        library:keyboardShortcutCanvasHint("canvas-library", "canvasHintShortcutLibrary"),
+        fullscreen:keyboardShortcutCanvasHint("toggle-fullscreen", "canvasHintShortcutFullscreen"),
+        settings:keyboardShortcutCanvasHint("open-settings", "canvasHintShortcutSettings"),
+      };
       const hintKey = {
-        hand:["canvasHintHand", "canvasHintHandAlt"],
-        select:["canvasHintLasso", "canvasHintLassoAlt"],
-        text:["canvasHintText", "canvasHintTextAlt"],
+        pen:[shortcutHints.agent, shortcutHints.save, shortcutHints.undoRedo, "canvasHintMcp"],
+        hand:["canvasHintHand", "canvasHintHandAlt", shortcutHints.agent, shortcutHints.library, shortcutHints.fullscreen],
+        select:["canvasHintLasso", state.widgets.length ? (widgetInteractionPresentation() === "maximized" ? "canvasHintWidgetFullscreen" : "canvasHintWidgetInline") : "canvasHintLassoAlt", shortcutHints.undoRedo],
+        text:["canvasHintText", "canvasHintTextAlt", shortcutHints.save],
         eraser:["canvasHintEraser", "canvasHintEraserAlt"],
-        "area-eraser":["canvasHintAreaEraser", "canvasHintAreaEraserAlt"],
+        "area-eraser":["canvasHintAreaEraser", "canvasHintAreaEraserAlt", shortcutHints.undoRedo, shortcutHints.settings],
       }[mode];
       if (hintKey) showCanvasHint(hintKey);
     }
@@ -1791,6 +1800,7 @@
     markPublishedOrigin:markPublishedCommunityOrigin,
   });
   window.PenEchoCloudProjects = Object.freeze({
+    currentExecutionScope:canvasAgentCloudExecutionScope,
     currentCanvasId:() => state.currentSnapshotLocation === "cloud" && /^[0-9a-f-]{36}$/i.test(String(state.currentSnapshotId || "")) ? state.currentSnapshotId : null,
     saveEcho:saveEchoToCloud,
     openHistory:openCloudProjectHistory,
@@ -1811,7 +1821,11 @@
   loadPluginDocuments().catch(() => {});
   // The public viewer has no history UI and must never probe private/local
   // snapshot APIs on the Cloud origin.
-  if (window.PENECHO_CONFIG?.runtime !== "viewer") refreshSnapshots().catch(() => {});
+  // A Cloud deep link already identifies its document. Do not prefetch a
+  // remembered Server Library (including every preview) on the opening path.
+  // Opening Library itself owns its refresh through openHistoryPanel().
+  if (window.PENECHO_CONFIG?.runtime !== "viewer"
+    && !(window.PENECHO_CONFIG?.runtime === "cloud" && window.PENECHO_CONFIG?.remoteCanvasNativeReads === true)) refreshSnapshots().catch(() => {});
   fit();
   setNavigating(true);
   scheduleAIOrbIdle();

@@ -60,9 +60,6 @@
 
 .penecho-cloud-overlay {
   align-items: center;
-  background: var(--penecho-dialog-backdrop, rgba(18, 23, 34, .2));
-  -webkit-backdrop-filter: var(--penecho-dialog-backdrop-filter, blur(4px) saturate(1.08));
-  backdrop-filter: var(--penecho-dialog-backdrop-filter, blur(4px) saturate(1.08));
   display: flex;
   inset: 0;
   justify-content: center;
@@ -70,6 +67,18 @@
   position: fixed;
   z-index: 10030;
 }
+
+/* Keep the scrim beside the dialog, as Settings does, so its blur does not
+   establish a backdrop root around the window. */
+.penecho-cloud-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--penecho-dialog-backdrop, rgba(18, 23, 34, .2));
+  -webkit-backdrop-filter: var(--penecho-dialog-backdrop-filter, blur(4px) saturate(1.08));
+  backdrop-filter: var(--penecho-dialog-backdrop-filter, blur(4px) saturate(1.08));
+}
+.penecho-cloud-overlay > .penecho-cloud-dialog { position: relative; }
 
 .penecho-cloud-dialog {
   background: var(--penecho-dialog-surface, color-mix(in srgb, var(--studio-panel, #ffffff) 70%, transparent));
@@ -474,14 +483,14 @@
 }
 
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .penecho-cloud-overlay { background: rgba(18, 23, 34, .34); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .penecho-cloud-overlay::before { background: rgba(18, 23, 34, .34); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .penecho-cloud-dialog { background: var(--studio-panel, #ffffff); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .penecho-cloud-dialog.share > .cloud-dialog-titlebar { background: var(--studio-toolbar, #eef0f2); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .penecho-cloud-dialog.share > .penecho-cloud-body { background: var(--studio-panel, #ffffff); }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .penecho-cloud-overlay { background: rgba(18, 23, 34, .34); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .penecho-cloud-overlay::before { background: rgba(18, 23, 34, .34); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .penecho-cloud-dialog { background: var(--studio-panel, #ffffff); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .penecho-cloud-dialog.share > .cloud-dialog-titlebar { background: var(--studio-toolbar, #eef0f2); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .penecho-cloud-dialog.share > .penecho-cloud-body { background: var(--studio-panel, #ffffff); }

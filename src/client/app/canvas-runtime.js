@@ -2486,7 +2486,7 @@
     resolve?.(true);
     if (restoreMode) finishAIDraftHandMode();
     if (options.showHint) showHandStatusHint("widget-draft-confirmed", ["handWidgetConfirmedHint", "handAutoAIManual"]);
-    if (!replacement && restoreMode) showCanvasHint("canvasHintWidgetTouchHand");
+    if (!replacement && restoreMode) showCanvasHint(widgetInteractionPresentation() === "maximized" ? "canvasHintWidgetFullscreen" : "canvasHintWidgetInline");
   }
   function rejectPendingWidget(result = AI_REJECTED, options) {
     options ||= {};
@@ -2532,7 +2532,7 @@
     enterAIDraftHandMode();
     mountWidget(widget);
     requestInteractionLayerRender();
-    if (widget.widgetType === "html_widget") showCanvasHint(["canvasHintWidgetAdded", "canvasHintWidgetAddedAlt", "canvasHintRefineInPlace", "canvasHintAIAddsOnly"]);
+    if (widget.widgetType === "html_widget") showCanvasHint([widgetInteractionPresentation() === "maximized" ? "canvasHintWidgetFullscreen" : "canvasHintWidgetInline", "canvasHintWidgetAdded"]);
     setStatusKey("aiDone");
     return new Promise((resolve) => (widget.resolve = resolve));
   }

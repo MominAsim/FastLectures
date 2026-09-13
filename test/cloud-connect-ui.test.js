@@ -452,7 +452,7 @@ test("Remote Canvas shows the Cloud account and online-device state before the C
   const run = boot({
     runtime:"cloud",
     status:deviceStatus({ connected:true }),
-    remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true },
+    remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true, deviceReady:true },
   });
 
   assert.equal(run.cloudButton.querySelector(".cloud-account-label").textContent, "Remote");
@@ -464,7 +464,7 @@ test("Remote Canvas updates the Cloud header when the gate response arrives afte
   const run = boot({ runtime:"cloud", status:deviceStatus({ connected:true }) });
   assert.equal(run.cloudButton.querySelector(".cloud-account-label").textContent, "Cloud");
 
-  run.window.PENECHO_REMOTE_CLOUD_STATUS = { accountName:"Late User", deviceOnline:true };
+  run.window.PENECHO_REMOTE_CLOUD_STATUS = { accountName:"Late User", deviceOnline:true, deviceReady:true };
   await run.window.dispatch("penecho:remote-cloud-status");
 
   assert.equal(run.cloudButton.querySelector(".cloud-account-label").textContent, "Late");
@@ -476,7 +476,7 @@ test("Remote Canvas reads Cloud-owned libraries directly instead of relaying the
   const run = boot({
     runtime:"cloud",
     status:deviceStatus({ connected:true }),
-    remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true },
+    remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true, deviceReady:true },
     communityFavorites:[{ id:"123e4567-e89b-42d3-a456-426614174090", kind:"canvas", name:"Roadmap", artifactSha256:"9".repeat(64) }],
     widgetFavorites:[{ id:"123e4567-e89b-42d3-a456-426614174091", name:"Timer", artifactSha256:"8".repeat(64), artifact:{ widget:{ title:"Timer" } } }],
   });
@@ -1207,7 +1207,7 @@ test("Cloud Center opens project Canvases in the current local Canvas", async ()
 test("Cloud-hosted Canvas thumbnails use the immutable revision as their cache key", async () => {
   const projectId = "123e4567-e89b-42d3-a456-426614174011", canvasId = "123e4567-e89b-42d3-a456-426614174012", revisionId = "123e4567-e89b-42d3-a456-426614174013";
   const library = { workspace:{}, projects:[{ id:projectId, name:"Research" }], canvases:[{ id:canvasId, projectId, currentRevisionId:revisionId, name:"Notes", updatedAt:Date.now(), sizeBytes:42 }], sync:{ bundleVersion:2, conflictPolicy:"base-revision-required" } };
-  const run = boot({ runtime:"cloud", status:deviceStatus(), remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true }, library });
+  const run = boot({ runtime:"cloud", status:deviceStatus(), remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true, deviceReady:true }, library });
   await run.flush();
   const overlay = await openCloudCenter(run);
   await run.flush();
@@ -1384,7 +1384,7 @@ test("Remote Canvas toolbar Favorites keeps a failed retry manual and uses the C
   const run = boot({
     runtime:"cloud",
     status:deviceStatus({ connected:true }),
-    remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true },
+    remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true, deviceReady:true },
     cloudFavoriteFeedError:{ status:403, message:"PenEcho Cloud rejected this request." },
     withCrafts:true,
   });
@@ -2005,10 +2005,12 @@ test("Cloud Center uses a compact workbench shell and restores 44px coarse-point
   assert.match(cloudCss, /\.penecho-cloud-panel p a\s*\{[^}]*min-height:\s*2rem/);
   assert.match(cloudCss, /\.cloud-project-web-link\s*\{[^}]*min-height:\s*2rem/);
   assert.match(cloudCss, /\.cloud-account-button\s*\{[^}]*min-height:\s*2\.25rem[^}]*min-width:\s*2\.25rem/);
-  assert.match(cloudCss, /\.penecho-cloud-overlay\s*\{[^}]*background:\s*var\(--penecho-dialog-backdrop,[^}]*backdrop-filter:\s*var\(--penecho-dialog-backdrop-filter/);
+  const overlayStyle = cloudCss.match(/\.penecho-cloud-overlay\s*\{([^}]+)\}/)[1];
+  assert.doesNotMatch(overlayStyle, /backdrop-filter:/, "The scrim must not become a backdrop root around the Cloud window");
+  assert.match(cloudCss, /\.penecho-cloud-overlay::before\s*\{[^}]*background:\s*var\(--penecho-dialog-backdrop,[^}]*backdrop-filter:\s*var\(--penecho-dialog-backdrop-filter/);
   assert.match(cloudCss, /\.penecho-cloud-dialog\.cloud-center\s*\{[^}]*background:\s*var\(--penecho-large-dialog-surface,[^}]*62%, transparent\)\)[^}]*box-shadow:\s*var\(--penecho-large-dialog-shadow,[^}]*0 28px 80px[^}]*backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter, saturate\(1\.15\) blur\(20px\)\)/);
   assert.match(cloudCss, /\.penecho-cloud-dialog\.cloud-center\s*\{[^}]*height:\s*min\(760px, calc\(100svh - 40px\)\)[^}]*max-width:\s*1120px/);
-  assert.match(cloudCss, /\.cloud-center \.cloud-dialog-titlebar\s*\{[^}]*background:\s*var\(--penecho-workbench-navigation-surface,[^}]*68%, transparent\)\)[^}]*min-height:\s*var\(--penecho-workbench-header-h\)[^}]*padding:\s*var\(--penecho-workbench-header-padding\)[^}]*backdrop-filter:\s*var\(--penecho-workbench-navigation-filter,[^}]*blur\(24px\) saturate\(1\.14\)\)/);
+  assert.match(cloudCss, /\.penecho-cloud-dialog\.cloud-center\s*\{[^}]*background:\s*var\(--penecho-large-dialog-surface,[^}]*62%, transparent\)\)[^}]*box-shadow:\s*var\(--penecho-large-dialog-shadow,[^}]*0 28px 80px[^}]*backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter, saturate\(1\.15\) blur\(20px\)\)/);
   assert.match(cloudCss, /\.penecho-cloud-dialog\.share > \.cloud-dialog-titlebar\s*\{[^}]*background:\s*var\(--penecho-workbench-navigation-surface,[^}]*68%, transparent\)\)[^}]*backdrop-filter:\s*var\(--penecho-workbench-navigation-filter,[^}]*blur\(24px\) saturate\(1\.14\)\)/);
   assert.match(cloudCss, /\.penecho-cloud-dialog\.share > \.penecho-cloud-body\s*\{[^}]*background:\s*var\(--penecho-workbench-content-surface,[^}]*62%, transparent\)\)/);
   assert.match(cloudCss, /\.cloud-center \.cloud-dialog-mark\s*\{[^}]*flex:\s*0 0 20px[^}]*background:\s*transparent/);

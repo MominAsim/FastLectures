@@ -161,6 +161,7 @@ test("Cloud hosted connections execute without a device only when the hosted Age
     state:{currentSnapshotLocation:"cloud",currentSnapshotId:"5250fdb4-3cce-44fd-a60c-3b6ee5732ad0"},
     selectedAiConnectionId:()=>selected};
   const run=vm.runInNewContext(`(()=>{
+    ${functionSource(source,"canvasAgentCloudSavedCanvasId")}
     ${functionSource(source,"canvasAgentCloudCanvasId")}
     ${functionSource(source,"canvasAgentUsesCloudHost")}
     ${functionSource(source,"canvasAgentExecutionAvailable")}
@@ -194,6 +195,7 @@ test("Hosted model labels identify Cloud and round display multipliers without c
 
 test("Canvas Agent capabilities refresh preserves the browser-only panel and synchronizes unavailable controls",()=>{
   const calls={close:0,hostedModels:0,connection:0,send:0,assistant:0,status:[]},toggle={hidden:false},panel={hidden:false},context={
+    settings:{connectionScope:""},aiConnectionScope:()=>"",renderConnectionLists:()=>{},
     window:{PENECHO_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
     canvasAgentToggle:toggle,canvasAgentPanel:panel,
     canvasAgentAvailable:null,canvasAgentExecutionAvailable:null,

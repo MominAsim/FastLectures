@@ -4,12 +4,13 @@ const source=fs.readFileSync(require('node:path').join(__dirname,'../src/client/
 const A='11111111-1111-4111-8111-111111111111',B='22222222-2222-4222-8222-222222222222';
 function fn(name){const start=source.indexOf(`  function ${name}(`);const asyncStart=source.indexOf(`  async function ${name}(`);const from=start<0?asyncStart:start;assert.ok(from>=0,name);const end=source.indexOf('\n  }',from)+4;return source.slice(from,end);}
 function fixture(extra={}){
- const context={window:{PENECHO_CONFIG:{runtime:'cloud',canvasAgent:false,browserCanvasEditing:true,hostedCanvasAgent:true}},state:{currentSnapshotLocation:'cloud',currentSnapshotId:B},location:{pathname:`/canvas/${A}`,protocol:'https:',host:'cloud.test'},canvasAgent:{socket:null,socketCloudCanvasId:'',currentConversation:{id:'conversation'},toolControllers:new Map(),toolResultCache:new Map(),sessionGeneration:3},selectedAiConnectionId:()=>`hosted:${A}`,t:k=>k,...extra};
- vm.createContext(context);for(const name of ['canvasAgentCloudCanvasId','canvasAgentUsesCloudHost','canvasAgentExecutionAvailable','canvasAgentUnavailableMessage','canvasAgentCloudFileScope','canvasAgentSocketUrl','canvasAgentReconcileCloudCanvas'])vm.runInContext(fn(name),context);return context;
+ let doc={};
+ const context={crypto:require('node:crypto').webcrypto,canvasDocumentsCurrent:()=>doc,replaceDocument:()=>{doc={};},window:{PENECHO_CONFIG:{runtime:'cloud',canvasAgent:false,browserCanvasEditing:true,hostedCanvasAgent:true}},state:{currentSnapshotLocation:'cloud',currentSnapshotId:B},location:{pathname:`/canvas/${A}`,protocol:'https:',host:'cloud.test'},canvasAgent:{socket:null,socketCloudCanvasId:'',currentConversation:{id:'conversation'},toolControllers:new Map(),toolResultCache:new Map(),sessionGeneration:3},selectedAiConnectionId:()=>`hosted:${A}`,t:k=>k,...extra};
+ vm.createContext(context);for(const name of ['canvasAgentCloudSavedCanvasId','canvasAgentCloudExecutionScope','canvasAgentCloudFilesPath','canvasAgentCloudCanvasId','canvasAgentUsesCloudHost','canvasAgentExecutionAvailable','canvasAgentUnavailableMessage','canvasAgentCloudFileScope','canvasAgentSocketUrl','canvasAgentReconcileCloudCanvas'])vm.runInContext(fn(name),context);return context;
 }
-test('hosted socket, attachments and availability follow active B, never stale URL A or draft',()=>{
+test('hosted socket, attachments and availability follow active B, never stale URL A; drafts have independent execution scopes',()=>{
  const c=fixture();assert.equal(c.canvasAgentUsesCloudHost(),true);assert.match(c.canvasAgentSocketUrl(),new RegExp(`/canvases/${B}/agent$`));assert.equal(c.canvasAgentCloudFileScope().canvasId,B);
- for(const state of [{currentSnapshotLocation:'device',currentSnapshotId:B},{currentSnapshotLocation:null,currentSnapshotId:null},{currentSnapshotLocation:'cloud',currentSnapshotId:'draft'}]){Object.assign(c.state,state);assert.equal(c.canvasAgentExecutionAvailable(),false);assert.throws(()=>c.canvasAgentCloudFileScope());assert.equal(c.canvasAgentUnavailableMessage(),'canvasAgentCloudSaveRequired');}
+ for(const state of [{currentSnapshotLocation:'device',currentSnapshotId:B},{currentSnapshotLocation:null,currentSnapshotId:null},{currentSnapshotLocation:'cloud',currentSnapshotId:'draft'}]){Object.assign(c.state,state);assert.equal(c.canvasAgentExecutionAvailable(),true);assert.equal(c.canvasAgentCloudFileScope().draft,true);assert.match(c.canvasAgentSocketUrl(),/agent\?draft=1$/);assert.notEqual(c.canvasAgentCloudCanvasId(),A);assert.notEqual(c.canvasAgentCloudCanvasId(),B);}
  Object.assign(c.state,{currentSnapshotLocation:'cloud',currentSnapshotId:B});assert.equal(c.canvasAgentExecutionAvailable(),true);
  c.window.PENECHO_CONFIG={runtime:'local',canvasAgent:true};assert.equal(c.canvasAgentExecutionAvailable(),true);assert.match(c.canvasAgentSocketUrl(),/\/api\/canvas-agent\/socket$/);
 });
@@ -45,4 +46,11 @@ test('online device and hosted execution coexist and select distinct hosts on th
 test('Cloud ID changed during capabilities await cannot establish stale websocket',async()=>{
  let sockets=0;const c=fixture({canvasAgentEnsureProjects:async()=>{},canvasAgentSetStatus:()=>{},canvasAgentCurrentWidgetCapabilities:async()=>{c.state.currentSnapshotId=A;return{};},WebSocket:Object.assign(function(){sockets++;},{OPEN:1})});
  vm.runInContext(fn('canvasAgentConnect'),c);await assert.rejects(c.canvasAgentConnect(),e=>e.code==='SESSION_CHANGED');assert.equal(sockets,0);
+});
+
+test('draft execution is stable within a document and isolated across new documents',()=>{
+ const c=fixture();Object.assign(c.state,{currentSnapshotLocation:null,currentSnapshotId:null});
+ const first=c.canvasAgentCloudCanvasId();assert.equal(c.canvasAgentCloudCanvasId(),first);
+ assert.match(c.canvasAgentCloudFilesPath(c.canvasAgentCloudFileScope(),'cloud-file-id'),/cloud-file-id\?draft=1$/);
+ c.replaceDocument();assert.notEqual(c.canvasAgentCloudCanvasId(),first);
 });

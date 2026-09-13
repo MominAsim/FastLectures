@@ -2,7 +2,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../src/client/app/canvas-agent-runtime.js'),'utf8');
 function fixture(request){
- const context=vm.createContext({location:{pathname:'/canvas/11111111-1111-4111-8111-111111111111'},window:{PENECHO_CONFIG:{hostedDocumentFiles:true}},canvasAgent:{currentConversation:{id:'conversation-test'}},canvasAgentCloudCanvasId:()=>"11111111-1111-4111-8111-111111111111",t:key=>key,canvasAgentUsesCloudHost:()=>true,canvasAgentProjectRequest:request,encodeURIComponent});
+ const context=vm.createContext({location:{pathname:'/canvas/11111111-1111-4111-8111-111111111111'},window:{PENECHO_CONFIG:{hostedDocumentFiles:true}},canvasAgent:{currentConversation:{id:'conversation-test'}},canvasAgentCloudSavedCanvasId:()=>"saved",canvasAgentCloudCanvasId:()=>"11111111-1111-4111-8111-111111111111",t:key=>key,canvasAgentUsesCloudHost:()=>true,canvasAgentProjectRequest:request,encodeURIComponent});
  vm.runInContext(source.slice(source.indexOf('  function canvasAgentCloudFileScope('),source.indexOf('  async function canvasAgentUploadProjectFile(')),context);return context;
 }
 test('Cloud picker uploads raw bytes bound to logical conversation with strict format/size gate',async()=>{

@@ -920,6 +920,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       snapshotLibraryUnavailable: "{location} canvases are unavailable",
       snapshotLibraryRetryDetail: "The connection could not be reached. Try again in a moment.",
       snapshotLibraryRetry: "Try again",
+      snapshotLibraryCacheRetained: "Previously loaded canvases are still shown. Retry to get the latest list.",
       snapshotLibraryLoadFailed: "Could not load {location}. Select the location to try again.",
       snapshotCloudCacheRefreshing: "Showing cached Cloud canvases while the latest version loads.",
       snapshotCloudCacheLoadFailed: "Cloud is unavailable. Cached canvases remain visible; select Cloud to try again.",
@@ -964,17 +965,24 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       deleteSnapshotConfirmDevice: "Delete this snapshot from this device?",
       deleteSnapshotConfirmServer: "Delete this shared snapshot from the PenEcho server?",
       deleteSnapshotConfirmCloud: "Move this Cloud Canvas to Trash? It remains recoverable from PenEcho Cloud.",
-      canvasHintWidgetAdded: "Use Pen to mark changes near a widget, then tap the AI Refine button that appears.",
-      canvasHintWidgetAddedAlt: "In Pen, notes anywhere in this view can reveal AI Refine on the target widget.",
-      canvasHintRefineInPlace: "In Pen, add an instruction, then tap AI Refine on the target widget.",
-      canvasHintAIAddsOnly: "Auto AI and manual AI add new widgets; they do not replace existing widgets in place.",
+      canvasHintWidgetAdded: "Use Pen to mark changes near a widget, then tap AI Refine.",
+      canvasHintWidgetFullscreen: "With Hand or Select, double-click a widget to open it maximized.",
+      canvasHintWidgetInline: "Double-click with Hand or Select to interact; use Maximize to expand the widget.",
+      canvasHintShortcutAgent: "Press {shortcut} to open or close PenEcho Agent.",
+      canvasHintShortcutSave: "Press {shortcut} to save the current canvas.",
+      canvasHintShortcutUndoRedo: "Press {undo} to undo and {redo} to redo.",
+      canvasHintShortcutLibrary: "Press {shortcut} to open the Canvas Library.",
+      canvasHintShortcutFullscreen: "Press {shortcut} to enter or exit fullscreen.",
+      canvasHintShortcutSettings: "Press {shortcut} to open Settings and customize shortcuts.",
+      canvasHintMcp: "Connect your AI client in Settings → MCP to create and edit content on this canvas.",
+      canvasHintMcpConnected: "This canvas is available to MCP. Ask your connected AI client to draw or update content here.",
       canvasHintHand: "Drag to pan. Click an object to select it. Double-click an image to maximize it.",
       canvasHintHandAlt: "Hold Space to move the canvas temporarily; release to return to your tool.",
       canvasHintWidgetTouchHand: "Choose Select, then Interact to use widget content.",
       canvasHintLasso: "Select an object to move or resize it; drag empty space to lasso ink.",
       canvasHintLassoAlt: "Choose Interact to use a widget, or double-click it.",
       canvasHintText: "Text supports Markdown and LaTeX; press Ctrl/Cmd + Enter to confirm.",
-      canvasHintTextAlt: "After confirming text near a widget, switch to Pen and tap AI Refine.",
+      canvasHintTextAlt: "Choose Text, then click the canvas to add a text box.",
       canvasHintEraser: "Eraser removes ink only; use Select to delete objects.",
       canvasHintEraserAlt: "Erase an instruction before AI runs without changing widgets beneath it.",
       canvasHintAreaEraser: "Drag a rectangle to delete all ink inside it when you release.",
@@ -1157,7 +1165,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentReadyConnect: "Ready to connect",
       canvasAgentReady: "Ready",
       canvasAgentNoConnections: "No available connections",
-      canvasAgentCloudSaveRequired: "Save this Canvas to Cloud before using AI.",
+      canvasAgentConnectionStale: "This connection is no longer available on the linked device. Choose an AI connection; your draft is kept.",
       canvasAgentConnecting: "Connecting…",
       canvasAgentResumed: "Conversation resumed",
       canvasAgentWorking: "Agent is working…",
@@ -1686,9 +1694,59 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   const AI_CONNECTION_STORAGE_KEY = "penecho-ai-connection-id",
     AI_CLIENT_ID = canvasClientId();
+  function aiConnectionScope(hosted = false) {
+    const config = window.PENECHO_CONFIG || {}, cloud = config.runtime === "cloud";
+    const account = String(config.connectionAccountId || "");
+    if (cloud || hosted) {
+      if (!account) return "";
+      const origin = cloud ? location.origin : String(config.cloudOrigin || "https://penecho.ai");
+      const owner = `${origin}:${account}:${cloud ? "cloud" : "local"}`;
+      return hosted ? `${owner}:hosted` : config.linkedDeviceId ? `${owner}:device:${config.linkedDeviceId}` : "";
+    }
+    return `local:${location.origin}`;
+  }
+  function aiConnectionStorageKey(hosted = false) {
+    const scope = aiConnectionScope(hosted);
+    return scope ? `${AI_CONNECTION_STORAGE_KEY}:${scope}` : "";
+  }
   function selectedAiConnectionId() {
-    const id = String(localStorage.getItem(AI_CONNECTION_STORAGE_KEY) || "default").trim();
+    const hostedKey = aiConnectionStorageKey(true), localKey = aiConnectionStorageKey();
+    const hosted = hostedKey && localStorage.getItem(`${hostedKey}:selected`) === "true";
+    const key = hosted ? hostedKey : localKey;
+    const legacy = window.PENECHO_CONFIG?.runtime !== "cloud" ? localStorage.getItem(AI_CONNECTION_STORAGE_KEY) : null;
+    const id = String((key && localStorage.getItem(key)) || (!hosted && legacy && !legacy.startsWith("hosted:") ? legacy : "default")).trim();
     return id === "default" || id === "cli-override" || /^(?:hosted:)?[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id) ? id : "default";
+  }
+  function storeAiConnectionSelection(id) {
+    const hosted = id.startsWith("hosted:"), key = aiConnectionStorageKey(hosted), hostedKey = aiConnectionStorageKey(true);
+    if (!key) return false;
+    localStorage.setItem(key, id);
+    if (hostedKey) localStorage.setItem(`${hostedKey}:selected`, String(hosted));
+    return true;
+  }
+  function aiConnectionSelectionError() {
+    return Object.assign(Error(t("canvasAgentConnectionStale")), { code:"CONNECTION_STALE" });
+  }
+  async function validateAiConnectionSelection(connectionId, scope) {
+    const hosted = connectionId.startsWith("hosted:");
+    if (!scope || aiConnectionScope(hosted) !== scope || selectedAiConnectionId() !== connectionId) throw aiConnectionSelectionError();
+    if (hosted) {
+      await loadHostedModels();
+      if (aiConnectionScope(true) !== scope || selectedAiConnectionId() !== connectionId || !hostedSettings.models.some(model => `hosted:${model.id}` === connectionId)) throw aiConnectionSelectionError();
+      return;
+    }
+    await window.PenEchoLinkedDevice?.refresh({ ifNeeded:true });
+    if (aiConnectionScope() !== scope || selectedAiConnectionId() !== connectionId) throw aiConnectionSelectionError();
+    const response = await fetch("/api/settings/connections", { headers:authenticatedApiHeaders(), signal:AbortSignal.timeout(12000) });
+    const body = await response.json();
+    if (aiConnectionScope() !== scope || selectedAiConnectionId() !== connectionId) throw aiConnectionSelectionError();
+    if (!response.ok) throw Object.assign(Error(body.message || body.error || t("settingsLoadFailed")), { code:body.code || body.error });
+    settings.connections = Array.isArray(body.connections) ? body.connections : [];
+    settings.connectionScope = scope;
+    syncLocalConnectionSelection();
+    renderConnectionLists();
+    const valid = settings.connections.some(connection => connection.id === connectionId);
+    if (!valid && !(window.PENECHO_CONFIG?.runtime !== "cloud" && connectionId === "default" && settings.connections.length)) throw aiConnectionSelectionError();
   }
   function authenticatedApiHeaders(headers = {}) {
     const csrf = window.PENECHO_CONFIG?.runtime === "cloud"
@@ -1699,7 +1757,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       : { ...headers, "X-PenEcho-Client":AI_CLIENT_ID, ...(csrf ? { "X-PenEcho-CSRF":decodeURIComponent(csrf) } : {}) };
   }
   function aiRequestHeaders(headers = {}) {
-    return { ...authenticatedApiHeaders(headers), "X-PenEcho-Connection":selectedAiConnectionId() };
+    const id = selectedAiConnectionId();
+    if (window.PENECHO_CONFIG?.runtime === "cloud" && id === "default") throw aiConnectionSelectionError();
+    return { ...authenticatedApiHeaders(headers), "X-PenEcho-Connection":id };
   }
   function canvasAssetUrl(name) {
     // Cloud-served shells (remote canvas + read-only viewer) live under nested
@@ -1888,6 +1948,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       statusKey: "ready",
       aiProgressEvent: null,
       canvasHintKey: null,
+      canvasHintValues: null,
     };
   let textHelpInvoker = null;
   let pluginStylesPreviewReady = false,
@@ -2040,7 +2101,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
 
   function renderCanvasHint(restart = false) {
     if (!canvasHint || !state.canvasHintKey) return;
-    canvasHint.textContent = `${t("hintPrefix")}: ${t(state.canvasHintKey)}`;
+    let message = t(state.canvasHintKey);
+    for (const [key, value] of Object.entries(state.canvasHintValues || {})) message = message.replaceAll(`{${key}}`, String(value));
+    canvasHint.textContent = `${t("hintPrefix")}: ${message}`;
     canvasHint.hidden = false;
     fitCanvasHint();
     if (!restart) return;
@@ -2049,11 +2112,15 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     canvasHint.classList.add("is-new");
   }
   function showCanvasHint(keys) {
-    const candidates = (Array.isArray(keys) ? keys : [keys]).filter((key) => key && (I18N[state.language][key] || I18N.zh[key]));
+    const candidates = (Array.isArray(keys) ? keys : [keys])
+      .map((candidate) => typeof candidate === "string" ? { key:candidate, values:null } : candidate)
+      .filter((candidate) => candidate?.key && (I18N[state.language][candidate.key] || I18N.zh[candidate.key]));
     if (!candidates.length) return;
-    const alternatives = candidates.filter((key) => key !== state.canvasHintKey),
+    const alternatives = candidates.filter((candidate) => candidate.key !== state.canvasHintKey),
       choices = alternatives.length ? alternatives : candidates;
-    state.canvasHintKey = choices[Math.floor(Math.random() * choices.length)];
+    const choice = choices[Math.floor(Math.random() * choices.length)];
+    state.canvasHintKey = choice.key;
+    state.canvasHintValues = choice.values || null;
     renderCanvasHint(true);
   }
   const statusHintRotation = new Map();
@@ -2500,7 +2567,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return `${Number(value).toLocaleString(undefined, { maximumFractionDigits:1 })}×`;
   }
   function allAiConnections() {
-    return [...hostedSettings.models.map(model => ({ id:`hosted:${model.id}`, provider:"api", apiModel:model.displayName, hosted:true, modelId:model.id, multiplier:model.multiplier })), ...settings.connections];
+    return [...hostedSettings.models.map(model => ({ id:`hosted:${model.id}`, provider:"api", apiModel:model.displayName, hosted:true, modelId:model.id, multiplier:model.multiplier })), ...(settings.connectionScope === aiConnectionScope() ? settings.connections : [])];
   }
   function renderHostedModels() {
     const section = document.getElementById("settingsHostedSection"), list = document.getElementById("settingsHostedList"), status = document.getElementById("settingsHostedStatus"), rates = document.getElementById("settingsHostedRates");
@@ -2584,7 +2651,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     document.getElementById("settingsHostedBilling").href = `${String(window.PENECHO_CONFIG?.cloudOrigin || (window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : "https://penecho.ai")).replace(/\/$/, "")}/dashboard.html#billing`;
     if (typeof canvasAgentUpdateConnectionButton === "function") canvasAgentUpdateConnectionButton();
   }
-  async function loadHostedModels({ accountChanged = false } = {}) {
+  function loadHostedModels(options = {}) {
+    if (hostedSettings.loadPromise && !options.accountChanged) return hostedSettings.loadPromise;
+    const pending = loadHostedModelsOnce(options);
+    const wrapped = pending.finally(() => { if (hostedSettings.loadPromise === wrapped) hostedSettings.loadPromise = null; });
+    hostedSettings.loadPromise = wrapped;
+    return wrapped;
+  }
+  async function loadHostedModelsOnce({ accountChanged = false } = {}) {
     if (window.PENECHO_CONFIG?.runtime === "viewer" || (hostedSettings.loading && !accountChanged)) return;
     if (accountChanged) { hostedSettings.models = []; hostedSettings.credits = null; hostedSettings.signedIn = false; }
     const generation = ++hostedSettings.generation, cloud = window.PENECHO_CONFIG?.runtime === "cloud";
@@ -2592,12 +2666,16 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     try {
       const response = await fetch(cloud ? "/api/v1/models" : "/api/cloud/models", { headers:authenticatedApiHeaders(), signal:AbortSignal.timeout(12_000) });
       if (generation !== hostedSettings.generation) return;
-      if ([401, 403].includes(response.status)) { hostedSettings.signedIn = false; hostedSettings.models = []; return; }
+      if ([401, 403].includes(response.status)) { window.PENECHO_CONFIG.connectionAccountId = ""; hostedSettings.signedIn = false; hostedSettings.models = []; return; }
       if (!response.ok) throw new Error("catalog_unavailable");
       const body = await response.json();
       if (generation !== hostedSettings.generation) return;
+      window.PENECHO_CONFIG.connectionAccountId = String(body.accountId || window.PENECHO_CONFIG.connectionAccountId || "");
+      if (!cloud && body.origin) window.PENECHO_CONFIG.cloudOrigin = body.origin;
       hostedSettings.signedIn = true;
       hostedSettings.models = (Array.isArray(body.models) ? body.models : []).filter(model => model.available === true && model.enabled !== false && !model.retiredAt && Number(model.multiplier) > 0).slice(0, 100);
+      const hostedKey = aiConnectionStorageKey(true), legacy = localStorage.getItem(AI_CONNECTION_STORAGE_KEY);
+      if (hostedKey && !localStorage.getItem(hostedKey) && legacy?.startsWith("hosted:") && hostedSettings.models.some(model => `hosted:${model.id}` === legacy)) storeAiConnectionSelection(legacy);
       if (body.credits) hostedSettings.credits = body.credits.availableCredits ?? body.credits.available ?? body.credits.balance ?? 0;
       else {
         const balance = await fetch("/api/v1/credits", { headers:authenticatedApiHeaders(), signal:AbortSignal.timeout(8_000) });
@@ -2607,11 +2685,25 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     finally { if (generation === hostedSettings.generation) { hostedSettings.loading = false; renderHostedModels(); } }
   }
   function syncLocalConnectionSelection() {
-    const selected = selectedAiConnectionId(), hostUnavailable = window.PENECHO_CONFIG?.browserCanvasEditing && window.PENECHO_CONFIG?.linkedDeviceOnline !== true,
-      activeId = hostUnavailable || selected.startsWith("hosted:") || settings.connections.some(connection => connection.id === selected) ? selected : settings.connections[0]?.id || "default";
-    if (activeId !== selected) localStorage.setItem(AI_CONNECTION_STORAGE_KEY, activeId);
-    settings.activeConnectionId = activeId;
-    settings.connections = settings.connections.map(connection => ({ ...connection, active:connection.id === activeId }));
+    const scope = aiConnectionScope(), key = aiConnectionStorageKey();
+    if (settings.connectionScope && settings.connectionScope !== scope) settings.connections = [];
+    settings.connectionScope = scope;
+    let selected = selectedAiConnectionId();
+    // Migrate only a UUID proven to belong to this exact host. Never substitute
+    // a different model when a Cloud selection disappears.
+    if (key && !localStorage.getItem(key) && !selected.startsWith("hosted:")) {
+      const legacy = localStorage.getItem(AI_CONNECTION_STORAGE_KEY);
+      if (legacy && settings.connections.some(connection => connection.id === legacy)) {
+        storeAiConnectionSelection(legacy);
+        selected = legacy;
+      }
+    }
+    if (window.PENECHO_CONFIG?.runtime !== "cloud" && selected === "default" && key && !localStorage.getItem(key)) {
+      selected = settings.connections[0]?.id || "default";
+      storeAiConnectionSelection(selected);
+    }
+    settings.activeConnectionId = selected;
+    settings.connections = settings.connections.map(connection => ({ ...connection, active:connection.id === selected }));
   }
   function setConfigurationSection(section, visible) {
     if (!section) return;
@@ -3272,9 +3364,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     void loadHostedModels();
     setSettingsStatus(t("settingsLoading"));
     try {
-      await window.PenEchoLinkedDevice?.refresh();
-      const response = await fetch("/api/settings", { headers:authenticatedApiHeaders() }), body = await response.json();
+      await window.PenEchoLinkedDevice?.refresh({ ifNeeded:true });
+      const connectionScope = aiConnectionScope();
+      const response = await fetch("/api/settings", { headers:authenticatedApiHeaders(), signal:AbortSignal.timeout(12000) }), body = await response.json();
       if (!response.ok) throw new Error(body?.error || t("settingsLoadFailed"));
+      if (connectionScope !== aiConnectionScope()) return;
+      settings.connectionScope = connectionScope;
       settings.connections = Array.isArray(body.connections) ? body.connections : [];
       syncLocalConnectionSelection();
       settings.connectionLimit = Number(body.connectionLimit) || 10;
@@ -3319,6 +3414,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         deepseekKeyChanged = scope === "search" && Boolean(settingsDeepSeekSearchApiKey.value.trim()),
         tavilyKeyChanged = scope === "search" && Boolean(settingsTavilyApiKey.value.trim()),
         searchNeedsNewSession = deepseekProviderChanged || (deepseekKeyChanged && !settings.hasDeepSeekSearchApiKey) || (tavilyKeyChanged && !settings.hasTavilyApiKey);
+      const connectionScope = aiConnectionScope();
       const endpoint = scope === "api" ? "/api/settings/connections" : "/api/settings", payload = scope === "api" ? { action:"save", id:settings.editingConnectionId, connection:connectionPayload } : scope === "search" ? {
         scope, deepSeekSearchProvider:settingsDeepSeekSearchProvider.value, deepseekSearchApiKey:settingsDeepSeekSearchApiKey.value, tavilyApiKey:settingsTavilyApiKey.value,
       } : {
@@ -3336,6 +3432,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       if (settingsApiKey.value.trim()) settingsApiSaved.dataset.saved = "true";
       settingsApiKey.value = "";
       if (scope === "api") {
+        if (connectionScope !== aiConnectionScope()) return;
+        settings.connectionScope = connectionScope;
         settings.connections = body.connections || settings.connections;
         syncLocalConnectionSelection();
         renderConnectionLists();
@@ -3357,9 +3455,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   async function updateConnection(action, id) {
     setConnectionStatus(t("settingsSaving"));
+    const connectionScope = aiConnectionScope();
     try {
       const response = await fetch("/api/settings/connections", { method:"POST", headers:authenticatedApiHeaders({ "Content-Type":"application/json" }), body:JSON.stringify({ action, id }) }), body = await response.json();
       if (!response.ok) throw new Error(body?.error || t("settingsLoadFailed"));
+      if (connectionScope !== aiConnectionScope()) return;
+      settings.connectionScope = connectionScope;
       settings.connections = body.connections || [];
       syncLocalConnectionSelection();
       renderConnectionLists();
@@ -3375,7 +3476,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       const id = button.dataset.connectionActivate,
         closeAfterActivation = settingsConnectionQuickList?.contains(button) === true || document.getElementById("settingsHostedList")?.contains(button) === true;
       if (!allAiConnections().some(connection => connection.id === id)) return;
-      localStorage.setItem(AI_CONNECTION_STORAGE_KEY, id);
+      storeAiConnectionSelection(id);
       syncLocalConnectionSelection();
       renderConnectionLists();
       canvasAgentConnectionDidChange(false,allAiConnections().find(connection=>connection.id===id)?.provider || "");

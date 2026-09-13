@@ -22,6 +22,7 @@
     historyNoticeTimer = 0,
     historyActivityTimer = 0,
     historyPreviewUrls = new Map(),
+    historyPreviewLoader = null,
     snapshotListInProgress = false,
     snapshotLoadInProgress = false,
     snapshotLoadingId = null,
@@ -546,8 +547,8 @@
   }
   async function serverSnapshotItems() {
     const [canvasResponse, projectResponse] = await Promise.all([
-        fetch("/api/canvases", { credentials:"same-origin", cache:"no-store", headers:authenticatedApiHeaders() }),
-        fetch("/api/canvas-projects", { credentials:"same-origin", cache:"no-store", headers:authenticatedApiHeaders() }),
+        fetch("/api/canvases?metadataOnly=1", { credentials:"same-origin", cache:"no-store", headers:authenticatedApiHeaders(), signal:AbortSignal.timeout(12000) }),
+        fetch("/api/canvas-projects", { credentials:"same-origin", cache:"no-store", headers:authenticatedApiHeaders(), signal:AbortSignal.timeout(12000) }),
       ]),
       body = await snapshotApiResponse(canvasResponse),
       projectBody = projectResponse.ok ? await snapshotApiResponse(projectResponse) : null;
@@ -556,7 +557,7 @@
     return Promise.all((Array.isArray(body?.canvases) ? body.canvases : []).map(async (item) => ({
       ...item,
       projectId:item.projectId || SERVER_DEFAULT_PROJECT_ID,
-      preview:dataUrlBlob(item.preview),
+      preview:item.preview ? dataUrlBlob(item.preview) : null,
     }))).then((items) => items.sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)));
   }
   async function cloudSnapshotItems() {
@@ -572,7 +573,7 @@
     })).sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
   }
   async function snapshotsAt(location) {
-    if (location === "server") await window.PenEchoLinkedDevice?.refresh();
+    if (location === "server") await window.PenEchoLinkedDevice?.refresh({ ifNeeded:true });
     return location === "server" ? serverSnapshotItems() : location === "cloud" ? cloudSnapshotItems() : allSnapshots();
   }
   function animationBounds(region = null) {
@@ -1893,7 +1894,7 @@
     error.className = `history-library-error${retainItems ? " with-cache" : ""}`;
     error.setAttribute("role", "alert");
     title.textContent = t("snapshotLibraryUnavailable").replace("{location}", snapshotLocationLabel(location));
-    detail.textContent = t(location === "server" && serverSnapshotUnavailableKey || (retainItems ? "snapshotCloudCacheLoadFailed" : "snapshotLibraryRetryDetail"));
+    detail.textContent = t(location === "server" && serverSnapshotUnavailableKey || (retainItems ? "snapshotLibraryCacheRetained" : "snapshotLibraryRetryDetail"));
     retry.type = "button";
     peButton(retry, "secondary", "standard");
     retry.textContent = t("snapshotLibraryRetry");
@@ -1995,6 +1996,7 @@
       icon.append(path);
       label.textContent = option.textContent;
       count.textContent = String(itemCount);
+      count.hidden = snapshotItemsLocation !== location;
       button.append(icon, label, count);
       button.onclick = () => {
         if (button.disabled || select.value === option.value) return;
@@ -2227,7 +2229,67 @@
       image.addEventListener("error", revoke);
     }
   }
+  function observeServerHistoryPreview(item, image, fallback) {
+    if (!item.hasPreview || typeof IntersectionObserver !== "function") return;
+    if (!historyPreviewLoader) {
+      const loader = { queue:[], active:0, controllers:new Set(), observer:null };
+      const pump = () => {
+        while (historyPreviewLoader === loader && loader.active < 2 && loader.queue.length) {
+          const task = loader.queue.shift();
+          if (!task.image.isConnected) continue;
+          const controller = new AbortController();
+          loader.controllers.add(controller);
+          loader.active++;
+          const timer = setTimeout(() => controller.abort(), 12000);
+          void fetch(`/api/canvases/${encodeURIComponent(task.item.id)}/preview`, {
+            credentials:"same-origin", headers:authenticatedApiHeaders(), signal:controller.signal,
+          }).then(snapshotApiResponse).then((body) => {
+            if (historyPreviewLoader !== loader || !task.image.isConnected || !body?.preview) return;
+            const blob = dataUrlBlob(body.preview);
+            if (!blob) return;
+            task.item.preview = blob;
+            const url = URL.createObjectURL(blob);
+            historyPreviewUrls.set(url, task.image);
+            task.image.onerror = () => {
+              if (historyPreviewUrls.delete(url)) URL.revokeObjectURL(url);
+              task.image.hidden = true;
+              task.fallback.hidden = false;
+            };
+            task.image.src = url;
+            task.image.hidden = false;
+            task.fallback.hidden = true;
+          }).catch(() => {}).finally(() => {
+            clearTimeout(timer);
+            loader.controllers.delete(controller);
+            loader.active--;
+            pump();
+          });
+        }
+      };
+      const tasks = new WeakMap();
+      loader.tasks = tasks;
+      loader.observer = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          loader.observer.unobserve(entry.target);
+          const task = tasks.get(entry.target);
+          if (task) loader.queue.push(task);
+        }
+        pump();
+      });
+      historyPreviewLoader = loader;
+    }
+    historyPreviewLoader.tasks.set(image.parentElement, { item, image, fallback });
+    historyPreviewLoader.observer.observe(image.parentElement);
+  }
   function releaseHistoryPreviewUrls() {
+    const loader = historyPreviewLoader;
+    historyPreviewLoader = null;
+    if (loader) {
+      loader.observer.disconnect();
+      loader.queue.length = 0;
+      for (const controller of loader.controllers) controller.abort();
+    }
     const entries = [...historyPreviewUrls];
     historyPreviewUrls.clear();
     queueMicrotask(() => {
@@ -2323,6 +2385,7 @@
       selectButton.setAttribute("aria-label", isCurrent ? `${snapshotName(item)} · ${t("studioNavigatorCurrent")}` : snapshotName(item));
       image.dataset.peMedia = "prompt-preview";
       image.alt = "";
+      image.decoding = "async";
       fallback.dataset.peMedia = "prompt-icon";
       fallback.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4Z"/><path d="m7 15 3-3 2.5 2.5L15 12l3 3"/><circle cx="9" cy="9" r="1.2"/></svg>`;
       if (url) {
@@ -2336,6 +2399,7 @@
         };
       } else image.hidden = true;
       selectButton.append(image, fallback);
+      if (!url && location === "server") observeServerHistoryPreview(item, image, fallback);
       if (isCurrent) {
         currentLabel.className = "history-current-label";
         currentLabel.textContent = t("studioNavigatorCurrent");
@@ -2516,9 +2580,14 @@
       snapshotItemsLocation = null;
       renderSnapshotListLoading(location);
     }
-    setHistoryActivity(
+    // The content region owns first-load feedback. Only refreshing visible
+    // cached rows needs the existing activity indicator.
+    if (replacingLocation || snapshotItems.length === 0) {
+      hideHistoryActivity();
+      if (!replacingLocation) renderSnapshotListLoading(location);
+    } else setHistoryActivity(
       t("snapshotLibraryLoading").replace("{location}", snapshotLocationLabel(location)),
-      t(showingCloudCache ? "snapshotCloudCacheRefreshing" : "snapshotLibraryLoadingDetail"),
+      showingCloudCache ? t("snapshotCloudCacheRefreshing") : "",
       null,
     );
     updateHistoryReadControls();

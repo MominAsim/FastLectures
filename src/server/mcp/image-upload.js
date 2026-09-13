@@ -33,19 +33,22 @@ async function prepareUploadedImage(bytes,name,{signal}={}) {
   try {
     const metadata=await run(image=>image.metadata());
     if (!metadata.width || !metadata.height || metadata.width*(metadata.pageHeight||metadata.height)>MAX_PIXELS) throw fail('image_too_large','Image exceeds 40 megapixels',413);
-    // Metadata alone accepts truncated payloads: consume all first-frame pixels before preserving bytes.
-    await run(image=>image.raw().toBuffer());
     let output=bytes, format=type, width=metadata.width, height=metadata.pageHeight||metadata.height;
     const dataURL=(buffer,fmt)=>`data:image/${fmt};base64,${buffer.toString('base64')}`;
-    if (!['png','jpeg','webp'].includes(type) || (metadata.pages||1)>1 || Math.max(width,height)>MAX_OUTPUT_DIMENSION || dataURL(bytes,type).length>MAX_SOURCE) {
+    const sourceLength=(buffer,fmt)=>`data:image/${fmt};base64,`.length+4*Math.ceil(buffer.length/3);
+    if (!['png','jpeg','webp'].includes(type) || (metadata.pages||1)>1 || Math.max(width,height)>MAX_OUTPUT_DIMENSION || sourceLength(bytes,type)>MAX_SOURCE) {
       const lossless=await run(image=>image.rotate().resize({width:MAX_OUTPUT_DIMENSION,height:MAX_OUTPUT_DIMENSION,fit:'inside',withoutEnlargement:true}).png({compressionLevel:9}).toBuffer({resolveWithObject:true}));
       output=lossless.data;format='png';width=lossless.info.width;height=lossless.info.height;
       let edge=Math.min(MAX_OUTPUT_DIMENSION,Math.max(width,height));
-      for (let attempt=0;dataURL(output,format).length>MAX_SOURCE && attempt<8;attempt++,edge=Math.floor(edge*0.75)) {
+      for (let attempt=0;sourceLength(output,format)>MAX_SOURCE && attempt<8;attempt++,edge=Math.floor(edge*0.75)) {
         const result=await run(image=>image.rotate().resize({width:edge,height:edge,fit:'inside',withoutEnlargement:true}).webp({quality:80,effort:4}).toBuffer({resolveWithObject:true}));
         output=result.data;format='webp';width=result.info.width;height=result.info.height;
-        if(dataURL(output,format).length<=MAX_SOURCE) break;
+        if(sourceLength(output,format)<=MAX_SOURCE) break;
       }
+    } else {
+      // Validate preserved bytes without allocating a full uncompressed raster
+      // in JS. Transcoding above already decodes and validates its input.
+      await run(image=>image.stats());
     }
     const source=dataURL(output,format);
     if(source.length>MAX_SOURCE) throw fail('image_too_large','Image could not fit the Canvas image limit',413);

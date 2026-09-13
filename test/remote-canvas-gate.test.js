@@ -177,7 +177,7 @@ test("Remote Canvas brand doubles as the way back to the console", () => {
 });
 
 test("Remote Canvas publishes the account and device status without adding a duplicate brand badge", async () => {
-  const run = boot({ respond:() => ({ account:{ name:"Remote User" }, device:{ id:SAVED_CANVAS_ID, name:"My PenEcho", platform:"darwin", online:true } }) });
+  const run = boot({ respond:() => ({ account:{ name:"Remote User" }, device:{ id:SAVED_CANVAS_ID, name:"My PenEcho", platform:"darwin", online:true, ready:true, capabilities:{canvasAgent:true} } }) });
   await flush();
   assert.equal(run.brand.children.some((child) => child.className === "remote-canvas-status"), false);
   assert.equal(run.window.PENECHO_REMOTE_CLOUD_STATUS.accountName, "Remote User");
@@ -218,7 +218,7 @@ test("Remote Canvas gate shows no actions while checking and none once a linked 
   assert.deepEqual(actionRevealStates("link").filter((state) => state === "offline"), []);
 
   const online = boot({
-    respond:() => ({ device:{ name:"My PenEcho", platform:"darwin 25.3.0", online:true } }),
+    respond:() => ({ device:{ name:"My PenEcho", platform:"darwin 25.3.0", online:true, ready:true, capabilities:{canvasAgent:true} } }),
     widgetFrames:[{ contentWindow:{} }],
   });
   await flush();
@@ -231,7 +231,7 @@ test("Remote Canvas gate shows no actions while checking and none once a linked 
 
 test("Cloud Canvas stays covered until every visible Widget reports rendered content", async () => {
   const firstWindow = {}, secondWindow = {}, run = boot({
-    respond:() => ({ device:{ id:SAVED_CANVAS_ID, name:"My PenEcho", platform:"darwin", online:true } }),
+    respond:() => ({ device:{ id:SAVED_CANVAS_ID, name:"My PenEcho", platform:"darwin", online:true, ready:true, capabilities:{canvasAgent:true} } }),
     widgetFrames:[{ contentWindow:firstWindow }, { contentWindow:secondWindow }],
     nativeReads:true,
   });
@@ -260,7 +260,7 @@ test("Cloud Canvas stays covered until every visible Widget reports rendered con
 test("Remote public Echo uses the linked-host bridge without redirecting to a guessed LAN origin", async () => {
   const run = boot({
     pathname:`/canvas/community/${COMMUNITY_ID}`,
-    respond:() => ({ device:{ id:"device-1", name:"My PenEcho", platform:"darwin", online:true } }),
+    respond:() => ({ device:{ id:"device-1", name:"My PenEcho", platform:"darwin", online:true, ready:true, capabilities:{canvasAgent:true} } }),
   });
   await flush();
   assert.deepEqual(run.taken, [COMMUNITY_ID]);
@@ -294,7 +294,7 @@ test("Remote Canvas gate keeps the zh copy path", async () => {
   await flush();
   assert.equal(offline.detail.textContent, "我的 PenEcho · macOS · 离线");
 
-  const online = boot({ language:"zh-CN", respond:() => ({ device:{ name:"我的 PenEcho", platform:"macOS", online:true } }) });
+  const online = boot({ language:"zh-CN", respond:() => ({ device:{ name:"我的 PenEcho", platform:"macOS", online:true, ready:true, capabilities:{canvasAgent:true} } }) });
   await flush();
   assert.equal(online.detail.textContent, "我的 PenEcho · macOS · 在线");
   assert.match(gateScript, /私人云端画布/);
@@ -326,7 +326,7 @@ test("Remote Canvas gate 401 response redirects to auth with returnTo", async ()
 });
 
 test("Remote Canvas gate keeps the cloud fetch bridge and community take-further flow", async () => {
-  const community = boot({ pathname:`/canvas/community/${COMMUNITY_ID}`, respond:() => ({ device:{ name:"Host", platform:"linux", online:true } }) });
+  const community = boot({ pathname:`/canvas/community/${COMMUNITY_ID}`, respond:() => ({ device:{ name:"Host", platform:"linux", online:true, ready:true, capabilities:{canvasAgent:true} } }) });
   await flush();
   assert.deepEqual(community.taken, [COMMUNITY_ID]);
   assert.equal(community.gate.hidden, true);
@@ -338,7 +338,7 @@ test("Remote Canvas gate keeps the cloud fetch bridge and community take-further
   assert.equal(offlineResponse.status, 409);
   assert.equal(offline.fetchCalls.filter((call) => call.url.startsWith("/api/v1/remote-canvas/http")).length, 0);
 
-  const run = boot({ respond:() => ({ device:{ name:"Host", platform:"linux", online:true } }) });
+  const run = boot({ respond:() => ({ device:{ name:"Host", platform:"linux", online:true, ready:true, capabilities:{canvasAgent:true} } }) });
   const response = await run.window.fetch("/api/canvases?x=1");
   assert.equal(response.ok, true);
   const bridged = run.fetchCalls.find((call) => call.url.startsWith("/api/v1/remote-canvas/http"));
@@ -369,7 +369,7 @@ test("Remote Canvas gate keeps the cloud fetch bridge and community take-further
 test("native Cloud Canvas reads stay behind the explicit runtime flag", async () => {
   const run = boot({
     nativeReads:true,
-    respond:() => ({ device:{ name:"Host", platform:"linux", online:true } }),
+    respond:() => ({ device:{ name:"Host", platform:"linux", online:true, ready:true, capabilities:{canvasAgent:true} } }),
   });
   await flush();
 
@@ -390,7 +390,7 @@ test("native Cloud Canvas reads stay behind the explicit runtime flag", async ()
 test("Cloud-native Canvas opens directly even when a linked device is online", async () => {
   const run = boot({
     nativeReads:true,
-    respond:() => ({ device:{ name:"Host", platform:"linux", online:true } }),
+    respond:() => ({ device:{ name:"Host", platform:"linux", online:true, ready:true, capabilities:{canvasAgent:true} } }),
   });
   await flush();
   assert.equal(run.gate.hidden, true);
@@ -534,19 +534,19 @@ test("hosted Cloud commands stop after the active Canvas changes while the fence
   assert.equal(run.fetchCalls.filter((call) => call.url === "/api/v1/hosted/commands").length, 0);
 });
 
-test("hosted Cloud commands return a save-required 409 without a draft Canvas", async () => {
-  const run = boot({ respond:() => ({ device:null }) });
+test("hosted Cloud commands run for unsaved Canvas without saving content", async () => {
+  const draftId=SWITCHED_CANVAS_ID;
+  const run = boot({ fetchResponse:(url) => ({ok:true,status:200,json:async()=>url === "/api/v1/hosted/draft-scopes" ? {canvasId:CANVAS_ID} : {}}) });
+  run.window.PenEchoCloudProjects={currentExecutionScope:()=>({canvasId:draftId,draft:true})};
   const response = await run.window.fetch("/api/ai/command", {
-    method:"POST",
-    headers:{ "x-penecho-connection":`hosted:${HOSTED_MODEL_ID}` },
+    method:"POST", headers:{ "x-penecho-connection":`hosted:${HOSTED_MODEL_ID}` },
     body:JSON.stringify({ action:"inspect" }),
   });
-  assert.equal(response.status, 409);
-  assert.deepEqual(await response.json(), {
-    error:"cloud_canvas_save_required",
-    message:"Save this Canvas to Cloud before using AI.",
-  });
-  assert.equal(run.fetchCalls.filter((call) => call.url.includes("/execution-fence") || call.url === "/api/v1/hosted/commands").length, 0);
+  assert.equal(response.status,200);
+  const command=run.fetchCalls.find(call=>call.url==="/api/v1/hosted/commands");
+  assert.equal(JSON.parse(command.options.body).canvasId,CANVAS_ID);
+  assert.equal(run.fetchCalls.filter(call=>call.url===`/api/v1/hosted/canvases/${CANVAS_ID}/execution-fence`).length,1);
+  assert.equal(run.fetchCalls.some(call=>/\/api\/v1\/canvases/.test(call.url)),false);
 });
 
 test("desktop runtime keeps its existing direct Cloud sync path", async () => {
@@ -601,7 +601,7 @@ test("browser-only Canvas library and MCP requests report the linked-device stat
 test("Remote Canvas fetch wrapper preserves the Canvas base URL on nested community routes", async () => {
   const run = boot({
     pathname:`/canvas/community/${COMMUNITY_ID}`,
-    respond:() => ({ device:{ name:"Host", platform:"linux", online:true } }),
+    respond:() => ({ device:{ name:"Host", platform:"linux", online:true, ready:true, capabilities:{canvasAgent:true} } }),
   });
   await flush();
 
@@ -646,11 +646,11 @@ test("fresh account status restores a hosted Agent capability missing from cache
 });
 
 for (const mode of ["online", "offline", "absent", "denied"]) {
-  test(`Widget parent public fetch uses authoritative pinned device: ${mode}`, async () => {
+  test(`Legacy Widget parent public fetch uses authoritative pinned device: ${mode}`, async () => {
     const replies = [], deviceId = "123e4567-e89b-42d3-a456-426614174001";
     const source = { postMessage:(message, origin) => replies.push({ message, origin }) };
     const frame = { contentWindow:source, src:"https://cloud.penecho.test/canvas/widget-host.html?remote-canvas=1" };
-    const run = boot({ nativeReads:true, widgetFrames:[frame],
+    const run = boot({ nativeReads:false, widgetFrames:[frame],
       respond:() => ({ device:mode === "absent" ? null : { id:deviceId, online:mode !== "offline", name:"Pinned host", platform:"mac" } }),
       fetchResponse:(url) => url.startsWith("/api/v1/remote-canvas/http") && ["offline", "denied"].includes(mode)
         ? Response.json({ error:mode === "offline" ? "device_offline" : "forbidden" }, { status:mode === "offline" ? 409 : 403 })
@@ -689,7 +689,7 @@ test("Widget parent refuses foreign origin and unowned frames", async () => {
 test("Cloud-native editing adds pinned device capabilities while retaining Cloud ownership", async () => {
   const deviceId = "123e4567-e89b-42d3-a456-426614174010";
   const run = boot({ nativeReads:true, currentCanvasId:CURRENT_CANVAS_ID,
-    respond:() => ({ device:{ id:deviceId, online:true } }),
+    respond:() => ({ device:{ id:deviceId, online:true, ready:true, capabilities:{canvasAgent:true} } }),
   });
   await flush();
   assert.equal(run.window.PENECHO_CONFIG.browserCanvasEditing, true);
@@ -728,7 +728,7 @@ test("Cloud-native editing adds pinned device capabilities while retaining Cloud
 
 test("Cloud-native host capability requires a valid online pinned device", async () => {
   const deviceId = "123e4567-e89b-42d3-a456-426614174010";
-  for (const device of [null, { id:deviceId, online:false }, { id:"", online:true }, { id:"invalid", online:true }]) {
+  for (const device of [null, { id:deviceId, online:false }, { id:"", online:true, ready:true, capabilities:{canvasAgent:true} }, { id:"invalid", online:true, ready:true, capabilities:{canvasAgent:true} }]) {
     const run = boot({ nativeReads:true, respond:() => ({ device }) });
     await flush();
     assert.equal(run.window.PENECHO_CONFIG.browserCanvasEditing, true);
@@ -750,26 +750,26 @@ test("linked device refresh recovers without reopening and never switches the pi
   let device = { id:SAVED_CANVAS_ID, online:false };
   const run = boot({ nativeReads:true, respond:() => ({ device }) });
   await flush();
-  device = { id:SAVED_CANVAS_ID, online:true };
+  device = { id:SAVED_CANVAS_ID, online:true, ready:true, capabilities:{canvasAgent:true} };
   const first = run.window.PenEchoLinkedDevice.refresh();
   assert.equal(first, run.window.PenEchoLinkedDevice.refresh(), "concurrent refreshes share one owner");
   await first;
   assert.equal(run.window.PENECHO_CONFIG.canvasAgent, true);
   await run.window.fetch("/api/settings");
   assert.equal(new URL(run.fetchCalls.at(-1).url, "https://cloud.penecho.test").searchParams.get("deviceId"), SAVED_CANVAS_ID);
-  device = { id:CURRENT_CANVAS_ID, online:true };
+  device = { id:CURRENT_CANVAS_ID, online:true, ready:true, capabilities:{canvasAgent:true} };
   await run.window.PenEchoLinkedDevice.refresh();
   assert.equal(run.window.PENECHO_CONFIG.linkedDeviceOnline, false);
   assert.equal(run.window.PENECHO_REMOTE_CLOUD_STATUS.deviceId, SAVED_CANVAS_ID);
   assert.equal((await run.window.fetch("/api/canvases")).status, 409);
-  device = { id:SAVED_CANVAS_ID, online:true };
+  device = { id:SAVED_CANVAS_ID, online:true, ready:true, capabilities:{canvasAgent:true} };
   await run.window.PenEchoLinkedDevice.refresh();
   assert.equal(run.window.PENECHO_CONFIG.canvasAgent, true);
   assert.deepEqual(run.opened, [CANVAS_ID]);
 });
 
 test("device offline relay errors revoke host capabilities until an explicit refresh", async () => {
-  const run = boot({ nativeReads:true, respond:() => ({ device:{ id:SAVED_CANVAS_ID, online:true } }),
+  const run = boot({ nativeReads:true, respond:() => ({ device:{ id:SAVED_CANVAS_ID, online:true, ready:true, capabilities:{canvasAgent:true} } }),
     fetchResponse:() => Response.json({ error:"device_offline" }, { status:409 }),
   });
   await flush();
@@ -784,7 +784,7 @@ test("device offline relay errors revoke host capabilities until an explicit ref
 });
 
 test("Cloud plugin ownership is unchanged for hosted improvement and catalog mutations", async () => {
-  const run = boot({ nativeReads:true, respond:() => ({ device:{ id:SAVED_CANVAS_ID, online:true } }) });
+  const run = boot({ nativeReads:true, respond:() => ({ device:{ id:SAVED_CANVAS_ID, online:true, ready:true, capabilities:{canvasAgent:true} } }) });
   await flush();
   await run.window.fetch("/api/plugins/improve", { method:"POST", headers:{ "x-penecho-connection":`hosted:${HOSTED_MODEL_ID}` }, body:"{}" });
   assert.equal(run.fetchCalls.at(-1).url, "/api/plugins/improve");
@@ -796,7 +796,7 @@ test("Cloud plugin ownership is unchanged for hosted improvement and catalog mut
 test("linked device status timeout releases refresh and permits recovery", async () => {
   let hang = false;
   const run = boot({ nativeReads:true,
-    respond:() => hang ? new Promise(() => {}) : { device:{ id:SAVED_CANVAS_ID, online:true } },
+    respond:() => hang ? new Promise(() => {}) : { device:{ id:SAVED_CANVAS_ID, online:true, ready:true, capabilities:{canvasAgent:true} } },
     statusTimeout:(callback, delay) => setTimeout(callback, delay === 8000 ? 10 : delay),
   });
   await flush();
@@ -807,4 +807,81 @@ test("linked device status timeout releases refresh and permits recovery", async
   hang = false;
   await run.window.PenEchoLinkedDevice.refresh();
   assert.equal(run.window.PENECHO_CONFIG.linkedDeviceOnline, true);
+});
+
+
+test("Cloud opens and fetches Widget data before device discovery resolves", async () => {
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const replies = [];
+  const source = { postMessage:message => replies.push(message) };
+  const frame = { contentWindow:source, src:"https://cloud.penecho.test/canvas/widget-host.html" };
+  const run = boot({ nativeReads:true, respond:() => pending, widgetFrames:[frame],
+    fetchResponse:() => new Response("public data") });
+  const concurrentRefresh = run.window.PenEchoLinkedDevice.refresh();
+  await flush();
+  assert.deepEqual(run.opened, [CANVAS_ID], "device discovery must not delay document retrieval");
+  run.window.dispatchMessage({type:"penecho-widget-host-public-fetch",requestId:"widget-fetch-2",url:"https://example.org/data"},source);
+  await flush();
+  assert.equal(replies.length,1,"public Widget data must not wait for a device");
+  assert.equal(run.fetchCalls.filter(call=>call.url.startsWith("/api/v1/widget-fetch")).length,1);
+  run.window.dispatchMessage({type:"penecho-widget-capture-ready"},source);
+  await flush();
+  assert.equal(run.gate.hidden,true,"ready Cloud content must be revealed while discovery is pending");
+  release({device:{id:SAVED_CANVAS_ID,online:true, ready:true, capabilities:{canvasAgent:true}}});
+  await concurrentRefresh;
+  await flush();
+  assert.equal(run.fetchCalls.filter(call=>call.url.startsWith("/api/v1/remote-canvas/status")).length,1,"startup consumers must share device discovery");
+  assert.equal(run.window.PENECHO_CONFIG.linkedDeviceOnline,true);
+  await run.window.fetch("/api/canvases");
+  assert.ok(run.fetchCalls.some(call=>call.url.includes("deviceId="+SAVED_CANVAS_ID)));
+  assert.deepEqual(run.opened,[CANVAS_ID],"late capabilities must not reopen the document");
+});
+
+test("device discovery failure leaves a successfully opened Cloud document usable",async()=>{
+  const run=boot({nativeReads:true,respond:()=>new Error("gateway unavailable")});
+  await flush();
+  assert.equal(run.gate.hidden,true);
+  assert.deepEqual(run.opened,[CANVAS_ID]);
+  assert.equal(run.window.PENECHO_CONFIG.browserCanvasEditing,true);
+  await run.window.fetch("/api/cloud/library");
+  assert.equal(run.fetchCalls.at(-1).url,"/api/cloud/library");
+});
+
+ test("healthy Library and Settings reads reuse the pinned device without another status roundtrip", async () => {
+  const run=boot({nativeReads:true,respond:()=>({device:{id:SAVED_CANVAS_ID,online:true, ready:true, capabilities:{canvasAgent:true}}})});
+  await flush();
+  const before=run.fetchCalls.filter(c=>c.url==="/api/v1/remote-canvas/status").length;
+  await run.window.PenEchoLinkedDevice.refresh({ifNeeded:true});
+  await run.window.PenEchoLinkedDevice.refresh({ifNeeded:true});
+  assert.equal(run.fetchCalls.filter(c=>c.url==="/api/v1/remote-canvas/status").length,before);
+ });
+ test("a linked offline device reports failure instead of a successful empty connection list", async () => {
+  const run=boot({nativeReads:true,respond:()=>({device:{id:SAVED_CANVAS_ID,online:false}})});
+  await flush();
+  const response=await run.window.fetch("/api/settings");
+  assert.equal(response.status,409);
+  assert.equal((await response.json()).code,"device_offline");
+ });
+
+test('online without capabilities acknowledgement does not enable Agent or report Connected', async () => {
+  const deviceId='123e4567-e89b-42d3-a456-426614174010';let ready=false;
+  const run=boot({nativeReads:true,respond:()=>({accountId:'account-a',device:{id:deviceId,online:true,ready,capabilities:{canvasAgent:true}}})});
+  await flush();assert.equal(run.window.PENECHO_CONFIG.canvasAgent,false);assert.equal(run.window.PENECHO_REMOTE_CLOUD_STATUS.deviceReady,false);
+  assert.equal(run.window.PENECHO_CONFIG.linkedDeviceId,deviceId);assert.equal(run.window.PENECHO_CONFIG.connectionAccountId,'account-a');
+  ready=true;await run.window.PenEchoLinkedDevice.refresh();assert.equal(run.window.PENECHO_CONFIG.canvasAgent,true);assert.equal(run.window.PENECHO_REMOTE_CLOUD_STATUS.deviceReady,true);
+  run.window.PenEchoLinkedDevice.invalidate();assert.equal(run.window.PENECHO_CONFIG.linkedDeviceReady,false);assert.equal(run.window.PENECHO_CONFIG.canvasAgent,false);
+});
+
+
+test("draft changed while resolving execution scope never submits an old command",async()=>{
+  let release,active=CANVAS_ID;
+  const run=boot({fetchResponse:async(url)=>url==="/api/v1/hosted/draft-scopes"
+    ? new Promise(resolve=>{release=()=>resolve({ok:true,status:200,json:async()=>({canvasId:SAVED_CANVAS_ID})});})
+    : {ok:true,status:200,json:async()=>({})}});
+  run.window.PenEchoCloudProjects.currentExecutionScope=()=>({canvasId:active,draft:true});
+  const request=run.window.fetch("/api/ai/command",{method:"POST",headers:{"x-penecho-connection":`hosted:${HOSTED_MODEL_ID}`},body:'{}'});
+  active=SWITCHED_CANVAS_ID;release();
+  const response=await request;assert.equal(response.status,409);
+  assert.equal(run.fetchCalls.some(call=>call.url.includes('/execution-fence')||call.url==='/api/v1/hosted/commands'),false);
 });

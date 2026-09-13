@@ -707,13 +707,13 @@
   function updateCloudButton() {
     const account = state.status?.account;
     const remote = window.PENECHO_CONFIG?.runtime === "cloud" ? window.PENECHO_REMOTE_CLOUD_STATUS : null;
-    const connected = remote ? Boolean(remote.deviceOnline) : Boolean(state.status?.device?.connected && !state.statusUnavailable);
+    const connected = remote ? Boolean(remote.deviceReady) : Boolean(state.status?.device?.connected && !state.statusUnavailable);
     const signedIn = remote ? Boolean(remote.accountName) : accountSignedIn();
     const accountName = String(remote?.accountName || account?.name || "");
     const credits = account?.credits ?? remote?.credits;
     cloudButton.dataset.state = connected ? "connected" : signedIn ? "signed-in" : "signed-out";
     cloudButton.querySelector(".cloud-account-label").textContent = accountName ? accountName.split(/\s+/)[0] : "Cloud";
-    cloudButton.title = connected
+    cloudButton.title = remote?.deviceOnline && !remote.deviceReady ? `PenEcho Cloud · ${cloudT("connecting")}` : connected
       ? `PenEcho Cloud · ${cloudT("deviceLinked")}`
       : signedIn
         ? `PenEcho Cloud · ${cloudT("credits", { count:credits == null ? "—" : Number(credits).toLocaleString(undefined,{maximumFractionDigits:1}) })}`
@@ -729,7 +729,7 @@
         ...(state.status || {}),
         account:remote.accountName ? { ...(state.status?.account || {}), name:remote.accountName } : null,
         accountSession:{ ...(state.status?.accountSession || {}), signedIn:Boolean(remote.accountName) },
-        device:{ ...(state.status?.device || {}), connected:Boolean(remote.deviceOnline) },
+        device:{ ...(state.status?.device || {}), connected:Boolean(remote.deviceReady) },
       };
       updateCloudButton();
       return state.status;

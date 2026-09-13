@@ -175,7 +175,7 @@ function accountSessionExpired(configuration, now = Date.now()) {
 }
 
 class CloudConnector {
-  constructor({ stateDir, executeRequest, executeHttpRequest = null, executeCanvasAgentRequest = null, executeMcpRequest = null, closeMcpChannels = null, logger = null, defaultOrigin = "https://penecho.ai", capabilities = null, heartbeatTimeoutMs = null }) {
+  constructor({ stateDir, executeRequest, executeHttpRequest = null, executeCanvasAgentRequest = null, executeMcpRequest = null, closeMcpChannels = null, logger = null, defaultOrigin = "https://penecho.ai", capabilities = null, heartbeatTimeoutMs = null, helloTimeoutMs = 15_000 }) {
     this.stateDir = stateDir;
     this.file = path.join(stateDir, "cloud-device.json");
     this.executeRequest = executeRequest;
@@ -186,6 +186,7 @@ class CloudConnector {
     this.cloudMcpBridge = new (require('./cloud-mcp-bridge.js').CloudMcpBridge)();
     this.logger = logger;
     this.defaultOrigin = normalizedOrigin(defaultOrigin);
+    this.helloTimeoutMs = Math.max(1, Number(helloTimeoutMs) || 15_000);
     this.capabilities = Object.freeze({ modelConfigured:Boolean(capabilities?.modelConfigured), ...(typeof executeMcpRequest === "function" ? { mcp:true } : {}), ...(typeof executeCanvasAgentRequest === "function" ? { canvasAgent:true } : {}) });
     this.configuration = this.readConfiguration();
     this.socket = null;
@@ -398,14 +399,14 @@ class CloudConnector {
     const configuration = this.requireCloudAccount();
     const [catalog, wallet] = await Promise.all([this.refreshHostedCatalog({ force:true }), this.cloudRequest("/api/v1/credits")]);
     if (accountToken(this.configuration) !== configuration.accountToken || this.configuration?.origin !== configuration.origin) throw cloudSignInRequiredError("Cloud account changed. Refresh the model list.");
-    return { models:catalog.models, credits:wallet.credits };
+    return { models:catalog.models, credits:wallet.credits, origin:configuration.origin, accountId:this.account?.id || null };
   }
 
   async prepareHostedConnection(connectionId) {
     if (!/^hosted:[0-9a-f-]{36}$/i.test(String(connectionId))) return null;
     await this.refreshHostedCatalog();
     const connection = this.hostedConnection(connectionId);
-    if (!connection) throw Object.assign(new Error("The selected PenEcho model is unavailable. Refresh AI connections."), { status:409 });
+    if (!connection) throw Object.assign(new Error("The selected PenEcho model is unavailable. Refresh AI connections."), { status:409, code:"CONNECTION_STALE" });
     // Old Cloud catalogs did not declare a protocol. Fail closed until the
     // server is upgraded; a model name or UUID cannot establish its wire format.
     if (!["openai", "anthropic"].includes(connection.apiFormat)) throw Object.assign(new Error("Cloud did not provide a supported API format for this model. Refresh the model list or update the Cloud server."), { status:409, code:"hosted_model_protocol_unavailable" });
@@ -1083,12 +1084,21 @@ class CloudConnector {
 
   async enableLinkedDevice({ reclaim = true } = {}) {
     this.requireCloudAccount();
+    const accessSequence = reclaim ? ++this.mcpAccessSeq : this.mcpAccessSeq;
     // Explicit enable validates and reuses a current credential, or claims
     // ownership if a disconnected host missed its revocation. Automatic
     // reconnects never come here and cannot reclaim an invalidated device.
     if(!reclaim && this.configuration.enabled && this.connectionState==='connected' && deviceToken(this.configuration))return this.status();
     if(!this.linkInFlight)this.linkInFlight=this.pair({origin:this.configuration.origin}).finally(()=>{this.linkInFlight=null;});
-    return this.linkInFlight;
+    const linked = await this.linkInFlight;
+    // Explicitly enabling the link includes Cloud access to browsers that have
+    // already opted into MCP. Merely starting the host still exposes no Canvas.
+    // A later disable/disconnect must win over this asynchronous enable.
+    if(reclaim && accessSequence===this.mcpAccessSeq && this.configuration?.enabled) {
+      this.writeConfiguration({...this.configuration,cloudMcpEnabled:true});
+      return this.status();
+    }
+    return linked;
   }
 
   async setCloudMcpAccess(enabled) {
@@ -1162,36 +1172,45 @@ class CloudConnector {
       clearTimeout(this.helloTimer);
       this.helloTimer = setTimeout(() => {
         if (this.socket === socket && this.connectionState === "connecting") socket.close(4008, "relay authentication timed out");
-      }, 15_000);
+      }, this.helloTimeoutMs);
       this.helloTimer.unref?.();
       this.log("socket-open", { deviceId: this.configuration.deviceId });
     });
 
+    let relayHello = null;
+    const markReady = () => {
+      if (this.socket !== socket || this.connectionState !== "connecting" || !relayHello) return;
+      clearTimeout(this.helloTimer);
+      this.helloTimer = null;
+      this.connectionState = "connected";
+      this.lastConnectedAt = Date.now();
+      this.lastSeenAt = Date.now();
+      this.lastError = null;
+      this.reconnectAttempt = 0;
+      this.startHeartbeat(Number(relayHello.heartbeatSeconds) || DEFAULT_HEARTBEAT_SECONDS, Number(relayHello.heartbeatTimeoutSeconds) || null, socket);
+      if (accountToken(this.configuration)) this.refreshAccount({ force:true }).catch(error => this.log("account-refresh-failed", { error:safeMessage(error) }));
+      this.log("connected", { deviceId:this.configuration.deviceId });
+    };
     socket.on("message", (data) => {
+      if (this.socket !== socket) return;
       if (data.length > MAX_RELAY_MESSAGE_BYTES) return socket.close(4009, "message too large");
       let message;
       try { message = JSON.parse(data.toString("utf8")); } catch { return socket.close(4002, "invalid message"); }
       if (message.type === "hello") {
         if (this.socket !== socket) return;
         if (message.protocol !== 1 || message.deviceId !== this.configuration?.deviceId) return socket.close(4002, "invalid relay hello");
-        clearTimeout(this.helloTimer);
-        this.helloTimer = null;
-        this.connectionState = "connected";
-        this.lastConnectedAt = Date.now();
-        this.lastSeenAt = Date.now();
-        this.lastError = null;
-        this.reconnectAttempt = 0;
+        if (relayHello) return socket.close(4002, "duplicate relay hello");
+        relayHello = message;
         socket.send(JSON.stringify({ type:"capabilities", capabilities:this.capabilities }));
-        this.startHeartbeat(
-          Number(message.heartbeatSeconds) || DEFAULT_HEARTBEAT_SECONDS,
-          Number(message.heartbeatTimeoutSeconds) || null,
-          socket,
-        );
-        if (accountToken(this.configuration)) this.refreshAccount({ force: true }).catch((error) => this.log("account-refresh-failed", { error: safeMessage(error) }));
-        this.log("connected", { deviceId: this.configuration.deviceId });
+        if (message.capabilitiesAck !== true) markReady();
         return;
       }
-      if (this.socket === socket && this.connectionState === "connected") this.noteRelayActivity(socket);
+      if (message.type === "capabilities_ack") {
+        if (!relayHello || relayHello.capabilitiesAck !== true || message.deviceId !== this.configuration?.deviceId) return socket.close(4002, "invalid capabilities acknowledgement");
+        markReady();
+        return;
+      }
+      if (this.connectionState === "connected") this.noteRelayActivity(socket);
       if (message.type === "heartbeat_ack") return;
       if (message.type === "request" && this.connectionState !== "connected") return socket.close(4002, "request before relay authentication");
       if (message.type === "request" && typeof message.requestId === "string") this.handleRequest(socket, message);
@@ -1219,6 +1238,7 @@ class CloudConnector {
     });
 
     socket.on("error", (error) => {
+      if (this.socket !== socket) return;
       this.lastError = safeMessage(error);
       this.log("error", { error: this.lastError });
     });
@@ -1286,6 +1306,7 @@ class CloudConnector {
         requestId: message.requestId,
         ok: false,
         error: error.code || "local_device_error",
+        ...(Number.isInteger(error.status) ? { status:error.status } : {}),
         message: safeMessage(error),
       }));
     }

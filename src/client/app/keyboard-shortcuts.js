@@ -89,6 +89,17 @@
     for (const [name, replacement] of Object.entries(values)) value = value.replace(`{${name}}`, replacement);
     return value;
   }
+  function keyboardShortcutCanvasHint(commandId, key) {
+    const chord = keyboardShortcutBindings[commandId];
+    return chord ? { key, values:{ shortcut:keyboardShortcutDisplay(chord) } } : null;
+  }
+  function keyboardShortcutUndoRedoHint() {
+    const undo = keyboardShortcutBindings.undo, redo = keyboardShortcutBindings.redo;
+    return undo && redo ? {
+      key:"canvasHintShortcutUndoRedo",
+      values:{ undo:keyboardShortcutDisplay(undo), redo:keyboardShortcutDisplay(redo) },
+    } : null;
+  }
   function keyboardShortcutSetStatus(key, values = {}, stateName = "") {
     keyboardShortcutStatus = key ? { key, values, stateName } : null;
     const status = document.querySelector("#settingsShortcutStatus");

@@ -1950,7 +1950,8 @@ body[data-theme="studio"] {
   --studio-chrome-shadow-color: rgba(30, 35, 48, .07);
   --studio-glass: color-mix(in srgb, var(--studio-titlebar) 62%, transparent);
   --studio-glass-strong: color-mix(in srgb, var(--studio-titlebar) 68%, transparent);
-  --studio-agent-glass: var(--studio-glass);
+  /* Match the Settings shell + content material without another blur layer. */
+  --studio-agent-glass: linear-gradient(var(--penecho-workbench-content-surface), var(--penecho-workbench-content-surface)), var(--penecho-large-dialog-surface);
   --studio-agent-surface: color-mix(in srgb, var(--studio-panel) 58%, transparent);
   --studio-agent-surface-strong: color-mix(in srgb, var(--studio-panel) 70%, transparent);
   --studio-agent-overlay: color-mix(in srgb, var(--studio-panel) 80%, transparent);
@@ -3726,11 +3727,11 @@ body:not([data-theme="studio"]) .canvas-workspace {top:12px;}
     visibility: visible;
     backface-visibility: hidden;
     will-change: transform;
-    -webkit-backdrop-filter: saturate(1.15) blur(20px);
-    backdrop-filter: saturate(1.15) blur(20px);
+    -webkit-backdrop-filter: var(--penecho-large-dialog-surface-filter);
+    backdrop-filter: var(--penecho-large-dialog-surface-filter);
     transition: transform .22s cubic-bezier(.2,.72,.2,1), opacity .16s ease, border-color .16s ease, visibility 0s linear 0s;
   }
-  body[data-theme="studio"].studio-agent-docked:has(#viewport:is(.canvas-chrome-lightweight, .is-drawing)) .canvas-agent-panel { background: color-mix(in srgb, var(--studio-panel) 88%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body[data-theme="studio"].studio-agent-docked:has(#viewport:is(.canvas-chrome-lightweight, .is-drawing)) .canvas-agent-panel { background: var(--studio-panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
   body[data-theme="studio"].studio-agent-docked .canvas-agent-panel[hidden] { display: flex; }
   body[data-theme="studio"].studio-agent-docked .canvas-agent-panel.canvas-agent-no-motion { transition: none; }
   body[data-theme="studio"].studio-agent-docked:not(.canvas-agent-open) .canvas-agent-panel {
@@ -5590,7 +5591,7 @@ html.penecho-web-page-scale .history-panel[data-pe-surface="manager"] {
 }
 :is(#pe-button-contract, body[data-theme="studio"])
   .history-panel[data-pe-surface="manager"]
-  .history-location-count[hidden] {
+  :is(.history-location-count, .history-project-nav-item > small)[hidden] {
   display: none;
 }
 :is(#pe-button-contract, body[data-theme="studio"])

@@ -747,7 +747,7 @@ export class CodexNativeHost {
     const project = normalizedProjectId ? await this.resolveProject(normalizedProjectId) : null
     if (normalizedProjectId && !project) throw new Error('The selected local project was not found on this PenEcho host.')
     const connection = this.resolveConnection(connectionId)
-    if (!connection) throw new Error('The selected AI connection was not found.')
+    if (!connection) throw Object.assign(new Error('The selected AI connection was not found. Refresh AI connections.'), { code:'CONNECTION_STALE', status:409 })
     if (connection.provider !== 'codex-cli') throw new Error('Codex Native PenEcho Agent requires a Codex CLI connection.')
     const fingerprint = codexConnectionFingerprint(connection)
     const resolvedWebSearch = this.resolveWebSearch?.() || {}
@@ -1201,7 +1201,8 @@ export class CodexNativeHost {
     if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native PenEcho Agent session is closed.')
     if (session.active || session.interruptPromise) throw new Error('Wait for the current PenEcho Agent turn to finish before changing models.')
     const connection = this.resolveConnection(String(connectionId || ''))
-    if (!connection || connection.provider !== 'codex-cli') throw new Error('The selected AI connection cannot use Codex Native PenEcho Agent.')
+    if (!connection) throw Object.assign(new Error('The selected AI connection was not found. Refresh AI connections.'), { code:'CONNECTION_STALE', status:409 })
+    if (connection.provider !== 'codex-cli') throw new Error('The selected AI connection cannot use Codex Native PenEcho Agent.')
     session.connectionId=String(connection.id || connectionId)
     session.connectionFingerprint=codexConnectionFingerprint(connection)
     session.connection=connection

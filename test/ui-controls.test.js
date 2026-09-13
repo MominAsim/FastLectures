@@ -678,12 +678,12 @@ test("contextual Canvas hints share one quiet application-footer line by priorit
     acceptWidget = functionSource(app, "acceptPendingWidget");
   assert.match(html, /id="canvasHint" class="canvas-hint" role="status" aria-live="polite" hidden/);
   assert.doesNotMatch(html, /data-i18n="footerTip"|AI drafts: move the whole group/);
-  assert.match(renderHint, /`\$\{t\("hintPrefix"\)\}: \$\{t\(state\.canvasHintKey\)\}`[\s\S]*?canvasHint\.hidden = false/);
+  assert.match(renderHint, /Object\.entries\(state\.canvasHintValues \|\| \{\}\)[\s\S]*?replaceAll\(`[\s\S]*?canvasHint\.textContent = `\$\{t\("hintPrefix"\)\}: \$\{message\}`[\s\S]*?canvasHint\.hidden = false/);
   assert.match(app, /hintPrefix:\s*"Hint"/);
   assert.match(zh, /hintPrefix:\s*"提示"/);
   assert.match(zh, /pluginPreview:\s*"预览"/);
   assert.doesNotMatch(showHint, /setTimeout|hidden\s*=\s*true/);
-  assert.match(showHint, /Array\.isArray\(keys\)[\s\S]*?candidates\.filter\(\(key\) => key !== state\.canvasHintKey\)[\s\S]*?Math\.random\(\)/);
+  assert.match(showHint, /Array\.isArray\(keys\)[\s\S]*?candidate\.key !== state\.canvasHintKey[\s\S]*?Math\.random\(\)/);
   const viewportStart = html.indexOf('<section id="viewport"'), viewportEnd = html.indexOf('<section id="debugPanel"'),
     viewport = html.slice(viewportStart, viewportEnd),
     footerStart = html.lastIndexOf("<footer>", html.indexOf('id="coords"')), footerEnd = html.indexOf("</footer>", footerStart), footer = html.slice(footerStart, footerEnd);
@@ -698,13 +698,24 @@ test("contextual Canvas hints share one quiet application-footer line by priorit
   assert.match(css, /main > footer\.penecho-desktop-update-visible \.page-hint-slot\s*\{\s*display:\s*none/);
   assert.doesNotMatch(css, /canvasHintSettle|\.canvas-hint\.is-new\s*\{[^}]*animation|\.page-hint-slot[^}]*text-shadow/);
   assert.doesNotMatch(css, /studio-agent-launcher-floating [^{]*(?:\.canvas-hint|#tip|\.canvas-navigation-lock-hint|\.text-input-hint)/);
-  assert.match(startWidget, /widget\.widgetType === "html_widget"[\s\S]*?showCanvasHint\(\["canvasHintWidgetAdded", "canvasHintWidgetAddedAlt", "canvasHintRefineInPlace", "canvasHintAIAddsOnly"\]\)/);
-  assert.match(acceptWidget, /if \(restoreMode\) finishAIDraftHandMode\(\);[\s\S]*?if \(!replacement && restoreMode\) showCanvasHint\("canvasHintWidgetTouchHand"\)/);
-  assert.match(mode, /hand:\["canvasHintHand", "canvasHintHandAlt"\][\s\S]*?select:\["canvasHintLasso", "canvasHintLassoAlt"\][\s\S]*?text:\["canvasHintText", "canvasHintTextAlt"\][\s\S]*?eraser:\["canvasHintEraser", "canvasHintEraserAlt"\]/);
+  assert.match(startWidget, /widget\.widgetType === "html_widget"[\s\S]*?widgetInteractionPresentation\(\) === "maximized" \? "canvasHintWidgetFullscreen" : "canvasHintWidgetInline"/);
+  assert.match(acceptWidget, /if \(restoreMode\) finishAIDraftHandMode\(\);[\s\S]*?if \(!replacement && restoreMode\) showCanvasHint\(widgetInteractionPresentation\(\) === "maximized" \? "canvasHintWidgetFullscreen" : "canvasHintWidgetInline"\)/);
+  assert.match(mode, /keyboardShortcutCanvasHint\("focus-agent", "canvasHintShortcutAgent"\)/);
+  assert.match(mode, /keyboardShortcutCanvasHint\("save-canvas", "canvasHintShortcutSave"\)/);
+  assert.match(mode, /keyboardShortcutUndoRedoHint\(\)/);
+  assert.match(mode, /keyboardShortcutCanvasHint\("canvas-library", "canvasHintShortcutLibrary"\)/);
+  assert.match(mode, /keyboardShortcutCanvasHint\("toggle-fullscreen", "canvasHintShortcutFullscreen"\)/);
+  assert.match(mode, /keyboardShortcutCanvasHint\("open-settings", "canvasHintShortcutSettings"\)/);
+  assert.match(mode, /pen:\[shortcutHints\.agent, shortcutHints\.save, shortcutHints\.undoRedo, "canvasHintMcp"\]/);
+  assert.match(mode, /hand:\["canvasHintHand", "canvasHintHandAlt", shortcutHints\.agent, shortcutHints\.library, shortcutHints\.fullscreen\]/);
+  assert.match(mode, /select:\["canvasHintLasso", state\.widgets\.length/);
+  assert.match(app, /if\(!reconnecting\)showCanvasHint\("canvasHintMcpConnected"\)/);
+  assert.doesNotMatch(app, /canvasHintWidgetAddedAlt|canvasHintRefineInPlace|canvasHintAIAddsOnly/);
   assert.match(app, /button\.onclick = \(\) => selectCanvasToolMode\(button\.dataset\.mode, \{ showHint:true \}\)/);
   assert.match(app, /e\.pointerType === "touch"[\s\S]*?touchWidget = valid\(touchPoint\) \? widgetAtRefinePoint\(touchPoint\) : null[\s\S]*?state\.mode !== "select"\) showCanvasHint\("canvasHintWidgetTouchHand"\)/);
   const hintKeys = [
-    "canvasHintWidgetAdded", "canvasHintWidgetAddedAlt", "canvasHintRefineInPlace", "canvasHintAIAddsOnly", "canvasHintHand", "canvasHintHandAlt", "canvasHintLasso",
+    "canvasHintWidgetAdded", "canvasHintWidgetFullscreen", "canvasHintWidgetInline", "canvasHintShortcutAgent", "canvasHintShortcutSave", "canvasHintShortcutUndoRedo",
+    "canvasHintShortcutLibrary", "canvasHintShortcutFullscreen", "canvasHintShortcutSettings", "canvasHintMcp", "canvasHintMcpConnected", "canvasHintHand", "canvasHintHandAlt", "canvasHintLasso",
     "canvasHintWidgetTouchHand", "canvasHintLassoAlt", "canvasHintText", "canvasHintTextAlt", "canvasHintEraser", "canvasHintEraserAlt",
   ];
   for (const key of hintKeys) {

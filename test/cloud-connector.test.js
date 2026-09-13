@@ -1342,7 +1342,7 @@ test("Cloud model context is applied only at the local AI loopback boundary", ()
   const source = fs.readFileSync(path.join(__dirname, "..", "src", "server", "main.js"), "utf8");
   assert.match(source, /async function executeCloudCommand\(payload, timeoutMs, context = null\)/);
   assert.match(source, /headers:\{[^\n]+\.\.\.cloudAiConnectionHeaders\(context\)[^\n]+body:JSON\.stringify\(payload\)/);
-  assert.match(source, /findConnection\(store, requestedId\) \|\| \(requestedId\.startsWith\("hosted:"\) \? null : store\.connections\[0\]\)/);
+  assert.match(source, /findConnection\(store, requestedId\) \|\| \(requestedId === "default" \? store\.connections\[0\] : null\)/);
 });
 
 test("Remote Canvas relay operations use the isolated HTTP callback", async () => {
@@ -1673,6 +1673,7 @@ test('Cloud MCP auto-links a signed-in host once and never returns device creden
   });
   await Promise.all([connector.enableLinkedDevice(),connector.enableLinkedDevice()]);
   assert.equal(requests.length,1);assert.equal(requests[0].url,'https://penecho.test/api/v1/device/link');assert.equal(requests[0].body.code,undefined);
+  assert.equal(connector.status().cloudMcpEnabled,true,'Enable link includes Cloud MCP without a second settings action');
   assert.equal(requests[0].authorization,'Bearer account-test');assert.equal(requests[0].body.deviceToken,undefined);
   await connector.setCloudMcpAccess(true);assert.equal(requests.length,1);assert.equal(connector.status().cloudMcpEnabled,true);
   assert.equal(JSON.stringify(connector.status()).includes('private-device-token'),false);
@@ -1683,4 +1684,25 @@ test('Cloud MCP auto-links a signed-in host once and never returns device creden
   assert.equal(requests[1].body.deviceToken,'private-device-token');assert.equal(connector.configuration.deviceToken,'private-device-token');assert.equal(connector.configuration.accountToken,'account-test');assert.equal(connector.status().cloudMcpEnabled,true);
   connector.connectionState='disconnected';
   await connector.setCloudMcpAccess(true);assert.equal(requests.length,3,'Cloud MCP reclaims an offline host whose credential may have been revoked');
+});
+
+test('explicit Linked Device enable repairs a disabled Cloud MCP route, but a later MCP disable wins',async t=>{
+  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),'penecho-link-mcp-'));
+  const connector=new CloudConnector({stateDir,executeRequest:async()=>({})});
+  t.after(()=>{connector.close();fs.rmSync(stateDir,{recursive:true,force:true});});
+  connector.writeConfiguration({origin:'https://penecho.test',accountToken:'account-test',accountExpiresAt:new Date(Date.now()+3600000).toISOString(),enabled:true,deviceToken:'saved-device',deviceId:'saved-id',cloudMcpEnabled:false});
+  connector.connect=()=>{connector.connectionState='connected';};connector.refreshAccount=async()=>connector.status();
+  let release,entered;
+  const gate=new Promise(resolve=>release=resolve),started=new Promise(resolve=>entered=resolve);
+  t.mock.method(global,'fetch',async(_url,options)=>{
+    assert.equal(JSON.parse(options.body).deviceToken,'saved-device');entered();await gate;
+    return new Response(JSON.stringify({token:'saved-device',device:{id:'saved-id'}}),{status:201});
+  });
+  const linking=connector.enableLinkedDevice();await started;
+  await connector.setCloudMcpAccess(false);release();await linking;
+  assert.equal(connector.status().cloudMcpEnabled,false,'a later explicit opt-out is not overwritten by delayed link completion');
+  await connector.enableLinkedDevice();assert.equal(connector.status().cloudMcpEnabled,true);
+  assert.equal(connector.configuration.deviceToken,'saved-device');
+  connector.disconnect();assert.equal(connector.status().cloudMcpEnabled,false);
+  assert.equal(connector.configuration.deviceToken,'saved-device');
 });

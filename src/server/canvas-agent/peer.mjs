@@ -42,7 +42,7 @@ export function createCanvasAgentPeer({
     return (type,payload,identity)=>generationSend(type,['ready','error'].includes(type)?{...payload,handshakeId:expected}:payload,identity)
   }
   const fail = (error, fatal = false) => {
-    send('error', { message:String(error?.message || error || 'PenEcho Agent failed.'), fatal, ...(state.pendingHandshakeId?{handshakeId:state.pendingHandshakeId}:{}) })
+    send('error', { message:String(error?.message || error || 'PenEcho Agent failed.'), fatal, ...(error?.code ? {code:String(error.code)} : {}), ...(Number.isInteger(error?.status) ? {status:error.status} : {}), ...(state.pendingHandshakeId?{handshakeId:state.pendingHandshakeId}:{}) })
     if (fatal) closeTransport(1008, 'PenEcho Agent protocol error')
   }
   const processFrame = async raw => {

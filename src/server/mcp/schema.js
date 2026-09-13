@@ -317,7 +317,7 @@ function imageSource(value) {
   if (/^penecho-ref:objects\/[A-Za-z0-9._~%-]{1,512}\/image$/.test(value)) return value;
   if (/^penecho-asset:[a-f0-9]{64}$/.test(value)) return value;
   const match = /^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
-  if (!match) invalid("source must be a PNG/JPEG/WebP base64 Data URL or an authorized same-document penecho-ref:objects/<id>/image or penecho-asset:<sha256> reference. For local files, use the configured client.js --upload-image FILE --canvas-id ID --document-id ID on the agent machine; host paths are not upload content. Existing attachment Data URLs remain supported.");
+  if (!match) invalid("source must be a PNG/JPEG/WebP base64 Data URL or an authorized same-document penecho-ref:objects/<id>/image or penecho-asset:<sha256> reference. For files, use the imageUpload transport returned by penecho_start_session; host paths are not upload content. Existing attachment Data URLs remain supported.");
   const bytes = Buffer.from(match[1], "base64");
   if (!bytes.length || bytes.length > MAX_FILE_BYTES || bytes.toString("base64").replace(/=+$/, "") !== match[1].replace(/=+$/, "")) invalid("source is invalid or too large.");
   return value;
