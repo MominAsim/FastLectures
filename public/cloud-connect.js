@@ -25,13 +25,12 @@
   };
   const PUBLICATION_TERMS_VERSION = "2026-08-12";
   const sessionToken = String(window.PENECHO_CONFIG?.accessSessionToken || sessionStorage.getItem("penecho-access-session") || "");
-  const configuredCloudOrigin = String(window.PENECHO_CONFIG?.cloudOrigin || "https://penecho.ai");
+  const configuredCloudOrigin = String(window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : window.PENECHO_CONFIG?.cloudOrigin || "https://penecho.ai");
   const configuredCloudEnvironment = String(window.PENECHO_CONFIG?.cloudEnvironment || "prod");
   const localHostControlsAvailable = window.PENECHO_CONFIG?.runtime !== "cloud";
   const BROWSER_SIGN_IN_POLL_MS = 800;
   const BROWSER_SIGN_IN_TIMEOUT_MS = 10 * 60_000;
   const DEVICE_CONNECTION_POLL_MS = 2_000;
-  const DEVICE_CONNECTION_TIMEOUT_MS = 60_000;
   const CLOUD_COPY = Object.freeze({
     en:Object.freeze({
       close:"Close",
@@ -60,7 +59,9 @@
       openAccount:"Open account",
       cloudUser:"PenEcho user",
       credits:"{count} credits",
+      subscriptionValidUntil:"Subscription valid until {date}",
       refreshAccount:"Refresh account",
+      openDashboard:"Cloud Dashboard ↗",
       signOutHost:"Sign out on this host",
       signOutConfirm:"Sign out on this PenEcho host? The device link will remain available.",
       localSignInHelp:"Sign in for private projects and favorites; API keys stay on this device.",
@@ -75,19 +76,22 @@
       signedInReady:"Signed in. Your Cloud account is ready.",
       browserExpired:"Browser sign-in expired. Select Sign in with browser to try again.",
       linkThisDevice:"Link device",
-      linkDeviceHint:"Connect this PenEcho host for secure remote Canvas access.",
-      linkSignInFirst:"After signing in, enter a one-time pairing key to reach this host securely from Cloud.",
+      linkDeviceHint:"Use this computer’s model connections, folders and local canvases from Cloud. Enabling this link replaces the previous linked device; no pairing code is needed.",
+      linkSignInFirst:"Sign in, then enable Linked Device with one click.",
       thisDevice:"This device",
       connected:"Connected",
       deviceLinked:"Device linked",
       notLinked:"Not linked",
       connecting:"Connecting",
       connectionFailed:"Connection failed",
-      paused:"Paused",
-      pauseLink:"Pause link",
+      statusUnavailable:"Status unavailable",
+      paused:"Disconnected",
+      pauseLink:"Disconnect",
+      reconnectLink:"Reconnect",
+      disconnectLinkHint:"Disconnect keeps your login and connection settings. You can reconnect without changing your MCP configuration.",
       enableLink:"Enable link",
       removeThisLink:"Remove this link",
-      removeLinkConfirm:"Remove this device link? Remote access will stop, but you can pair this host again later.",
+      removeLinkConfirm:"Remove this device link? Remote access will stop, but you can enable it again later without a pairing code.",
       generatePairingBefore:"Generate a pairing key in ",
       penechoDevices:"PenEcho Cloud → Devices",
       generatePairingAfter:", then enter it below.",
@@ -267,7 +271,9 @@
       openAccount:"前往账户",
       cloudUser:"PenEcho 用户",
       credits:"{count} 积分",
+      subscriptionValidUntil:"订阅有效期至 {date}",
       refreshAccount:"刷新账户",
+      openDashboard:"云端 Dashboard ↗",
       signOutHost:"在此主机退出",
       signOutConfirm:"要在此 PenEcho 主机退出吗？设备连接会继续保留。",
       localSignInHelp:"登录后即可使用私有项目和收藏；API 密钥仍保存在此设备。",
@@ -282,19 +288,22 @@
       signedInReady:"登录成功，PenEcho Cloud 账户已就绪。",
       browserExpired:"浏览器登录已过期，请重新选择“通过浏览器登录”。",
       linkThisDevice:"连接设备",
-      linkDeviceHint:"连接此 PenEcho 主机，以安全地远程访问画布。",
-      linkSignInFirst:"登录后输入一次性配对密钥，即可从 Cloud 安全访问此主机。",
+      linkDeviceHint:"在 Cloud 使用本机模型配置、文件夹和本地画布。一键启用，无需配对码；之前连接的设备将立即失效。",
+      linkSignInFirst:"登录后即可一键启用 Linked Device。",
       thisDevice:"此设备",
       connected:"已连接",
       deviceLinked:"设备已连接",
       notLinked:"未连接",
       connecting:"连接中",
       connectionFailed:"连接失败",
-      paused:"已暂停",
-      pauseLink:"暂停连接",
+      statusUnavailable:"状态暂不可用",
+      paused:"已断开",
+      pauseLink:"断开连接",
+      reconnectLink:"重新连接",
+      disconnectLinkHint:"断开连接会保留登录和连接设置；再次连接无需修改 MCP 配置。",
       enableLink:"启用连接",
       removeThisLink:"移除此连接",
-      removeLinkConfirm:"要移除此设备连接吗？远程访问会停止，但之后仍可重新配对。",
+      removeLinkConfirm:"要移除此设备连接吗？远程访问会停止，之后可直接再次启用，无需配对码。",
       generatePairingBefore:"请在 ",
       penechoDevices:"PenEcho Cloud → 设备",
       generatePairingAfter:" 生成配对密钥，然后在下方输入。",
@@ -483,6 +492,7 @@
   function runtimeApiPath(path, method = "GET") {
     if (!isCloudRuntime()) return path;
     const source = new URL(path, `${location.origin}/`), requestMethod = String(method || "GET").toUpperCase();
+    if (/^\/api\/cloud\/mcp(?:\/|$)/.test(source.pathname)) return source.pathname.replace("/api/cloud/mcp","/api/v1/mcp") + source.search;
     if (requestMethod === "GET" && source.pathname === "/api/cloud/library") return `/api/v1/library${source.search ? `${source.search}&` : "?"}previews=0`;
     if (requestMethod === "POST" && source.pathname === "/api/cloud/projects") return "/api/v1/projects";
     if (/^\/api\/cloud\/favorites(?:\/feed|\/[0-9a-f-]{36}(?:\/thumbnail)?)?$/i.test(source.pathname)) return `${source.pathname.replace("/api/cloud/favorites", "/api/v1/favorites")}${source.search}`;
@@ -549,7 +559,7 @@
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = new Error(payload.error || payload.message || `Cloud request failed (HTTP ${response.status}).`);
+      const error = new Error(payload.error_description || payload.message || payload.error || `Cloud request failed (HTTP ${response.status}).`);
       error.status = response.status;
       error.code = payload.code || null;
       throw error;
@@ -683,6 +693,7 @@
 
   function cloudDeviceConnectionStatus(status = state.status) {
     const device = status?.device || {};
+    if (state.statusUnavailable) return { state:"failed", label:cloudT("statusUnavailable") };
     if (!device.configured) return { state:"unconfigured", label:cloudT("notLinked") };
     if (!device.enabled) return { state:"paused", label:cloudT("paused") };
     if (device.connected) return { state:"connected", label:cloudT("connected") };
@@ -696,15 +707,16 @@
   function updateCloudButton() {
     const account = state.status?.account;
     const remote = window.PENECHO_CONFIG?.runtime === "cloud" ? window.PENECHO_REMOTE_CLOUD_STATUS : null;
-    const connected = remote ? Boolean(remote.deviceOnline) : Boolean(state.status?.device?.connected);
+    const connected = remote ? Boolean(remote.deviceReady) : Boolean(state.status?.device?.connected && !state.statusUnavailable);
     const signedIn = remote ? Boolean(remote.accountName) : accountSignedIn();
     const accountName = String(remote?.accountName || account?.name || "");
+    const credits = account?.credits ?? remote?.credits;
     cloudButton.dataset.state = connected ? "connected" : signedIn ? "signed-in" : "signed-out";
     cloudButton.querySelector(".cloud-account-label").textContent = accountName ? accountName.split(/\s+/)[0] : "Cloud";
-    cloudButton.title = connected
+    cloudButton.title = remote?.deviceOnline && !remote.deviceReady ? `PenEcho Cloud · ${cloudT("connecting")}` : connected
       ? `PenEcho Cloud · ${cloudT("deviceLinked")}`
       : signedIn
-        ? `PenEcho Cloud · ${cloudT("credits", { count:account?.credits || 0 })}`
+        ? `PenEcho Cloud · ${cloudT("credits", { count:credits == null ? "—" : Number(credits).toLocaleString(undefined,{maximumFractionDigits:1}) })}`
         : cloudT("openPenEchoCloud", { fallback:"Connect PenEcho Cloud" });
   }
 
@@ -717,7 +729,7 @@
         ...(state.status || {}),
         account:remote.accountName ? { ...(state.status?.account || {}), name:remote.accountName } : null,
         accountSession:{ ...(state.status?.accountSession || {}), signedIn:Boolean(remote.accountName) },
-        device:{ ...(state.status?.device || {}), connected:Boolean(remote.deviceOnline) },
+        device:{ ...(state.status?.device || {}), connected:Boolean(remote.deviceReady) },
       };
       updateCloudButton();
       return state.status;
@@ -730,6 +742,8 @@
       // slower response overwrite fresher status.
       if (seq !== statusRequestSeq) return state.status;
       state.status = status;
+      state.statusUnavailable = false;
+      if (typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") window.dispatchEvent(new CustomEvent("penecho:cloud-account-changed"));
       if (previouslySignedIn !== accountSignedIn()) {
         state.library = null;
         state.favoriteCanvases = null;
@@ -740,6 +754,7 @@
       return state.status;
     } catch (error) {
       if (seq !== statusRequestSeq) return state.status;
+      state.statusUnavailable = true;
       if (force) throw error;
       // A transient status failure is not evidence that the account session
       // ended. Keep the last confirmed state so tab renders cannot turn a
@@ -759,29 +774,31 @@
     state.deviceConnectionWatch.expiresAt = 0;
   }
 
+  function deviceStatusRevision() {
+    const device = state.status?.device || {};
+    return JSON.stringify([state.statusUnavailable, device.configured, device.enabled, device.connected, device.state, device.id, device.name, state.status?.lastError]);
+  }
+
   function startDeviceConnectionWatch(render, overlay = activeCloudOverlay) {
     stopDeviceConnectionWatch();
-    const currentDevice = state.status?.device || {};
-    if (currentDevice.connected || !currentDevice.configured || !currentDevice.enabled) return;
+    if (isCloudRuntime() || !overlay?.isConnected || state.cloudSection !== "device" || document.visibilityState === "hidden") return;
     const watch = state.deviceConnectionWatch;
     const id = watch.id;
     watch.active = true;
-    watch.expiresAt = Date.now() + DEVICE_CONNECTION_TIMEOUT_MS;
     const poll = async () => {
       if (id !== watch.id || !watch.active || watch.polling) return;
+      if (!overlay.isConnected || state.cloudSection !== "device" || document.visibilityState === "hidden") return stopDeviceConnectionWatch();
       watch.polling = true;
+      const before = deviceStatusRevision();
       try {
         await refreshStatus();
         if (id !== watch.id) return;
-        if (overlay?.isConnected) render?.();
-        const device = state.status?.device || {};
-        if (device.connected || !device.configured || !device.enabled || Date.now() >= watch.expiresAt) {
-          stopDeviceConnectionWatch();
-          return;
-        }
-        watch.timer = setTimeout(poll, DEVICE_CONNECTION_POLL_MS);
+        if (overlay.isConnected && before !== deviceStatusRevision()) render?.();
       } finally {
-        if (id === watch.id) watch.polling = false;
+        if (id === watch.id) {
+          watch.polling = false;
+          watch.timer = setTimeout(poll, DEVICE_CONNECTION_POLL_MS);
+        }
       }
     };
     watch.timer = setTimeout(poll, DEVICE_CONNECTION_POLL_MS);
@@ -831,7 +848,7 @@
       : cloudT("browserBlocked"), popup || externalOpened ? "" : "error");
 
     const renderIfOpen = () => {
-      if (document.querySelector(".penecho-cloud-overlay")) render?.();
+      if (document.querySelector(".penecho-cloud-overlay") || document.querySelector('#settingsPageMcp:not([hidden])')) render?.();
     };
     const poll = async () => {
       if (id !== state.browserSignIn.id || !state.browserSignIn.active || state.browserSignIn.polling) return;
@@ -871,12 +888,19 @@
     panel.append(pageHeading(cloudT("cloudAccount"), accountSignedIn() ? cloudT("accountHint") : cloudT("localSignInHelp")));
     if (accountSignedIn()) {
       const account = state.status.account || {};
+      const membership = account.membership;
+      const hasMembership = ["plus", "pro"].includes(membership?.tier) && Number.isFinite(membership?.expiresAt) && membership.expiresAt > Date.now();
+      const membershipDate = hasMembership ? new Date(membership.expiresAt).toLocaleDateString((document.documentElement.lang || "en").startsWith("zh") ? "zh-CN" : "en-US", { year:"numeric", month:"long", day:"numeric" }) : "";
       const identity = el("div", { class:"cloud-settings-group cloud-account-profile" }, [
         el("div", { class:"cloud-setting-row cloud-account-identity" }, [
           el("div", { class:"cloud-avatar", text:String(account.name || "P").slice(0, 1).toUpperCase() }),
           el("div", { class:"cloud-account-copy" }, [
-            el("strong", { class:"cloud-account-name", text:account.name || cloudT("cloudUser") }),
-            el("span", { text:cloudT("credits", { count:Number(account.credits || 0) }) }),
+            el("div", { class:"cloud-account-title" }, [
+              el("strong", { class:"cloud-account-name", text:account.name || cloudT("cloudUser") }),
+              hasMembership ? el("span", { class:`cloud-membership-badge cloud-membership-${membership.tier}`, text:membership.tier.toUpperCase(), "aria-label":`PenEcho ${membership.tier === "pro" ? "Pro" : "Plus"}` }) : null,
+            ]),
+            el("span", { text:cloudT("credits", { count:Number(account.credits || 0).toLocaleString() }) }),
+            hasMembership ? el("span", { class:"cloud-subscription-expiry", text:cloudT("subscriptionValidUntil", { date:membershipDate }) }) : null,
           ]),
         ]),
       ]);
@@ -910,6 +934,7 @@
       };
       renderOverview();
       const actions = el("div", { class:"cloud-button-row cloud-page-actions" }, [
+        el("a", { class:"cloud-button", href:new URL("/dashboard.html", `${cloudOrigin()}/`).toString(), target:"_blank", rel:"noopener", text:cloudT("openDashboard") }),
         el("button", { class:"cloud-button", type:"button", text:cloudT("refreshAccount"), onclick:async () => action(render, async () => {
           await refreshStatus(true);
           state.library = await loadCloudLibrary();
@@ -954,6 +979,18 @@
       "aria-live":browserSignIn.tone === "error" ? "assertive" : "polite",
     });
     const signIn = el("button", { class:"cloud-button primary cloud-account-sign-in", type:"button", text:browserSignIn.active ? cloudT("waitingBrowser") : window.penechoDesktop ? cloudT("continueBrowser") : cloudT("signInBrowser"), ...(browserSignIn.active ? { disabled:"" } : {}), onclick:async () => {
+      await beginCloudSignIn(render);
+    } });
+    const browserActions = el("div", { class:"cloud-button-row" }, signIn);
+    if (browserSignIn.active && browserSignIn.authorizationUrl) {
+      browserActions.append(el("a", { class:"cloud-button", href:browserSignIn.authorizationUrl, target:"_blank", rel:"noopener", text:browserSignIn.popupBlocked ? cloudT("openSignIn") : cloudT("openAgain") }));
+    }
+    panel.append(el("div", { class:"cloud-settings-group cloud-sign-in-group" }, browserActions));
+    if (browserSignIn.message) panel.append(message);
+    return panel;
+  }
+
+  async function beginCloudSignIn(render) {
       const desktopApp = Boolean(window.penechoDesktop);
       const popup = desktopApp ? null : window.open("about:blank", "penecho-cloud-sign-in", "popup,width=760,height=760");
       await action(render, async () => {
@@ -967,15 +1004,13 @@
           throw error;
         }
       });
-    } });
-    const browserActions = el("div", { class:"cloud-button-row" }, signIn);
-    if (browserSignIn.active && browserSignIn.authorizationUrl) {
-      browserActions.append(el("a", { class:"cloud-button", href:browserSignIn.authorizationUrl, target:"_blank", rel:"noopener", text:browserSignIn.popupBlocked ? cloudT("openSignIn") : cloudT("openAgain") }));
-    }
-    panel.append(el("div", { class:"cloud-settings-group cloud-sign-in-group" }, browserActions));
-    if (browserSignIn.message) panel.append(message);
-    return panel;
   }
+
+  window.PenEchoCloudSettings = {
+    api, origin:cloudOrigin,
+    signInState:()=>({active:state.browserSignIn.active,url:state.browserSignIn.authorizationUrl,message:state.browserSignIn.message}),
+    signIn:refresh=>isCloudRuntime() ? window.open(new URL('/auth.html',cloudOrigin()).toString(),'_blank','noopener') : beginCloudSignIn(refresh),
+  };
 
   function devicePanel(render) {
     const panel = el("section", { class:"penecho-cloud-panel cloud-device-panel" });
@@ -997,7 +1032,7 @@
         ]),
       ]));
       const actions = el("div", { class:"cloud-button-row cloud-page-actions" });
-      actions.append(el("button", { class:"cloud-button", type:"button", text:device.enabled ? cloudT("pauseLink") : cloudT("enableLink"), onclick:async () => action(render, async () => {
+      actions.append(el("button", { class:"cloud-button", type:"button", text:device.enabled ? cloudT("pauseLink") : cloudT("reconnectLink"), onclick:async () => action(render, async () => {
         await api(`/api/cloud/device/${device.enabled ? "disable" : "enable"}`, { method:"POST", body:"{}" });
         await refreshStatus();
         if (!device.enabled) startDeviceConnectionWatch(render);
@@ -1006,7 +1041,7 @@
         if (!window.confirm(cloudT("removeLinkConfirm"))) return;
         await action(render, async () => { await api("/api/cloud/device/revoke", { method:"POST", body:"{}" }); await refreshStatus(); });
       } }));
-      panel.append(actions);
+      panel.append(actions, el("p", { text:cloudT("disconnectLinkHint") }));
       return panel;
     }
     if (!accountSignedIn()) {
@@ -1018,17 +1053,8 @@
       } }));
       return panel;
     }
-    panel.append(el("p", {}, [
-      document.createTextNode(cloudT("generatePairingBefore")),
-      cloudDevicesLink(cloudT("penechoDevices")),
-      document.createTextNode(cloudT("generatePairingAfter")),
-    ]));
-    const code = el("input", { type:"text", maxlength:"32", autocomplete:"one-time-code", placeholder:cloudT("pairingKey") });
-    const name = el("input", { type:"text", maxlength:"80", value:cloudT("myPenEcho"), placeholder:cloudT("deviceName") });
-    const form = el("div", { class:"cloud-settings-group cloud-device-form" }, [field(cloudT("pairingKey"), code), field(cloudT("deviceName"), name)]);
-    panel.append(form);
-    panel.append(el("div", { class:"cloud-button-row cloud-page-actions" }, el("button", { class:"cloud-button primary", type:"button", text:cloudT("linkDevice"), onclick:async () => action(render, async () => {
-      await api("/api/cloud/pair", { method:"POST", body:JSON.stringify({ origin:cloudOrigin(), code:code.value.trim(), name:name.value.trim() }) });
+    panel.append(el("div", { class:"cloud-button-row cloud-page-actions" }, el("button", { class:"cloud-button primary", type:"button", text:cloudT("enableLink"), onclick:async () => action(render, async () => {
+      await api("/api/cloud/device/enable", { method:"POST", body:"{}" });
       await refreshStatus();
       startDeviceConnectionWatch(render);
     }) })));
@@ -1410,8 +1436,10 @@
           "aria-controls":"cloud-section-panel",
           tabindex:active ? "0" : "-1",
           onclick:() => {
+            if(value==="mcp") { closeOverlay(shell.overlay); window.dispatchEvent(new CustomEvent("penecho:show-mcp-settings")); return; }
             state.cloudSection = value;
             render();
+            startDeviceConnectionWatch(render, shell.overlay);
             queueMicrotask(() => document.querySelector(`#cloud-tab-${value}`)?.focus());
           },
         }, [el("span", { class:"cloud-nav-icon", "aria-hidden":"true" }), copy, trailing]));
@@ -1436,6 +1464,7 @@
         ["projects", "cloudProjects"],
         ["favorites", "favorites"],
       ];
+      appendSection("mcp", "MCP");
       definitions.forEach(([value, label], index) => appendSection(value, label, "", index === 0 ? cloudT("cloudNavLibrary") : ""));
       sections.append(el("a", {
         class:"cloud-section-tab cloud-explore-link",
@@ -1481,10 +1510,11 @@
       void refreshStatus();
       return;
     }
-    const hadStatus = Boolean(state.status), wasSignedIn = accountSignedIn();
+    const hadStatus = Boolean(state.status), wasSignedIn = accountSignedIn(), previousDevice = deviceStatusRevision();
     cloudButton.setAttribute("aria-busy", "true");
     void refreshStatus().then(() => {
-      if (shell.overlay.isConnected && (!hadStatus || wasSignedIn !== accountSignedIn())) render();
+      if (shell.overlay.isConnected && (!hadStatus || wasSignedIn !== accountSignedIn() || previousDevice !== deviceStatusRevision())) render();
+      startDeviceConnectionWatch(render, shell.overlay);
     }).finally(() => cloudButton.setAttribute("aria-busy", "false"));
   }
 
@@ -1733,7 +1763,8 @@
       // host bridge; requiring a second account session on that host makes a
       // valid Remote Canvas deep link fail with a misleading sign-in error.
       const [details, artifact] = await Promise.all([
-        api(`/api/v1/community/items/${encodedItemId}`),
+        // Register this explicit copy so a later publication can cite its parent.
+        api(`/api/v1/community/items/${encodedItemId}/artifact`),
         api(`/api/v1/community/items/${encodedItemId}/view`),
       ]);
       downloaded = { item:details.item, artifact };
@@ -1937,7 +1968,7 @@
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = new Error(payload.error || payload.message || savedT("savedErrorToggle", "Could not update this favorite."));
+      const error = new Error(payload.error_description || payload.message || payload.error || savedT("savedErrorToggle", "Could not update this favorite."));
       error.status = response.status;
       error.code = payload.code || null;
       throw error;
@@ -2532,6 +2563,12 @@
   window.addEventListener("penecho:remote-cloud-status", updateCloudButton);
 
   cloudButton.addEventListener("click", openCloud);
+  document.getElementById("settingsCloudSetupLink")?.addEventListener("click", (event) => {
+    if (!localHostControlsAvailable) return;
+    event.preventDefault();
+    state.cloudSection = "account";
+    void openCloud();
+  });
   shareCanvasButton.addEventListener("click", async () => { await refreshStatus(); shareDialog({ kind:"canvas" }); });
   window.addEventListener("penecho:community-widget-action", async (event) => {
     const actionName = event.detail?.action;
@@ -2577,7 +2614,16 @@
     browserSignInMessage(cloudT("requestFailed"), "error");
   });
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible") return;
+    if (document.visibilityState !== "visible") { stopDeviceConnectionWatch(); return; }
+    if (activeCloudOverlay?.isConnected && state.cloudSection === "device") {
+      const overlay = activeCloudOverlay;
+      const before = deviceStatusRevision();
+      void refreshStatus().then(() => {
+        if (overlay !== activeCloudOverlay || !overlay.isConnected) return;
+        if (before !== deviceStatusRevision()) overlay._cloudRender?.();
+        startDeviceConnectionWatch(overlay._cloudRender, overlay);
+      });
+    }
     if (state.browserSignIn.active && state.browserSignIn.poll) {
       clearTimeout(state.browserSignIn.timer);
       state.browserSignIn.timer = 0;

@@ -89,6 +89,17 @@
     for (const [name, replacement] of Object.entries(values)) value = value.replace(`{${name}}`, replacement);
     return value;
   }
+  function keyboardShortcutCanvasHint(commandId, key) {
+    const chord = keyboardShortcutBindings[commandId];
+    return chord ? { key, values:{ shortcut:keyboardShortcutDisplay(chord) } } : null;
+  }
+  function keyboardShortcutUndoRedoHint() {
+    const undo = keyboardShortcutBindings.undo, redo = keyboardShortcutBindings.redo;
+    return undo && redo ? {
+      key:"canvasHintShortcutUndoRedo",
+      values:{ undo:keyboardShortcutDisplay(undo), redo:keyboardShortcutDisplay(redo) },
+    } : null;
+  }
   function keyboardShortcutSetStatus(key, values = {}, stateName = "") {
     keyboardShortcutStatus = key ? { key, values, stateName } : null;
     const status = document.querySelector("#settingsShortcutStatus");
@@ -207,25 +218,62 @@
   function keyboardShortcutInteractiveTarget(target) {
     return keyboardShortcutTextEditingTarget(target) || Boolean(target?.closest?.('button, a[href], [role="button"], [role="tab"], [role="menuitem"], [role="option"], summary'));
   }
+  // A pointer-focused workspace control retains Canvas shortcuts. Keyboard
+  // navigation or a focus move relinquishes that exception without moving focus.
+  let keyboardShortcutPointerControl = null;
+  function keyboardShortcutControl(target) {
+    return target?.closest?.('button, a[href], [role="button"], [role="tab"], summary') || null;
+  }
+  function keyboardShortcutPointerDown(event) {
+    const control = keyboardShortcutControl(event.target);
+    keyboardShortcutPointerControl = control?.closest?.('#studioNavigator, .toolbar, .topbar') ? control : null;
+  }
+  function keyboardShortcutFocusChanged(event) {
+    if (keyboardShortcutControl(event.target) !== keyboardShortcutPointerControl) keyboardShortcutPointerControl = null;
+  }
+  function keyboardShortcutControlOwnsKey(event, chord) {
+    if (!keyboardShortcutInteractiveTarget(event.target)) return false;
+    if (event.ctrlKey || event.metaKey || event.altKey) return false;
+    const key = keyboardShortcutChordKey(chord);
+    // Activation, destructive, and directional keys always belong to controls.
+    if (["Enter", "Space", "Delete", "Backspace", "Escape", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(key)) return true;
+    return keyboardShortcutControl(event.target) !== keyboardShortcutPointerControl || !keyboardShortcutPointerControl;
+  }
+  function keyboardShortcutLocalSurface(target) {
+    return Boolean(target?.closest?.('[role="menu"], [role="listbox"], [role="dialog"], .canvas-widget'))
+      || Boolean(document.querySelector('[role="menu"]:not([hidden]), #autoDelayPopover:not([hidden]), #effortPopover:not([hidden]), #craftsPopover:not([hidden])'));
+  }
+  function keyboardShortcutCanvasContext(event, chord) {
+    return !event.defaultPrevented && !event.isComposing && !state.interactingWidgetId
+      && !keyboardShortcutBlockingSurfaceOpen() && !keyboardShortcutLocalSurface(event.target)
+      && !keyboardShortcutTextEditingTarget(event.target) && !canvasAgentPanel.contains(event.target)
+      && !keyboardShortcutControlOwnsKey(event, chord);
+  }
+  window.addEventListener("pointerdown", keyboardShortcutPointerDown, true);
+  window.addEventListener("focusin", keyboardShortcutFocusChanged, true);
+  window.addEventListener("blur", () => { keyboardShortcutPointerControl = null; });
+  window.addEventListener("keydown", (event) => {
+    if ((event.key === "Tab" && event.shiftKey) || ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", " ", "Escape"].includes(event.key)) keyboardShortcutPointerControl = null;
+  }, true);
   function keyboardShortcutBlockingSurfaceOpen() {
     return Boolean(settings.open || settings.configurationMode || document.querySelector("dialog[open]") || document.querySelector(".plugin-modal-layer:not([hidden]), .changelog-layer:not([hidden]), .tour-layer:not([hidden]), .history-panel.open"));
   }
   function keyboardShortcutCanRun(command, event, chord) {
-    if (!command || event.isComposing || event.repeat) return false;
+    if (!command || event.defaultPrevented || event.isComposing || event.repeat) return false;
+    if (state.interactingWidgetId) return false;
     if (command.id === "open-settings" && settings.open) return true;
     if (keyboardShortcutBlockingSurfaceOpen()) return false;
-    if (command.id === "focus-agent") {
-      if (!canvasAgentAvailable()) return false;
-      return event.target?.id !== "canvasAgentInput";
-    }
+    if (keyboardShortcutLocalSurface(event.target)) return false;
     if (keyboardShortcutTextEditingTarget(event.target)) return command.id === "save-canvas";
-    if (!keyboardShortcutChordHasModifier(chord) && keyboardShortcutInteractiveTarget(event.target)) return false;
+    if (command.id === "focus-agent" && (!canvasAgentAvailable() || canvasAgentPanel.contains(event.target))) return false;
+    if (keyboardShortcutControlOwnsKey(event, chord)) return false;
     return true;
   }
   function keyboardShortcutPerform(commandId) {
     if (commandId === "focus-agent") {
       const opening = canvasAgentPanel.hidden || !document.body.classList.contains("canvas-agent-open");
-      openCanvasAgent({ focus:true, animate:opening });
+      if (opening) openCanvasAgent({ focus:false, animate:true });
+      else closeCanvasAgent({ focus:false });
       return true;
     }
     if (commandId === "save-canvas") { void saveCurrentCanvas(); return true; }

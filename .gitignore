@@ -32,6 +32,7 @@ tools/mobile/android/
 tools/mobile/ios/
 tools/mobile/web/penecho-mark.png
 .claude
+.impeccable/
 .penecho/
 .penecho-local-test/
 

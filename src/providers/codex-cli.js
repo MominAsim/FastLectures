@@ -186,7 +186,7 @@ function codexEventError(event) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function runJsonProcess(launch, args, prompt, cwd, env, signal, onProgress = null, onActivity = null, onUsage = null) {
+function runJsonProcess(launch, args, prompt, cwd, env, signal, onProgress = null, onText = null, onActivity = null, onUsage = null) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(abortError());
     let child;
@@ -239,6 +239,7 @@ function runJsonProcess(launch, args, prompt, cwd, env, signal, onProgress = nul
       const content = codexAgentMessage(event);
       if (content) {
         if (Buffer.byteLength(content, "utf8") > MAX_CAPTURE_BYTES) return failEarly(new Error("Codex CLI final response is too large."));
+        try { onText?.(content, { mode:"complete" }); } catch {}
         finalContent = content;
       }
       if (event?.type === "turn.completed") {
@@ -303,7 +304,7 @@ function decodeAtlasImage(dataUrl) {
   return { buffer:Buffer.from(match[2], "base64"), extension:format, mimeType:`image/${format}` };
 }
 
-async function callCodexCli({ executable, model, effort, prompt, atlasImage, signal, env = process.env, onProgress = null, onActivity = null, onUsage = null }) {
+async function callCodexCli({ executable, model, effort, prompt, atlasImage, signal, env = process.env, onProgress = null, onText = null, onActivity = null, onUsage = null }) {
   const workDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-codex-"));
   const imageInputs = (Array.isArray(atlasImage) ? atlasImage : atlasImage ? [atlasImage] : []).filter(Boolean).slice(0, 5),
     images = imageInputs.map(decodeAtlasImage),
@@ -316,7 +317,7 @@ async function callCodexCli({ executable, model, effort, prompt, atlasImage, sig
     const launch = resolveCodexLaunch(executable, env),
       args = buildCodexArgs({ workDir, imageFiles, outputFile, model, effort }),
       childEnv = await prepareIsolatedRuntime(workDir, env),
-      result = await runJsonProcess(launch, args, prompt, workDir, childEnv, signal, onProgress, onActivity, onUsage);
+      result = await runJsonProcess(launch, args, prompt, workDir, childEnv, signal, onProgress, onText, onActivity, onUsage);
     cleanupReady = result.cleanupReady || cleanupReady;
     deferCleanup = Boolean(result.deferCleanup);
     if (signal?.aborted) throw abortError();

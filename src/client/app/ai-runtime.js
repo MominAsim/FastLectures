@@ -220,6 +220,10 @@
       && inner.y + inner.h <= outer.y + outer.h);
   }
   async function requestAI(action, packedOverride = null, requestOptions = null) {
+    if(typeof canvasDocumentsExternal==="function"&&canvasDocumentsExternal()) {
+      if(action!=="auto") {openCanvasAgent({focus:false});canvasDocumentsReport(canvasDocumentsCopy("An external conversation is selected. Send it an instruction here, or select PenEcho Agent to use Canvas AI.","当前由外部对话处理。请在这里发送指令，或选择 PenEcho Agent 使用画布 AI。"));}
+      return;
+    }
     requestOptions = requestOptions || {};
     const automatic = action === "auto";
     if (!automatic) {
@@ -2596,7 +2600,7 @@
     } catch {
       return o;
     }
-    const view = plotView(evaluate),
+    const view = c._mcpView || plotView(evaluate),
       { xMin, xMax, yMin, yMax } = view,
       xPixel = (x) => area.left + ((x - xMin) / (xMax - xMin)) * plotWidth,
       yPixel = (y) => area.bottom - ((y - yMin) / (yMax - yMin)) * plotHeight,
@@ -2878,6 +2882,8 @@
     if (!state.drawing) return;
     const d = state.drawing;
     commitLiveInkDrawing(d);
+    const feedbackPadding=Math.max(2,d.size||1);
+    mcpRecordFeedback("stroke",{x:d.bbox.x-feedbackPadding,y:d.bbox.y-feedbackPadding,w:d.bbox.w+feedbackPadding*2,h:d.bbox.h+feedbackPadding*2});
     state.drawing = null;
     noteCanvasChromeInteraction();
     requestAnimationFrame(() => {

@@ -164,7 +164,7 @@ test("feature tour persists seen ids, supports replay, and repositions accessibl
   assert.match(app, /window\.visualViewport\?\.addEventListener/);
   assert.match(app, /new ResizeObserver\(scheduleFeatureTourPosition\)/);
   assert.match(app, /function startFeatureTour\([\s\S]*?hideAutoDelayControl\(\);[\s\S]*?hideEffortControl\(\);[\s\S]*?hidePluginControl\(\);[\s\S]*?featureTour\.active = true/);
-  assert.match(app, /requestAnimationFrame\(\(\) => requestAnimationFrame\(maybeStartOnboarding\)\)/);
+  assert.match(app, /loadCanvasSettings\(\)\.finally\(maybeStartOnboarding\)/);
   assert.match(css, /\.tour-layer\s*\{[^}]*position:\s*fixed;[^}]*z-index:\s*80;[^}]*inset:\s*0/);
   assert.match(css, /\.tour-layer\[hidden\]\s*\{\s*display:\s*none/);
   assert.match(app, /--tour-viewport-width/);
@@ -190,30 +190,31 @@ test("feature tour persists seen ids, supports replay, and repositions accessibl
   assert.doesNotMatch(app, /resolveInitialLanguage\([^)]*navigator/);
 });
 
-test("1.2.0 release notes put performance second and keyboard shortcuts third", () => {
+test("1.3.0 release notes include Canvas Agent and MCP in both languages", () => {
   const html = read("public/index.html"),
     app = read("public/app.js"),
     css = read("public/style.css"),
     zh = read("public/locales/zh.js"),
-    readme = read("README.md"),
     layer = html.match(/<div id="changelogLayer"[\s\S]*?<script src="remote-canvas\.js">/)?.[0] || "";
   assert.match(layer, /class="changelog-layer"[^>]*hidden[^>]*aria-hidden="true"/);
   assert.match(layer, /id="changelogDialog"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="changelogTitle"/);
   assert.doesNotMatch(layer, /aria-describedby=/);
   for (const id of ["changelogClose", "changelogTitle"]) assert.match(layer, new RegExp(`id="${id}"`));
   for (const id of ["changelogIntro", "changelogCurrentVersion", "changelogDone"]) assert.doesNotMatch(layer, new RegExp(`id="${id}"`));
-  assert.match(layer, />1\.2\.0</);
-  assert.doesNotMatch(layer, /class="changelog-demo"|class="changelog-release changelog-earlier"/);
+  assert.match(layer, />1\.3\.0</);
+  assert.doesNotMatch(layer, /class="changelog-release changelog-earlier"/);
+  assert.match(layer, /<img src="penecho-architecture\.webp"[^>]*loading="lazy"/);
+  assert.ok(read("public/penecho-architecture.webp").length > 0);
   assert.match(app, /CHANGELOG_STORAGE_KEY = "penecho-changelog-seen"/);
-  assert.match(app, /CHANGELOG_VERSION = "1\.2\.0"/);
+  assert.match(app, /CHANGELOG_VERSION = "1\.3\.0"/);
   assert.match(app, /localStorage\.getItem\(CHANGELOG_STORAGE_KEY\) === CHANGELOG_VERSION/);
   assert.match(app, /localStorage\.setItem\(CHANGELOG_STORAGE_KEY, CHANGELOG_VERSION\)/);
-  assert.match(app, /function maybeStartOnboarding\(\)\s*\{\s*if \(window\.PENECHO_CONFIG\?\.runtime === "viewer"\) return false;\s*if \(!maybeStartFeatureTour\(\)\) maybeShowChangelog\(\);/);
+  assert.match(app, /function maybeStartOnboarding\(\)\s*\{\s*if \(window\.PENECHO_CONFIG\?\.runtime === "viewer" \|\| settings\.open\) return false;\s*if \(!maybeStartFeatureTour\(\)\) maybeShowChangelog\(\);/);
   assert.match(app, /function closeFeatureTour[\s\S]*?maybeShowChangelog\(\)/);
   assert.match(app, /changelogLayer\.addEventListener\("keydown", handleChangelogKeydown\)/);
   assert.match(css, /\.changelog-layer\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;[^}]*place-items:\s*center/);
-  assert.match(css, /\.changelog-dialog\s*\{[^}]*width:\s*min\(620px,[^}]*max-height:/);
-  for (const key of ["changelogDialog", "changelogBadge", "changelogTitle", "changelogFrostedStudio", "changelogPerformance", "changelogKeyboardShortcuts"]) {
+  assert.match(css, /\.changelog-dialog\s*\{[^}]*width:\s*min\(900px,[^}]*max-height:/);
+  for (const key of ["changelogDialog", "changelogBadge", "changelogTitle", "changelogCanvasAgent", "changelogMcpCanvases", "changelogCloudMcp", "changelogFrostedStudio", "changelogPerformance", "changelogKeyboardShortcuts"]) {
     assert.match(app, new RegExp(`${key}:`), `missing English ${key}`);
     assert.match(zh, new RegExp(`${key}:`), `missing Chinese ${key}`);
   }
@@ -221,7 +222,7 @@ test("1.2.0 release notes put performance second and keyboard shortcuts third", 
     assert.doesNotMatch(app, new RegExp(`${key}:`));
     assert.doesNotMatch(zh, new RegExp(`${key}:`));
   }
-  assert.equal((layer.match(/<li data-i18n="changelog/g) || []).length, 3);
+  assert.equal((layer.match(/<li data-i18n="changelog/g) || []).length, 6);
   assert.match(layer, /changelogFrostedStudio[\s\S]*changelogPerformance[\s\S]*changelogKeyboardShortcuts/);
   assert.match(app, /changelogFrostedStudio:[^\n]*frosted Studio[^\n]*Translucent materials[^\n]*Canvas visible/);
   assert.match(app, /changelogPerformance:[^\n]*Drawing, erasing, panning, and zooming[^\n]*Low-latency live ink/);
@@ -229,7 +230,22 @@ test("1.2.0 release notes put performance second and keyboard shortcuts third", 
   assert.match(zh, /changelogFrostedStudio:[^\n]*磨砂 Studio[^\n]*半透明材质[^\n]*画布始终清晰可见/);
   assert.match(zh, /changelogPerformance:[^\n]*书写、擦除、平移和缩放[^\n]*低延迟实时笔迹/);
   assert.match(zh, /changelogKeyboardShortcuts:[^\n]*自定义键盘快捷键[^\n]*撤销与重做/);
-  assert.match(readme, /What's new in 1\.2\.0[\s\S]*A simpler frosted Studio[\s\S]*Faster Canvas interaction[\s\S]*Customizable keyboard shortcuts/);
+});
+
+test("README version badges match the package version in every language", () => {
+  const version = JSON.parse(read("package.json")).version;
+  const readmePaths = [
+    "README.md",
+    ...fs.readdirSync(path.join(root, "docs/readme"))
+      .filter((name) => /^README\.[^.]+(?:-[^.]+)?\.md$/.test(name))
+      .map((name) => path.join("docs/readme", name)),
+  ];
+  for (const readmePath of readmePaths) {
+    assert.ok(
+      read(readmePath).includes(`/badge/version-${version}-`),
+      `${readmePath} version badge must match package.json`,
+    );
+  }
 });
 
 test("feature tour copy is complete in English and Chinese", () => {
@@ -281,9 +297,9 @@ test("feature tour copy is complete in English and Chinese", () => {
   assert.match(zh, /闭合套索/);
   assert.doesNotMatch(app, /tourPlugins(?:Title|Body):|plugins-v3/);
   assert.doesNotMatch(zh, /tourPlugins(?:Title|Body):/);
-  assert.match(app, /tourHandBody:[^\n]*tap an image[^\n]*AI widget[^\n]*HTML widgets remain interactive/);
-  assert.match(zh, /点击图片、动画、文本框或 AI 控件.*显示操作按钮/);
-  assert.match(zh, /HTML 控件仍可直接交互/);
+  assert.match(app, /tourHandBody:[^\n]*Hand moves the canvas[^\n]*Use Select[^\n]*widget interaction/);
+  assert.match(zh, /小手可在大控件上直接移动画布.*使用选择工具整理对象/);
+  assert.match(zh, /使用选择工具整理对象，或进入控件交互/);
   assert.doesNotMatch(app, /tourAnimationPlugin/);
   assert.doesNotMatch(zh, /控制动态图讲解/);
   assert.match(zh, /不会参考画布其他部分/);

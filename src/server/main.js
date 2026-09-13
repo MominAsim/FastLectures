@@ -1,12 +1,14 @@
 "use strict";
 
 const http = require("http");
+const { readConnectionStore, writeConnectionStore, isUsableConnection, connectionEnvironment, withConnectionOverride } = require("./connection-store.js");
 const fs = require("fs");
 const fsp = require("fs/promises");
 const path = require("path");
 const crypto = require("crypto");
 const os = require("os");
 const net = require("net");
+const { lanHosts } = require("./network-access.js");
 const { URL } = require("url");
 const {
   DEFAULT_MAX_TOKENS,
@@ -15,6 +17,7 @@ const {
   anthropicResponseMaxTokens,
   configuredMaxTokens,
   normalizedApiEffort,
+  openAiOutputTokenParameters,
   resolveApiConfig,
 } = require("./api-config.js");
 const { isEventStreamResponse, providerResponseText, readProviderEventStream } = require("./api-stream.js");
@@ -173,6 +176,7 @@ const MODEL_REASONING_BUDGET_FRACTION = "one half";
 const LOG_DIR = STATE_DIRECTORY ? path.join(STATE_DIRECTORY, "logs") : path.join(ROOT, "logs");
 const LOG_FILE = path.join(LOG_DIR, "penecho.log");
 const REQUEST_TRACE_DIR = path.join(LOG_DIR, "requests");
+const MCP_REQUEST_TRACE_DIR = path.join(LOG_DIR, "mcp-requests");
 const SHARED_CANVAS_DIRECTORY = STATE_DIRECTORY
   ? path.join(STATE_DIRECTORY, "canvases", "shared")
   : path.join(os.homedir(), ".penecho", "canvases", "shared");
@@ -371,7 +375,6 @@ function applyCliResolution(provider, executable) {
     const cli = provider === "kimi-cli" ? KIMI_CLI : provider === "codex-cli" ? CODEX_CLI : CLAUDE_CLI;
     LOCAL_CLI = { ...cli, label:provider === "kimi-cli" ? "Kimi CLI" : provider === "codex-cli" ? "Codex CLI" : "Claude CLI", doctor:provider.replace("-cli", "") };
   }
-  if (DEFAULT_CONNECTION?.provider === provider) DEFAULT_CONNECTION.cliPath = selected;
 }
 
 function setCliResolutionTask(provider, task) {
@@ -549,26 +552,12 @@ function serializeConfigValue(value) {
 }
 
 function readConnectionsFile() {
-  if (!CONNECTIONS_FILE) return { defaultName:"Default connection", connections:[] };
-  try {
-    const parsed = JSON.parse(fs.readFileSync(CONNECTIONS_FILE, "utf8"));
-    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.connections)) return { defaultName:"Default connection", connections:[] };
-    // Legacy files can contain activeId. It is intentionally ignored because
-    // each browser now owns its current connection choice.
-    return { defaultName:typeof parsed.defaultName === "string" && parsed.defaultName.trim() ? parsed.defaultName.trim().slice(0, 80) : "Default connection", connections:parsed.connections.filter(item => item && typeof item === "object").slice(0, MAX_AI_CONNECTIONS - 1) };
-  } catch (error) {
-    if (error?.code === "ENOENT") return { defaultName:"Default connection", connections:[] };
-    return { defaultName:"Default connection", connections:[] };
-  }
+  return readConnectionStore(CONNECTIONS_FILE, { legacyConnection:LEGACY_CONNECTION });
 }
 
 function writeConnectionsFile(store) {
-  if (!CONNECTIONS_FILE) throw new Error("This PenEcho process does not have writable connection storage.");
-  const temporary = `${CONNECTIONS_FILE}.${process.pid}.tmp`;
-  fs.mkdirSync(path.dirname(CONNECTIONS_FILE), { recursive:true, mode:0o700 });
-  fs.writeFileSync(temporary, `${JSON.stringify(store, null, 2)}\n`, { encoding:"utf8", mode:0o600 });
-  fs.renameSync(temporary, CONNECTIONS_FILE);
-  try { fs.chmodSync(CONNECTIONS_FILE, 0o600); } catch (error) { if (process.platform !== "win32") throw error; }
+  writeConnectionStore(CONNECTIONS_FILE, store);
+  refreshPrimaryConnection(store);
 }
 
 function inferredApiPreset(format, url) {
@@ -601,7 +590,7 @@ function connectionPublicValue(connection) {
     id:connection.id,
     name:connectionTitle(connection),
     provider:connection.provider,
-    removable:connection.id !== "default",
+    removable:connection.id !== "cli-override",
     effort:connection.effort || DEFAULT_REASONING_EFFORT,
     ...(api ? { apiFormat:connection.apiFormat, apiPreset:connection.apiPreset || inferredApiPreset(connection.apiFormat, connection.apiUrl), apiUrl:connection.apiUrl, apiModel:connection.apiModel, hasApiKey:Boolean(connection.apiKey) } : { cliModel:connection.cliModel || "", cliPath:connection.cliPath || connection.provider.replace("-cli", "") }),
   };
@@ -631,7 +620,7 @@ function normalizeConnection(input, existing = null) {
   if (!provider) throw new Error("Choose an AI provider.");
   const id = existing?.id || crypto.randomUUID(), connection = { id, provider, effort };
   if (provider === "api") {
-    const apiFormat = String(input.apiFormat || "").trim().toLowerCase(), apiUrl = String(input.apiUrl || "").trim().replace(/\/+$/, ""), apiModel = String(input.apiModel || "").trim(), enteredKey = String(input.apiKey || "").trim(), apiKey = enteredKey || existing?.apiKey || (id === "default" ? API_KEY : ""), requestedPreset = String(input.apiPreset || "").trim();
+    const apiFormat = String(input.apiFormat || "").trim().toLowerCase(), apiUrl = String(input.apiUrl || "").trim().replace(/\/+$/, ""), apiModel = String(input.apiModel || "").trim(), enteredKey = String(input.apiKey || "").trim(), apiKey = enteredKey || existing?.apiKey, requestedPreset = String(input.apiPreset || "").trim();
     if (!new Set(["openai", "anthropic"]).has(apiFormat)) throw new Error("Choose an API format.");
     if (requestedPreset && !API_PRESET_IDS.has(requestedPreset)) throw new Error("Choose a supported API preset.");
     let url;
@@ -768,18 +757,29 @@ async function discoverConnectionModels(request) {
   }
 }
 
-function connectionStore() {
-  const store = readConnectionsFile(), base = { ...DEFAULT_CONNECTION, name:connectionTitle(DEFAULT_CONNECTION) };
-  const saved = store.connections.filter(item => item.id && item.id !== "default");
-  return { defaultConnection:base, connections:saved };
+// Capture the legacy configuration exactly once, before applying the unified store.
+const LEGACY_CONNECTION = AI_PROVIDER || API_BASE_URL || MODEL || API_KEY ? connectionFromEnvironment() : null;
+let primaryConnectionId = "";
+const CONNECTION_OVERRIDE = (() => { try { return JSON.parse(process.env.PENECHO_CONNECTION_OVERRIDE || "{}"); } catch { return {}; } })();
+function connectionStore() { return withConnectionOverride(readConnectionsFile(), CONNECTION_OVERRIDE); }
+function refreshPrimaryConnection(store) {
+  const first = withConnectionOverride(store, CONNECTION_OVERRIDE).connections[0];
+  primaryConnectionId = first?.id || "";
+  Object.assign(process.env, connectionEnvironment(first));
+  API_FORMAT = "openai"; API_BASE_URL = ""; API_KEY = ""; MODEL = ""; API_PRESET = ""; AI_EFFORT = null;
+  KIMI_CLI = { ...KIMI_CLI, model:null, executable:"kimi" };
+  CODEX_CLI = { ...CODEX_CLI, model:null, executable:"codex" };
+  CLAUDE_CLI = { ...CLAUDE_CLI, model:null, executable:"claude" };
+  applyHotProviderConfiguration(first ? connectionUpdates(first) : { AI_PROVIDER:"" });
 }
-
-const DEFAULT_CONNECTION = connectionFromEnvironment();
+try { refreshPrimaryConnection(connectionStore()); } catch {
+  refreshPrimaryConnection({ connections:[] });
+  console.warn("PenEcho: AI connection storage could not be read. Repair connections.json to configure AI connections.");
+}
 
 function writeCanvasConfiguration(updates) {
   if (!CONFIG_FILE) throw new Error("This PenEcho process does not have a writable configuration file.");
   const values = parseConfigFile(CONFIG_FILE);
-  if (updates.AI_PROVIDER === "api" && !Object.hasOwn(updates, "AI_API_KEY") && values.AI_API_KEY === undefined && DEFAULT_CONNECTION?.apiKey) values.AI_API_KEY = DEFAULT_CONNECTION.apiKey;
   for (const [name, value] of Object.entries(updates)) values[name] = String(value);
   const temporary = `${CONFIG_FILE}.${process.pid}.tmp`;
   fs.mkdirSync(path.dirname(CONFIG_FILE), { recursive:true, mode:0o700 });
@@ -789,13 +789,15 @@ function writeCanvasConfiguration(updates) {
 }
 
 function canvasSettings() {
-  const store = connectionStore(), connections = [store.defaultConnection, ...store.connections];
+  const store = connectionStore(), connections = store.connections;
   return {
     connections:connections.map(connectionPublicValue),
+    hasUsableConnection:connections.some(isUsableConnection),
+    openConnections:process.env.PENECHO_OPEN_CONNECTIONS === "true",
     connectionLimit:MAX_AI_CONNECTIONS,
     provider:AI_PROVIDER || "api",
     apiFormat:API?.format || API_FORMAT || "openai",
-    apiPreset:store.defaultConnection.provider === "api" ? store.defaultConnection.apiPreset || inferredApiPreset(store.defaultConnection.apiFormat, store.defaultConnection.apiUrl) : "",
+    apiPreset:API_PRESET || "",
     apiUrl:API_BASE_URL || "https://api.openai.com/v1",
     apiModel:MODEL || "",
     hasApiKey:Boolean(API_KEY),
@@ -818,11 +820,12 @@ function canvasSettings() {
 }
 
 function findConnection(store, id) {
-  return id === "default" ? store.defaultConnection : store.connections.find(connection => connection.id === id) || null;
+  if (String(id).startsWith("hosted:")) return cloudConnector?.hostedConnection(id) || null;
+  return store.connections.find(connection => connection.id === id) || null;
 }
 
 function updateConnectionStore(input) {
-  const action = String(input?.action || "").trim(), store = connectionStore();
+  const action = String(input?.action || "").trim(), store = readConnectionsFile();
   if (action === "activate") {
     // Older clients used a server-wide activation action. Selection is now
     // device-local, so keep this endpoint compatible without changing state.
@@ -831,28 +834,22 @@ function updateConnectionStore(input) {
   }
   if (action === "delete") {
     const id = String(input.id || "");
-    if (!id || id === "default") throw new Error("The default connection cannot be deleted.");
+    if (!id) throw new Error("Connection was not found.");
     if (!store.connections.some(connection => connection.id === id)) throw new Error("Connection was not found.");
     const connections = store.connections.filter(connection => connection.id !== id);
-    writeConnectionsFile({ defaultName:store.defaultConnection.name, connections });
+    writeConnectionsFile({ ...store, connections });
     return canvasSettings();
   }
   if (action === "save") {
     const requestedId = String(input.id || "").trim(), existing = requestedId ? findConnection(store, requestedId) : null;
-    if (requestedId && !existing) throw new Error("Connection was not found.");
-    if (!existing && store.connections.length + 1 >= MAX_AI_CONNECTIONS) throw new Error(`You can save up to ${MAX_AI_CONNECTIONS} connections.`);
+    if (requestedId && !existing && !(requestedId === "cli-override" && connectionStore().connections[0]?.id === "cli-override")) throw new Error("Connection was not found.");
+    if (!existing && store.connections.length >= MAX_AI_CONNECTIONS) throw new Error(`You can save up to ${MAX_AI_CONNECTIONS} connections.`);
     const connection = normalizeConnection(input.connection, existing);
-    if (existing?.id === "default") {
-      connection.id = "default";
-      writeCanvasConfiguration(connectionUpdates(connection));
-      Object.assign(DEFAULT_CONNECTION, connection);
-      store.defaultConnection = connection;
-      applyHotProviderConfiguration(connectionUpdates(connection));
-    } else if (existing) {
+    if (existing) {
       const index = store.connections.findIndex(item => item.id === existing.id);
       store.connections[index] = connection;
     } else store.connections.push(connection);
-    writeConnectionsFile({ defaultName:store.defaultConnection.name, connections:store.connections });
+    writeConnectionsFile(store);
     return { ...canvasSettings(), savedId:connection.id };
   }
   throw new Error("Choose a connection action.");
@@ -870,9 +867,9 @@ function normalizeCanvasSettings(input) {
     return { PENECHO_SETTINGS_SCOPE:scope, DEEPSEEK_SEARCH_PROVIDER:deepSeekSearchProvider, ...(deepseekSearchApiKey ? { DEEPSEEK_SEARCH_API_KEY:deepseekSearchApiKey } : {}), ...(tavilyApiKey ? { TAVILY_API_KEY:tavilyApiKey } : {}) };
   }
   const provider = normalizeAiProvider(input.provider), format = String(input.apiFormat || "").trim().toLowerCase(), preset = String(input.apiPreset || "").trim(), urlText = String(input.apiUrl || "").trim(), model = String(input.apiModel || "").trim(), key = String(input.apiKey || "").trim(), effort = connectionEffort(input.effort), imageFormat = String(input.imageFormat || "").trim().toLowerCase(), timeout = Number(input.timeoutSeconds), maxTokens = configuredMaxTokens(input.maxTokens), agentTurnLimit = input.canvasAgentTurnLimit === undefined ? CANVAS_AGENT_TURN_LIMIT : Number(input.canvasAgentTurnLimit), autoDelay = Number(input.autoDelaySeconds), traceLimit = Number(input.requestTraceLimit);
-  if (!provider) throw new Error("Choose an AI provider.");
+  if (scope === "api" && !provider) throw new Error("Choose an AI provider.");
   let url;
-  if (provider === "api") {
+  if (scope === "api" && provider === "api") {
     if (!new Set(["openai", "anthropic"]).has(format)) throw new Error("Choose an API format.");
     if (preset && !API_PRESET_IDS.has(preset)) throw new Error("Choose a supported API preset.");
     try { url = new URL(urlText); } catch { throw new Error("Enter a valid API base URL."); }
@@ -931,6 +928,8 @@ function providerConfigurationError(provider = activeProviderSnapshot()) {
 
 function activeProviderSnapshot() {
   return {
+    connectionId:primaryConnectionId,
+    connectionName:AI_PROVIDER === "api" ? MODEL : AI_PROVIDER,
     provider:AI_PROVIDER,
     aiEffort:AI_EFFORT,
     apiEffort:API_EFFORT,
@@ -960,6 +959,9 @@ function connectionProviderSnapshot(connection) {
       : provider === "codex-cli" ? { ...cli, label:"Codex CLI", doctor:"codex" }
         : provider === "claude-cli" ? { ...cli, label:"Claude CLI", doctor:"claude" } : null;
   return {
+    connectionId:connection.id || "default",
+    hosted:connection.hosted === true,
+    connectionName:connection.name || connection.apiModel || connection.cliModel || connection.provider,
     provider,
     aiEffort:effort,
     apiEffort:provider === "api" ? normalizedApiEffort(api?.format, effort) : null,
@@ -988,7 +990,7 @@ function connectionTestConfiguration(connection) {
     ...(provider === "codex-cli" ? { CODEX_CLI_MODEL:connection.cliModel || "", CODEX_CLI_PATH:connection.cliPath || "codex" } : {}),
     ...(provider === "claude-cli" ? { CLAUDE_CLI_MODEL:connection.cliModel || "", CLAUDE_CLI_PATH:connection.cliPath || "claude" } : {}),
   };
-  return { provider, env, cwd:process.cwd() };
+  return { provider, env, cwd:process.cwd(), home:process.env.HOME || process.env.USERPROFILE || os.homedir(), stateDir:STATE_DIRECTORY || CLOUD_STATE_DIRECTORY };
 }
 
 function cliInstallationGuidance(provider) {
@@ -1015,9 +1017,16 @@ function cliConnectionIssue(error) {
   return "request_failed";
 }
 
-function requestProviderSnapshot(req) {
-  const requestedId = String(req.headers["x-penecho-connection"] || "default").trim(), store = connectionStore(),
-    connection = findConnection(store, requestedId) || store.defaultConnection;
+async function requestProviderSnapshot(req) {
+  const requestedId = String(req.headers["x-penecho-connection"] || "default").trim();
+  if (requestedId.startsWith("hosted:")) {
+    const authorizationError = browserRequestError(req);
+    if (authorizationError) throw Object.assign(new Error(authorizationError), { status:403 });
+    await cloudConnector.prepareHostedConnection(requestedId);
+  }
+  const store = connectionStore(),
+    connection = findConnection(store, requestedId) || (requestedId === "default" ? store.connections[0] : null);
+  if (!connection) throw Object.assign(new Error("The selected PenEcho model is unavailable. Refresh AI connections."), { status:409, code:"CONNECTION_STALE" });
   return connectionProviderSnapshot(connection);
 }
 
@@ -1035,7 +1044,7 @@ function providerRequest(key, model, text, atlasImage = null, effort = API_EFFOR
       maxTokens = atlasImage ? anthropicResponseMaxTokens(effort, MODEL_MAX_TOKENS) : 10,
       system = atlasImage ? anthropicSystemPrompt(effort, literalTypeset, animationEnabled, pluginsEnabled) : null;
     return {
-      headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+      headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", ...(provider.hosted ? { Authorization:`Bearer ${key}` } : {}) },
       body: JSON.stringify({ model, max_tokens:maxTokens, stream:true, ...effortParameters, ...(system ? { system } : {}), messages: [{ role: "user", content }] }),
     };
   }
@@ -1044,7 +1053,7 @@ function providerRequest(key, model, text, atlasImage = null, effort = API_EFFOR
     : [{ role: "user", content: text }];
   return {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, stream:true, ...reasoning, ...(atlasImage ? { max_tokens:MODEL_MAX_TOKENS, response_format: { type: "json_object" } } : { max_tokens: 10 }), messages }),
+    body: JSON.stringify({ model, stream:true, ...reasoning, ...openAiOutputTokenParameters(provider.apiUrl || API_BASE_URL, atlasImage ? MODEL_MAX_TOKENS : 10), ...(atlasImage ? { response_format: { type: "json_object" } } : {}), messages }),
   };
 }
 
@@ -1260,6 +1269,7 @@ function sharedCanvasMetadata(snapshot, projectId = DEFAULT_CANVAS_PROJECT_ID, i
     name:logical.name,
     theme:logical.theme,
     projectId,
+    ...(snapshot.extensions?.penechoDocument?.version===1&&validCanvasDocumentId(snapshot.extensions.penechoDocument.documentId)?{documentId:snapshot.extensions.penechoDocument.documentId}:{}),
     tileCount:logical.tiles.length,
     animationCount:logical.animations.length,
     widgetCount:logical.widgets.length,
@@ -1267,6 +1277,9 @@ function sharedCanvasMetadata(snapshot, projectId = DEFAULT_CANVAS_PROJECT_ID, i
     imageCount:logical.images.length,
     preview:logical.preview,
   };
+}
+function validCanvasDocumentId(value) {
+  return typeof value==="string"&&value.length>0&&value.length<=128&&!/[\u0000-\u001f\u007f-\u009f]/.test(value);
 }
 function validSnapshotDataUrl(value, allowedTypes, maximumBytes) {
   if(typeof value!=="string")return false;
@@ -1281,7 +1294,7 @@ function canonicalSharedCanvasV1(value) {
     updatedAt=Number(value.updatedAt||createdAt),
     theme=normalizeCanvasTheme(value.theme),
     view=value.view&&[value.view.scale,value.view.panX,value.view.panY].every(Number.isFinite)
-      ?{scale:Math.max(.03,Math.min(2,value.view.scale)),panX:value.view.panX,panY:value.view.panY,navigationLocked:value.view.navigationLocked===true}:null,
+      ?{scale:Math.max(.03,Math.min(2,value.view.scale)),panX:value.view.panX,panY:value.view.panY,navigationLocked:value.view.navigationLocked===true,...(value.view.region&&[value.view.region.x,value.view.region.y,value.view.region.w,value.view.region.h].every(Number.isFinite)&&value.view.region.w>0&&value.view.region.h>0?{region:{x:value.view.region.x,y:value.view.region.y,w:value.view.region.w,h:value.view.region.h}}:{})}:null,
     animations=Array.isArray(value.animations)&&value.animations.length<=100?value.animations:null,
     widgets=Array.isArray(value.widgets)&&value.widgets.length<=100?value.widgets:null,
     textBoxes=value.textBoxes===undefined?[]:Array.isArray(value.textBoxes)&&value.textBoxes.length<=50?value.textBoxes:null,
@@ -1463,6 +1476,7 @@ function canonicalSharedCanvasMetadata(item,id) {
     version:item.version===2?2:1,id,createdAt:item.createdAt,updatedAt,
     name:typeof item.name==="string"?item.name.slice(0,48):"",theme:normalizeCanvasTheme(item.theme),
     projectId:sharedCanvasProject(item.projectId)?item.projectId:DEFAULT_CANVAS_PROJECT_ID,
+    ...(validCanvasDocumentId(item.documentId)?{documentId:item.documentId}:{}),
     tileCount:count("tileCount"),animationCount:count("animationCount"),widgetCount:count("widgetCount"),textBoxCount:count("textBoxCount"),imageCount:count("imageCount"),preview:item.preview,
   };
 }
@@ -1478,6 +1492,21 @@ function listSharedCanvases() {
     } catch {}
   }
   return items.sort((a,b)=>b.updatedAt-a.updatedAt);
+}
+function sharedCanvasListMetadata(item) {
+  const {preview,...metadata}=item;
+  return {...metadata,documentId:item.documentId||null,hasPreview:typeof preview==="string"&&preview.length>0};
+}
+function readSharedCanvasPreview(id) {
+  const file=canvasSnapshotPath(id,true);
+  if(!file)throw Object.assign(new Error("Invalid canvas id."),{status:400});
+  let metadata;
+  try {
+    const stat=fs.statSync(file);
+    if(stat.isFile()&&stat.size<=3*1024*1024)metadata=canonicalSharedCanvasMetadata(JSON.parse(fs.readFileSync(file,"utf8")),id);
+  } catch {}
+  if(!metadata)throw Object.assign(new Error("Canvas preview was not found."),{status:404});
+  return {preview:metadata.preview};
 }
 function listSharedCanvasProjects() {
   const canvases=listSharedCanvases();
@@ -1897,7 +1926,6 @@ function isLoopback(address) { return address === "::1" || address === "127.0.0.
 function isLoopbackHostname(hostname) { return ["localhost", "127.0.0.1", "::1", "[::1]", "::ffff:127.0.0.1", "[::ffff:127.0.0.1]"].includes(String(hostname || "").toLowerCase().replace(/\.$/, "")); }
 const LOCAL_HOSTNAMES = new Set([os.hostname(), `${os.hostname()}.local`].map(value => value.toLowerCase().replace(/\.$/, "")));
 const LOCAL_INTERFACE_ADDRESSES = new Set();
-const LAN_IPV4_ADDRESSES = new Set();
 const LOCAL_NETWORKS = new net.BlockList();
 for (const entries of Object.values(os.networkInterfaces())) {
   for (const entry of entries || []) {
@@ -1905,7 +1933,6 @@ for (const entries of Object.values(os.networkInterfaces())) {
       address = String(entry.address || "").split("%", 1)[0];
     if (!family || !address) continue;
     LOCAL_INTERFACE_ADDRESSES.add(address.toLowerCase());
-    if (family === "ipv4" && !entry.internal && net.isIP(address) === 4) LAN_IPV4_ADDRESSES.add(address);
     const prefix = Number(String(entry.cidr || "").split("/")[1]);
     if (Number.isInteger(prefix)) {
       try { LOCAL_NETWORKS.addSubnet(address, prefix, family); } catch {}
@@ -2529,13 +2556,19 @@ function traceAttemptError(trace, attempt, error) {
   });
 }
 async function callModelWithTrace(trace, attempt, modelInput, atlasImage, retryInstruction, effort, signal, transportReason=null, provider=activeProviderSnapshot(), onProgress=null) {
+  const usageStartedAt=Date.now(),usageRequestId=crypto.randomUUID();
+  const reportUsage=(status,usage)=>{
+    try { cloudConnector?.reportLocalModelUsage({requestId:usageRequestId,connectionId:provider.connectionId,connectionName:provider.connectionName,model:provider.model||provider.local?.model||provider.provider,action:"main-canvas",createdAt:usageStartedAt,completedAt:Date.now(),status,usage,usageFormat:provider.api?.format||"openai"}); } catch {}
+  };
   traceAttemptStarted(trace,attempt,modelInput,atlasImage,retryInstruction,effort,transportReason,provider);
   try {
     const model=await callModel(modelInput,atlasImage,retryInstruction,effort,signal,provider,onProgress);
     traceAttemptResponse(trace,attempt,model);
+    reportUsage("succeeded",model.upstream?.usage);
     return model;
   } catch(error) {
     traceAttemptError(trace,attempt,error);
+    reportUsage(signal?.aborted?"cancelled":"failed",error.upstream?.usage);
     throw error;
   }
 }
@@ -2563,21 +2596,22 @@ async function callModel(modelInput, atlasImage, retryInstruction="", effort, ex
       pluginsEnabled = Array.isArray(modelInput?.enabledPlugins) && modelInput.enabledPlugins.length > 0;
     if (provider.local) {
       try {
-        let receivingStarted=false;
+        let receivingStarted=false,reportedUsage=null;
+        const onUsage=usage=>{reportedUsage=usage;};
         const localProgress=(phase)=>{
           if(phase==="receiving")receivingStarted=true;
           onProgress?.(phase);
         };
         onProgress?.("waiting");
         const content = provider.provider === "kimi-cli"
-          ? await callKimiCli({ ...provider.kimi, effort, prompt:kimiModelPrompt(text,literalTypeset,animationEnabled,pluginsEnabled), atlasImage, signal:controller.signal, onActivity:streamActivity })
+          ? await callKimiCli({ ...provider.kimi, effort, prompt:kimiModelPrompt(text,literalTypeset,animationEnabled,pluginsEnabled), atlasImage, signal:controller.signal, onActivity:streamActivity, onUsage })
           : provider.provider === "codex-cli"
-            ? await callCodexCliWithRecovery(configuredProvider, { effort, prompt:codexModelPrompt(text,literalTypeset,animationEnabled,pluginsEnabled), atlasImage, signal:controller.signal, onProgress:localProgress, onActivity:streamActivity })
-            : await callClaudeCli({ ...provider.claude, effort, systemPrompt:localCliSystemPrompt(literalTypeset,animationEnabled,pluginsEnabled), prompt:localCliRequestPrompt(text), atlasImage, signal:controller.signal, onProgress:localProgress, onActivity:streamActivity });
+            ? await callCodexCliWithRecovery(configuredProvider, { effort, prompt:codexModelPrompt(text,literalTypeset,animationEnabled,pluginsEnabled), atlasImage, signal:controller.signal, onProgress:localProgress, onActivity:streamActivity, onUsage })
+            : await callClaudeCli({ ...provider.claude, effort, systemPrompt:localCliSystemPrompt(literalTypeset,animationEnabled,pluginsEnabled), prompt:localCliRequestPrompt(text), atlasImage, signal:controller.signal, onProgress:localProgress, onActivity:streamActivity, onUsage });
         if(!receivingStarted)localProgress("receiving");
         onProgress?.("validating");
-        try { return {content,result:parsedModelResponse(content),status:200,provider:provider.provider,model:provider.local.model||"configured-default",effort,upstream:null}; }
-        catch(error){error.upstream={status:200,rawContent:content};throw error}
+        try { return {content,result:parsedModelResponse(content),status:200,provider:provider.provider,model:provider.local.model||"configured-default",effort,upstream:reportedUsage?{usage:reportedUsage}:null}; }
+        catch(error){error.upstream={status:200,rawContent:content,...(reportedUsage?{usage:reportedUsage}:{})};throw error}
       } catch (error) {
         if (DEBUG_ARTIFACTS && error.diagnostic) log({type:`${provider.provider}-error`,error:"process-failed",diagnosticBytes:Buffer.byteLength(error.diagnostic)});
         if (error.cleanupDiagnostic) log({type:`${provider.provider}-cleanup-error`,error:"cleanup-failed"});
@@ -2898,24 +2932,24 @@ function pluginAuthoringRepairPrompt(document, styles, instructions, previous, v
 function pluginAuthoringProviderRequest(key, model, prompt, effort, api = API, provider = {}) {
   const reasoning = apiReasoningParameters({ apiFormat:api.format, apiPreset:provider.apiPreset || API_PRESET, apiUrl:provider.apiUrl || API_BASE_URL, model, effort });
   if (api.format === "anthropic") return {
-    headers:{ "Content-Type":"application/json", "x-api-key":key, "anthropic-version":"2023-06-01" },
+    headers:{ "Content-Type":"application/json", "x-api-key":key, "anthropic-version":"2023-06-01", ...(provider.hosted ? { Authorization:`Bearer ${key}` } : {}) },
     body:JSON.stringify({ model, max_tokens:MODEL_MAX_TOKENS, stream:true, ...reasoning, system:PLUGIN_AUTHORING_SYSTEM, messages:[{ role:"user", content:prompt }] }),
   };
   return {
     headers:{ "Content-Type":"application/json", Authorization:`Bearer ${key}` },
-    body:JSON.stringify({ model, max_tokens:MODEL_MAX_TOKENS, stream:true, ...reasoning, messages:[{ role:"system", content:PLUGIN_AUTHORING_SYSTEM }, { role:"user", content:prompt }] }),
+    body:JSON.stringify({ model, ...openAiOutputTokenParameters(provider.apiUrl || API_BASE_URL, MODEL_MAX_TOKENS), stream:true, ...reasoning, messages:[{ role:"system", content:PLUGIN_AUTHORING_SYSTEM }, { role:"user", content:prompt }] }),
   };
 }
 function communityMetadataProviderRequest(key,model,prompt,atlasImage,effort,api=API,provider={}) {
   const reasoning=apiReasoningParameters({apiFormat:api.format,apiPreset:provider.apiPreset||API_PRESET,apiUrl:provider.apiUrl||API_BASE_URL,model,effort}),image=imageDataUrlParts(atlasImage);
   if(!image)throw new Error("The generated community screenshot is invalid.");
   if(api.format==="anthropic")return{
-    headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
+    headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01",...(provider.hosted ? {Authorization:`Bearer ${key}`} : {})},
     body:JSON.stringify({model,max_tokens:Math.min(MODEL_MAX_TOKENS,2048),stream:true,...reasoning,system:COMMUNITY_METADATA_SYSTEM,messages:[{role:"user",content:[{type:"text",text:prompt},{type:"image",source:{type:"base64",media_type:image.mimeType,data:image.base64}}]}]}),
   };
   return{
     headers:{"Content-Type":"application/json",Authorization:`Bearer ${key}`},
-    body:JSON.stringify({model,max_tokens:Math.min(MODEL_MAX_TOKENS,2048),stream:true,...reasoning,response_format:{type:"json_object"},messages:[{role:"system",content:COMMUNITY_METADATA_SYSTEM},{role:"user",content:[{type:"text",text:prompt},{type:"image_url",image_url:{url:atlasImage,detail:"high"}}]}]}),
+    body:JSON.stringify({model,...openAiOutputTokenParameters(provider.apiUrl || API_BASE_URL,Math.min(MODEL_MAX_TOKENS,2048)),stream:true,...reasoning,response_format:{type:"json_object"},messages:[{role:"system",content:COMMUNITY_METADATA_SYSTEM},{role:"user",content:[{type:"text",text:prompt},{type:"image_url",image_url:{url:atlasImage,detail:"high"}}]}]}),
   };
 }
 function communityMetadataFromModel(content) {
@@ -3149,6 +3183,13 @@ function resolveCanvasAgentWidgetCapabilities(value = {}) {
 const server = http.createServer(async (req, res) => {
   let url;
   try { url = new URL(req.url, "http://localhost"); } catch { return send(res, 400, "Bad Request", "text/plain; charset=utf-8"); }
+  if (req.method === "POST" && ["/api/mcp/skill","/api/mcp/guide"].includes(url.pathname)) {
+    const error=browserRequestError(req);if(error)return send(res,403,{error});
+    const file=url.pathname.endsWith("/skill")?"skills/penecho-mcp/SKILL.md":"docs/mcp-setup.md";
+    try { return send(res,200,{text:await fs.promises.readFile(path.join(ROOT,file),"utf8")}); }
+    catch { return send(res,404,{error:"MCP documentation is missing from this installation. Update PenEcho and try again."}); }
+  }
+  if (await mcpService.handleHttp(req, res, url)) return;
   if (LOCAL_CLI && !canonicalRequestOrigin(req)) return send(res, 421, { error:"Request Host does not match the configured PenEcho origin." });
   if (req.method === "GET" && url.pathname === "/api/cloud/sign-in/callback") {
     const host=requestHost(req),localOrigin=canonicalRequestOrigin(req),keys=[...url.searchParams.keys()],validQuery=keys.length===2&&keys.includes("state")&&keys.includes("code")&&url.searchParams.getAll("state").length===1&&url.searchParams.getAll("code").length===1;
@@ -3262,8 +3303,15 @@ const server = http.createServer(async (req, res) => {
     if(localError)return send(res,403,{error:localError});
     if(!cloudConnector)return send(res,503,{error:"Cloud connector is still starting."});
     try {
+      if(req.method==='POST'&&url.pathname==='/api/cloud/mcp/access')return send(res,200,await cloudConnector.setCloudMcpAccess((await readJson(req,2048)).enabled));
+      if(/^\/api\/cloud\/mcp(?:\/(?:tokens(?:\/restore)?|canvases)|\/grants\/[0-9a-f-]{36})?$/.test(url.pathname)&&["GET","POST","DELETE"].includes(req.method)) {
+        const result=await cloudConnector.cloudRequest(url.pathname.replace("/api/cloud/mcp","/api/v1/mcp"),{method:req.method,...(req.method==="POST"?{body:await readJson(req,4096)}:{})});
+        if(req.method==='GET'&&url.pathname==='/api/cloud/mcp')result.local={cloudMcpEnabled:cloudConnector.status().cloudMcpEnabled,device:cloudConnector.status().device};
+        return send(res,req.method==="POST"?201:200,result);
+      }
       if(req.method==="GET"&&url.pathname==="/api/cloud/status")return send(res,200,cloudConnector.status());
       if(req.method==="GET"&&url.pathname==="/api/cloud/account")return send(res,200,await cloudConnector.refreshAccount({force:true}));
+      if(req.method==="GET"&&url.pathname==="/api/cloud/models")return send(res,200,await cloudConnector.hostedModels());
       if(req.method==="POST"&&url.pathname==="/api/cloud/sign-in/start"){
         const body=await readJson(req,64*1024),origin=String(body?.origin||DEFAULT_CLOUD_ORIGIN).trim(),localOrigin=canonicalRequestOrigin(req);
         if(!localOrigin)return send(res,403,{error:"Refresh this PenEcho page and try again."});
@@ -3281,7 +3329,7 @@ const server = http.createServer(async (req, res) => {
         if(code.length<8||code.length>32)return send(res,400,{error:"Enter the one-time pairing key from PenEcho Cloud."});
         return send(res,200,await cloudConnector.pair({origin,code,name:String(body?.name||"").trim()||undefined,platform:String(body?.platform||"").trim()||undefined}));
       }
-      if(req.method==="POST"&&url.pathname==="/api/cloud/device/enable")return send(res,200,cloudConnector.enable());
+      if(req.method==="POST"&&url.pathname==="/api/cloud/device/enable")return send(res,200,await cloudConnector.enableLinkedDevice());
       if(req.method==="POST"&&url.pathname==="/api/cloud/device/disable")return send(res,200,cloudConnector.disconnect());
       if(req.method==="POST"&&url.pathname==="/api/cloud/device/revoke")return send(res,200,await cloudConnector.revokeDevice());
       if(req.method==="GET"&&url.pathname==="/api/cloud/library")return send(res,200,await cloudConnector.library());
@@ -3589,11 +3637,15 @@ const server = http.createServer(async (req, res) => {
         systemNames = new Set(["AI_TIMEOUT_SECONDS", "MAX_TOKENS", "PENECHO_CANVAS_AGENT_TURN_LIMIT", "AUTO_AI_DELAY_SECONDS", "PENECHO_AI_IMAGE_FORMAT", "PENECHO_REQUEST_TRACE", "PENECHO_REQUEST_TRACE_LIMIT"]),
         scopeNames = scope === "api" ? providerNames : scope === "search" ? new Set(["DEEPSEEK_SEARCH_PROVIDER", "DEEPSEEK_SEARCH_API_KEY", "TAVILY_API_KEY"]) : systemNames,
         selected = Object.fromEntries(Object.entries(updates).filter(([name]) => scopeNames.has(name)));
-      writeCanvasConfiguration(selected);
       if (scope === "api") {
-        applyHotProviderConfiguration(selected);
-        Object.assign(DEFAULT_CONNECTION, connectionFromEnvironment("default"));
-      }
+        const store = readConnectionsFile(), existing = store.connections[0];
+        const prefix = { "kimi-cli":"KIMI_CLI", "codex-cli":"CODEX_CLI", "claude-cli":"CLAUDE_CLI" }[selected.AI_PROVIDER];
+        const connection = normalizeConnection({ provider:selected.AI_PROVIDER, effort:selected.AI_EFFORT,
+          apiFormat:selected.AI_API_FORMAT, apiUrl:selected.AI_API_URL, apiModel:selected.AI_API_MODEL, apiKey:selected.AI_API_KEY, apiPreset:selected.PENECHO_API_PRESET,
+          cliModel:prefix ? selected[`${prefix}_MODEL`] : "", cliPath:prefix ? selected[`${prefix}_PATH`] : "" }, existing);
+        if (existing) store.connections[0] = connection; else store.connections.push(connection);
+        writeConnectionsFile(store);
+      } else writeCanvasConfiguration(selected);
       if (scope === "search") applyHotSearchConfiguration(selected);
       return send(res, 200, { ok:true, providerApplied:scope === "api", searchApplied:scope === "search", restartRequired:scope === "system", deepSeekSearchProvider:DEEPSEEK_SEARCH_PROVIDER, hasDeepSeekSearchApiKey:Boolean(DEEPSEEK_SEARCH_API_KEY), hasTavilyApiKey:Boolean(TAVILY_API_KEY), webSearchAvailable:true });
     } catch (error) { return send(res, 400, { error:error?.message || "Could not save settings." }); }
@@ -3652,7 +3704,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
   if (req.method === "GET" && url.pathname === "/api/config.js") {
-    const desktopApp=process.env.PENECHO_DESKTOP_APP==="true",config={autoAiDelayMs:AUTO_AI_DELAY_MS,aiRequestTimeoutMs:AI_REQUEST_TIMEOUT_MS,aiProvider:AI_PROVIDER||"invalid",aiEffort:configuredUiEffort(),cloudEnvironment:PENECHO_CLOUD_ENV,cloudOrigin:DEFAULT_CLOUD_ORIGIN,desktopApp,clientPlatform:process.platform,clientVersion:desktopApp?(APP_PACKAGE.config?.desktopVersion||APP_PACKAGE.version):APP_PACKAGE.version,canvasAgent:true,canvasAgentAutoOpen:CANVAS_AGENT_AUTO_OPEN,canvasAgentSearchConfigured:true};
+    const desktopApp=process.env.PENECHO_DESKTOP_APP==="true",config={autoAiDelayMs:AUTO_AI_DELAY_MS,aiRequestTimeoutMs:AI_REQUEST_TIMEOUT_MS,aiProvider:AI_PROVIDER||"invalid",aiEffort:configuredUiEffort(),cloudEnvironment:PENECHO_CLOUD_ENV,cloudOrigin:DEFAULT_CLOUD_ORIGIN,desktopApp,clientPlatform:process.platform,clientVersion:desktopApp?(APP_PACKAGE.config?.desktopVersion||APP_PACKAGE.version):APP_PACKAGE.version,canvasAgent:true,canvasAgentAutoOpen:CANVAS_AGENT_AUTO_OPEN,canvasAgentSearchConfigured:true,openConnections:process.env.PENECHO_OPEN_CONNECTIONS === "true"};
     if(localAccessMode==="open"||hasAiSession(req))config.accessSessionToken=AI_SESSION_TOKEN;
     return send(res,200,`window.PENECHO_CONFIG=${JSON.stringify(config)};`,"application/javascript; charset=utf-8");
   }
@@ -3729,13 +3781,15 @@ const server = http.createServer(async (req, res) => {
       return send(res,status,{error:error?.message||"Unable to access the PenEcho server canvas project."});
     }
   }
-  const sharedCanvasMatch=/^\/api\/canvases\/(\d{10,16}-[a-zA-Z0-9-]{8,64})$/.exec(url.pathname);
-  if(url.pathname==="/api/canvases"||sharedCanvasMatch) {
+  const sharedCanvasMatch=/^\/api\/canvases\/(\d{10,16}-[a-zA-Z0-9-]{8,64})$/.exec(url.pathname),
+    sharedCanvasPreviewMatch=/^\/api\/canvases\/(\d{10,16}-[a-zA-Z0-9-]{8,64})\/preview$/.exec(url.pathname);
+  if(url.pathname==="/api/canvases"||sharedCanvasMatch||sharedCanvasPreviewMatch) {
     try {
       const mutation=req.method!=="GET",
         authorizationError=mutation?browserRequestError(req):sharedCanvasReadError(req);
       if(authorizationError)return send(res,403,{error:authorizationError});
-      if(req.method==="GET"&&url.pathname==="/api/canvases")return send(res,200,{canvases:listSharedCanvases()});
+      if(req.method==="GET"&&url.pathname==="/api/canvases")return send(res,200,{canvases:listSharedCanvases().map(item=>url.searchParams.get("metadataOnly")==="1"?sharedCanvasListMetadata(item):item)});
+      if(req.method==="GET"&&sharedCanvasPreviewMatch)return send(res,200,readSharedCanvasPreview(sharedCanvasPreviewMatch[1]));
       if(req.method==="GET"&&sharedCanvasMatch)return send(res,200,{canvas:readSharedCanvas(sharedCanvasMatch[1])});
       if(req.method==="POST"&&url.pathname==="/api/canvases") {
         if(!isJsonRequest(req))return send(res,415,{error:"Canvas storage requires application/json."});
@@ -3800,11 +3854,13 @@ const server = http.createServer(async (req, res) => {
     }
   }
   if(req.method==="POST"&&url.pathname==="/api/community/metadata"){
-    const requestId=crypto.randomUUID(),ip=req.socket.remoteAddress,controller=new AbortController(),providerSnapshot=requestProviderSnapshot(req),abort=()=>{if(!res.writableEnded)controller.abort();};
+    const requestId=crypto.randomUUID(),ip=req.socket.remoteAddress,controller=new AbortController(),abort=()=>{if(!res.writableEnded)controller.abort();};
+    let providerSnapshot = {};
     let localRun=null;
     req.once("aborted",abort);
     res.once("close",abort);
     try{
+      providerSnapshot = await requestProviderSnapshot(req);
       if(providerSnapshot.local&&!isLanClient(ip))return send(res,403,{error:`${providerSnapshot.local.label} requests are available only from this computer or its local network.`,requestId});
       const authorizationError=providerBrowserRequestError(req,providerSnapshot);
       if(authorizationError)return send(res,403,{error:authorizationError,requestId});
@@ -3821,16 +3877,18 @@ const server = http.createServer(async (req, res) => {
       return send(res,200,{metadata,requestId});
     }catch(error){
       const timedOut=error?.name==="AbortError"||error?.message==="This operation was aborted",upstreamStatus=Number.isInteger(error.status)&&error.status>=400&&error.status<=599?error.status:null,code=timedOut?504:upstreamStatus||502;
-      if(!res.writableEnded&&!res.destroyed)send(res,code,{error:error.message||"Unable to generate community metadata.",requestId});
+      if(!res.writableEnded&&!res.destroyed)send(res,code,{error:error.message||"Unable to generate community metadata.",requestId,...(error.code==="CONNECTION_STALE"?{errorCode:error.code}: {})});
     }finally{finishLocalRequest(localRun);req.removeListener("aborted",abort);res.removeListener("close",abort);}
     return;
   }
   if (req.method === "POST" && url.pathname === "/api/plugins/improve") {
-    const requestId = crypto.randomUUID(), ip = req.socket.remoteAddress, controller = new AbortController(), providerSnapshot = requestProviderSnapshot(req), abort = () => { if (!res.writableEnded) controller.abort(); };
+    const requestId = crypto.randomUUID(), ip = req.socket.remoteAddress, controller = new AbortController(), abort = () => { if (!res.writableEnded) controller.abort(); };
+    let providerSnapshot = {};
     let localRun = null;
     req.once("aborted", abort);
     res.once("close", abort);
     try {
+      providerSnapshot = await requestProviderSnapshot(req);
       if (providerSnapshot.local && !isLanClient(ip)) return send(res, 403, { error:`${providerSnapshot.local.label} requests are available only from this computer or its local network.`, requestId });
       const authorizationError = providerBrowserRequestError(req, providerSnapshot);
       if (authorizationError) return send(res, 403, { error:authorizationError, requestId });
@@ -3851,7 +3909,7 @@ const server = http.createServer(async (req, res) => {
     } catch (error) {
       const timedOut = error?.name === "AbortError" || error?.message === "This operation was aborted", upstreamStatus = Number.isInteger(error.status) && error.status >= 400 && error.status <= 599 ? error.status : null,
         code = timedOut ? 504 : upstreamStatus || 502;
-      if (!res.writableEnded && !res.destroyed) send(res, code, { error:error.message || "Unable to improve plugin.", requestId });
+      if (!res.writableEnded && !res.destroyed) send(res, code, { error:error.message || "Unable to improve plugin.", requestId, ...(error.code==="CONNECTION_STALE"?{errorCode:error.code}: {}) });
     } finally {
       finishLocalRequest(localRun);
       req.removeListener("aborted", abort);
@@ -3919,13 +3977,15 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === "POST" && url.pathname === "/api/ai/command") {
     const requestId = crypto.randomUUID(), started = Date.now(), ip = req.socket.remoteAddress,
-      clientController = new AbortController(), providerSnapshot = requestProviderSnapshot(req),
+      clientController = new AbortController(),
       abortForDisconnect = () => { if (!res.writableEnded) clientController.abort(); },
       progress=aiProgressStream(req,res,requestId);
+    let providerSnapshot = {};
     let localRun=null,requestTrace=null;
     req.once("aborted", abortForDisconnect);
     res.once("close", abortForDisconnect);
     try {
+      providerSnapshot = await requestProviderSnapshot(req);
       if(providerSnapshot.local||localAccessMode!=="open") {
         const authorizationError=providerBrowserRequestError(req,providerSnapshot);
         if(authorizationError)return send(res,403,{error:authorizationError,requestId});
@@ -4096,7 +4156,7 @@ ${WIDGET_PATCH_FORMAT_POLICY}`,
         code = clientError ? 400 : timedOut ? 504 : upstreamStatus || 502;
       log({ type:"ai", requestId, ip, status:code, elapsedMs:Date.now()-started, error:clientError?"client-error":timedOut?"timeout":upstreamStatus?"upstream-error":"model-error", ...(REQUEST_TRACE_ENABLED ? { failure:compactErrorLog(error) } : {}) });
       const userMessage=publicModelError(error,{clientError,timedOut,upstreamStatus,provider:providerSnapshot});
-      const responseBody={error:userMessage,requestId};
+      const responseBody={error:userMessage,requestId,...(error.code==="CONNECTION_STALE"?{errorCode:error.code}: {})};
       completeRequestTrace(requestTrace,timedOut?"timeout":"failed",code,responseBody,error);
       sendAiResponse(progress,res,code,responseBody);
     } finally {
@@ -4152,8 +4212,9 @@ const canvasAgentRequestTracer = REQUEST_TRACE_ENABLED ? createCanvasAgentReques
 const canvasAgent = attachCanvasAgent({
   server,
   authorize:browserRequestError,
-  resolveConnection:id=>findConnection(connectionStore(),String(id||"default")),
-  listConnections:()=>{const store=connectionStore();return[store.defaultConnection,...store.connections]},
+  prepareConnection:id=>String(id).startsWith("hosted:") ? cloudConnector.prepareHostedConnection(id) : null,
+  resolveConnection:id=>{const store=connectionStore(),requested=String(id||"default");return findConnection(store,requested)||(requested==="default"?store.connections[0]||null:null)},
+  listConnections:()=>{const store=connectionStore();return[...store.connections,...(cloudConnector?.hostedConnections() || [])]},
   resolveWebSearch:()=>({ provider:DEEPSEEK_SEARCH_API_KEY?DEEPSEEK_SEARCH_PROVIDER:TAVILY_API_KEY?"tavily":"built-in", deepseekProvider:DEEPSEEK_SEARCH_PROVIDER, deepseekApiKey:DEEPSEEK_SEARCH_API_KEY||"", tavilyApiKey:TAVILY_API_KEY||"", apiKey:TAVILY_API_KEY||"" }),
   resolveWidgetCapabilities:resolveCanvasAgentWidgetCapabilities,
   resolveProject:id=>CANVAS_AGENT_PROJECT_STORE.resolve(id, { touch:true }),
@@ -4164,10 +4225,25 @@ const canvasAgent = attachCanvasAgent({
   logger:log,
   conversationLogger:DEBUG_ARTIFACTS?log:null,
   conversationTrace:canvasAgentRequestTracer,
+  onModelUsage:event=>{try{cloudConnector?.reportLocalModelUsage({...event,action:"canvas-agent"});}catch{}},
 });
 server.applyCliResolution = applyCliResolution;
+const { createMcpService } = require("./mcp/service.js");
+const mcpService = createMcpService({
+  server,
+  attachCloudBrowser:socket=>cloudConnector.attachCloudMcpBrowser(socket),
+  authorizeBrowser:browserRequestError,
+  isLocalBrowserAddress:address=>isLoopback(normalizedIp(address))||LOCAL_INTERFACE_ADDRESSES.has(normalizedIp(address)),
+  rootDirectory:ROOT,
+  stateDirectory:STATE_DIRECTORY||CLOUD_STATE_DIRECTORY,
+  logger:log,
+  requestTraceEnabled:REQUEST_TRACE_ENABLED,
+  requestTraceDirectory:MCP_REQUEST_TRACE_DIR,
+  requestTraceLimit:REQUEST_TRACE_LIMIT,
+});
 server.setCliResolutionTask = setCliResolutionTask;
 server.on("close",()=>{
+  void mcpService.close().catch(error=>log({type:"mcp-close-error",errorCode:String(error?.code||"close_failed")}));
   cloudConnector?.close();
   void canvasAgent.close().catch(error=>log({type:"canvas-agent-close-error",error:String(error?.message||error)}));
 });
@@ -4184,14 +4260,15 @@ if (startupConfigurationError) {
   void CANVAS_AGENT_PROJECT_STORE.cleanupUploads().catch(error=>log({type:"canvas-agent-upload-cleanup-error",errorCode:typeof error?.code==="string"?error.code.slice(0,64):"cleanup_failed"}));
   server.listen(PORT, HOST, () => {
     const address = server.address(), listeningPort = typeof address === "object" && address ? address.port : PORT;
-    cloudConnector = new CloudConnector({ stateDir:CLOUD_STATE_DIRECTORY, executeRequest:executeCloudCommand, executeHttpRequest:remoteCanvasHttpExecutor(), executeCanvasAgentRequest:canvasAgent.executeRemote, logger:log, defaultOrigin:DEFAULT_CLOUD_ORIGIN, capabilities:{ modelConfigured:!providerConfigurationError() } });
+    try { mcpService.register(address); } catch(error) { log({type:"mcp-register-error",errorCode:String(error?.code||"register_failed")}); }
+    cloudConnector = new CloudConnector({ stateDir:CLOUD_STATE_DIRECTORY, executeRequest:executeCloudCommand, executeHttpRequest:remoteCanvasHttpExecutor(), executeCanvasAgentRequest:canvasAgent.executeRemote, executeMcpRequest:mcpService.executeRemote, closeMcpChannels:mcpService.closeRemoteChannels, logger:log, defaultOrigin:DEFAULT_CLOUD_ORIGIN, capabilities:{ modelConfigured:!providerConfigurationError() } });
     cloudConnector.start();
     console.log(`PenEcho: http://${HOST}:${listeningPort} (${AI_PROVIDER || "invalid provider"})`);
     if (HOST.trim() === "0.0.0.0") {
-      const lanUrls = [...LAN_IPV4_ADDRESSES].sort((a,b) => a.localeCompare(b, undefined, { numeric:true })).map(ip => `http://${ip}:${listeningPort}`);
-      console.log("LAN access (open one of these addresses on another device):");
+      const lanUrls = lanHosts().map(ip => `http://${ip}:${listeningPort}`);
+      console.log("LAN access (try these addresses from a device on the same network):");
       if (lanUrls.length) for (const url of lanUrls) console.log(`  ${url}`);
-      else console.log("  No non-loopback IPv4 address was detected.");
+      else console.log("  No suitable LAN IPv4 address was detected.");
       console.log(`If LAN access fails, check that inbound TCP port ${listeningPort} is allowed by the host firewall or applicable routing policy.`);
     }
     log({ type:"server-start", host:HOST, port:listeningPort, provider:AI_PROVIDER,requestTrace:REQUEST_TRACE_ENABLED?REQUEST_TRACE_LIMIT:0,aiImageFormat:AI_IMAGE_FORMAT,imageEncoder:AI_IMAGE_FORMAT!=="png"&&Boolean(sharp) });

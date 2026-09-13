@@ -36,7 +36,7 @@ function readText(relativePath) {
   return readFileSync(path.join(ROOT, relativePath), "utf8");
 }
 
-test("scientific visual skills stay out of the cold prompt and load into durable system content", async t => {
+test("scientific visual skills stay out of the cold prompt and return complete shared guidance", async t => {
   const stateDirectory = mkdtempSync(path.join(tmpdir(), "penecho-visual-skills-prompt-"));
   t.after(() => rmSync(stateDirectory, { recursive: true, force: true }));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
@@ -68,7 +68,7 @@ test("scientific visual skills stay out of the cold prompt and load into durable
     callCli:async request => {
       calls.push(request);
       return calls.length === 1
-        ? JSON.stringify({ type:"tool_call", name:"load_visual_skill", arguments:{ skill:"math-2d" } })
+        ? JSON.stringify({ type:"tool_call", name:"penecho_get_guidance", arguments:{ id:"math-2d", detail:"full" } })
         : JSON.stringify({ type:"final", text:"Loaded the selected skill." });
     },
   });
@@ -85,33 +85,27 @@ test("scientific visual skills stay out of the cold prompt and load into durable
 
   assert.equal(calls.length, 2);
   const firstRequest = JSON.parse(calls[0].prompt), secondRequest = JSON.parse(calls[1].prompt);
-  const schema = firstRequest.availableTools.find(tool => tool.name === "load_visual_skill");
-  assert.equal(schema.description.includes("durable session system prompt"), true);
-  assert.equal(schema.description.includes("before authoring a matching scientific Visual Explorer"), true);
-  assert.deepEqual(schema.parameters.properties.skill, { type:"string", enum:SKILLS });
-  assert.deepEqual(schema.parameters.required, ["skill"]);
-  assert.match(calls[0].systemPrompt, /call `load_visual_skill` with the closest available skill before authoring/i);
-  assert.notEqual(calls[1].systemPrompt, calls[0].systemPrompt);
+  const schema = firstRequest.availableTools.find(tool => tool.name === "penecho_get_guidance");
+  assert.match(schema.description,/authoring guidance/);
+  assert.deepEqual(schema.parameters.properties.id.enum,require("../src/server/mcp/authoring-guidance.js").GUIDANCE_IDS);
+  assert.deepEqual(schema.parameters.required,["id"]);
+  assert.match(calls[0].systemPrompt,/Load relevant guidance on demand/);
+  assert.equal(calls[1].systemPrompt,calls[0].systemPrompt);
   assert.deepEqual(secondRequest.availableTools, firstRequest.availableTools);
   for (const [skill, document] of skillDocuments) {
     assert.equal(calls[0].systemPrompt.includes(document), false);
     assert.equal(JSON.stringify(firstRequest.availableTools).includes(document), false);
-    assert.equal(calls[1].systemPrompt.includes(document), skill === "math-2d");
+    assert.equal(calls[1].systemPrompt.includes(document), false);
   }
   const selectedDocument = skillDocuments.get("math-2d");
-  const selectedHash = createHash("sha256").update(selectedDocument).digest("hex");
-  assert.equal(calls[1].systemPrompt.includes(`<penecho_visual_skill id="math-2d" sha256="${selectedHash}">`), true);
+  const shared=require("../src/server/mcp/authoring-guidance.js").getAuthoringGuidance("math-2d","full");
+  assert.equal(shared.document.trim(),selectedDocument);
   const toolResult = secondRequest.conversation.flatMap(message => message.content).find(part => part.type === "tool_result");
   const persistedResult = JSON.parse(toolResult.content[0].text);
-  assert.deepEqual(persistedResult, {
-    skill:"math-2d",
-    loadedSkills:["math-2d"],
-    sha256:selectedHash,
-    loaded:true,
-    alreadyLoaded:false,
-  });
-  assert.equal(Object.hasOwn(persistedResult, "contract"), false);
-  assert.equal(JSON.stringify(secondRequest.conversation).includes(selectedDocument), false);
+  assert.deepEqual(persistedResult,shared);
+  assert.equal(persistedResult.document,shared.document);
+  assert.equal(secondRequest.conversation.flatMap(message=>message.content).filter(part=>part.type==="tool_result").length,1);
+
 });
 
 test("scientific Visual Explorer contracts make Manim-Web the default explanatory language", () => {
@@ -150,7 +144,7 @@ test("math-2d function curves use width-based dense sampling and adaptive refine
 test("Visual Explorer coordinates typography across the design and checks it in the final render", () => {
   const document = readText("src/server/canvas-agent/visual-explorer-contract.md");
   assert.match(document, /Coordinate font family, scale, weight, line height, and casing across all regions/);
-  assert.match(document, /final review, patch one concrete composition-wide typography mismatch/);
+  assert.match(require("../src/server/mcp/authoring-guidance.js").getAuthoringGuidance("visual-explorer","full").document, /After the initial check, edit only for a data\/logic error, missing requirement, broken interaction or unreadable essential content/);
 });
 
 test("math-3d contract provides bounded interactive camera exploration with visible controls", () => {
@@ -174,7 +168,7 @@ test("math-3d contract provides bounded interactive camera exploration with visi
   assert.doesNotMatch(document, /unconstrained user reorientation/);
 });
 
-test("load_visual_skill returns only load metadata and tracks state per session", async t => {
+test("shared guidance returns the same document without cross-session state mutation", async t => {
   const stateDirectory = mkdtempSync(path.join(tmpdir(), "penecho-visual-skills-tool-"));
   t.after(() => rmSync(stateDirectory, { recursive: true, force: true }));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
@@ -189,29 +183,19 @@ test("load_visual_skill returns only load metadata and tracks state per session"
   const first = await host.connect({ clientId:"first", connectionId:connection.id, binding:{}, send:() => {} });
   const second = await host.connect({ clientId:"second", connectionId:connection.id, binding:{}, send:() => {} });
   const registry = first.handle.agent.ctx.tools;
-  const tool = registry.get("load_visual_skill", first.handle.agent);
-  const document = readText("src/server/canvas-agent/visual-skills/math-2d.md").trim();
-  const result = await tool.execute({ skill:"math-2d" }, { callId:"visual-skill-call" });
-  assert.deepEqual(result, {
-    skill:"math-2d",
-    loadedSkills:["math-2d"],
-    sha256:createHash("sha256").update(document).digest("hex"),
-    loaded:true,
-    alreadyLoaded:false,
-  });
-  assert.equal(Object.hasOwn(result, "contract"), false);
-  assert.deepEqual(await tool.execute({ skill:"math-2d" }, { callId:"visual-skill-repeat" }), {
-    ...result,
-    alreadyLoaded:true,
-  });
-  assert.deepEqual([...first.visualSkillsLoaded], ["math-2d"]);
-  assert.deepEqual([...second.visualSkillsLoaded], []);
+  const tool = registry.get("penecho_get_guidance", first.handle.agent);
+  const shared=require("../src/server/mcp/authoring-guidance.js").getAuthoringGuidance("math-2d");
+  const result=await tool.execute({id:"math-2d"},{callId:"visual-skill-call"});
+  assert.deepEqual(result,shared);
+  assert.deepEqual(await tool.execute({id:"math-2d"},{callId:"visual-skill-repeat"}),shared);
+  assert.deepEqual([...first.visualSkillsLoaded],[]);
+  assert.deepEqual([...second.visualSkillsLoaded],[]);
 });
 
 test("Visual Explorer scientific markers and manim imports are gated per loaded session", async t => {
   const stateDirectory = mkdtempSync(path.join(tmpdir(), "penecho-visual-skills-gate-"));
   t.after(() => rmSync(stateDirectory, { recursive: true, force: true }));
-  const { CanvasHarnessHost, validateVisualExplorerSkillMarkup } = await import("../src/server/canvas-agent/runtime.mjs");
+  const { CanvasHarnessHost, validateVisualExplorerSkillMarkup, createCanvasTools } = await import("../src/server/canvas-agent/runtime.mjs");
   const marker = '<meta name="penecho-visual-skill" content="math-2d">';
   const importScript = `<script type="module">import { Scene } from "${MANIM_URL}";</script>`;
   assert.deepEqual(validateVisualExplorerSkillMarkup("<!doctype html><p>ordinary</p>"), { skill:"", markers:[], manimImports:[] });
@@ -260,7 +244,7 @@ test("Visual Explorer scientific markers and manim imports are gated per loaded 
   host.updateState(session, { revision:1, canvas:{ width:2000, height:2000 }, objects:[], counts:{ inkTiles:0, widgets:0, textBoxes:0, images:0 } });
   session.visualExplorerBudget.proposal = { revision:1, width:1200, height:800, placement:{ mode:"absolute", x:10, y:10 } };
   session.rpc = async () => ({ revision:2, receipts:[{ objectId:"scientific-widget" }] });
-  const create = session.handle.agent.ctx.tools.get("canvas_create", session.handle.agent);
+  const create = createCanvasTools(session,{}).find(tool=>tool.name==="canvas_create");
   const item = {
     type:"widget", pluginId:"general", widgetType:"html_widget", title:"Calibrated 2-D field",
     html:`<!doctype html><head>${marker}${importScript}</head><p>Static final state</p>`,

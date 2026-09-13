@@ -7,6 +7,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const sharp = require("sharp");
+const vm = require("node:vm");
 const { kimiPresetUpdates, normalizeSettings, publicSettings } = require("../desktop/settings-contract.js");
 const { readSecret, writeSecret } = require("../desktop/secret-store.js");
 const { CODEX_CLI_PINNED_VERSION, assertCodexCliBundle, codexHostName, inspectCli, installCli, installInvocation, managedCliPath } = require("../desktop/cli-installer.js");
@@ -175,7 +176,7 @@ test("desktop startup repairs stale built-in Kimi presets before starting the AP
   }), {});
 });
 
-test("desktop LAN addresses include every non-loopback IPv4 interface and prioritize common LAN ranges", () => {
+test("desktop LAN addresses exclude tunnels and prioritize common LAN ranges", () => {
   const hosts = lanHosts({
     en0:[{ address:"192.168.1.20", family:"IPv4", internal:false }],
     en1:[{ address:"10.0.0.5", family:4, internal:false }],
@@ -189,7 +190,7 @@ test("desktop LAN addresses include every non-loopback IPv4 interface and priori
     lo0:[{ address:"127.0.0.1", family:"IPv4", internal:true }],
     ipv6:[{ address:"2001:db8::1", family:"IPv6", internal:false }],
   });
-  assert.deepEqual(hosts, ["192.168.1.20", "192.168.56.1", "10.0.0.5", "172.16.0.2", "172.20.32.1", "100.100.1.2", "169.254.10.20", "203.0.113.8"]);
+  assert.deepEqual(hosts, ["192.168.1.20", "10.0.0.5", "203.0.113.8"]);
   assert.equal(isPrivateIpv4("172.31.255.1"), true);
   assert.equal(isPrivateIpv4("172.32.0.1"), false);
   assert.deepEqual(lanUrls(3888, hosts), hosts.map(host => `http://${host}:3888/`));
@@ -243,14 +244,17 @@ test("desktop secret store compresses credentials into a user-only local file", 
 test("desktop shell and Forge config keep the renderer isolated and package native assets", () => {
   const main = fs.readFileSync(path.join(ROOT, "desktop", "main.js"), "utf8"),
     serverMain = fs.readFileSync(path.join(ROOT, "src", "server", "main.js"), "utf8"),
-    preload = fs.readFileSync(path.join(ROOT, "desktop", "preload.js"), "utf8"),
     canvasPreload = fs.readFileSync(path.join(ROOT, "desktop", "canvas-preload.js"), "utf8"),
     updateCss = fs.readFileSync(path.join(ROOT, "public", "desktop-update.css"), "utf8"),
     forge = fs.readFileSync(path.join(ROOT, "forge.config.js"), "utf8"),
-    html = fs.readFileSync(path.join(ROOT, "desktop", "settings", "index.html"), "utf8"),
-    settings = fs.readFileSync(path.join(ROOT, "desktop", "settings", "settings.js"), "utf8"),
-    settingsCss = fs.readFileSync(path.join(ROOT, "desktop", "settings", "settings.css"), "utf8"),
     rootPackage = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+  assert.doesNotMatch(main, /settingsWindow|configurationIsReady|save-and-test|SETTINGS_FILE/);
+  assert.match(main, /mainWindow.webContents.send\("penecho:show-connections"\)/);
+  assert.match(canvasPreload, /onShowConnections:listener/);
+  assert.match(main, /if \(!unified\) Object.assign\(configuration.env, kimiPresetUpdates\(configuration\)\)/);
+  for (const obsolete of ["preload.js", "settings/index.html", "settings/settings.js", "settings/settings.css"]) {
+    assert.equal(fs.existsSync(path.join(ROOT, "desktop", obsolete)), false);
+  }
   assert.match(main, /contextIsolation:true/);
   assert.match(main, /nodeIntegration:false/);
   assert.match(main, /sandbox:true/);
@@ -262,11 +266,8 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(serverMain, /const CONNECTIONS_FILE = STATE_DIRECTORY\s*\? path\.join\(STATE_DIRECTORY, "connections\.json"\)/);
   assert.match(serverMain, /\/api\/settings\/connections\/inspect-cli/);
   assert.match(serverMain, /status:await inspectConnectionCli\(provider\)/);
-  assert.match(serverMain, /if \(error\?\.code === "ENOENT"\) return \{ defaultName:"Default connection", connections:\[\] \}/);
-  assert.match(serverMain, /fs\.mkdirSync\(path\.dirname\(CONNECTIONS_FILE\), \{ recursive:true, mode:0o700 \}\);[\s\S]*?fs\.renameSync\(temporary, CONNECTIONS_FILE\)/);
   assert.match(main, /configuration\.env\.HOST\) configuration\.env\.HOST = "0\.0\.0\.0"/);
   assert.match(main, /const DESKTOP_VERSION = pkg\.config\?\.desktopVersion \|\| pkg\.version/);
-  assert.match(main, /publicSettings\(loaded\.configuration, \{ version:DESKTOP_VERSION/);
   assert.match(main, /createUpdateManager/);
   assert.match(main, /createUpdateManager\(\{[\s\S]*?currentVersion:DESKTOP_VERSION/);
   assert.match(main, /updateManager\.start\(\)/);
@@ -275,10 +276,6 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(main, /--squirrel-\(\?:install\|updated\|uninstall\|obsolete\)/);
   assert.doesNotMatch(main, /setProgressBar/);
   assert.doesNotMatch(main, /\bautoUpdater\b/);
-  assert.match(preload, /contextBridge\.exposeInMainWorld/);
-  assert.match(preload, /installCli/);
-  assert.doesNotMatch(preload, /loginCli/);
-  assert.match(preload, /copyText/);
   assert.match(canvasPreload, /penechoDesktopUpdate/);
   assert.match(canvasPreload, /installCli:provider => ipcRenderer\.invoke\("penecho:install-cli", provider\)/);
   assert.doesNotMatch(canvasPreload, /inspectCli|get-cli-statuses/);
@@ -308,28 +305,7 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(updateCss, /\.desktop-update-prompt\s*\{[\s\S]*?position: static;[\s\S]*?grid-column: 4;/);
   assert.match(updateCss, /main > footer\.penecho-desktop-update-visible/);
   assert.match(updateCss, /\.desktop-update-prompt\.is-available \.desktop-update-primary\s*\{[^}]*min-height: 28px;/);
-  assert.match(main, /\["api", "kimi"\]\.includes\(normalized\.provider\)/);
-  assert.match(main, /if \(!configurationIsReady\(loaded\)\) \{\s*showSettings\(\);\s*return;/);
   assert.match(main, /label:"Settings…"[\s\S]*?click:showSettings/);
-  assert.match(main, /function showSettings\(\) \{\s*const parent = mainWindow && !mainWindow\.isDestroyed\(\) \? mainWindow : null;[\s\S]*?getParentWindow\(\) !== parent[\s\S]*?setParentWindow\(parent\)[\s\S]*?new BrowserWindow\(secureWindowOptions\(\{\s*\.\.\.\(parent \? \{ parent \} : \{\}\),/);
-  assert.match(main, /if \(!fromCanvas\(event\) && !fromSetup\) return \{ ok:false/);
-  assert.match(main, /window\.loadFile\(SETTINGS_FILE\)\.then\(reveal\)/);
-  assert.match(main, /settingsReadyToLaunch = true;[\s\S]*?ok:false,[\s\S]*?saved:true/);
-  assert.match(main, /SETTINGS_TEST_TIMEOUT_MS = 30_000/);
-  assert.match(main, /Promise\.race\(\[[\s\S]*?testConfiguredProvider\(loaded\.configuration, \{ timeoutMs:SETTINGS_TEST_TIMEOUT_MS \}\)[\s\S]*?PENECHO_SETTINGS_TEST_TIMEOUT/);
-  assert.match(main, /timedOut:\["PENECHO_SETTINGS_TEST_TIMEOUT", "PENECHO_CONNECTION_TEST_TIMEOUT"\]\.includes\(error\.code\)/);
-  assert.match(settings, /Launch anyway/);
-  assert.match(settings, /setStatus\("success"[\s\S]*?const launched = await desktop\.launch\(\)/);
-  assert.match(settings, /result\.timedOut[\s\S]*?Connection test timed out[\s\S]*?still launch PenEcho and enter the canvas/);
-  assert.match(settings, /连接测试超过 30 秒，你仍然可以启动 PenEcho 进入画布/);
-  assert.match(settings, /KIMI_MODELS = Object\.freeze\(\{ code:"k3", platform:"kimi-k3" \}\)/);
-  assert.match(settings, /kimiProduct\.addEventListener\("change", \(\) => updateKimiEndpoint\(true, true\)\)/);
-  assert.match(settings, /if \(activeProvider === "kimi"\) repairKimiPreset\(\)/);
-  assert.match(settings, /activeProvider = provider\(\);[\s\S]*?repairKimiPreset\(\);[\s\S]*?captureApiDraft\(activeProvider\)/);
-  assert.match(settings, /provider\(\) === "kimi" && value\("kimiProduct"\) === "platform"/);
-  assert.match(settings, /anthropicOption\.disabled = kimiPlatform/);
-  assert.match(html, /name="canvasAgentAutoOpen"[^>]*checked/);
-  assert.match(settings, /canvasAgentAutoOpen:form\.elements\.canvasAgentAutoOpen\.checked/);
   assert.match(serverMain, /canvasAgentAutoOpen:CANVAS_AGENT_AUTO_OPEN/);
   assert.match(forge, /node_modules\/\{sharp,@img,@vscode\}/);
   assert.match(forge, /readPackageJson/);
@@ -338,8 +314,47 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(forge, /buildVersion:DESKTOP_VERSION/);
   assert.match(forge, /version:DESKTOP_VERSION/);
   assert.match(forge, /\^\\\/\\\./);
-  for (const directory of ["build", "docs", "fixtures", "logs", "output", "scripts", "spec", "test", "testcase"]) {
+  for (const directory of ["build", "fixtures", "logs", "output", "scripts", "spec", "test", "testcase"]) {
     assert.match(forge,new RegExp(`\\^\\\\\\/${directory}`),directory);
+  }
+  // Evaluate the real config without installing desktop-only maker packages in core CI.
+  const configModule = { exports:{} }, resolvedMakers = [];
+  const configRequire = name => {
+    assert.ok(["node:path", "./package.json", "./tools/electron/package.json"].includes(name), name);
+    return name.startsWith(".") ? require(path.join(ROOT, name)) : require(name);
+  };
+  configRequire.resolve = (name, options) => {
+    assert.deepEqual(options.paths, [path.join(ROOT, "tools", "electron")]);
+    assert.ok(["@electron-forge/maker-dmg", "@electron-forge/maker-zip", "@electron-forge/maker-squirrel"].includes(name), name);
+    resolvedMakers.push(name);
+    return path.join(ROOT, "tools", "electron", "node_modules", name, "index.js");
+  };
+  vm.runInThisContext("(function(require,module,__dirname,process){" + forge + "\n})", { filename:path.join(ROOT,"forge.config.js") })(configRequire, configModule, ROOT, { env:{} });
+  assert.deepEqual(resolvedMakers, ["@electron-forge/maker-dmg", "@electron-forge/maker-zip", "@electron-forge/maker-squirrel"]);
+  const packageIgnore = configModule.exports.packagerConfig.ignore;
+  const ignoredByDesktopPackage = candidate => packageIgnore.some(pattern => {
+    if (!(pattern instanceof RegExp)) return typeof pattern === "function" && pattern(candidate);
+    pattern.lastIndex = 0;
+    return pattern.test(candidate);
+  });
+  assert.equal(ignoredByDesktopPackage("/docs"),false,"the docs directory must be traversed");
+  for (const iconPath of ["/build", "/build/", "/build/icons", "/build/icons/", "/build/icons/penecho.png"]) {
+    assert.equal(ignoredByDesktopPackage(iconPath),false,"the native window icon must be packaged");
+  }
+  for (const buildPath of ["/build/cache", "/build/toolchain", "/build/icons/penecho.icns", "/build/icons/penecho.png.bak", "/build/icons/private"]) {
+    assert.equal(ignoredByDesktopPackage(buildPath),true,"unrelated build output must remain excluded");
+  }
+  assert.equal(ignoredByDesktopPackage("/docs/"),false,"the docs directory with a trailing slash must be traversed");
+  assert.equal(ignoredByDesktopPackage("/docs/mcp-setup.md"),false,"the MCP setup guide must be packaged");
+  assert.equal(ignoredByDesktopPackage("/docs/mcp-agent-instructions.md"),false,"the MCP agent instructions must be packaged");
+  assert.equal(ignoredByDesktopPackage("/docs/architecture.md"),true,"unrelated docs remain excluded");
+  assert.equal(ignoredByDesktopPackage("/docs/mcp-setup.md.bak"),true,"only the exact reviewed MCP docs are packaged");
+  for (const directory of ["/skills", "/skills/penecho-mcp", "/src", "/src/server", "/src/server/mcp"]) {
+    assert.equal(ignoredByDesktopPackage(directory),false,`${directory} must be traversed`);
+  }
+  assert.equal(ignoredByDesktopPackage("/skills/penecho-mcp/SKILL.md"),false,"the PenEcho MCP skill must be packaged");
+  for (const file of fs.readdirSync(path.join(ROOT,"src","server","mcp"))) {
+    assert.equal(ignoredByDesktopPackage(`/src/server/mcp/${file}`),false,`the PenEcho MCP backend must include ${file}`);
   }
   assert.match(forge, /\^\\\/tools/);
   assert.match(forge, /maker-dmg/);
@@ -376,62 +391,29 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(desktopReleaseWorkflow, /TimeStamperCertificate/);
   assert.match(main, /credentialProtector = process\.platform === "darwin" \? null : safeStorage/);
   assert.match(main, /readSecret\(paths\.secretFile, credentialProtector\)/);
-  assert.match(html, /Test, save &amp; launch/);
-  assert.match(html, />Install<\/button>/);
-  assert.doesNotMatch(html, /Sign in|data-login-cli/);
-  assert.match(html, /PenEcho is a Kimi 2026 Open Source Partner/);
-  assert.match(settings, /PenEcho 是 Kimi 2026 开源合作伙伴/);
-  const providerSelect = html.match(/<select id="providerSelect" name="provider"[\s\S]*?<\/select>/)?.[0] || "";
-  for (const provider of ["kimi", "kimi-cli", "api", "codex-cli", "claude-cli"]) assert.match(providerSelect, new RegExp(`value="${provider}"`));
-  assert.match(providerSelect, /value="api" selected/);
-  assert.match(html, /data-provider-context="kimi kimi-cli" hidden/);
-  assert.doesNotMatch(html, /welcome-panel|class="steps"|page-glow/);
-  assert.match(html, /data-pe-surface="form"[^>]*data-pe-size="l"[^>]*data-pe-layout="single"[^>]*data-pe-presentation="modal"/);
-  assert.match(settingsCss, /body\s*\{[^}]*overflow:\s*hidden/);
-  assert.match(settingsCss, /\.settings-body\s*\{[^}]*overflow-y:\s*auto/);
-  assert.match(settingsCss, /\.settings-body\s*\{[^}]*background:\s*transparent/);
-  assert.match(settingsCss, /\.setup-stage\s*\{[^}]*place-items:\s*stretch/);
-  assert.match(settingsCss, /\.setup-stage\s*\{[^}]*backdrop-filter:\s*blur\(14px\) saturate\(1\.12\)/);
-  assert.match(settingsCss, /--panel-material:\s*rgba\(255, 255, 255, \.88\)/);
-  assert.match(settingsCss, /\.settings-group\s*\{[^}]*background:\s*var\(--panel-material\)/);
-  assert.doesNotMatch(settingsCss, /\.settings-(?:body|group)\s*\{[^}]*backdrop-filter/);
-  assert.match(settingsCss, /label:not\(\.trace-limit\)\s*>\s*span:first-child/);
-  assert.match(settingsCss, /\.trace-limit\s*>\s*span\s*\{[^}]*margin:\s*0[^}]*font:\s*inherit[^}]*line-height:\s*1/);
-  assert.match(settingsCss, /\.settings-dialog\s*\{[^}]*width:\s*100%[^}]*height:\s*100%[^}]*max-height:\s*none[^}]*border:\s*0[^}]*border-radius:\s*0[^}]*box-shadow:\s*none/);
-  assert.match(main, /width:820,[\s\S]*?height:680,[\s\S]*?minWidth:660,[\s\S]*?minHeight:540/);
-  assert.match(main, /minHeight:540,[\s\S]*?useContentSize:true/);
-  assert.match(main, /vibrancy:"under-window"[\s\S]*?backgroundMaterial:"mica"/);
-  assert.equal(rootPackage.version, "1.2.0");
-  assert.equal(rootPackage.config.desktopVersion, "1.2.0");
-  assert.match(html, /data-install-cli="kimi-cli"/);
-  assert.match(html, /github\.com\/MoonshotAI\/kimi-code/);
-  assert.match(html, /data-i18n="installGuide">Guide<\/a>/);
-  assert.match(settingsCss, /\.inline-primary,[\s\S]*?\.inline-secondary,[\s\S]*?\{[^}]*display:\s*inline-flex[^}]*text-decoration:\s*none/);
-  assert.match(settings, /\["kimi-cli", "codex-cli", "claude-cli"\]\.includes\(selected\)/);
-  assert.match(settings, /"kimi-cli":"kimiCliPath"/);
+  assert.equal(rootPackage.version, "1.3.1");
+  assert.equal(rootPackage.config.desktopVersion, "1.3.1");
   assert.ok(rootPackage.files.includes("src/"));
   for (const asset of ["public/access.html", "public/access.css", "public/access.js"]) {
     assert.ok(rootPackage.files.includes(asset), asset);
   }
   assert.ok(rootPackage.files.includes("public/desktop-update.css"));
   assert.ok(rootPackage.files.includes("public/penecho-mark.png"));
-  assert.match(html, /<img src="\.\.\/\.\.\/public\/penecho-mark\.png" alt="" width="32" height="32">/);
-  assert.match(html, /value="0\.0\.0\.0" selected/);
-  assert.match(html, /platform\.kimi\.com\?aff=penecho/);
-  assert.match(html, /platform\.kimi\.ai\?aff=penecho/);
-  assert.match(html, /Content-Security-Policy/);
 });
 
 test("Windows installer splash keeps a font-independent PenEcho wordmark", async () => {
   const generator = fs.readFileSync(path.join(ROOT, "scripts", "generate-icons.js"), "utf8"),
     splash = path.join(ROOT, "build", "icons", "penecho-install.gif"),
     metadata = await sharp(splash).metadata(),
-    pixels = await sharp(splash).removeAlpha().raw().toBuffer({ resolveWithObject:true });
+    pixels = await sharp(splash).flatten({ background:"#ffffff" }).raw().toBuffer({ resolveWithObject:true });
   assert.match(generator, /wordmarkSource = path\.join\(ROOT, "public", "penecho-readme-header\.png"\)/);
   assert.doesNotMatch(generator, /<text\b/);
   assert.match(generator, /insetX = 2[\s\S]*?echoMask = Buffer\.alloc\([\s\S]*?x = 41[\s\S]*?255 - Math\.min\([\s\S]*?dilateAlpha\(echoMask, width, height\)/);
   assert.equal(metadata.width, 268);
   assert.equal(metadata.height, 167);
+  const rgba = await sharp(splash).ensureAlpha().raw().toBuffer();
+  assert.equal(rgba[3], 0, "installer background must be transparent");
+  assert.equal(rgba[(20 * 268 + 24) * 4 + 3], 0, "installer must not paint the old gray frame");
   let inkPixels = 0, rightEdgeInkPixels = 0;
   for (let y = 100; y < 124; y += 1) {
     for (let x = 82; x < 186; x += 1) {
@@ -843,7 +825,12 @@ test("automatic Codex setup keeps the existing managed CLI when the downloaded v
         fs.writeFileSync(path.join(path.dirname(staged),"codex-code-mode-host"),"unapproved-host");
         return { output:"installed" };
       },
-    }),/requires Codex CLI 0\.149\.1, but found 0\.150\.1/);
+    }), error => {
+      assert.equal(error.code,"CODEX_CLI_VERSION_INCOMPATIBLE");
+      assert.equal(error.expectedVersion,CODEX_CLI_PINNED_VERSION);
+      assert.equal(error.actualVersion,"0.150.1");
+      return true;
+    });
     assert.equal(fs.readFileSync(expected,"utf8"),"known-good");
     assert.equal(fs.readFileSync(path.join(path.dirname(expected),"codex-code-mode-host"),"utf8"),"known-good-host");
   } finally { fs.rmSync(directory, { recursive:true, force:true }); }
@@ -867,7 +854,7 @@ test("automatic Windows Codex setup publishes the host and sidecars with codex.e
       platform:"win32",home,stateDir,
       fetchImpl:async()=>new Response("# CODEX_INSTALL_DIR\n",{status:200}),
       runner:async(_command,args,options)=>{
-        if(args[0]==="--version")return{output:"codex-cli 0.149.1"};
+        if(args[0]==="--version")return{output:`codex-cli ${CODEX_CLI_PINNED_VERSION}`};
         fs.mkdirSync(options.env.CODEX_INSTALL_DIR,{recursive:true});
         fs.writeFileSync(path.join(options.env.CODEX_INSTALL_DIR,"codex.exe"),"codex");
         fs.writeFileSync(path.join(options.env.CODEX_INSTALL_DIR,"codex-code-mode-host.exe"),"host");

@@ -14,53 +14,104 @@
   <a href="README.de.md">Deutsch</a>
 </p>
 
-<p align="center"><strong>Pensez avec l'IA, au-delà de la fenêtre de discussion.</strong></p>
-
-<p align="center">PenEcho est un canevas partagé où l'écriture manuscrite, les équations, les schémas et le contexte spatial font partie de la conversation.</p>
-
-<h2 align="center">
-  <a href="https://penecho.ai">Site officiel · penecho.ai</a>
-</h2>
-
-<h3 align="center"><a href="https://penecho.ai">Publiez vos idées · Collaborez · Partagez vos créations</a></h3>
-
+<h1 align="center">Un espace de travail spatial<br>pour réfléchir avec l’IA.</h1>
+<p align="center">Dessinez, explorez et créez avec l’Agent intégré ou votre propre assistant compatible MCP.</p>
 <p align="center">
-  <a href="https://discord.gg/3jrPJ3mXdX"><img src="https://img.shields.io/badge/Discord-Rejoindre%20la%20communauté-5865F2?style=for-the-badge&amp;logo=discord&amp;logoColor=white" alt="Rejoindre le Discord de PenEcho"></a>
-  <a href="https://github.com/penecho/penecho/stargazers"><img src="https://img.shields.io/github/stars/penecho/penecho?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;color=f5b301" alt="Ajouter une étoile à PenEcho sur GitHub"></a>
-  <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-AGPL%20v3-blue?style=for-the-badge" alt="Licence : AGPL v3"></a>
+  <img src="https://img.shields.io/badge/version-1.3.1-087f83" alt="Version 1.3.1">
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="AGPL-3.0-only"></a>
+</p>
+<p align="center">
+  <a href="https://penecho.ai">Site web</a> ·
+  <a href="https://github.com/penecho/penecho/releases/latest">Télécharger</a> ·
+  <a href="#démarrage-rapide">Démarrage rapide</a> ·
+  <a href="../mcp-setup.md">Guide MCP</a> ·
+  <a href="https://discord.gg/3jrPJ3mXdX">Discord</a>
 </p>
 
-> Cette traduction présente une vue d'ensemble du projet. Le [README anglais](../../README.md) reste la source officielle pour les informations techniques les plus récentes et les plus complètes.
+<p align="center">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_full_demo.webp" alt="Démonstration complète de PenEcho" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins.webp" alt="Démonstration de schémas professionnels PenEcho" width="49%">
+</p>
 
-<p align="center"><img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins.webp" alt="Démonstration des diagrammes professionnels PenEcho" width="49%"> <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_full_demo.webp" alt="Démonstration complète de PenEcho" width="49%"></p>
+<p align="center">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins_sub_x10.webp" alt="Démonstration des extensions PenEcho" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/play_patris.webp" alt="Démonstration du canevas interactif PenEcho" width="49%">
+</p>
 
-<p align="center"><img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins_sub_x10.webp" alt="Démonstration des plugins PenEcho" width="49%"> <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/play_patris.webp" alt="Démonstration interactive du canevas PenEcho" width="49%"></p>
+<p align="center">
+  <a href="https://www.kimi.com/code?aff=penecho">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="../assets/kimi-open-source-friends-dark.svg">
+      <img src="../assets/kimi-open-source-friends-light.svg" alt="Kimi Open Source Friends" width="326" height="56">
+    </picture>
+  </a>
+</p>
 
-## Kimi Open Source Friends
+## Une extension spatiale de votre conversation avec l’IA
 
-PenEcho est membre officiel de **Kimi Open Source Friends**, le programme de [Moonshot AI](https://www.kimi.com/) qui soutient des projets open source remarquables. L'équipe Kimi contribue au développement avec des crédits d'API, et Kimi K3 fait partie des modèles recommandés pour les travaux exigeants mêlant écriture manuscrite et schémas.
+Continuez à échanger avec **Codex, Claude, Kimi ou d’autres agents IA**. PenEcho donne une place à votre travail.
 
-- [Kimi Code](https://www.kimi.com/code?aff=penecho) - abonnement de programmation disponible dans le monde entier
-- [Kimi Open Platform, Chine](https://platform.kimi.com?aff=penecho) - accès à l'API depuis la Chine continentale
-- [Kimi Open Platform, international](https://platform.kimi.ai?aff=penecho) - accès à l'API dans les autres régions
+Grâce à MCP, votre IA peut transformer des explications en schémas et des idées en aperçus interactifs. Gardez vos références, votre raisonnement et votre travail côte à côte, puis annotez le canevas pour intégrer vos retours à l’itération suivante.
+
+| Poursuivez la conversation | Voyez le travail prendre forme | Partagez vos retours |
+| --- | --- | --- |
+| Travaillez avec l’agent IA que vous utilisez déjà. | Le serveur MCP de PenEcho apporte schémas, documents et aperçus interactifs sur le Canvas. | Essayez le résultat, annotez-le et laissez votre agent lire vos retours pour la prochaine révision. |
+
+<p align="center">
+  <a href="../assets/mcp-spatial-example.png">
+    <img src="../assets/mcp-spatial-example.png" alt="Une discussion d’architecture avec l’IA, accompagnée de retours manuscrits à côté de la proposition sur un Canvas PenEcho" width="760">
+  </a>
+</p>
+<p align="center"><em>Une discussion d’architecture, annotée à la main sur le Canvas.</em></p>
+
+**Visualisez le résultat avant qu’il soit terminé.** Voyez le travail prendre forme pendant vos échanges avec l’IA. Essayez-le, donnez votre avis et faites avancer votre projet ensemble.
+
+[Connectez votre agent avec MCP →](#connecter-votre-agent-avec-mcp)
+
+## Ce que vous pouvez faire
+
+- **Travaillez visuellement.** Combinez écriture manuscrite, équations, texte, images, schémas et Widgets HTML interactifs sur un vaste canevas.
+- **Créez avec l’IA.** Utilisez l’Agent intégré pour effectuer des recherches, travailler avec des fichiers, expliquer des idées et créer des résultats visuels modifiables.
+- **Utilisez votre propre agent.** Connectez Codex, Claude Code ou un autre client compatible MCP pour lire et modifier un Canvas explicitement activé.
+- **Conservez et partagez votre travail.** Organisez les Canvas en projets, enregistrez des versions Cloud, synchronisez vos favoris et publiez via Echoes.
+
+## Nouveautés de la version 1.3.0
+
+| Mise à jour | Apports |
+| --- | --- |
+| **Espace de travail MCP** | Découverte des Canvas, captures, modification d’objets, Widgets interactifs, fichiers sources virtuels et retours utilisateur pour les agents externes. Prend en charge les navigateurs locaux, du réseau local et Cloud via un appareil lié, avec activation explicite. |
+| **Cloud MCP** | Connectez des agents IA externes directement à vos Canvas PenEcho Cloud activés pour lire le contenu, créer et modifier des résultats et suivre vos retours manuscrits. Cloud MCP et Local MCP sont des modes de connexion facultatifs. |
+| **API PenEcho Cloud Credits** | Utilisez les modèles hébergés par PenEcho avec vos crédits de compte, en complément de vos connexions API et CLI. Consultez les modèles disponibles, les tarifs et le solde dans les paramètres. |
+| **Gestion des connexions** | Enregistrez plusieurs connexions IA et choisissez la connexion active pour chaque client. |
+| **Canvas et espace de travail** | Dessin et navigation plus réactifs, commandes Studio affinées, panneau Agent adaptatif et raccourcis clavier personnalisables. |
+
+## Fonctionnement
+
+<p align="center">
+  <img src="../../public/penecho-architecture.webp" alt="Architecture PenEcho : un navigateur se connecte à PenEcho Cloud ou à votre PC local. Le Cloud propose des modèles hébergés et se connecte à votre appareil lié. Votre PC exécute PenEcho CLI ou App avec votre API de modèle ou vos agents. Les agents IA externes peuvent utiliser Cloud MCP ou Local MCP ; les deux connexions sont facultatives." width="1483">
+</p>
+
+Ouvrez PenEcho dans un navigateur via PenEcho Cloud ou votre PC local exécutant la CLI ou l’application de bureau. Le Cloud propose des modèles hébergés et peut se connecter à votre appareil lié ; votre PC peut utiliser votre propre API de modèle ou vos agents. Des agents IA externes comme Codex et Claude peuvent se connecter via Cloud MCP ou Local MCP. Les deux connexions MCP sont facultatives.
+
+Consultez les [notes d’architecture](../architecture.md) pour les détails d’implémentation.
 
 ## Démarrage rapide
 
-### Application de bureau
+**Application de bureau :** téléchargez l’application Windows ou macOS depuis [GitHub Releases](https://github.com/penecho/penecho/releases/latest).
 
-[Télécharger depuis GitHub Releases](https://github.com/penecho/penecho/releases/latest).
-
-Pour une installation avec npm, vous avez besoin de [Node.js 22.19 ou version ultérieure](https://nodejs.org/) et de l'une des options suivantes : une clé d'API, ou [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code), [Codex CLI](https://developers.openai.com/codex/cli) ou [Claude Code CLI](https://code.claude.com/docs/en/overview) avec une session authentifiée.
+**npm :** nécessite Node.js **22.19 ou version ultérieure**.
 
 ```bash
 npm install -g penecho
-penecho configure
 penecho
 ```
 
-Ouvrez [http://localhost:3888](http://localhost:3888). `penecho configure` permet de choisir de façon interactive la source LLM, le modèle, le niveau de raisonnement, le délai d'attente, le format d'image et l'interface réseau. La configuration est enregistrée par défaut dans `~/.penecho/config.env` ; les identifiants d'API ne sont jamais envoyés au navigateur.
+Ouvrez `http://localhost:3888`. Ajoutez votre propre API de modèle ou une CLI Codex, Claude Code ou Kimi authentifiée dans **Paramètres → Connexions**. Les connexions sont enregistrées dans `~/.penecho/connections.json` ; les paramètres généraux restent dans `~/.penecho/config.env`. Pour les modèles hébergés par PenEcho, connectez-vous et sélectionnez un modèle disponible dans les paramètres.
 
-Pour exécuter le code source :
+Au démarrage, définissez un code d’accès à six chiffres ou activez explicitement l’accès libre sur votre réseau de confiance. Le démarrage affiche également les adresses du réseau local pour les autres appareils.
+
+<details>
+<summary>Exécuter depuis les sources</summary>
 
 ```bash
 git clone https://github.com/penecho/penecho.git
@@ -69,70 +120,62 @@ npm install
 npm start
 ```
 
-## Pensez sur le canevas
+</details>
 
-Écrivez une question, une équation, un schéma ou une idée inachevée n'importe où sur le canevas, puis marquez une pause. PenEcho interprète les traits et leurs relations spatiales avant de placer la réponse à proximité.
+## Connecter votre agent avec MCP
 
-- **PenEcho Agent : des sources au résultat visuel.** Ajoutez des dossiers et fichiers en lecture seule — PDF, Word, PowerPoint, Excel, images ou code —, combinez-les à la recherche Web et au canevas actuel, puis laissez le même agent poursuivre l'analyse, la planification, la création et la révision.
-- **Productivité avec Visual Explorer.** Transformez des informations denses en un espace visuel adaptatif et modifiable, avec une vue d'ensemble claire, des détails reliés et des preuves. Le chemin de la recherche au résultat partageable raccourcit, avec moins de copier-coller, de changements d'outil, de schémas manuels et de reprises.
-- Dessinez naturellement au stylet ou à la souris et parcourez un canevas de `20 000 x 20 000`.
-- Obtenez des réponses, indices, explications, formules, graphiques et schémas directement sur le canevas.
-- Déplacez et redimensionnez les brouillons de l'IA, puis acceptez-les ou rejetez-les avant de les intégrer à votre travail.
-- Sélectionnez des traits au lasso pour les déplacer, redimensionner, recolorer, supprimer ou les mettre au propre avec Typeset.
-- Affinez des widgets interactifs, diagrammes professionnels, animations et plugins de données en direct par modifications incrémentales.
-- Enregistrez jusqu'à dix connexions API ou CLI et passez de l'une à l'autre en un clic.
-- Organisez les canevas en projets, poursuivez vos projets privés sur d'autres appareils avec PenEcho Cloud et exportez le contenu confirmé au format PNG.
-- Choisissez parmi les thèmes Arcane, Sci-fi, Research et Studio.
+Pour **Local MCP** :
 
-## PenEcho Cloud
+1. Démarrez PenEcho et activez le Canvas actuel dans **Paramètres → Service MCP**.
+2. Utilisez les paramètres pour configurer un client local pris en charge ou copier sa configuration de lancement générée. Avec une installation npm globale, les clients acceptant le JSON `mcpServers` peuvent utiliser :
 
-[PenEcho Cloud](https://penecho.ai), lancé avec la version 1.0.0, reste entièrement facultatif : PenEcho continue de fonctionner en local avec votre propre API ou CLI. Une fois connecté, vous pouvez enregistrer des canevas privés et versionnés dans des projets, synchroniser vos favoris et accéder à distance à cet hôte via un appareil lié, sans que les identifiants d'API quittent l'appareil.
+   ```json
+   {
+     "mcpServers": {
+       "penecho": { "command": "penecho", "args": ["mcp"] }
+     }
+   }
+   ```
 
-**Echoes** permet d'explorer, de mettre en favoris et de réutiliser des canevas et widgets publics dans douze catégories. Vous pouvez publier vos propres Crafts, les ouvrir dans un visualiseur Web en lecture seule et conserver leur filiation entre les versions.
+3. Demandez à votre agent : **« Montre l’architecture dont nous avons discuté sur mon Canvas PenEcho. »**
 
-## Nouveautés de la version 1.2.0
+L’agent peut capturer le contenu pertinent, modifier des objets, créer des résultats visuels, appliquer des modifications aux fichiers sources des documents et recevoir vos retours. Seuls les Canvas activés et connectés sont détectables. Avec Local MCP, le client MCP s’exécute sur l’hôte PenEcho ; la prise en charge des navigateurs du réseau local et des appareils liés n’expose pas publiquement le point d’accès MCP local. Cloud MCP est une connexion HTTPS authentifiée distincte pour vos Canvas PenEcho Cloud activés.
 
-- **Un Studio givré plus simple.** La barre d'outils, le Navigator, l'Agent, les réglages et les dialogues partagent désormais une transparence maîtrisée, des filets fins et des commandes plus légères. Le canevas reste visible et l'espace de travail paraît plus calme.
-- **Une hiérarchie plus claire, avec moins de bruit visuel.** Les outils essentiels restent accessibles, les actions secondaires s'effacent jusqu'au besoin, et l'historique, les favoris, l'état Cloud et l'Agent suivent le même langage visuel.
-- **Un espace de travail adaptatif.** Les commandes restent compactes sur les écrans larges ou étroits, l'Agent passe d'une barre latérale droite à un panneau inférieur, et les actions importantes restent visibles lorsque la barre d'outils revient à la ligne.
-- **Interactions plus rapides sur le canevas.** L'encre en direct à faible latence et les mises à jour coordonnées rendent le dessin, l'effacement, le déplacement et le zoom plus immédiats, tout en gardant les Widgets actifs et le texte net une fois le mouvement terminé.
-- **Autres améliorations.** Les suggestions et pièces jointes de l'Agent, les commandes d'objets, l'échelle et les palettes, les appareils liés et la fiabilité du bureau ont été affinés ; une pointe de 3 px est également disponible.
+Les installations de bureau doivent utiliser la configuration générée, qui inclut le bon environnement d’exécution intégré. Consultez la [configuration MCP](../mcp-setup.md) et la [compétence de workflow pour agents](../../skills/penecho-mcp/SKILL.md), facultative.
 
-## Points forts précédents
+## PenEcho Cloud et connexions IA
 
-- **1.0.0.** Introduction de PenEcho Cloud, des projets privés versionnés, des appareils liés, d'Echoes, des Crafts publics et des favoris synchronisés.
-- **0.9.0.** Ajout de plusieurs connexions IA, des canevas partagés par projet, de Refine guidé sur place, des modifications incrémentales par unified diff, du streaming SSE et d'une progression annulable.
-- **0.8.1.** Ajout des données publiques en direct pour General HTML et de SVG par défaut pour les animations et graphismes complexes.
-- **0.8.0 et 0.7.2.** Ajout des diagrammes professionnels modifiables, du stockage serveur, des flux de presse-papiers, des photos Web sourcées et d'une édition et d'un export plus fiables.
+[PenEcho Cloud](https://penecho.ai) ajoute des projets privés avec historique des versions, des favoris synchronisés, le partage public via Echoes et l’accès distant à un ordinateur lié.
 
-## Versions précédentes
+| Connexion | Fonctionnement |
+| --- | --- |
+| **Modèles PenEcho** | Connectez-vous, sélectionnez un modèle hébergé disponible et utilisez les crédits de votre compte. Les paramètres affichent les tarifs et le solde actuels. |
+| **Votre API de modèle** | Configurez un point d’accès compatible OpenAI ou Anthropic, un modèle et une clé API. Votre fournisseur gère la consommation. |
+| **Votre CLI** | Utilisez une CLI Codex, Claude Code ou Kimi installée et authentifiée localement. La disponibilité et la consommation dépendent de l’offre du fournisseur. |
 
-- **0.7.1.** Ajout des images et photos locales, de l'édition d'objets avec Hand, des instantanés, de l'export PNG, des diagrammes Mermaid copiables et des images Web sourcées.
-- **0.7.0.** Introduction du HTML interactif isolé, des plugins de données en direct, de la création locale de plugins et de la persistance des widgets.
-- **0.6.0 et versions antérieures.** Ajout des animations déclaratives, amélioration de Markdown/LaTeX, outils de sélection et fondation du grand canevas clairsemé.
+Les modèles hébergés utilisés sur votre ordinateur nécessitent une connexion au Cloud, sans appairage d’appareil ni clé API Credits distincte. Cloud MCP peut accéder directement aux Canvas Cloud activés. L’accès via le Cloud à un Canvas hébergé sur votre ordinateur nécessite que l’appareil lié soit en ligne et que le relais nécessaire soit pris en charge.
 
-## Fonctionnement
+Vos propres connexions API et CLI ne consomment pas de crédits PenEcho. Un compte Cloud est facultatif pour une utilisation locale avec votre propre connexion. Les fonctions IA nécessitent l’accès au fournisseur sélectionné ; exécuter PenEcho localement ne rend pas un modèle distant disponible hors ligne.
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="../assets/how-it-works-dark.svg"><img alt="Fonctionnement de PenEcho" src="../assets/how-it-works-light.svg"></picture></p>
+## Configurations de modèles recommandées
 
-Le navigateur n'envoie que la zone pertinente du canevas et sa géométrie. Le serveur valide la requête, la transmet à l'exécuteur choisi et renvoie un brouillon structuré et déplaçable. Les recommandations actuelles de modèles et les exemples de coûts figurent dans le [README anglais](../../README.md#recommended-model-configurations).
+Ces recommandations équilibrent la qualité des réponses et la latence dans les tâches réelles de canevas PenEcho, à partir de tests pratiques actuels ; le temps de réponse réel varie selon le fournisseur, la complexité du canevas et le comportement de raisonnement.
 
-## Déploiement sécurisé
+| Modèle | Effort | Remarques | Usage recommandé |
+| --- | --- | --- | --- |
+| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `medium` | Très bonne qualité et meilleur équilibre de latence | Travail quotidien sur le canevas |
+| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `high` | Meilleure qualité de raisonnement, attentes plus longues et variables | Écriture manuscrite, mathématiques, schémas ou mises en page complexes |
+| Fable 5 (`claude-fable-5` ou `fable`) | `medium` | Temps de réponse souvent proche de la moitié de celui de `gpt-5.6-sol` à `xhigh` | Usage général rapide et de haute qualité |
+| [Kimi K3](https://platform.kimi.ai?aff=penecho) (`kimi-k3`) | `medium` | Très bonne qualité ; `medium` conserve un équilibre pratique | Réglage Kimi recommandé par défaut |
+| `gpt-5.6-terra` | `low` à `high` | Étonnamment performant et réactif | Objectifs flexibles de qualité et de latence |
+| `gpt-5.6-luna` | `xhigh` | Très bons résultats sur le canevas et grande rapidité | Priorité à la qualité tout en restant réactif |
+| `gpt-5.6-sol` | `high` | Suffisant pour la plupart des demandes, plus réactif que `xhigh` | Réglage par défaut lorsque la réactivité compte |
+| `gpt-5.6-sol` | `xhigh` | Très bon, mais plus lent et variable | Tâches de canevas difficiles |
+| `deepseek-v4-flash-vision-exp` | `medium` | Bon | Travail avec vision via l’API DeepSeek |
+| `glm-5.3-flash` | `medium` | Bon | Travail rapide via l’API GLM compatible Anthropic |
 
-- **Kimi Code CLI, Codex CLI et Claude CLI :** utilisez-les uniquement sur la machine locale ou un réseau de confiance. Chaque requête valide lance un processus CLI local ; n'exposez donc pas directement ces modes à Internet.
-- **Mode API :** en cas d'accès public, placez PenEcho derrière un proxy HTTPS avec authentification et limites de fréquence et de taille des requêtes.
-- Ne publiez pas les fichiers de configuration, clés d'API, traces de requêtes, journaux ou images privées du canevas.
+## Communauté et licence
 
-## Contribuer au projet
+Lisez [CONTRIBUTING.md](../../CONTRIBUTING.md) pour contribuer ; exécutez `npm run check` avant d’ouvrir une pull request. Signalez les bugs dans les [Issues](https://github.com/penecho/penecho/issues), échangez dans les [Discussions](https://github.com/penecho/penecho/discussions) ou rejoignez [Discord](https://discord.gg/3jrPJ3mXdX).
 
-Avant de proposer une modification, exécutez :
-
-```bash
-npm run check
-```
-
-Consultez les [notes d'architecture](../architecture.md) et [CONTRIBUTING.md](../../CONTRIBUTING.md). Partagez vos questions et exemples sur [Discord](https://discord.gg/3jrPJ3mXdX) ou [GitHub Discussions](https://github.com/penecho/penecho/discussions), et signalez les problèmes reproductibles dans [GitHub Issues](https://github.com/penecho/penecho/issues).
-
-## Licence et utilisation commerciale
-
-PenEcho est publié sous [GNU AGPL v3.0 only](../../LICENSE). L'utilisation commerciale est autorisée, mais si vous proposez une version modifiée à des utilisateurs via un réseau, vous devez leur fournir le code source correspondant conformément à l'AGPL. Une [licence commerciale](../../COMMERCIAL-LICENSE.md) distincte est disponible pour les produits propriétaires et services hébergés qui ne peuvent pas respecter l'AGPL. Le nom et le logo sont régis séparément par la [politique relative aux marques](../../TRADEMARKS.md).
+Sous licence [AGPL-3.0-only](../../LICENSE). Une [licence commerciale](../../COMMERCIAL-LICENSE.md) alternative est disponible. Consultez la [politique relative aux marques](../../TRADEMARKS.md) et l’[accord de contribution](../../CONTRIBUTOR-LICENSE-AGREEMENT.md).

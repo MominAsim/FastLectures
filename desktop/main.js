@@ -3,19 +3,20 @@
 const path = require("node:path");
 const fs = require("node:fs");
 const { spawn } = require("node:child_process");
-const { fileURLToPath, pathToFileURL } = require("node:url");
+const { fileURLToPath } = require("node:url");
 const {
-  app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, net, safeStorage, shell,
+  app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, safeStorage, shell,
 } = require("electron");
 const {
-  apiConfigurationIssues, parseArgs, resolveConfiguration, saveConfiguration, testConfiguredProvider,
+  parseArgs, resolveConfiguration,
 } = require("../cli.js");
-const { kimiPresetUpdates, normalizeSettings, publicSettings } = require("./settings-contract.js");
-const { readSecret, writeSecret } = require("./secret-store.js");
-const { inspectCli, installCli, managedCliPath } = require("./cli-installer.js");
+const { kimiPresetUpdates } = require("./settings-contract.js");
+const { readSecret } = require("./secret-store.js");
+const { inspectCli, installCli } = require("./cli-installer.js");
 const { createUpdateManager } = require("./update-manager.js");
-const { lanHosts, lanUrls } = require("./network-access.js");
+const { lanUrls } = require("./network-access.js");
 const { desktopConfigurationEnvironment } = require("./config-environment.js");
+const { CONNECTION_STORE_VERSION } = require("../src/server/connection-store.js");
 const { issueNativePickerGrant } = require("../src/server/canvas-agent/native-picker-grants.js");
 const { CanvasAgentProjectStore } = require("../src/server/canvas-agent/project-store.js");
 const { CANVAS_PAGE_SCALE, normalizeCanvasPageScale } = require("../public/page-scale.js");
@@ -58,20 +59,14 @@ const squirrelStartup = handleSquirrelStartup(),
 if (!gotLock) app.quit();
 
 const ROOT = path.resolve(__dirname, ".."),
-  SETTINGS_FILE = path.join(__dirname, "settings", "index.html"),
-  PRELOAD = path.join(__dirname, "preload.js"),
   CANVAS_PRELOAD = path.join(__dirname, "canvas-preload.js"),
   WINDOW_ICON = path.join(ROOT, "build", "icons", "penecho.png"),
-  HELP_URL = "https://github.com/penecho/penecho#quick-start",
-  SETTINGS_TEST_TIMEOUT_MS = 30_000;
+  HELP_URL = "https://github.com/penecho/penecho#quick-start";
 
 let mainWindow = null,
-  settingsWindow = null,
   server = null,
-  currentConfiguration = null,
   updateManager = null,
   currentLanUrls = [],
-  settingsReadyToLaunch = false,
   cliOperation = null,
   quitting = false,
   desktopProjectStore = null;
@@ -102,28 +97,27 @@ function loadConfiguration() {
       packageRoot:ROOT,
       env:desktopConfigurationEnvironment(process.env, paths.stateDir),
     }),
-    apiKey = readSecret(paths.secretFile, credentialProtector);
+    unified = hasUnifiedConnections(paths.stateDir),
+    apiKey = unified ? "" : readSecret(paths.secretFile, credentialProtector);
   configuration.stateDir = paths.stateDir;
   configuration.configFile = paths.configFile;
-  Object.assign(configuration.env, kimiPresetUpdates(configuration));
+  if (!unified) Object.assign(configuration.env, kimiPresetUpdates(configuration));
   configuration.env.PENECHO_STATE_DIR = paths.stateDir;
   configuration.env.PENECHO_PRIVATE_PLUGIN_DIR = paths.privatePlugins;
   configuration.env.PENECHO_DESKTOP_APP = "true";
   if (!configuration.env.HOST) configuration.env.HOST = "0.0.0.0";
   if (!configuration.env.PORT) configuration.env.PORT = "3888";
   if (apiKey) configuration.env.AI_API_KEY = apiKey;
-  currentConfiguration = configuration;
   return { configuration, paths, apiKey };
 }
 
-function configurationIsReady(loaded) {
-  const { configuration, apiKey } = loaded;
-  if (!configuration.configExists || !configuration.provider) return false;
-  if (configuration.provider === "api") {
-    if (apiKey) configuration.env.AI_API_KEY = apiKey;
-    return apiConfigurationIssues(configuration.env).length === 0;
+function hasUnifiedConnections(stateDir) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(stateDir, "connections.json"), "utf8")).version === CONNECTION_STORE_VERSION;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
   }
-  return ["kimi-cli", "codex-cli", "claude-cli"].includes(configuration.provider);
 }
 
 function applyEnvironment(configuration) {
@@ -167,41 +161,17 @@ function restrictNavigation(window, allowed) {
 }
 
 function showSettings() {
-  const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
-  if (settingsWindow && !settingsWindow.isDestroyed()) {
-    if (parent && settingsWindow.getParentWindow() !== parent) settingsWindow.setParentWindow(parent);
-    settingsWindow.show();
-    settingsWindow.focus();
-    return settingsWindow;
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    if (!server?.listening) return;
+    const address = server.address(), port = typeof address === "object" && address ? address.port : 3888,
+      host = process.env.HOST === "0.0.0.0" ? "127.0.0.1" : process.env.HOST || "127.0.0.1";
+    const window = createMainWindow(`http://${host}:${port}/`);
+    window.webContents.once("did-finish-load", () => window.webContents.send("penecho:show-connections"));
+    return;
   }
-  settingsReadyToLaunch = false;
-  const settingsWindowMaterial = process.platform === "darwin"
-    ? { backgroundColor:"#00000000", vibrancy:"under-window", visualEffectState:"active" }
-    : process.platform === "win32"
-      ? { backgroundColor:nativeTheme.shouldUseDarkColors ? "#181b20" : "#eef2f7", backgroundMaterial:"mica" }
-      : {};
-  settingsWindow = new BrowserWindow(secureWindowOptions({
-    ...(parent ? { parent } : {}),
-    ...settingsWindowMaterial,
-    width:820,
-    height:680,
-    minWidth:660,
-    minHeight:540,
-    useContentSize:true,
-    title:"PenEcho Setup",
-    autoHideMenuBar:true,
-    webPreferences:{ preload:PRELOAD },
-  }));
-  const window = settingsWindow, reveal = () => {
-    if (window.isDestroyed()) return;
-    window.show();
-    window.focus();
-  };
-  restrictNavigation(window, url => url === pathToFileURL(SETTINGS_FILE).href);
-  window.once("ready-to-show", reveal);
-  window.on("closed", () => { if (settingsWindow === window) settingsWindow = null; });
-  void window.loadFile(SETTINGS_FILE).then(reveal);
-  return window;
+  mainWindow.show();
+  mainWindow.focus();
+  mainWindow.webContents.send("penecho:show-connections");
 }
 
 function createMainWindow(url) {
@@ -466,19 +436,6 @@ function registerIpc() {
     mainWindow.webContents.setZoomFactor(scale);
     return { ok:true, scale };
   });
-  ipcMain.handle("penecho:get-settings", () => {
-    const loaded = loadConfiguration();
-    const settings = publicSettings(loaded.configuration, { version:DESKTOP_VERSION, hasSavedApiKey:Boolean(loaded.apiKey) }),
-      options = { stateDir:loaded.paths.stateDir, home:app.getPath("home") },
-      kimi = managedCliPath("kimi-cli", options),
-      codex = managedCliPath("codex-cli", options),
-      claude = managedCliPath("claude-cli", options);
-    if (!settings.kimiCliPath && fs.existsSync(kimi)) settings.kimiCliPath = kimi;
-    if (!settings.codexPath && fs.existsSync(codex)) settings.codexPath = codex;
-    if (!settings.claudePath && fs.existsSync(claude)) settings.claudePath = claude;
-    settings.lanHosts = lanHosts();
-    return settings;
-  });
   ipcMain.handle("penecho:copy-text", (_event, input) => {
     const text = String(input ?? "");
     if (!text || text.length > 4096 || /[\r\n\0]/.test(text)) return { ok:false };
@@ -486,8 +443,7 @@ function registerIpc() {
     return { ok:true };
   });
   ipcMain.handle("penecho:install-cli", async (event, provider) => {
-    const fromSetup = Boolean(settingsWindow && !settingsWindow.isDestroyed() && event.sender === settingsWindow.webContents);
-    if (!fromCanvas(event) && !fromSetup) return { ok:false, error:"CLI installation is available only in the PenEcho desktop application." };
+    if (!fromCanvas(event)) return { ok:false, error:"CLI installation is available only in the PenEcho desktop application." };
     if (cliOperation) return { ok:false, error:"Another CLI setup operation is already running." };
     cliOperation = `install:${provider}`;
     try {
@@ -507,54 +463,6 @@ function registerIpc() {
       return { ok:false, error:error.message || "Automatic installation failed." };
     } finally { cliOperation = null; }
   });
-  ipcMain.handle("penecho:save-and-test", async (_event, input) => {
-    try {
-      const loaded = loadConfiguration(), normalized = normalizeSettings(input, { hasSavedApiKey:Boolean(loaded.apiKey) }),
-        apiKey = normalized.apiKey || loaded.apiKey;
-      if (["api", "kimi"].includes(normalized.provider) && normalized.apiKey) writeSecret(loaded.paths.secretFile, normalized.apiKey, credentialProtector);
-      saveConfiguration(loaded.configuration, normalized.updates);
-      loaded.configuration.env.PENECHO_STATE_DIR = loaded.paths.stateDir;
-      loaded.configuration.env.PENECHO_PRIVATE_PLUGIN_DIR = loaded.paths.privatePlugins;
-      if (apiKey) loaded.configuration.env.AI_API_KEY = apiKey;
-      currentConfiguration = loaded.configuration;
-      let diagnostic;
-      try {
-        let timer;
-        diagnostic = await Promise.race([
-          testConfiguredProvider(loaded.configuration, { timeoutMs:SETTINGS_TEST_TIMEOUT_MS }),
-          new Promise((_, reject) => {
-            timer = setTimeout(() => {
-              const error = new Error("Connection test timed out after 30 seconds.");
-              error.code = "PENECHO_SETTINGS_TEST_TIMEOUT";
-              reject(error);
-            }, SETTINGS_TEST_TIMEOUT_MS);
-            timer.unref?.();
-          }),
-        ]).finally(() => clearTimeout(timer));
-      } catch (error) {
-        settingsReadyToLaunch = true;
-        return {
-          ok:false,
-          saved:true,
-          timedOut:["PENECHO_SETTINGS_TEST_TIMEOUT", "PENECHO_CONNECTION_TEST_TIMEOUT"].includes(error.code),
-          error:error.message || "Connection test failed.",
-        };
-      }
-      settingsReadyToLaunch = true;
-      return { ok:true, saved:true, message:diagnostic };
-    } catch (error) {
-      settingsReadyToLaunch = false;
-      return { ok:false, saved:false, error:error.message || "Unable to save settings." };
-    }
-  });
-  ipcMain.handle("penecho:launch", () => {
-    if (!settingsReadyToLaunch) return { ok:false, error:"Save valid settings before launching." };
-    setTimeout(() => {
-      app.relaunch();
-      app.exit(0);
-    }, 250);
-    return { ok:true };
-  });
   ipcMain.handle("penecho:open-help", () => shell.openExternal(HELP_URL));
 }
 
@@ -569,10 +477,6 @@ async function bootstrap() {
   registerIpc();
   updateManager.start();
   const loaded = loadConfiguration();
-  if (!configurationIsReady(loaded)) {
-    showSettings();
-    return;
-  }
   try {
     const url = await startServer(loaded.configuration);
     const address = server.address(), port = typeof address === "object" && address ? address.port : Number(process.env.PORT);
@@ -587,13 +491,13 @@ async function bootstrap() {
       message:"PenEcho could not start its local canvas service.",
       detail:error.message || String(error),
     });
-    showSettings();
+    app.quit();
   }
 }
 
 if (gotLock) {
   app.on("second-instance", () => {
-    const window = mainWindow && !mainWindow.isDestroyed() ? mainWindow : settingsWindow;
+    const window = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
     if (!window) return;
     if (window.isMinimized()) window.restore();
     window.show();
@@ -609,7 +513,7 @@ if (gotLock) {
       const address = server.address(), port = typeof address === "object" && address ? address.port : 3888,
         host = process.env.HOST === "0.0.0.0" ? "127.0.0.1" : process.env.HOST || "127.0.0.1";
       createMainWindow(`http://${host}:${port}/`);
-    } else showSettings();
+    }
   });
   app.on("before-quit", () => {
     quitting = true;

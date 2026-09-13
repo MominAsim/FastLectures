@@ -4,27 +4,29 @@ Detailed setup and configuration notes for PenEcho. For a project overview, see 
 
 ## Config files and precedence
 
-The default configuration is `~/.penecho/config.env`. API credentials are plaintext in this local file, receive owner-only permissions on POSIX systems, and are never sent to browser code. Protect it like any other credential. If `penecho` is started before this file exists, it opens the configuration center automatically in an interactive terminal.
+General application settings live in `~/.penecho/config.env`. For npm launches, saved AI connections live in `~/.penecho/connections.json` (or the configured state directory). Desktop uses its application user-data directory. Both runtimes use the same connection-store schema and UI. Connection credentials remain local, receive owner-only permissions on POSIX systems, and are never returned to browser code. Protect this file like any other credential.
 
-Use a different env-style configuration file for a particular launch when needed:
+PenEcho starts its usable Canvas UI even when no configuration exists or an API connection is incomplete. Run `penecho` to open Canvas, then add and manage API or CLI connections in **Settings → Connections**. The connection store is the authoritative source for saved connections.
+
+Use a different env-style file for general settings when needed:
 
 ```bash
-penecho configure --config ./team.env
 penecho --config ./team.env
 ```
 
-An explicit `--config` file replaces the default global file for that command. PenEcho does not automatically read a project-directory `.env` or a package-directory `.env`. Command-line options and process environment variables take precedence over the selected configuration file.
+An explicit `--config` replaces the default global env file for that command. PenEcho does not automatically read a project-directory `.env` or a package-directory `.env`. General command-line options and process environment variables take precedence over this file.
 
-## The configuration center
+On the first launch with the new connection store, PenEcho imports a usable legacy provider configuration as the first saved connection. This migration happens once. After migration, provider settings in `config.env` no longer supply a separate default connection; edit and select connections in the UI. General settings continue to use `config.env`.
 
-`penecho configure` opens the interactive configuration center. Its main menu contains `LLM source`, `Settings`, and `Exit`. Use the arrow keys and Enter to navigate:
+## Settings and connections
 
-- `LLM source -> Claude CLI` selects a detected, recommended, default, or manually entered model and an effort level. Opus 4.8 or newer is recommended; Sonnet and Opus 4.6 can respond but may produce weaker canvas results.
-- `LLM source -> Codex CLI` selects a model and effort. GPT-5.5 or newer is required for good results, and `gpt-5.6-sol` is recommended.
-- `LLM source -> API` selects the OpenAI-compatible or Anthropic/Claude-compatible request format, then asks for the URL, model, effort, and hidden key. API model calls use each format's standard SSE stream so response receipt is visible immediately and long generations do not wait for one final buffered JSON body; gateways that ignore streaming and return a normal JSON envelope remain compatible. Every new API or CLI connection starts at PenEcho `medium`; it stays native on Codex and Claude, maps to Kimi `high`, and enables MiniMax adaptive thinking. Existing values are offered as defaults and a blank key keeps the saved key.
-- `Settings` controls the unified model timeout, the maximum API response tokens (including thinking tokens), the image format sent to every model executor, request recording and retention, listening interface and port, and initial Auto AI delay. The response-token limit defaults to 20,000 and must be larger than 15,000. WebP is the default; PNG is also available. The delay can also be changed on the canvas.
+The Canvas Connection Manager manages saved API, Claude CLI, Codex CLI, and Kimi CLI connections. Select a connection to edit its model and reasoning effort, or add another connection. A blank API key field keeps an existing saved key. New connections default to `medium`.
 
-Every LLM page ends with `Test & Save`, and PenEcho always saves before checking. Codex CLI uses a fast offline check: it verifies the executable and login, then reads `codex debug models --bundled` to confirm the selected model exists. It does not run inference, attach an image, refresh the online catalog, or consume model tokens. Claude CLI and API configuration still send one small real request to verify the selected endpoint/model settings. Whether a check passes or fails, the configuration remains saved and the UI returns to the parent menu with a clear diagnostic.
+API connections support OpenAI-compatible and Anthropic-compatible formats. Model calls use each format's standard SSE stream; gateways returning a normal JSON response remain compatible. The toolbar can override the saved reasoning effort per request.
+
+**Test** checks the current connection settings; **Save** persists them separately. Codex uses an offline executable, login, and bundled-model check without inference or model tokens. Claude and API tests send a small real request. Failed checks display a diagnostic and do not prevent Canvas use. `penecho doctor` remains a strict diagnostic command and reports missing or incomplete connection settings.
+
+General Settings controls the model timeout, maximum API response tokens, model input image format, request recording and retention, listening interface and port, and initial Auto AI delay. The response-token limit defaults to 20,000 and must be larger than 15,000. WebP is the default image format; PNG is also available.
 
 ## The Reasoning toolbar menu
 
@@ -54,7 +56,7 @@ irm https://claude.ai/install.ps1 | iex
 
 Finish authentication with `kimi login`, `codex login`, or `claude auth login`. Codex and Claude authentication are included in the preflight. Kimi installation is checked immediately and its authentication is confirmed when Kimi handles the first request.
 
-PenEcho uses the selected CLI locally and does not need an API key for that source. Normal startup checks the executable and login without consuming model tokens. Codex `Test & Save` additionally verifies the selected model against the installed CLI's bundled catalog without making a model request; Claude `Test & Save` sends a small real request.
+PenEcho uses the selected CLI locally and does not need an API key for that source. Normal startup checks the executable and login without consuming model tokens. Codex **Test** additionally verifies the selected model against the installed CLI's bundled catalog without making a model request; Claude **Test** sends a small real request.
 
 ## How CLI requests run
 
@@ -102,7 +104,9 @@ penecho --port 4000
 
 Interactive starts print the current version immediately. After the server is listening, PenEcho displays `Checking latest PenEcho version...` and queries npm without delaying availability. If a newer version exists, press Enter at the default `Y` prompt to install it globally. The current service then stops without launching a background process; run `penecho` again when you are ready to start the updated version. When the installed version is current, PenEcho says so explicitly. Offline checks and non-interactive starts continue without blocking the running service.
 
-## Full settings reference
+## Settings and legacy import reference
+
+Provider entries below describe the legacy import inputs and transient process settings. Once migrated, manage their saved values through Connections; `config.env` retains general application settings.
 
 | Setting | Purpose |
 | --- | --- |

@@ -12,6 +12,9 @@
       studioNavigatorScrim = document.querySelector("#studioNavigatorScrim"),
       studioNavigatorSearch = document.querySelector("#studioNavigatorSearch"),
       studioNavigatorAllTab = document.querySelector("#studioNavigatorAllTab"),
+      studioNavigatorMcpTab = document.querySelector("#studioNavigatorMcpTab"),
+      studioNavigatorMcpPanel = document.querySelector("#studioNavigatorMcpPanel"),
+      studioMcpRecentList = document.querySelector("#studioMcpRecentList"),
       studioNavigatorAgentTab = document.querySelector("#studioNavigatorAgentTab"),
       studioNavigatorCanvasTab = document.querySelector("#studioNavigatorCanvasTab"),
       studioNavigatorAllPanel = document.querySelector("#studioNavigatorAllPanel"),
@@ -37,6 +40,7 @@
       canvasWelcome = document.querySelector("#canvasWelcome"),
       studioNavigatorCompactMedia = window.matchMedia?.("(max-width: 1100px)");
     let studioNavigatorOpenPreference = false,
+      studioNavigatorMcpEnabled = false,
       studioNavigatorActiveTab = storedStudioNavigatorTab(),
       studioNavigatorWorkPreviewUrls = new Map(),
       studioNavigatorAgentPreviewUrls = new Map(),
@@ -57,6 +61,28 @@
       studioNavigatorHistoryDirty = true,
       studioEdgeSwipe = null;
 
+    // Sidebar-only browser metadata; never part of a Canvas snapshot or server write.
+    const STUDIO_CANVAS_OPENED_KEY = "penecho-studio-canvas-last-opened";
+    let studioCanvasOpened = readStudioCanvasOpened(), studioLastOpenedKey = "";
+    function readStudioCanvasOpened() {
+      try {
+        const entries = JSON.parse(localStorage.getItem(STUDIO_CANVAS_OPENED_KEY) || "[]");
+        return new Map(Array.isArray(entries) ? entries.filter(entry => Array.isArray(entry) && typeof entry[0] === "string" && Number.isFinite(entry[1])) : []);
+      } catch { return new Map(); }
+    }
+    function rememberStudioCanvasOpened(key) {
+      if (!key) { studioLastOpenedKey = ""; return; }
+      if (key === studioLastOpenedKey) return;
+      studioLastOpenedKey = key;
+      studioCanvasOpened.set(key, Math.max(Date.now(), ...studioCanvasOpened.values(), 0) + 1);
+      studioCanvasOpened = new Map([...studioCanvasOpened].sort((a,b) => b[1]-a[1]).slice(0,1000));
+      try { localStorage.setItem(STUDIO_CANVAS_OPENED_KEY, JSON.stringify([...studioCanvasOpened])); } catch {}
+      return true;
+    }
+    function studioCanvasOpenedAt(key) {
+      return studioCanvasOpened.get(key) || 0;
+    }
+
     function storedStudioNavigatorTab() {
       try {
         const stored=localStorage.getItem(STUDIO_NAVIGATOR_TAB_KEY);
@@ -72,6 +98,9 @@
     }
     function studioNavigatorIsOpen() {
       return studioNavigatorIsStudio() && document.body.classList.contains("studio-navigator-open");
+    }
+    function studioNavigatorIsMcpDocked() {
+      return studioNavigatorIsOpen() && studioNavigatorActiveTab === "mcp" && studioNavigatorMcpEnabled;
     }
     function studioCanvasHasContent() {
       return Boolean(tiles.size || state.images.length || state.textBoxes.length || state.preservedSnapshotAnimations.length || (pluginEnabled("animation") && state.animations.length) || visibleWidgets().length);
@@ -149,7 +178,7 @@
       }
     }
     function updateStudioNavigatorSurfaceInert() {
-      const blocked = studioNavigatorIsStudio() && studioNavigatorIsOpen() && studioNavigatorIsCompact() && !state.viewMode;
+      const blocked = studioNavigatorIsStudio() && studioNavigatorIsOpen() && studioNavigatorIsCompact() && !studioNavigatorIsMcpDocked() && !state.viewMode;
       if (blocked && !view.hasAttribute("inert")) {
         view.inert = true;
         view.dataset.studioNavigatorInert = "true";
@@ -160,6 +189,7 @@
     }
     function updateStudioNavigatorA11y({ deferSurface = false } = {}) {
       const active = studioNavigatorIsStudio(), open = active && studioNavigatorIsOpen(), unavailable = !active || !open || state.viewMode;
+      document.body.classList.toggle("studio-mcp-docked",studioNavigatorIsMcpDocked());
       studioNavigatorToggle.hidden = !active;
       studioNavigator.hidden = !active;
       if (!deferSurface) {
@@ -171,7 +201,7 @@
       const toggleKey = open ? "studioNavigatorClose" : "studioNavigatorOpen";
       studioNavigatorToggle.setAttribute("aria-label", t(toggleKey));
       studioNavigatorToggle.setAttribute("title", t(toggleKey));
-      studioNavigatorScrim.hidden = !(active && open && studioNavigatorIsCompact() && !state.viewMode);
+      studioNavigatorScrim.hidden = !(active && open && studioNavigatorIsCompact() && !studioNavigatorIsMcpDocked() && !state.viewMode);
       if (!deferSurface) updateStudioNavigatorSurfaceInert();
     }
     function suspendStudioAgentForNavigator() {
@@ -214,7 +244,8 @@
         return;
       }
       studioNavigatorTransitionHandler = event => {
-        if (event.target === studioNavigator && event.propertyName === "transform") settle();
+        const property = studioNavigatorIsMcpDocked() ? "opacity" : "transform";
+        if (event.target === studioNavigator && event.propertyName === property) settle();
       };
       studioNavigator.addEventListener("transitionend", studioNavigatorTransitionHandler);
       studioNavigatorOpenTimer = setTimeout(settle, STUDIO_NAVIGATOR_SETTLE_FALLBACK_MS);
@@ -253,6 +284,17 @@
     }
     function studioNavigatorMetaTime(value) {
       return canvasAgentHistoryTime(Number(value) || Date.now());
+    }
+    function studioNavigatorCanvasMeta(current, open, location, updatedAt) {
+      return [current ? t("studioNavigatorCurrent") : open ? t("studioNavigatorOpened") : t("studioNavigatorNotOpened"),
+        location ? snapshotLocationLabel(location) : "", studioNavigatorMetaTime(updatedAt)].filter(Boolean).join(" · ");
+    }
+    function studioNavigatorRenderCanvasMeta(meta, current, open, location, updatedAt) {
+      const label = studioNavigatorCanvasMeta(current, open, location, updatedAt);
+      meta.title = label;
+      meta.setAttribute("aria-label", label);
+      // Open state is textual; green is reserved for unread updates.
+      meta.textContent = [current ? t("studioNavigatorCurrent") : "", location ? snapshotLocationLabel(location) : "", studioNavigatorMetaTime(updatedAt)].filter(Boolean).join(" · ");
     }
     function syncStudioNavigatorCurrentSource() {
       const location=String(snapshotItemsLocation||"");
@@ -324,10 +366,10 @@
       return String(item?.text||"").replace(/\s+/g," ").trim().slice(0,96);
     }
     function closeStudioNavigatorAfterCompactAction() {
-      if (studioNavigatorIsCompact()) setStudioNavigatorOpen(false);
+      if (studioNavigatorIsCompact() && !studioNavigatorIsMcpDocked()) setStudioNavigatorOpen(false);
     }
     function collapseStudioNavigatorForWorkspaceFocus(event) {
-      if (!studioNavigatorIsOpen()) return false;
+      if (!studioNavigatorIsOpen() || studioNavigatorIsMcpDocked()) return false;
       const target=event?.target;
       if (target && (studioNavigator.contains(target) || studioNavigatorToggle.contains(target))) return false;
       setStudioNavigatorOpen(false);
@@ -430,7 +472,15 @@
         const identity=studioNavigatorCanvasIdentity(state.canvasAgentCanvasKey),item=studioNavigatorCanvasGroupSnapshot({canvasKey:state.canvasAgentCanvasKey});
         groups.set(state.canvasAgentCanvasKey,{canvasKey:state.canvasAgentCanvasKey,location:identity?.location||"",item,name:currentCanvasDisplayName()||t("canvasUntitledName"),updatedAt:Number(item?.updatedAt||item?.createdAt)||Date.now(),conversations:canvasAgentHistoryForCanvas(state.canvasAgentCanvasKey)});
       }
-      return [...groups.values()].map((group)=>({...group,current:group.canvasKey===state.canvasAgentCanvasKey})).sort((a,b)=>Number(b.current)-Number(a.current)||b.updatedAt-a.updatedAt);
+      if(typeof canvasDocuments!=="undefined")for(const doc of canvasDocuments.records.values()){
+        const current=doc.id===canvasDocuments.activeId,
+          canvasKey=doc.locator?`${doc.locator.location}:${doc.locator.id}`:current&&state.canvasAgentCanvasKey||`workspace:${doc.id}`,
+          previous=groups.get(canvasKey),item=previous?.item||doc.stored?.item||null;
+        groups.set(canvasKey,{...previous,canvasKey,documentId:doc.id,location:doc.locator?.location||"",item,
+          name:doc.title||t("canvasUntitledName"),updatedAt:Math.max(Number(previous?.updatedAt)||0,Number(item?.updatedAt||item?.createdAt)||0,...(doc.changes||[]).map(change=>Number(change.at)||0)),
+          conversations:previous?.conversations||[],current,unseen:doc.unseen>0});
+      }
+      return [...groups.values()].map((group)=>({...group,current:group.documentId?group.current:group.canvasKey===state.canvasAgentCanvasKey})).sort((a,b)=>Number(b.current)-Number(a.current)||studioCanvasOpenedAt(b.canvasKey)-studioCanvasOpenedAt(a.canvasKey)||Number(Boolean(b.documentId))-Number(Boolean(a.documentId))||b.updatedAt-a.updatedAt);
     }
     function studioNavigatorGroupMatches(group,query) {
       if(!query)return true;
@@ -473,15 +523,25 @@
       if(group.current)heading.setAttribute("aria-current","page");
       headingBody.className="studio-navigator-item-body";
       name.textContent=group.name;
-      meta.textContent=[group.location?snapshotLocationLabel(group.location):"",studioNavigatorMetaTime(group.updatedAt)].filter(Boolean).join(" · ");
+      name.title=group.name;
+      studioNavigatorRenderCanvasMeta(meta,group.current,Boolean(group.documentId),group.location,group.updatedAt);
       headingBody.append(name,meta);heading.append(canvasPreview,headingBody);
+      if(group.documentId){
+        heading.dataset.workspaceDocumentId=group.documentId;
+        const dot=document.createElement("span");dot.className="workspace-update-dot";dot.hidden=!group.unseen;
+        dot.setAttribute("role","img");dot.title=canvasDocumentsCopy("New updates","有新内容");dot.setAttribute("aria-label",dot.title);meta.prepend(dot);
+        heading.disabled=canvasDocuments.switching;
+      }
       heading.addEventListener("click",()=>{
+        if(group.documentId){canvasDocumentsUiAction(async()=>{await canvasDocumentsShow(group.documentId);if(studioNavigatorActiveTab==="mcp")selectCanvasToolMode("hand");closeStudioNavigatorAfterCompactAction();});return;}
         if(group.current){closeStudioNavigatorAfterCompactAction();return;}
         if(!identity){setStatus(t("studioNavigatorCanvasUnavailable"));return;}
         closeStudioNavigatorAfterCompactAction();
         void runSnapshotLoadAction(heading,()=>requestLoadSnapshot(identity.id,identity.location));
       });
       section.append(heading);
+      if(group.documentId)appendStudioCanvasClose(section,group.documentId,group.current,group.name);
+
       if(includeConversations&&group.conversations.length){
         const list=document.createElement("div");
         list.className="studio-navigator-group-conversations";
@@ -489,6 +549,20 @@
         section.append(list);
       }
       return section;
+    }
+    function appendStudioCanvasClose(section,documentId,current,name) {
+      section.classList.add("has-current-close");
+      section.classList.toggle("current",current);
+      const close=document.createElement("button");close.type="button";
+      close.className="studio-navigator-current-close";peButton(close,"ghost","compact");
+      close.title=canvasDocumentsCopy(`Close ${name}`,`关闭 ${name}`);close.setAttribute("aria-label",close.title);
+      close.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>';
+      close.disabled=canvasDocuments.switching;
+      close.addEventListener("click",()=>canvasDocumentsUiAction(async()=>{
+        if(canvasDocuments.activeId!==documentId)await canvasDocumentsShow(documentId);
+        return requestCanvasTransition({type:"close",documentId});
+      }));
+      section.append(close);
     }
     async function openStudioConversationOnCurrentCanvas(pending) {
       if(!pending||pending.canvasKey!==state.canvasAgentCanvasKey)return false;
@@ -530,6 +604,7 @@
     }
     function studioNavigatorCanvasDidLoad(identity) {
       const key=identity?.id&&identity?.location?`${identity.location}:${identity.id}`:"";
+      rememberStudioCanvasOpened(key);
       if(!studioNavigatorPendingConversation||studioNavigatorPendingConversation.canvasKey!==key)return false;
       void openStudioConversationOnCurrentCanvas(studioNavigatorPendingConversation).catch(error=>{
         studioNavigatorPendingConversation=null;
@@ -651,9 +726,12 @@
       }
       studioNavigatorHistoryDirty = false;
       releaseStudioNavigatorPreviewUrls(studioNavigatorCanvasPreviewUrls);
-      const items=studioNavigatorSnapshots().sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)),query=studioNavigatorSearchQuery(),locale=state.language==="zh"?"zh-CN":"en",
+      const items=studioNavigatorSnapshots().sort((a,b)=>studioCanvasOpenedAt(`${b.location}:${b.id}`)-studioCanvasOpenedAt(`${a.location}:${a.id}`)||(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)),query=studioNavigatorSearchQuery(),locale=state.language==="zh"?"zh-CN":"en",
         filtered=query?items.filter((item)=>`${snapshotName(item)} ${snapshotLocationLabel(item.location)}`.toLocaleLowerCase(locale).includes(query)):items;
       studioCanvasRecentList.replaceChildren();
+      for(const group of studioNavigatorWorkGroups().filter(group=>group.documentId&&!group.location&&studioNavigatorGroupMatches(group,query))){
+        studioCanvasRecentList.append(studioNavigatorGroupSection(group,{includeConversations:false,previewUrls:studioNavigatorCanvasPreviewUrls}));
+      }
       for (const item of filtered) {
         const row = document.createElement("button"), body = document.createElement("span"), title = document.createElement("strong"),
           meta = document.createElement("small"), current = item.id === state.currentSnapshotId && item.location === state.currentSnapshotLocation;
@@ -665,30 +743,234 @@
         if (current) row.setAttribute("aria-current", "page");
         body.className = "studio-navigator-item-body";
         title.textContent = snapshotName(item);
-        meta.textContent = [snapshotLocationLabel(item.location), studioNavigatorMetaTime(item.updatedAt || item.createdAt)].filter(Boolean).join(" · ");
+        const workspaceDoc=typeof canvasDocuments!=="undefined"?[...canvasDocuments.records.values()].find(doc=>doc.locator?.id===item.id&&doc.locator?.location===item.location):null;
+        studioNavigatorRenderCanvasMeta(meta,current,Boolean(workspaceDoc),item.location,item.updatedAt || item.createdAt);
         body.append(title, meta);
         row.append(studioNavigatorCanvasPreview(item), body);
+        if(workspaceDoc){
+          row.dataset.workspaceDocumentId=workspaceDoc.id;
+          const dot=document.createElement("span");dot.className="workspace-update-dot";dot.hidden=!workspaceDoc.unseen;
+          dot.setAttribute("role","img");dot.setAttribute("aria-label",canvasDocumentsCopy("New updates","有新内容"));row.append(dot);row.disabled=canvasDocuments.switching;
+        }
         row.addEventListener("click", () => {
           closeStudioNavigatorAfterCompactAction();
           void runSnapshotLoadAction(row, () => requestLoadSnapshot(item.id, item.location));
         });
-        studioCanvasRecentList.append(row);
+        if(workspaceDoc){
+          const entry=document.createElement("section");entry.className="studio-navigator-group";entry.append(row);
+          appendStudioCanvasClose(entry,workspaceDoc.id,current,snapshotName(item));studioCanvasRecentList.append(entry);
+        }else studioCanvasRecentList.append(row);
       }
       renderStudioNavigatorSourceStates(studioCanvasRecentList,query);
       if(!studioCanvasRecentList.childElementCount)studioNavigatorEmpty(studioCanvasRecentList,items.length?"studioNavigatorCanvasNoMatch":"studioNavigatorCanvasEmpty");
+    }
+    let studioMcpFollowLatest=true,studioMcpLatestDocumentId=null,studioMcpPendingDocumentId=null,studioMcpFollowing=false,studioMcpCloseQueue=null;
+    let studioMcpLatestRegion=null,studioMcpPendingRegion=null,studioMcpUpdateRevision=0;
+    function studioMcpOpenDocumentIds() {
+      const live=new Set([...mcpRuntime.sessions.values()].filter(session=>!session.closed).map(session=>session.documentId));
+      return [...canvasDocuments.records.values()].filter(doc=>doc.bindings?.length||doc.sessions?.length||live.has(doc.id)).map(doc=>doc.id);
+    }
+    function syncStudioMcpActions() {
+      const follow=document.getElementById("studioMcpFollowLatest"),close=document.getElementById("studioMcpCloseAll"),group=document.getElementById("studioMcpActions");
+      const mcpTab=studioNavigatorActiveTab==="mcp";
+      const actionIds=mcpTab?studioMcpOpenDocumentIds():[...canvasDocuments.records.keys()];
+      const count=document.getElementById("canvasWorkspaceCount");
+      if(count){
+        count.textContent=canvasDocumentsCopy(`${actionIds.length} open`,`${actionIds.length} 个已打开`);
+        count.setAttribute("aria-busy",String(canvasDocuments.switching));
+      }
+      const menuOthers=document.getElementById("studioMcpCloseOthers"),more=document.getElementById("studioMcpMore");
+      if(menuOthers){menuOthers.textContent=canvasDocumentsCopy("Close others","关闭其他画布");menuOthers.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching||!actionIds.some(id=>id!==canvasDocuments.activeId);}
+      if(more){more.setAttribute("aria-label",canvasDocumentsCopy("Canvas actions","画布操作"));more.disabled=Boolean(studioMcpCloseQueue)||canvasDocuments.switching;}
+      if(!follow||!close)return;
+      const busy=Boolean(studioMcpCloseQueue)||canvasDocuments.switching;
+      group?.setAttribute("aria-label",canvasDocumentsCopy("MCP canvas actions","MCP 画布操作"));
+      const followLabel=document.getElementById("studioMcpFollowLabel");
+      if(followLabel)followLabel.textContent=canvasDocumentsCopy("Follow latest","跟随最新");
+      const description=document.getElementById("studioMcpFollowDescription");
+      if(description)description.textContent=canvasDocumentsCopy("Auto-focus new content","自动定位到最新内容");
+      follow.setAttribute("aria-checked",String(studioMcpFollowLatest));follow.disabled=busy;
+      follow.title=canvasDocumentsCopy("Follow the latest updated content, switching canvases when needed. Pauses while you edit or navigate.","跟随最新更新的内容，必要时切换画布；编辑或移动视野时暂停。");
+      close.textContent=canvasDocumentsCopy("Close all","关闭全部画布");close.disabled=busy||!actionIds.length;
+      close.setAttribute("aria-busy",String(Boolean(studioMcpCloseQueue)));
+      close.title=mcpTab?canvasDocumentsCopy("Close all open MCP canvases. Saved canvases stay in the library.","关闭所有已打开的 MCP 画布，已保存画布仍保留在画布库中。"):canvasDocumentsCopy("Close all open canvases. Saved canvases stay in the library.","关闭所有已打开的画布，已保存画布仍保留在画布库中。");
+    }
+    function cancelStudioMcpCloseAll() {studioMcpCloseQueue=null;syncStudioMcpActions();}
+    async function continueStudioMcpCloseAll(batch) {
+      if(studioMcpCloseQueue!==batch)return;
+      while(batch.length&&!canvasDocuments.records.has(batch[0]))batch.shift();
+      if(!batch.length){
+        try {
+          if(batch.retainedDocumentId&&canvasDocuments.records.has(batch.retainedDocumentId)&&canvasDocuments.activeId!==batch.retainedDocumentId)await canvasDocumentsShow(batch.retainedDocumentId);
+        } finally {cancelStudioMcpCloseAll();}
+        return;
+      }
+      const id=batch[0];
+      try {
+        await canvasDocumentsShow(id);
+        if(studioMcpCloseQueue!==batch)return;
+        await requestCanvasTransition({type:"close",documentId:id,onCancel:cancelStudioMcpCloseAll,onComplete:async()=>{
+          if(studioMcpCloseQueue!==batch)return;
+          batch.shift();await continueStudioMcpCloseAll(batch);
+        }});
+      } catch(error){cancelStudioMcpCloseAll();throw error;}
+    }
+    async function closeOtherStudioCanvases() {
+      if(studioMcpCloseQueue||canvasDocuments.switching)return;
+      const retainedDocumentId=canvasDocumentsCurrent().id;
+      const batch=[...canvasDocuments.records.keys()].filter(id=>id!==retainedDocumentId);
+      if(!batch.length)return;
+      batch.retainedDocumentId=retainedDocumentId;
+      studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      await continueStudioMcpCloseAll(batch);
+    }
+    async function closeOtherStudioMcpCanvases() {
+      if(studioMcpCloseQueue||canvasDocuments.switching)return;
+      const retainedDocumentId=canvasDocumentsCurrent().id;
+      const batch=(studioNavigatorActiveTab==="mcp"?studioMcpOpenDocumentIds():[...canvasDocuments.records.keys()]).filter(id=>id!==retainedDocumentId);
+      if(!batch.length)return;
+      batch.retainedDocumentId=retainedDocumentId;
+      studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      await continueStudioMcpCloseAll(batch);
+    }
+    async function closeAllStudioMcpCanvases() {
+      if(studioMcpCloseQueue)return;
+      const batch=studioNavigatorActiveTab==="mcp"?studioMcpOpenDocumentIds():[...canvasDocuments.records.keys()];
+      if(!batch.length)return;
+      studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;studioMcpCloseQueue=batch;syncStudioMcpActions();
+      await continueStudioMcpCloseAll(batch);
+    }
+    function noteStudioMcpContentUpdate(documentId,region=null) {
+      if(!documentId||!canvasDocuments.records.has(documentId))return;
+      studioMcpUpdateRevision++;
+      studioMcpLatestDocumentId=documentId;
+      studioMcpLatestRegion=region;
+      if(studioMcpFollowLatest){studioMcpPendingDocumentId=documentId;studioMcpPendingRegion=region;}
+    }
+    async function flushStudioMcpFollowLatest() {
+      if(!studioMcpFollowLatest||!studioMcpPendingDocumentId||studioMcpFollowing||studioMcpCloseQueue||canvasDocuments.switching||mcpRuntime.queued||!mcpRuntime.ready)return;
+      const active=document.activeElement;
+      if(mcpViewBlockedBy()||document.querySelector("dialog[open]")||active?.matches?.("input,textarea,select,[contenteditable='true']"))return;
+      const id=studioMcpPendingDocumentId,updateRevision=studioMcpUpdateRevision;
+      if(!canvasDocuments.records.has(id)){studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;return;}
+      studioMcpFollowing=true;
+      try {
+        if(id!==canvasDocuments.activeId)await canvasDocumentsShow(id);
+        // Loading yields: recheck user activity and use the newest region even
+        // when another update arrived for this same document during the switch.
+        if(!studioMcpFollowLatest||studioMcpPendingDocumentId!==id||canvasDocuments.activeId!==id||mcpRuntime.queued||mcpViewBlockedBy()||document.querySelector("dialog[open]")||document.activeElement?.matches?.("input,textarea,select,[contenteditable='true']"))return;
+        const region=studioMcpPendingRegion;
+        if(region) {
+          mcpRevealRegion(region);
+          // This explicit follow supersedes older automatic reveals on this Canvas.
+          for(const [sessionId] of mcpRuntime.pendingView||[])if(mcpRuntime.sessions.get(sessionId)?.documentId===id)mcpRuntime.pendingView.delete(sessionId);
+          if(!mcpRuntime.pendingView?.size){clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;mcpRuntime.layoutSince=0;}
+          mcpRenderCanvasStatus();
+        }
+        studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;
+      } catch(error) {
+        // Busy work keeps just the newest target until the next real checkpoint.
+        if(!["CANVAS_BUSY","CANVAS_CHANGED"].includes(error.code)){
+          if(studioMcpPendingDocumentId===id&&studioMcpUpdateRevision===updateRevision){studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;}
+          canvasDocumentsReport(error);
+        }
+      } finally {
+        studioMcpFollowing=false;syncStudioMcpActions();
+        if(studioMcpFollowLatest&&studioMcpPendingDocumentId&&(studioMcpPendingDocumentId!==id||studioMcpUpdateRevision!==updateRevision))queueMicrotask(()=>void flushStudioMcpFollowLatest());
+      }
+    }
+    const studioMcpOrder=new Map();
+    let studioMcpOrderSequence=0;
+    function studioNavigatorMcpGroups() {
+      // Assign once in workspace insertion order. Updates and selection never move a row.
+      for(const doc of canvasDocuments.records.values()){
+        if(!studioMcpOrder.has(doc.id)&&(doc.bindings?.length||doc.sessions?.length||[...mcpRuntime.sessions.values()].some(session=>session.documentId===doc.id)))studioMcpOrder.set(doc.id,++studioMcpOrderSequence);
+      }
+      for(const id of studioMcpOrder.keys())if(!canvasDocuments.records.has(id))studioMcpOrder.delete(id);
+      return studioNavigatorWorkGroups().filter(group=>{
+        const doc=canvasDocuments.records.get(group.documentId);
+        return doc && (doc.bindings?.length || doc.sessions?.length || [...mcpRuntime.sessions.values()].some(session=>session.documentId===doc.id));
+      }).sort((a,b)=>studioMcpOrder.get(b.documentId)-studioMcpOrder.get(a.documentId));
+    }
+    function renderStudioMcpHistory() {
+      syncStudioMcpActions();
+      if(!studioNavigatorIsOpen()){studioNavigatorHistoryDirty=true;return;}
+      releaseStudioNavigatorPreviewUrls(studioNavigatorCanvasPreviewUrls);
+      studioMcpRecentList.replaceChildren();
+      const query=studioNavigatorSearchQuery();
+      for(const group of studioNavigatorMcpGroups().filter(group=>studioNavigatorGroupMatches(group,query))){
+        studioMcpRecentList.append(studioNavigatorGroupSection(group,{includeConversations:false,previewUrls:studioNavigatorCanvasPreviewUrls}));
+      }
+      if(!studioMcpRecentList.childElementCount)studioNavigatorEmpty(studioMcpRecentList,query?"studioNavigatorNoMatch":"studioNavigatorMcpEmpty");
+    }
+    function syncStudioNavigatorMcp(enabled,{reveal=true}={}) {
+      enabled=Boolean(enabled);
+      if(enabled===studioNavigatorMcpEnabled)return;
+      studioNavigatorMcpEnabled=enabled;
+      if(!enabled){studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;studioMcpLatestDocumentId=null;studioMcpLatestRegion=null;}
+      studioNavigatorMcpTab.hidden=!enabled;
+      if(enabled&&reveal){
+        selectCanvasToolMode("hand");
+        studioNavigatorSuspendedAgent=false;
+        studioNavigatorRestoreAgentAfterManager=false;
+        closeCanvasAgent({focus:false});
+        studioNavigatorSearch.value="";
+        setStudioNavigatorTab("mcp",{persist:false});
+        setStudioNavigatorOpen(true);
+        // Connection changes preserve the user’s Follow latest preference.
+        studioMcpPendingDocumentId=null;studioMcpPendingRegion=null;
+        syncStudioMcpActions();
+      }else if(!enabled&&studioNavigatorActiveTab==="mcp")setStudioNavigatorTab("all",{persist:false});
+    }
+    let studioWorkspaceSignature="";
+    function studioWorkspaceChanged() {
+      if(typeof canvasDocuments==="undefined")return;
+      const active = canvasDocuments.records.get(canvasDocuments.activeId);
+      if (!canvasDocuments.switching && rememberStudioCanvasOpened(active ? active.locator ? `${active.locator.location}:${active.locator.id}` : `workspace:${active.id}` : "")) studioWorkspaceSignature = "";
+      syncStudioMcpActions();
+      const documents=[...canvasDocuments.records.values()],hasUpdates=documents.some(doc=>doc.unseen>0),attention=hasUpdates||Boolean(canvasDocuments.error);
+      studioNavigatorToggle.dataset.workspaceUpdates=String(attention);
+      const hint=document.getElementById("studioWorkspaceUpdateHint");
+      if(hint)hint.textContent=canvasDocuments.error?canvasDocumentsCopy("Canvas needs attention. Open Recent Work to retry.","画布操作需要处理。打开最近工作以重试。"):hasUpdates?canvasDocumentsCopy("Canvases have new updates","画布有新内容"):"";
+      const signature=JSON.stringify([canvasDocuments.activeId,...documents.map(doc=>[doc.id,doc.title,doc.locator?.location,doc.locator?.id,doc.bindings?.length,doc.sessions?.length,typeof mcpRuntime!=="undefined"&&[...mcpRuntime.sessions.values()].some(session=>session.documentId===doc.id)])]);
+      if(signature!==studioWorkspaceSignature){studioWorkspaceSignature=signature;renderActiveStudioNavigatorHistory();}
+      if(!studioNavigatorIsOpen()){studioNavigatorHistoryDirty=true;return;}
+      for(const row of studioNavigator.querySelectorAll("[data-workspace-document-id]")){
+        const doc=canvasDocuments.records.get(row.dataset.workspaceDocumentId),dot=row.querySelector(".workspace-update-dot");
+        if(dot){dot.hidden=!doc?.unseen;dot.setAttribute("aria-label",canvasDocumentsCopy("New updates","有新内容"));}
+        row.disabled=canvasDocuments.switching;
+      }
+      if(typeof studioNavigatorActiveTab!=="undefined"&&studioNavigatorActiveTab==="mcp"){
+        const rows=new Map([...studioMcpRecentList.querySelectorAll("[data-workspace-document-id]")].map(row=>[row.dataset.workspaceDocumentId,row]));
+        let index=0;
+        for(const group of studioNavigatorMcpGroups()){
+          const row=rows.get(group.documentId);if(!row)continue;
+          const section=row.parentElement;
+          if(studioMcpRecentList.children[index]!==section)studioMcpRecentList.insertBefore(section,studioMcpRecentList.children[index]||null);
+          const meta=row.querySelector("small");
+          if(meta&&meta.dataset.updatedAt!==String(group.updatedAt)){
+            const dot=meta.querySelector(".workspace-update-dot");
+            studioNavigatorRenderCanvasMeta(meta,group.current,true,group.location,group.updatedAt);
+            if(dot)meta.prepend(dot);
+            meta.dataset.updatedAt=String(group.updatedAt);
+          }
+          index++;
+        }
+      }
     }
     function renderActiveStudioNavigatorHistory() {
       if (!studioNavigatorIsOpen()) {
         studioNavigatorHistoryDirty = true;
         return;
       }
-      if(studioNavigatorActiveTab==="canvas")renderStudioCanvasHistory();
+      if(studioNavigatorActiveTab==="mcp")renderStudioMcpHistory();
+      else if(studioNavigatorActiveTab==="canvas")renderStudioCanvasHistory();
       else if(studioNavigatorActiveTab==="agent")renderStudioAgentHistory();
       else renderStudioWorkHistory();
     }
     function setStudioNavigatorTab(tab, { focus = false, persist = true } = {}) {
-      studioNavigatorActiveTab=["all","canvas","agent"].includes(tab)?tab:"all";
-      const tabs={all:studioNavigatorAllTab,canvas:studioNavigatorCanvasTab,agent:studioNavigatorAgentTab},panels={all:studioNavigatorAllPanel,canvas:studioNavigatorCanvasPanel,agent:studioNavigatorAgentPanel};
+      studioNavigatorActiveTab=(tab==="mcp"&&studioNavigatorMcpEnabled)||["all","canvas","agent"].includes(tab)?tab:"all";
+      const tabs={all:studioNavigatorAllTab,mcp:studioNavigatorMcpTab,canvas:studioNavigatorCanvasTab,agent:studioNavigatorAgentTab},panels={all:studioNavigatorAllPanel,mcp:studioNavigatorMcpPanel,canvas:studioNavigatorCanvasPanel,agent:studioNavigatorAgentPanel};
       for(const [key,control] of Object.entries(tabs)){
         const active=key===studioNavigatorActiveTab;
         control.setAttribute("aria-selected",String(active));
@@ -699,6 +981,9 @@
         try { localStorage.setItem(STUDIO_NAVIGATOR_TAB_KEY, studioNavigatorActiveTab); }
         catch {}
       }
+      setStudioMcpMenuOpen(false);
+      syncStudioMcpActions();
+      updateStudioNavigatorA11y();
       renderActiveStudioNavigatorHistory();
       if(focus)tabs[studioNavigatorActiveTab].focus({preventScroll:true});
     }
@@ -713,12 +998,12 @@
     function handleStudioNavigatorTabKeydown(event) {
       if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
       event.preventDefault();
-      const order=["all","canvas","agent"],current=order.indexOf(studioNavigatorActiveTab),index=event.key==="Home"?0:event.key==="End"?order.length-1:event.key==="ArrowRight"?(current+1)%order.length:(current+order.length-1)%order.length;
+      const order=studioNavigatorMcpEnabled?["all","mcp","canvas","agent"]:["all","canvas","agent"],current=order.indexOf(studioNavigatorActiveTab),index=event.key==="Home"?0:event.key==="End"?order.length-1:event.key==="ArrowRight"?(current+1)%order.length:(current+order.length-1)%order.length;
       setStudioNavigatorTab(order[index],{focus:true});
     }
     function historyManagerWillOpen() {
       studioNavigatorRestoreAgentAfterManager=false;
-      if(!studioNavigatorIsCompact())return;
+      if(!studioNavigatorIsCompact()||studioNavigatorIsMcpDocked())return;
       if(studioNavigatorIsOpen()){
         studioNavigatorRestoreAgentAfterManager=studioNavigatorSuspendedAgent;
         setStudioNavigatorOpen(false,{restoreAgent:false});
@@ -734,7 +1019,7 @@
       openCanvasAgent({focus:false,connect:false,animate:false});
     }
     function studioNavigatorAgentWillOpen() {
-      if(!studioNavigatorIsCompact()||!studioNavigatorIsOpen())return;
+      if(!studioNavigatorIsCompact()||!studioNavigatorIsOpen()||studioNavigatorIsMcpDocked())return;
       studioNavigatorSuspendedAgent=false;
       setStudioNavigatorOpen(false,{restoreAgent:false});
     }
@@ -804,10 +1089,51 @@
       if (studioEdgeSwipe?.pointerId === event.pointerId) studioEdgeSwipe = null;
     }
 
-    studioNavigatorToggle.addEventListener("click", () => setStudioNavigatorOpen(!studioNavigatorIsOpen()));
+    function setStudioMcpMenuOpen(open,{focus=false}={}) {
+      const menu=document.getElementById("studioMcpMenu"),trigger=document.getElementById("studioMcpMore");
+      if(!menu||!trigger)return;
+      menu.hidden=!open;trigger.setAttribute("aria-expanded",String(open));
+      if(focus)(open?menu.querySelector("button:not(:disabled)"):trigger)?.focus({preventScroll:true});
+    }
+    const mcpMenu=document.getElementById("studioMcpMenu"),mcpMore=document.getElementById("studioMcpMore");
+    mcpMore?.addEventListener("click",()=>setStudioMcpMenuOpen(mcpMenu.hidden,{focus:true}));
+    mcpMenu?.addEventListener("click",event=>{if(event.target.closest("button"))setStudioMcpMenuOpen(false,{focus:true});});
+    mcpMenu?.addEventListener("keydown",event=>{
+      if(event.key==="Escape"){event.preventDefault();event.stopPropagation();setStudioMcpMenuOpen(false,{focus:true});return;}
+      if(!["ArrowDown","ArrowUp","Home","End"].includes(event.key))return;
+      event.preventDefault();
+      const items=[...mcpMenu.querySelectorAll("button:not(:disabled)")],index=items.indexOf(document.activeElement);
+      const next=event.key==="Home"?0:event.key==="End"?items.length-1:(index+(event.key==="ArrowDown"?1:-1)+items.length)%items.length;
+      items[next]?.focus();
+    });
+    document.addEventListener("pointerdown",event=>{if(!mcpMenu?.hidden&&!mcpMenu.contains(event.target)&&!mcpMore.contains(event.target))setStudioMcpMenuOpen(false);});
+    document.addEventListener("focusin",event=>{if(!mcpMenu?.hidden&&!mcpMenu.contains(event.target)&&!mcpMore.contains(event.target))setStudioMcpMenuOpen(false);});
+    document.getElementById("studioMcpCloseOthers")?.addEventListener("click",()=>canvasDocumentsUiAction(closeOtherStudioMcpCanvases));
+    function toggleStudioWorkspaceNavigator() {
+      const opening=!studioNavigatorIsOpen();
+      if(opening&&studioNavigatorToggle.dataset.workspaceUpdates==="true"){
+        studioNavigatorSearch.value="";setStudioNavigatorTab(studioNavigatorMcpEnabled?"mcp":"all");
+      }
+      setStudioNavigatorOpen(opening);
+    }
+    studioNavigatorToggle.addEventListener("click", toggleStudioWorkspaceNavigator);
     studioNavigatorClose.addEventListener("click", () => setStudioNavigatorOpen(false));
     studioNavigatorScrim.addEventListener("click", () => setStudioNavigatorOpen(false));
-    studioNavigatorSearch.addEventListener("input", () => studioNavigatorActiveTab === "canvas" ? renderStudioCanvasHistory() : studioNavigatorActiveTab === "agent" ? renderStudioAgentHistory() : renderStudioWorkHistory());
+    studioNavigatorSearch.addEventListener("input", renderActiveStudioNavigatorHistory);
+    studioNavigatorMcpTab.addEventListener("click",()=>setStudioNavigatorTab("mcp"));
+    document.getElementById("studioMcpCloseAll")?.addEventListener("click",()=>canvasDocumentsUiAction(closeAllStudioMcpCanvases));
+    document.getElementById("studioMcpFollowLatest")?.addEventListener("click",()=>{
+      studioMcpFollowLatest=!studioMcpFollowLatest;
+      studioMcpPendingDocumentId=studioMcpFollowLatest?studioMcpLatestDocumentId:null;
+      studioMcpPendingRegion=studioMcpFollowLatest?studioMcpLatestRegion:null;
+      syncStudioMcpActions();void flushStudioMcpFollowLatest();
+    });
+    const resumeMcpFollow=()=>{if(studioMcpFollowLatest&&studioMcpPendingDocumentId)queueMicrotask(()=>void flushStudioMcpFollowLatest());};
+    window.addEventListener("pointerup",resumeMcpFollow);
+    window.addEventListener("pointercancel",resumeMcpFollow);
+    document.addEventListener("focusout",resumeMcpFollow);
+    document.addEventListener("visibilitychange",resumeMcpFollow);
+    studioNavigatorMcpTab.addEventListener("keydown",handleStudioNavigatorTabKeydown);
     studioNavigatorAllTab.addEventListener("click", () => setStudioNavigatorTab("all"));
     studioNavigatorAgentTab.addEventListener("click", () => setStudioNavigatorTab("agent"));
     studioNavigatorCanvasTab.addEventListener("click", () => setStudioNavigatorTab("canvas"));
@@ -856,6 +1182,11 @@
       renderAgent:()=>{studioNavigatorActiveTab==="agent"?renderStudioAgentHistory():studioNavigatorActiveTab==="all"&&renderStudioWorkHistory();},
       renderCanvases:renderActiveStudioNavigatorHistory,
       updateDocument:updateStudioDocumentState,
+      workspaceChanged:studioWorkspaceChanged,
+      noteMcpContentUpdate:noteStudioMcpContentUpdate,
+      flushMcpFollow:flushStudioMcpFollowLatest,
+      syncMcp:syncStudioNavigatorMcp,
+      isMcpDocked:studioNavigatorIsMcpDocked,
       canvasDidLoad:studioNavigatorCanvasDidLoad,
       wantsConversationForCanvas:wantsStudioConversationForCanvas,
       cancelPendingConversation:cancelStudioPendingConversation,

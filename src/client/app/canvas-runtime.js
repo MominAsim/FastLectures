@@ -11,6 +11,7 @@
   const objectChromeButtons = new Map();
   const widgetRefineTouchCandidates = new Map();
   let widgetRefineConfirmationElement = null;
+  let widgetInteractionStatusElement = null;
   let canvasWidgetGestureResetTap = null;
   let viewerAutoFitWidgetId = null;
   let viewerAutoFitCanvas = false;
@@ -164,7 +165,7 @@
       changed = true;
     }
     if (generation !== canvasTextQualityGeneration || !changed) return false;
-    renderPlacedContentLayer(canvasRenderRegion().visible);
+    renderTextContentLayer(canvasRenderRegion().visible);
     return true;
   }
   function textBoxHistoryRecord(item) {
@@ -275,7 +276,13 @@
       let record = null;
       try {
         if (item?.image && textImageRasterRatio(item.image) >= pixelRatio / 1.05) record = textBoxHistoryRecord(item);
-        else record = await renderedTextBoxRecord(item, pixelRatio);
+        else {
+          record = await renderedTextBoxRecord(item, pixelRatio);
+          // Raster dimensions describe typography; the saved frame describes
+          // world placement. Rehydrating pixels must not reset their mapping.
+          if(record&&[item.x,item.y,item.w,item.h].every(Number.isFinite)&&item.x>=0&&item.y>=0&&item.w>0&&item.h>0&&item.x+item.w<=SIZE&&item.y+item.h<=SIZE)
+            Object.assign(record,{x:item.x,y:item.y,w:item.w,h:item.h});
+        }
       } catch {
         // One invalid or unsupported text box must not make an otherwise valid
         // saved Canvas impossible to restore.
@@ -328,7 +335,7 @@
   }
   function imageRecord(item) {
     if (!item || typeof item !== "object" || !(item.blob instanceof Blob) || !item.image || item.blob.size <= 0 || item.blob.size > MAX_IMAGE_SOURCE_BYTES) return null;
-    if (!n(item.x) || !n(item.y) || !n(item.w, 80) || !n(item.h, 80) || item.x + item.w > SIZE || item.y + item.h > SIZE) return null;
+    if (!n(item.x) || !n(item.y) || !n(item.w, item.naturalW > 0 ? 1 : 80) || !n(item.h, item.naturalH > 0 ? 1 : 80) || item.x + item.w > SIZE || item.y + item.h > SIZE) return null;
     const naturalW = Number(item.naturalW) || item.image.naturalWidth || item.image.width,
       naturalH = Number(item.naturalH) || item.image.naturalHeight || item.image.height,
       plotExpression = typeof item.plotExpression === "string" ? item.plotExpression.trim() : "";
@@ -359,15 +366,17 @@
   }
   function syncCanvasObjectLayerOrder() {
     const widgetInFront = state.frontCanvasObjectKind === "widget",
-      selectedWidgetMaterialActive = Boolean(selectedWidgetMaterial && !selectedWidgetMaterial.hidden),
+      selectedWidgetMaterialActive = Boolean(state.interactingWidgetId || (selectedWidgetMaterial && !selectedWidgetMaterial.hidden)),
       widgetStyle = runtimeElementStyle(widgetLayer, "widget-layer-stack"),
       imageMaterialStyle = runtimeElementStyle(imageMaterialLayer, "image-material-layer-stack"),
       imageStyle = runtimeElementStyle(placedContentLayer, "placed-content-layer-stack"),
       textEditorStyle = runtimeElementStyle(textEditorLayer, "text-editor-layer-stack");
+    // Selection is a temporary lift above ink; click-to-front order survives deselection.
+    // Ink follows the Widget carrier in DOM order at z-index 2.
     if (widgetStyle) widgetStyle.zIndex = selectedWidgetMaterialActive ? "3" : widgetInFront ? "2" : "1";
     if (imageMaterialStyle) imageMaterialStyle.zIndex = widgetInFront ? "1" : "2";
     if (imageStyle) imageStyle.zIndex = widgetInFront ? "1" : "2";
-    if (textEditorStyle) textEditorStyle.setProperty("--text-editor-layer-z", state.frontCanvasObjectKind === "text-box" ? "6" : "1");
+    if (textEditorStyle) textEditorStyle.setProperty("--text-editor-layer-z", selectedWidgetMaterialActive ? "2" : "3");
   }
   function setCanvasObjectFrontKind(kind) {
     if (!["image", "widget", "text-box"].includes(kind)) return false;
@@ -479,8 +488,8 @@
     return state.images.find((item) => item.id === state.selectedImageId) || null;
   }
   function enterManualImageHandMode() {
-    if (state.mode !== "hand" && state.imageHandReturnMode === null) state.imageHandReturnMode = state.mode;
-    if (state.mode !== "hand") setCanvasMode("hand", {
+    if (state.mode !== "select" && state.imageHandReturnMode === null) state.imageHandReturnMode = state.mode;
+    if (state.mode !== "select") setCanvasMode("select", {
       preserveSelection:true,
       skipDraftFinalize:true,
       preserveWidgetRefinement:true,
@@ -489,7 +498,7 @@
   function finishManualImageHandMode() {
     const returnMode = state.imageHandReturnMode;
     state.imageHandReturnMode = null;
-    if (returnMode && state.mode === "hand") setCanvasMode(returnMode, {
+    if (returnMode && state.mode === "select") setCanvasMode(returnMode, {
       preserveSelection:true,
       skipDraftFinalize:true,
       preserveWidgetRefinement:true,
@@ -623,7 +632,8 @@
     return true;
   }
   function ensureHandToolbarRecord(kind, object) {
-    if (state.mode !== "hand" || !object?.id || !["widget", "image", "animation", "text-box"].includes(kind)) return null;
+    const allowed = ["select", "hand"].includes(state.mode) || (kind === "widget" && state.mode === "pen");
+    if (!allowed || !object?.id || !["widget", "image", "animation", "text-box"].includes(kind)) return null;
     const key = handToolbarKey(kind, object.id);
     let record = state.handToolbarTargets.get(key);
     if (!record) {
@@ -653,6 +663,7 @@
     for (const key of [...state.handToolbarTargets.keys()]) {
       if (key !== ensured.key) finishHandToolbarHide(key);
     }
+    if (kind === "widget") commitWidgetToolbarFront(object);
     state.handToolbarActiveKey = ensured.key;
     ensured.record.expanded = true;
     if (token) ensured.record.holds.add(token);
@@ -700,11 +711,15 @@
       state.handToolbarActiveKey = null;
       return false;
     }
+    if (record.kind === "widget") commitWidgetToolbarFront(object);
+    else if (record.kind === "image") bringImageToFront(object);
+    else if (record.kind === "text-box") bringTextBoxToFront(object);
     if (record.kind === "animation") showAnimationControls(HAND_OBJECT_TOOLBAR_VISIBLE_MS + HAND_OBJECT_TOOLBAR_FADE_MS);
     refreshHandObjectToolbar(key);
     return true;
   }
   function showHandObjectToolbar(kind, object) {
+    if (kind === "text-box") return editTextBox(object);
     const ensured = ensureHandToolbarRecord(kind, object);
     if (!ensured) return false;
     const { key } = ensured;
@@ -735,7 +750,9 @@
       ordered = state.frontCanvasObjectKind === "widget"
         ? [{ kind:"widget", object:widget }, ...placed]
         : [...placed, { kind:"widget", object:widget }],
-      target = ordered.find(candidate => candidate.object);
+      target = widget && (state.selectedWidgetId === widget.id || state.interactingWidgetId === widget.id)
+        ? { kind:"widget", object:widget }
+        : textBox ? { kind:"text-box", object:textBox } : ordered.find(candidate => candidate.object);
     if (target) return target;
     const animation = animationPointerHit(point)?.animation;
     if (animation) return { kind:"animation", object:animation };
@@ -748,11 +765,11 @@
     return false;
   }
   function beginHandObjectFocus(event, point) {
-    if (state.mode !== "hand" || Number(event.button) !== 0) return false;
+    if (state.mode !== "select" || Number(event.button) !== 0) return false;
     const target = handObjectToolbarTargetAtPoint(point);
     if (!target) return false;
-    if (target.kind === "widget") bringHtmlWidgetToFront(target.object);
-    else if (target.kind === "image") bringImageToFront(target.object);
+    // Focus raises the selected Widget through focusHandObject.
+    if (target.kind === "image") bringImageToFront(target.object);
     else if (target.kind === "text-box") bringTextBoxToFront(target.object);
     const token = `pointer:${event.pointerId}`,
       key = focusHandObject(target.kind, target.object, token);
@@ -801,6 +818,7 @@
         widgetHostPointerAnchors.delete(id);
       }
       if (ownsDrag) {
+        widget.shell?.classList.remove("is-resizing");
         state.widgetGesture = null;
         resetCanvasCursor();
       }
@@ -814,7 +832,7 @@
   }
   function beginCanvasWidgetGestureResetTap(event, point) {
     canvasWidgetGestureResetTap = null;
-    if (state.mode !== "hand" || !state.handGestureIncludesWidget && !state.handWidgetPointerIds.size && !widgetHostPointerAnchors.size) return false;
+    if (state.mode !== "select" || !state.handGestureIncludesWidget && !state.handWidgetPointerIds.size && !widgetHostPointerAnchors.size) return false;
     if (!["mouse", "touch"].includes(event.pointerType) || event.pointerType === "mouse" && Number(event.button) !== 0) return false;
     if (event.isPrimary === false || state.pointers.size || !point || !valid(point) || handObjectToolbarTargetAtPoint(point)) return false;
     canvasWidgetGestureResetTap = { id:event.pointerId, startX:event.clientX, startY:event.clientY };
@@ -833,7 +851,7 @@
     const tap = canvasWidgetGestureResetTap;
     if (!tap || tap.id !== event.pointerId) return false;
     canvasWidgetGestureResetTap = null;
-    if (state.mode !== "hand" || event.type === "pointercancel" || state.pointers.size || state.touches.size
+    if (state.mode !== "select" || event.type === "pointercancel" || state.pointers.size || state.touches.size
       || Math.hypot(event.clientX - tap.startX, event.clientY - tap.startY) > HAND_WIDGET_GESTURE_RESET_TAP_PX) return false;
     return clearWidgetOwnedHandGestures();
   }
@@ -910,18 +928,8 @@
   }
   function imageControlHit(item, point, pointerType = "mouse") {
     const box = imageBox(item),
-      handle = 14 / state.scale,
-      radius = (pointerType === "touch" ? 24 : 14) / state.scale,
-      controls = [
-        { hit:"resize", target:{ x:box.x + box.w, y:box.y + box.h }, radius },
-        { hit:"width", target:{ x:box.x + box.w + handle * 0.08, y:box.y + box.h / 2 }, radius },
-        { hit:"height", target:{ x:box.x + box.w / 2, y:box.y + box.h + handle * 0.08 }, radius },
-      ],
-      control = controls
-        .map((candidate) => ({ ...candidate, distance:Math.hypot(point.x - candidate.target.x, point.y - candidate.target.y) }))
-        .filter((candidate) => candidate.distance <= candidate.radius)
-        .sort((a, b) => a.distance - b.distance)[0];
-    if (control) return control.hit;
+      resize = widgetResizeHit(box, point, pointerType);
+    if (resize) return resize;
     return point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h ? "move" : null;
   }
   function imageAtPoint(point) {
@@ -940,6 +948,10 @@
     if (!includeUnselected) return null;
     const item = imageAtPoint(point);
     return item ? { image:item, hit:"move" } : null;
+  }
+  function imageResizeCursor(point, pointerType = "mouse") {
+    const hit = imagePointerHit(point, pointerType, false)?.hit;
+    return hit === "resize" ? "nwse-resize" : hit === "width" ? "ew-resize" : hit === "height" ? "ns-resize" : "";
   }
   function resizeImageBox(start, point, hit) {
     const minimumWidth = 80, minimumHeight = 80,
@@ -1135,6 +1147,7 @@
       if (!item) throw imageImportError("imageImportFailed");
       state.images.push(item);
       state.dirtyImageIds.add(item.id);
+      mcpRecordFeedback("image",imageBox(item),item);
       recomputeDirtyBounds();
       state.autoEligible = true;
       state.userRevision++;
@@ -1156,7 +1169,7 @@
     return { x: widget.x, y: widget.y, w: widget.w, h: widget.h };
   }
   function widgetLayout(widget) {
-    return { ...widgetBox(widget), contentW:widget.contentW, contentH:widget.contentH };
+    return { ...widgetBox(widget), contentW:widget.contentW, contentH:widget.contentH, fitContent:widget.fitContent === true, fitContentAxes:widget.fitContentAxes || null };
   }
   function visibleWidgets(region = null) {
     if (!widgetRuntimeEnabled()) return [];
@@ -1169,9 +1182,7 @@
       stackIndex++;
     }
     if (state.pendingWidget?.styleRule?.style) state.pendingWidget.styleRule.style.zIndex = String(stackIndex);
-    const attachedWidget = [...state.widgets, ...(state.pendingWidget ? [state.pendingWidget] : [])]
-      .find((widget) => widget.shell?.classList?.contains("object-toolbar-attached"));
-    if (attachedWidget?.styleRule?.style) attachedWidget.styleRule.style.zIndex = String(stackIndex + 1);
+    // Toolbars do not change the visual/hit-test stacking order.
   }
   function setWidgetStackIndex(widget, nextIndex) {
     const currentIndex = state.widgets.indexOf(widget);
@@ -1190,6 +1201,25 @@
       changed = stackChanged || layerChanged;
     if (changed && state.widgetEdit?.id === widget.id) state.widgetEdit.changed = true;
     return changed;
+  }
+  function commitWidgetToolbarFront(widget) {
+    if (!widget || !state.widgets.includes(widget)) return false;
+    if (state.widgets.at(-1) === widget && state.frontCanvasObjectKind === "widget") return false;
+    recordWidgetsBefore();
+    const edit = state.widgetEdit?.id === widget.id ? state.widgetEdit : null,
+      wasChanged = edit?.changed;
+    bringHtmlWidgetToFront(widget);
+    // Clicking a toolbar commits its order independently of a later edit/cancel.
+    if (edit) {
+      edit.beforeIndex = state.widgets.indexOf(widget);
+      edit.beforeFrontCanvasObjectKind = state.frontCanvasObjectKind;
+      edit.beforeFrontPlacedCanvasObjectKind = state.frontPlacedCanvasObjectKind;
+      edit.changed = wasChanged;
+    }
+    state.userRevision++;
+    saveUserCanvasChange();
+    if (edit) recordWidgetsBefore();
+    return true;
   }
   function capturableWidgets(region = null) {
     const widgets = visibleWidgets(region),
@@ -1218,6 +1248,8 @@
       h: widget.h,
       contentW: widget.contentW,
       contentH: widget.contentH,
+      ...(widget.fitContent ? { fitContent:true } : {}),
+      ...(widget.fitContentAxes ? { fitContentAxes:widget.fitContentAxes } : {}),
       title: widget.title,
       refreshSeconds: widget.refreshSeconds,
       favoriteSourceId: widget.favoriteSourceId,
@@ -1250,7 +1282,7 @@
         : typeof item.html === "string" ? item.html : "";
     if (widgetType === "html_widget" && (!html.trim() || html.length > MAX_WIDGET_HTML_LENGTH)
       || widgetType === "diagram_source" && (!source || !normalizedSourceFormat || html.length > MAX_WIDGET_HTML_LENGTH)) return null;
-    if (!n(item.x) || !n(item.y) || !n(item.w, 300, SIZE) || !n(item.h, 200, SIZE) || item.x + item.w > SIZE || item.y + item.h > SIZE) return null;
+    if (!n(item.x) || !n(item.y) || !n(item.w, item.contentW !== undefined ? 1 : 300, SIZE) || !n(item.h, item.contentH !== undefined ? 1 : 200, SIZE) || item.x + item.w > SIZE || item.y + item.h > SIZE) return null;
     const contentW = item.contentW ?? item.w,
       contentH = item.contentH ?? item.h;
     if (!Number.isFinite(contentW) || contentW < 300 || contentW > MAX_WIDGET_CONTENT_DIMENSION
@@ -1279,6 +1311,8 @@
       h: Math.round(item.h),
       contentW: Math.round(contentW),
       contentH: Math.round(contentH),
+      fitContent: item.fitContent === true,
+      fitContentAxes: ["width", "height", "resize"].includes(item.fitContentAxes) ? item.fitContentAxes : null,
       title: item.title.trim(),
       refreshSeconds: Math.round(item.refreshSeconds),
       html,
@@ -1447,24 +1481,34 @@
       }
     }
     if (configuredAccessSession) url.searchParams.set("access-session", configuredAccessSession);
-    if (runtime === "cloud") url.searchParams.set("remote-canvas", "1");
-    if (runtime === "cloud" && manifest.id === "general") url.searchParams.set("public-https", "1");
+    if (runtime === "cloud" || runtime === "viewer") url.searchParams.set("remote-canvas", "1");
+    if ((runtime === "cloud" || runtime === "viewer") && manifest.id === "general") url.searchParams.set("public-https", "1");
     for (const origin of manifest.connect) url.searchParams.append("connect", origin);
     return url.href;
   }
   function createWidgetResizeHandle(widget, hit) {
     const handle = document.createElement("div");
     handle.className = `canvas-widget-resize-handle ${hit === "width" ? "width" : hit === "height" ? "height" : "corner"}`;
-    handle.setAttribute("aria-hidden", "true");
     handle.addEventListener("pointerdown", (event) => {
-      if (state.viewMode || state.mode !== "hand" || Number(event.button) !== 0) return;
+      if (state.viewMode || state.spacePan || !["hand", "select"].includes(state.mode) || Number(event.button) !== 0) return;
       const pending = widget === state.pendingWidget && widget.pending === true;
-      if (!pending && !showHandObjectToolbar("widget", widget)) return;
+      if (!pending && state.interactingWidgetId !== widget.id && !showHandObjectToolbar("widget", widget)) return;
       event.preventDefault();
       event.stopPropagation();
       finishStaleWidgetHostGesture(event);
+      // Move focus out of the live iframe before capturing its border gesture.
+      handle.tabIndex = -1;
+      handle.focus({ preventScroll:true });
       if (!beginWidgetGesture(event, clientPoint(event), { widget, hit, pending })) return;
+      widget.shell?.classList.add("is-resizing");
       try { handle.setPointerCapture(event.pointerId); } catch {}
+      if (!pending) beginHandToolbarOperation(event.pointerId, handToolbarKey("widget", widget.id));
+    });
+    handle.addEventListener("dblclick", (event) => {
+      if (state.viewMode || state.spacePan || !["hand", "select"].includes(state.mode)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      requestWidgetContentFit(widget, hit);
     });
     handle.addEventListener("pointermove", (event) => {
       if (finishReleasedWidgetGesture(event) || state.widgetGesture?.id !== event.pointerId) return;
@@ -1512,6 +1556,15 @@
     shell.tabIndex = widget.pending ? -1 : 0;
     shell.setAttribute("aria-label", `${widget.title}. ${t("widgetRefineHint")}`);
     shell.classList.add(`canvas-widget-instance-${widget.id.replace(/[^a-z0-9-]/g, "")}`);
+    shell.addEventListener("pointerdown", (event) => {
+      if (event.target === shell) handleCanvasPointerDown(event);
+    });
+    shell.addEventListener("keydown", (event) => {
+      if (event.target === shell && event.key === "Enter") {
+        event.preventDefault();
+        enterWidgetInteraction(widget);
+      }
+    });
     frame.className = "canvas-widget-frame";
     frame.title = widget.title;
     frame.referrerPolicy = "no-referrer";
@@ -1532,6 +1585,7 @@
     widgetLayer.append(shell);
     widget.shell = shell;
     widget.frame = frame;
+    widget.inputPolicyKey = null;
     widget.hostOrigin = new URL(frame.src).origin;
     widget.runtimeDiagnostics = null;
     widget.visualDiagnostics = null;
@@ -1546,6 +1600,7 @@
     positionWidget(widget);
   }
   function unmountWidget(widget) {
+    if (state.interactingWidgetId === widget.id) setWidgetInteraction(null);
     clearWidgetOwnedHandGestures(widget);
     clearHandToolbarTarget("widget", widget.id, { preserveInactive:false });
     removeWidgetStyleRule(widget);
@@ -1594,7 +1649,7 @@
       dragging = state.widgetGesture?.widget === widget,
       intersectsViewport = viewportWidth <= 0 || viewportHeight <= 0
         || (screenX < viewportWidth && screenY < viewportHeight && screenX + displayWidth > 0 && screenY + displayHeight > 0),
-      active = dragging || intersectsViewport;
+      active = widget.maximized === true || widget.snapshotCaptureActive === true || dragging || intersectsViewport;
     widget.renderActive = active;
     widget.shell.classList.toggle("widget-offscreen", !active);
     if (active) sendWidgetInit(widget);
@@ -1629,15 +1684,17 @@
       widget.styleSizeKey = sizeKey;
       declaration.width = `${widget.contentW}px`;
       declaration.height = `${widget.contentH}px`;
+      declaration.setProperty("--widget-natural-width", `${widget.contentW}px`);
+      declaration.setProperty("--widget-natural-height", `${widget.contentH}px`);
     }
     const transformKey = `${localX}:${localY}:${scaleX}:${scaleY}`;
     if (widget.styleTransformKey !== transformKey) {
       widget.styleTransformKey = transformKey;
       declaration.transform = `translate3d(${localX}px,${localY}px,0) scale(${scaleX},${scaleY})`;
-      declaration.setProperty?.("--widget-resize-edge-x", `${14 / scaleX}px`);
-      declaration.setProperty?.("--widget-resize-edge-y", `${14 / scaleY}px`);
-      declaration.setProperty?.("--widget-resize-corner-x", `${18 / scaleX}px`);
-      declaration.setProperty?.("--widget-resize-corner-y", `${18 / scaleY}px`);
+      declaration.setProperty?.("--widget-resize-edge-x", `${28 / scaleX}px`);
+      declaration.setProperty?.("--widget-resize-edge-y", `${28 / scaleY}px`);
+      declaration.setProperty?.("--widget-resize-corner-x", `${36 / scaleX}px`);
+      declaration.setProperty?.("--widget-resize-corner-y", `${36 / scaleY}px`);
     }
     updateWidgetRenderVisibility(widget, screenX, screenY);
     sendWidgetHostState(widget, scaleX, scaleY);
@@ -1656,25 +1713,45 @@
     if (!widget.frame?.contentWindow || !widget.hostReady || widget.initialized || widget.renderActive === false) return;
     const manifest = pluginManifests.get(widget.pluginId);
     if (!manifest) return;
+    let imageAssets={};
+    try {if(typeof canvasImageAssetsForHtml==="function")imageAssets=canvasImageAssetsForHtml(widget.html,widget.mcpAssetDocumentId?canvasDocuments.records.get(widget.mcpAssetDocumentId):canvasDocumentsCurrent());}
+    catch { /* The host reports missing attachments without aborting Canvas rendering. */ }
     widget.initialized = true;
+    widget.mcpDocumentLoaded = false;
     widget.frame.contentWindow.postMessage({
       type:"penecho-widget-init",
       title:widget.title,
       html:widget.html,
+      imageAssets,
       pluginStyles:manifest.styles || "",
       ...(widget.sourceFormat ? { sourceFormat:widget.sourceFormat } : {}),
       ...(widget.frameworkVersion ? { frameworkVersion:widget.frameworkVersion } : {}),
     }, widget.hostOrigin || location.origin);
   }
   function sendWidgetHostState(widget, scaleX = state.scale * widget.w / widget.contentW, scaleY = state.scale * widget.h / widget.contentH, force = false) {
-    const selected = widget.pending === true || (state.widgetEdit?.id === widget.id && state.selectedWidgetId === widget.id);
-    widget.shell?.classList.toggle("is-selected", selected);
+    if (widget.maximized) {
+      const shellStyle = getComputedStyle(widget.shell);
+      const available = widget.shell.clientWidth - parseFloat(shellStyle.paddingLeft) - parseFloat(shellStyle.paddingRight);
+      scaleX = scaleY = available / Math.max(widget.contentW, widget.presentationWidth || 0) * (widget.presentationZoom || 100) / 100;
+    }
+    const interactive = canvasWidgetInteractive(widget),
+      selectable = canvasWidgetSelectionEnabled(),
+      selected = !state.viewMode && ["hand", "select"].includes(state.mode) && !interactive && (widget.pending === true || (state.widgetEdit?.id === widget.id && state.selectedWidgetId === widget.id)),
+      inputKey = `${interactive}:${selectable}:${selected}`;
+    if (widget.inputPolicyKey !== inputKey) {
+      widget.inputPolicyKey = inputKey;
+      widget.shell?.classList.toggle("is-interacting", interactive);
+      widget.shell?.classList.toggle("is-selected", selected);
+      if (widget.frame) widget.frame.inert = !interactive;
+      if (widget.shell) widget.shell.tabIndex = selectable && !widget.pending ? 0 : -1;
+    }
     if (!widget.frame?.contentWindow || !widget.hostReady || !Number.isFinite(scaleX) || scaleX <= 0 || !Number.isFinite(scaleY) || scaleY <= 0) return;
     const active = widget.renderActive !== false,
-      key = `${selected ? 1 : 0}:${active ? 1 : 0}:${state.navigationLocked ? 1 : 0}:${scaleX.toFixed(6)}:${scaleY.toFixed(6)}`;
+      key = `${interactive ? 1 : 0}:${selected ? 1 : 0}:${active ? 1 : 0}:${state.navigationLocked ? 1 : 0}:${scaleX.toFixed(6)}:${scaleY.toFixed(6)}:${widget.fitContent ? 1 : 0}:${widget.fitContentAxes || ""}:${widget.maximized ? 1 : 0}`;
+    syncMcpWidgetProgress(widget);
     if (!force && widget.hostStateKey === key) return;
     widget.hostStateKey = key;
-    widget.frame.contentWindow.postMessage({ type:"penecho-widget-state", selected, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
+    widget.frame.contentWindow.postMessage({ type:"penecho-widget-state", maximized:widget.maximized === true, fitContent:widget.fitContent === true, fitContentAxes:widget.fitContentAxes || null, selected, interactive, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
   }
   function markWidgetHostReady(widget) {
     widget.hostReady = true;
@@ -1710,28 +1787,30 @@
       );
     });
   }
-  async function requestWidgetSnapshot(widget, timeoutMs = WIDGET_SNAPSHOT_TIMEOUT_MS, requireFresh = true, signal = null, highResolution = false) {
+  async function requestWidgetSnapshot(widget, timeoutMs = WIDGET_SNAPSHOT_TIMEOUT_MS, requireFresh = true, signal = null, highResolution = false, fullContent = false) {
     if(signal?.aborted)throw widgetSnapshotAbortError(signal);
     highResolution = highResolution === true;
     if (widget.snapshotPromise) {
       const inFlight = widget.snapshotPromise;
-      if (!requireFresh && (!highResolution || widget.snapshotPromiseHighResolution)) return waitForWidgetSnapshot(inFlight,signal);
+      if (!fullContent && !widget.snapshotPromiseFullContent && !requireFresh && (!highResolution || widget.snapshotPromiseHighResolution)) return waitForWidgetSnapshot(inFlight,signal);
       try { await waitForWidgetSnapshot(inFlight,signal); } catch (error) { if(signal?.aborted)throw error; }
       if(signal?.aborted)throw widgetSnapshotAbortError(signal);
-      if (widget.snapshotImage && widget.snapshotVersion >= widget.contentVersion && (!highResolution || widget.snapshotHighResolution)) return widget.snapshotImage;
+      if (!fullContent && widget.snapshotImage && widget.snapshotVersion >= widget.contentVersion && (!highResolution || widget.snapshotHighResolution)) return widget.snapshotImage;
     }
     timeoutMs = Math.max(1000, Math.min(WIDGET_SNAPSHOT_TIMEOUT_MS, Number(timeoutMs) || WIDGET_SNAPSHOT_TIMEOUT_MS));
     const snapshotPromise = (async () => {
       const previousActive = widget.renderActive,
         deadline = performance.now() + timeoutMs,
-        remaining = () => Math.max(1, deadline - performance.now());
+        remaining = () => Math.max(1, deadline - performance.now()),
+        captureFailure=(code,stage)=>Object.assign(Error("Widget snapshot timed out"),{code,details:{widgetId:widget.id,stage,elapsedMs:Math.round(timeoutMs-remaining())}});
+      widget.snapshotCaptureActive = true;
       try {
         if (!widget.frame?.contentWindow) throw Error(t("widgetExportFailed"));
         if (!widget.hostReady) {
           if (!widget.hostReadyPromise) throw Error(t("widgetExportFailed"));
           await Promise.race([
             widget.hostReadyPromise,
-            new Promise((_, reject) => setTimeout(() => reject(Error(t("widgetExportFailed"))), remaining())),
+            new Promise((_, reject) => setTimeout(() => reject(captureFailure("WIDGET_READY_TIMEOUT","host-ready")), remaining())),
           ]);
         }
         widget.renderActive = true;
@@ -1746,7 +1825,7 @@
           const timer = setTimeout(() => {
             widgetSnapshotRequests.delete(requestId);
             if(signal&&pending?.abort)signal.removeEventListener("abort",pending.abort);
-            reject(Error("Widget snapshot timed out"));
+            reject(captureFailure("WIDGET_CAPTURE_TIMEOUT","host-response"));
           }, remaining());
           const abort=()=>{
             if(widgetSnapshotRequests.get(requestId)!==pending)return;
@@ -1754,13 +1833,14 @@
             clearTimeout(timer);
             reject(widgetSnapshotAbortError(signal));
           };
-          pending={ widget, resolve, reject, timer, contentVersion:widget.contentVersion, signal, abort, highResolution };
+          pending={ widget, resolve, reject, timer, contentVersion:widget.contentVersion, signal, abort, highResolution, fullContent };
           widgetSnapshotRequests.set(requestId,pending);
           signal?.addEventListener("abort",abort,{once:true});
           if(signal?.aborted){abort();return;}
-          widget.frame.contentWindow.postMessage({ type:"penecho-widget-snapshot-request", requestId, width:widget.contentW, height:widget.contentH, timeoutMs:remaining(), highResolution }, widget.hostOrigin || location.origin);
+          widget.frame.contentWindow.postMessage({ type:"penecho-widget-snapshot-request", requestId, width:widget.contentW, height:widget.contentH, timeoutMs:remaining(), highResolution, fullContent }, widget.hostOrigin || location.origin);
         });
       } finally {
+        widget.snapshotCaptureActive = false;
         if (previousActive === false) {
           widget.renderActive = false;
           widget.shell?.classList.add("widget-offscreen");
@@ -1769,20 +1849,56 @@
       }
     })();
     widget.snapshotPromise = snapshotPromise;
+    widget.snapshotPromiseFullContent = fullContent;
     widget.snapshotPromiseHighResolution = highResolution;
     try {
       return await snapshotPromise;
     } finally {
       if (widget.snapshotPromise === snapshotPromise) {
         widget.snapshotPromise = null;
+        widget.snapshotPromiseFullContent = false;
         widget.snapshotPromiseHighResolution = false;
       }
     }
   }
+  function applyWidgetPresentationSize(widget, message) {
+    if (!widget.maximized || !widget.styleRule?.style) return false;
+    const width = Number(message.width), height = Number(message.height);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || width > 100000 || height > 100000) return false;
+    const nextWidth = Math.max(widget.contentW, Math.ceil(width));
+    const nextHeight = Math.max(widget.contentH, Math.ceil(height));
+    if (widget.presentationWidth === nextWidth && widget.presentationHeight === nextHeight) return false;
+    widget.presentationWidth = nextWidth;
+    widget.presentationHeight = nextHeight;
+    widget.styleRule.style.setProperty("--widget-presentation-width", `${nextWidth}px`);
+    widget.styleRule.style.setProperty("--widget-presentation-height", `${nextHeight}px`);
+    sendWidgetHostState(widget);
+    return true;
+  }
   async function handleWidgetMessage(event) {
-    const widget = [...state.widgets, ...(state.pendingWidget ? [state.pendingWidget] : [])].find((item) => item.frame?.contentWindow === event.source);
+    const widget = [...state.widgets, ...(state.pendingWidget ? [state.pendingWidget] : []), ...(typeof mcpRuntime!=="undefined"?[...(mcpRuntime?.previews?.values()||[])]:[])].find((item) => item.frame?.contentWindow === event.source);
     if (!widget || event.origin !== (widget.hostOrigin || location.origin) || !event.data || typeof event.data !== "object") return;
     const message = event.data;
+    if(widget.mcpEphemeral&&!["penecho-widget-host-ready","penecho-widget-capture-ready","penecho-widget-updated","penecho-widget-snapshot","penecho-widget-snapshot-error","penecho-widget-runtime-diagnostics","penecho-visual-explainer-diagnostics"].includes(message.type))return;
+    if(message.type==="penecho-widget-user-action"&&typeof canvasDocumentsWidgetAction==="function") {
+      canvasDocumentsWidgetAction(widget,message);return;
+    }
+    if (message.type === "penecho-widget-presentation-size") {
+      applyWidgetPresentationSize(widget, message);
+      return;
+    }
+    if (message.type === "penecho-widget-fit-result") {
+      applyWidgetContentFit(widget, message);
+      return;
+    }
+    if (message.type === "penecho-widget-fit" && ["width", "height", "resize"].includes(message.hit)) {
+      requestWidgetContentFit(widget, message.hit);
+      return;
+    }
+    if (message.type === "penecho-widget-exit-interaction") {
+      if (state.interactingWidgetId === widget.id) setWidgetInteraction(null);
+      return;
+    }
     if (message.type === "penecho-widget-host-ready") {
       markWidgetHostReady(widget);
       return;
@@ -1791,9 +1907,9 @@
       return;
     }
     if (validWidgetHostActivate(message)) {
-      if (state.mode === "hand") {
+      if (state.mode === "select" && !state.interactingWidgetId) {
         const target = handObjectToolbarTargetFromWidgetMessage(widget, message);
-        if (target && showHandObjectToolbar(target.kind, target.object) && target.kind === "widget") bringHtmlWidgetToFront(target.object);
+        if (target) showHandObjectToolbar(target.kind, target.object);
       }
       return;
     }
@@ -1823,6 +1939,11 @@
       return;
     }
     if (message.type === "penecho-widget-updated") {
+      if(message.loaded===true){
+        widget.mcpDocumentLoaded = true;
+        for(const resolve of widget.mcpLoadWaiters||[])resolve();
+        widget.mcpLoadWaiters?.clear();
+      }
       widget.contentVersion++;
       widget.snapshotDataUrl = "";
       return;
@@ -1839,13 +1960,21 @@
         ? String(message.error || t("widgetExportFailed")).replace(/[\r\n\t]+/g, " ").slice(0, 300)
         : t("widgetExportFailed");
       if (message.type === "penecho-widget-snapshot-error") console.warn("PenEcho widget snapshot failed:", snapshotFailure);
-      pending.reject(Error(snapshotFailure));
+      const error=Error(snapshotFailure);
+      error.code=/^WIDGET_[A-Z_]{1,40}$/.test(message.code||"")?message.code:"WIDGET_CAPTURE_FAILED";
+      error.details={widgetId:widget.id,stage:String(message.details?.stage||"capture").slice(0,60),
+        elapsedMs:Number.isFinite(message.details?.elapsedMs)?message.details.elapsedMs:null};
+      pending.reject(error);
       return;
     }
     try {
       const snapshotImage=await decodeWidgetSnapshot(message.dataUrl);
       if(pending.signal?.aborted)throw widgetSnapshotAbortError(pending.signal);
       if(widget.contentVersion!==pending.contentVersion)throw Error(t("widgetExportFailed"));
+      if (pending.fullContent) {
+        pending.resolve({ image:snapshotImage, dataUrl:message.dataUrl });
+        return;
+      }
       widget.snapshotImage = snapshotImage;
       widget.snapshotDataUrl = message.dataUrl;
       widget.snapshotHighResolution = pending.highResolution;
@@ -1858,10 +1987,23 @@
   function selectedWidget() {
     return state.widgets.find((widget) => widget.id === state.selectedWidgetId) || null;
   }
+  function releaseWidgetsForDrawing() {
+    // Seal edits before starting the stroke's history transaction. A previous
+    // click-to-front order must survive: only the temporary selection lift ends.
+    if (state.widgetEdit || state.selectedWidgetId) acceptWidgetEdit();
+    clearHandToolbarTargets("widget");
+    if (state.interactingWidgetId) setWidgetInteraction(null, { restoreTool:false });
+    // Remove the selected frost synchronously, before the first live sample.
+    syncSelectedWidgetMaterial(null);
+  }
   function beginWidgetEdit(widget) {
     if (!widget || widget.pending) return false;
     if (state.imageEdit) acceptImageEdit({ restoreMode:false });
-    if (state.widgetEdit?.id === widget.id) return true;
+    if (state.widgetEdit?.id === widget.id) {
+      // A source commit can seal history while keeping this Widget selected.
+      recordWidgetsBefore();
+      return true;
+    }
     if (state.widgetEdit) acceptWidgetEdit();
     recordWidgetsBefore();
     state.selectedWidgetId = widget.id;
@@ -1881,6 +2023,7 @@
     options ||= {};
     const edit = state.widgetEdit;
     if (edit) clearHandToolbarTarget("widget", edit.id);
+    state.widgetGesture?.widget.shell?.classList.remove("is-resizing");
     state.widgetGesture = null;
     state.widgetEdit = null;
     state.selectedWidgetId = null;
@@ -1905,6 +2048,7 @@
       positionWidget(widget);
     }
     state.widgetHistoryBefore = null;
+    state.widgetGesture?.widget.shell?.classList.remove("is-resizing");
     state.widgetGesture = null;
     state.widgetEdit = null;
     state.selectedWidgetId = null;
@@ -1915,8 +2059,8 @@
   }
   function widgetResizeHit(box, point, pointerType = "mouse") {
     const scale = Math.max(.03, Number(state.scale) || 1),
-      edge = (pointerType === "touch" ? 22 : 7) / scale,
-      corner = (pointerType === "touch" ? 28 : 16) / scale,
+      edge = (pointerType === "touch" ? 44 : 14) / scale,
+      corner = (pointerType === "touch" ? 56 : 32) / scale,
       right = box.x + box.w,
       bottom = box.y + box.h,
       nearCorner = point.x >= right - corner && point.x <= right + edge
@@ -1977,30 +2121,69 @@
     return "";
   }
   function syncWidgetResizeCursor(point, pointerType = "mouse") {
-    if (state.mode !== "hand" || pointerType === "touch" || state.widgetGesture) return false;
-    const cursor = widgetResizeCursor(point, pointerType);
+    if (!["hand", "select"].includes(state.mode) || state.viewMode || state.spacePan || pointerType === "touch" || state.widgetGesture || state.imageGesture) return false;
+    const cursor = widgetResizeCursor(point, pointerType) || imageResizeCursor(point, pointerType);
     if (cursor) setCanvasCursor(cursor);
     else resetCanvasCursor();
     return Boolean(cursor);
+  }
+  let widgetFitRequestSequence = 0;
+  function requestWidgetContentFit(widget, hit) {
+    if (!widget || !["width", "height", "resize"].includes(hit) || state.viewMode || state.spacePan || !["hand", "select"].includes(state.mode)
+      || widget.maximized || !widget.hostReady || !widget.frame?.contentWindow) return false;
+    if (!widget.pending) beginWidgetEdit(widget);
+    const requestId = `widget-fit-${++widgetFitRequestSequence}`;
+    widget.contentFitRequest = { requestId, hit, start:widgetLayout(widget), html:widget.html };
+    widget.frame.contentWindow.postMessage({ type:"penecho-widget-fit-request", requestId, hit }, widget.hostOrigin || location.origin);
+    return true;
+  }
+  function applyWidgetContentFit(widget, message) {
+    const request = widget.contentFitRequest;
+    if (!request || message.requestId !== request.requestId) return false;
+    widget.contentFitRequest = null;
+    const start = request.start;
+    if (widget.html !== request.html || ["x", "y", "w", "h", "contentW", "contentH"].some((key) => widget[key] !== start[key])
+      || !Number.isFinite(message.width) || !Number.isFinite(message.height) || message.width <= 0 || message.height <= 0) {
+      sendWidgetHostState(widget, undefined, undefined, true);
+      return false;
+    }
+    const width = request.hit !== "height", height = request.hit !== "width";
+    const scaleX = start.w / start.contentW, scaleY = start.h / start.contentH;
+    if (width) {
+      widget.contentW = Math.max(start.contentW, Math.min(message.width, (SIZE - start.x) / scaleX));
+      widget.w = widget.contentW * scaleX;
+    }
+    if (height) {
+      widget.contentH = Math.max(start.contentH, Math.min(message.height, (SIZE - start.y) / scaleY));
+      widget.h = widget.contentH * scaleY;
+    }
+    const previous = widget.fitContent ? "resize" : widget.fitContentAxes;
+    widget.fitContentAxes = previous && previous !== request.hit ? "resize" : request.hit;
+    if (!widget.pending && state.widgetEdit?.id === widget.id) state.widgetEdit.changed = true;
+    positionWidget(widget);
+    sendWidgetHostState(widget, undefined, undefined, true);
+    refreshHandObjectToolbar();
+    requestInteractionLayerRender();
+    return true;
   }
   function resizeWidgetBox(start, point, hit, minimumWidth = 300, minimumHeight = 200, limit = SIZE) {
     const contentW = start.contentW ?? start.w,
       contentH = start.contentH ?? start.h;
     if (hit === "width") {
       const displayScale = start.h / contentH,
-        minimum = Math.max(minimumWidth, minimumWidth * displayScale),
+        minimum = Math.max(1, minimumWidth * displayScale),
         maximum = limit - start.x,
         width = Math.max(minimum, Math.min(maximum, point.x - start.x));
       return { ...start, w:width, contentW:width / displayScale };
     }
     if (hit === "height") {
       const displayScale = start.w / contentW,
-        minimum = Math.max(minimumHeight, minimumHeight * displayScale),
+        minimum = Math.max(1, minimumHeight * displayScale),
         maximum = limit - start.y,
         height = Math.max(minimum, Math.min(maximum, point.y - start.y));
       return { ...start, h:height, contentH:height / displayScale };
     }
-    const minimumScale = Math.max(minimumWidth / start.w, minimumHeight / start.h),
+    const minimumScale = Math.max(minimumWidth / contentW, minimumHeight / contentH),
       maximumScale = Math.min((limit - start.x) / start.w, (limit - start.y) / start.h),
       requestedScale = Math.max((point.x - start.x) / start.w, (point.y - start.y) / start.h),
       scale = Math.max(minimumScale, Math.min(maximumScale, requestedScale));
@@ -2012,10 +2195,11 @@
     if (result.hit === "cancel") return (result.pending ? rejectPendingWidget() : deleteWidget(result.widget)) || true;
     if (!result.pending) {
       beginWidgetEdit(result.widget);
-      bringHtmlWidgetToFront(result.widget);
+      // Starting a selection must not reorder overlapping widgets.
     }
     state.widgetGesture = {
       id:event.pointerId,
+      pointerType:event.pointerType,
       widget:result.widget,
       pending:result.pending,
       hit:result.hit,
@@ -2046,7 +2230,20 @@
   function finishReleasedWidgetGesture(event) {
     const gesture = state.widgetGesture;
     if (!gesture || event.pointerType !== "mouse" || Number(event.buttons) !== 0) return false;
+    if (gesture.pointerType && gesture.pointerType !== event.pointerType) return false;
     if (gesture.source !== "widget-host" && gesture.id !== event.pointerId) return false;
+    return finishWidgetGesture({ pointerId:gesture.id });
+  }
+  function finishInterruptedWidgetGesture(event) {
+    const gesture = state.widgetGesture;
+    if (!gesture) return false;
+    if (event.type === "visibilitychange" && !document.hidden) return false;
+    if (["pointerup", "pointercancel", "lostpointercapture"].includes(event.type)) {
+      if (gesture.source === "widget-host") {
+        if (gesture.pointerType !== "mouse" || event.pointerType !== "mouse" || Number(event.buttons) !== 0) return false;
+      } else if (gesture.id !== event.pointerId) return false;
+    }
+    finishHandToolbarOperation(gesture.id);
     return finishWidgetGesture({ pointerId:gesture.id });
   }
   function finishStaleWidgetHostGesture(event) {
@@ -2139,7 +2336,7 @@
     screenClientRatio = Math.min(4, Math.max(0.25, screenClientRatio * 0.7 + candidate * 0.3));
   }
   function beginWidgetHostTouch(widget, message) {
-    if (state.mode !== "hand" || !validWidgetHostTouch(message) || message.type !== "penecho-widget-touch-start") return false;
+    if (state.mode !== "select" || !validWidgetHostTouch(message) || message.type !== "penecho-widget-touch-start") return false;
     const point = widgetHostViewportPoint(widget, message);
     if (!point) return false;
     const id = widgetHostPointerId(widget, message.pointerId);
@@ -2152,7 +2349,7 @@
     return true;
   }
   function updateWidgetHostTouch(widget, message) {
-    if (state.mode !== "hand" || !validWidgetHostTouch(message) || message.type !== "penecho-widget-touch-move") return false;
+    if (state.mode !== "select" || !validWidgetHostTouch(message) || message.type !== "penecho-widget-touch-move") return false;
     const id = widgetHostPointerId(widget, message.pointerId),
       point = widgetHostTrackedPoint(widgetHostPointerAnchors.get(id), message) || widgetHostViewportPoint(widget, message);
     if (!point || !state.handWidgetPointerIds.has(id)) return false;
@@ -2183,6 +2380,7 @@
     state.widgetGesture = {
       id:widgetHostPointerId(widget, message.pointerId),
       hostPointerId:message.pointerId,
+      pointerType:message.pointerType,
       source:"widget-host",
       widget,
       pending,
@@ -2212,9 +2410,13 @@
   function finishWidgetGesture(event) {
     const gesture = state.widgetGesture;
     if (!gesture || gesture.id !== event.pointerId) return false;
+    gesture.widget.shell?.classList.remove("is-resizing");
     state.widgetGesture = null;
     resetCanvasCursor();
-    if (gesture.changed && !gesture.pending && state.widgetEdit?.id === gesture.widget.id) state.widgetEdit.changed = true;
+    if (!gesture.pending && state.widgetEdit?.id === gesture.widget.id) {
+      // A concurrent source commit may rebase the geometry Undo boundary.
+      state.widgetEdit.changed ||= JSON.stringify(widgetLayout(gesture.widget)) !== JSON.stringify(state.widgetEdit.before);
+    }
     positionWidget(gesture.widget);
     if (!gesture.pending) refreshHandObjectToolbar();
     requestInteractionLayerRender();
@@ -2284,7 +2486,7 @@
     resolve?.(true);
     if (restoreMode) finishAIDraftHandMode();
     if (options.showHint) showHandStatusHint("widget-draft-confirmed", ["handWidgetConfirmedHint", "handAutoAIManual"]);
-    if (!replacement && restoreMode) showCanvasHint("canvasHintWidgetTouchHand");
+    if (!replacement && restoreMode) showCanvasHint(widgetInteractionPresentation() === "maximized" ? "canvasHintWidgetFullscreen" : "canvasHintWidgetInline");
   }
   function rejectPendingWidget(result = AI_REJECTED, options) {
     options ||= {};
@@ -2330,7 +2532,7 @@
     enterAIDraftHandMode();
     mountWidget(widget);
     requestInteractionLayerRender();
-    if (widget.widgetType === "html_widget") showCanvasHint(["canvasHintWidgetAdded", "canvasHintWidgetAddedAlt", "canvasHintRefineInPlace", "canvasHintAIAddsOnly"]);
+    if (widget.widgetType === "html_widget") showCanvasHint([widgetInteractionPresentation() === "maximized" ? "canvasHintWidgetFullscreen" : "canvasHintWidgetInline", "canvasHintWidgetAdded"]);
     setStatusKey("aiDone");
     return new Promise((resolve) => (widget.resolve = resolve));
   }
@@ -3018,7 +3220,7 @@
       state.panY = topInset + (availableHeight - viewerBounds.h * nextScale) / 2 - viewerBounds.y * nextScale;
       state.viewInitialized = true;
     } else if (!state.viewInitialized && r.width > 0 && r.height > 0) {
-      state.scale = Math.max(0.03, Math.min(2, Math.max(r.width, r.height) / 10000 / INITIAL_VIEWPORT_EXTENT_SCALE));
+      state.scale = INITIAL_CANVAS_SCALE;
       state.panX = (r.width - SIZE * state.scale) / 2;
       state.panY = (r.height - SIZE * state.scale) / 2;
       state.viewInitialized = true;
@@ -3035,7 +3237,37 @@
     fit();
     return true;
   }
+  function renderTextContentLayer(region = null) {
+    if (!state.textBoxes.length) {
+      textContentLayer.width = textContentLayer.height = 1;
+      return;
+    }
+    const d = devicePixelRatio || 1,
+      metrics = canvasViewportMetrics(),
+      r = { width:metrics.width, height:metrics.height },
+      visible = region || {
+        x:Math.max(0, -state.panX / state.scale),
+        y:Math.max(0, -state.panY / state.scale),
+        w:Math.min(SIZE, (r.width - state.panX) / state.scale) - Math.max(0, -state.panX / state.scale),
+        h:Math.min(SIZE, (r.height - state.panY) / state.scale) - Math.max(0, -state.panY / state.scale),
+      };
+    const width = Math.max(1, Math.round(r.width * d)), height = Math.max(1, Math.round(r.height * d));
+    if (textContentLayer.width !== width) textContentLayer.width = width;
+    if (textContentLayer.height !== height) textContentLayer.height = height;
+    textContentCtx.setTransform(d, 0, 0, d, 0, 0);
+    textContentCtx.clearRect(0, 0, r.width, r.height);
+    if (visible.w <= 0 || visible.h <= 0) return;
+    textContentCtx.save();
+    textContentCtx.translate(state.panX, state.panY);
+    textContentCtx.scale(state.scale, state.scale);
+    textContentCtx.beginPath();
+    textContentCtx.rect(0, 0, SIZE, SIZE);
+    textContentCtx.clip();
+    drawTextBoxesToContext(textContentCtx, visible);
+    textContentCtx.restore();
+  }
   function renderPlacedContentLayer(region = null) {
+    renderTextContentLayer(region);
     const d = devicePixelRatio || 1,
       metrics = canvasViewportMetrics(),
       r = { width:metrics.width, height:metrics.height },
@@ -3058,12 +3290,7 @@
     placedContentCtx.restore();
   }
   function drawPlacedCanvasObjectsToContext(context, region = null, withShadow = false) {
-    if (state.frontPlacedCanvasObjectKind === "text-box") {
-      drawImagesToContext(context, region, withShadow);
-      drawTextBoxesToContext(context, region);
-      return;
-    }
-    drawTextBoxesToContext(context, region);
+    // Text has its own foreground surface so the live eraser cannot remove it.
     drawImagesToContext(context, region, withShadow);
   }
   function renderInkLayer(region = null) {
@@ -3331,7 +3558,7 @@
     context.restore();
   }
   function drawHandObjectToolbarOutlines(context) {
-    if (state.mode !== "hand" || !state.handToolbarTargets.size) return;
+    if (!["select", "hand"].includes(state.mode) || !state.handToolbarTargets.size) return;
     const unit = 1 / state.scale;
     context.save();
     context.lineWidth = unit;
@@ -3375,7 +3602,7 @@
   }
   function drawWidgetRefineButtonHoverOutline(context) {
     const widgetId = state.widgetRefineButtonHoverId;
-    if (!["pen", "hand"].includes(state.mode) || !widgetId || state.widgetRefineClickPulse?.widgetId === widgetId) return;
+    if (state.mode !== "pen" || !widgetId || state.widgetRefineClickPulse?.widgetId === widgetId) return;
     const widget = widgetRefineOutlineTarget(widgetId);
     if (widget) strokeWidgetRefineOutline(context, widget, 1, widgetRefineCandidateForId(widgetId)?.instructionMode === "implicit-polish");
   }
@@ -3704,11 +3931,10 @@
   }
   function widgetAtRefinePoint(point) {
     if (!point || !valid(point)) return null;
-    const widgets = visibleWidgets(),
-      padding = state.mode === "hand" ? 12 / Math.max(.03, state.scale) : 0;
+    const widgets = visibleWidgets();
     for (let index = widgets.length - 1; index >= 0; index--) {
       const widget = widgets[index], box = widgetBox(widget);
-      if (widget.shell && widget.renderActive !== false && point.x >= box.x - padding && point.x <= box.x + box.w + padding && point.y >= box.y - padding && point.y <= box.y + box.h + padding) return widget;
+      if (widget.shell && widget.renderActive !== false && point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h) return widget;
     }
     return null;
   }
@@ -3765,7 +3991,7 @@
   }
   function updateWidgetRefinePointer(point) {
     state.widgetRefinePointer = point && valid(point) ? point : null;
-    const widget = ["pen", "hand"].includes(state.mode) ? widgetAtRefinePoint(state.widgetRefinePointer) : null,
+    const widget = state.mode === "pen" ? widgetAtRefinePoint(state.widgetRefinePointer) : null,
       previousHoverId = state.widgetRefineHoveredWidgetId,
       previousCandidate = state.widgetRefineHoverCandidate;
     const hasDirty = viewportHasWidgetRefineInput();
@@ -3859,10 +4085,10 @@
     syncObjectChrome();
     setStatusKey("widgetDownloading");
     try {
-      await requestWidgetSnapshot(widget, WIDGET_SNAPSHOT_TIMEOUT_MS, true, null, true);
-      if (!widget.snapshotDataUrl?.startsWith("data:image/png;base64,")) throw Error(t("widgetExportFailed"));
+      const snapshot = await requestWidgetSnapshot(widget, WIDGET_SNAPSHOT_TIMEOUT_MS, true, null, true, true);
+      if (!snapshot.dataUrl?.startsWith("data:image/png;base64,")) throw Error(t("widgetExportFailed"));
       const link = document.createElement("a");
-      link.href = widget.snapshotDataUrl;
+      link.href = snapshot.dataUrl;
       link.download = widgetImageFilename(widget);
       document.body.append(link);
       link.click();
@@ -3915,6 +4141,7 @@
   }
   const WIDGET_COPY_ICON_FEEDBACK_MS = 2000;
   const OBJECT_CHROME_ICONS = Object.freeze({
+    interact:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>',
     move:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9V3M9 6l3-3 3 3M12 15v6M9 18l3 3 3-3M9 12H3M6 9l-3 3 3 3M15 12h6M18 9l3 3-3 3"/></svg>',
     accept:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7"/></svg>',
     cancel:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
@@ -3953,6 +4180,10 @@
     const box = widgetBox(widget),
       items = [],
       copyLabel = widgetCopySourceLabel(widget);
+    if (["select", "hand", "pen"].includes(state.mode) && !widget.pending && options.objectToolbarKey) items.push({
+      key:`widget:${widget.id}:interact`, kind:"interact", label:t("widgetInteract"),
+      baseWidth:84, iconOnly:false, activate:() => { enterWidgetInteraction(widget); },
+    });
     if (options.copy && copyLabel) items.push({
       key:`widget:${widget.id}:tool-copy`,
       kind:"copy",
@@ -4027,9 +4258,10 @@
         widgetTool:true,
         objectToolbarItem:Boolean(options.objectToolbarKey),
         objectToolbarKey:options.objectToolbarKey || "",
+        toolbarHasDecisions:options.decisions !== false,
         toolbarSlot:"tool",
-        toolbarOrder:index,
-        toolbarItemCount:items.length,
+        toolbarOrder:items[0]?.kind === "interact" ? index - 1 : index,
+        toolbarItemCount:items.length - (items[0]?.kind === "interact" ? 1 : 0),
         widgetToolGroup,
         groupRefineCandidate:options.refine || null,
         groupItemCount:items.length,
@@ -4048,28 +4280,52 @@
       horizontalOffset += item.baseWidth + gap;
     }
   }
-  function objectToolbarMinimumWidth(toolCount = 0) {
+  function objectToolbarMinimumWidth(toolCount = 0, decisions = true) {
     const itemSize = 28,
       itemGap = 4,
       inset = 4,
-      itemCount = 2 + Math.max(0, Math.floor(Number(toolCount) || 0));
+      itemCount = (decisions ? 2 : 0) + Math.max(0, Math.floor(Number(toolCount) || 0));
+    if (itemCount <= 0) return inset * 2;
     return itemCount * itemSize + (itemCount - 1) * itemGap + inset * 2;
   }
   function finalizeObjectToolbarWidths(specs) {
-    const toolCounts = new Map();
+    const toolCounts = new Map(), centeredToolbars = new Map(), trailingTools = new Map();
     for (const spec of specs) {
       if (!spec.objectToolbarItem || spec.toolbarSlot !== "tool") continue;
       toolCounts.set(spec.objectToolbarKey, (toolCounts.get(spec.objectToolbarKey) || 0) + 1);
+      if (spec.kind === "interact") centeredToolbars.set(spec.objectToolbarKey, spec);
+      else {
+        const items = trailingTools.get(spec.objectToolbarKey) || [];
+        items.push(spec);
+        trailingTools.set(spec.objectToolbarKey, items);
+      }
     }
     for (const spec of specs) {
       if (!spec.objectToolbar) continue;
-      spec.minimumWidth = objectToolbarMinimumWidth(toolCounts.get(spec.key) || 0);
+      const decisions = spec.toolbarHasDecisions !== false;
+      spec.minimumWidth = objectToolbarMinimumWidth(toolCounts.get(spec.key) || 0, decisions);
+      if (centeredToolbars.has(spec.key)) {
+        // Keep the labeled action at screen size even when its Widget is tiny.
+        // Reserve actual trailing widths, mirrored on the left for true centering.
+        const center = centeredToolbars.get(spec.key),
+          items = trailingTools.get(spec.key) || [],
+          groupWidth = items.reduce((sum, item) => sum + item.baseWidth + 4, 0),
+          sideWidth = (decisions ? 4 + 28 : 0) + 4 + groupWidth;
+        spec.minimumWidth = center.baseWidth + 2 * sideWidth;
+        let offset = 0;
+        for (const item of items) {
+          item.toolbarGroupWidth = Math.max(0, groupWidth - 4);
+          item.toolbarGroupOffset = offset;
+          offset += item.baseWidth + 4;
+        }
+      }
     }
     return specs;
   }
   function addObjectToolbarSpecs(specs, options) {
     const toolbarKey = `${options.prefix}:toolbar`,
       shared = options.shared || {},
+      decisions = options.decisions !== false,
       priority = Number(options.priority) || 4;
     specs.push({
       key:toolbarKey,
@@ -4079,11 +4335,13 @@
       target:options.target,
       object:options.object,
       objectToolbar:true,
-      minimumWidth:objectToolbarMinimumWidth(),
+      toolbarHasDecisions:decisions,
+      minimumWidth:objectToolbarMinimumWidth(0, decisions),
       baseHeight:34,
       ...shared,
       priority,
     });
+    if (!decisions) return toolbarKey;
     specs.push({
       key:`${options.prefix}:cancel`,
       kind:"cancel",
@@ -4137,22 +4395,26 @@
     if (spec?.objectToolbarItem) {
       const toolbar = knownPositions?.get?.(spec.objectToolbarKey);
       if (!toolbar) return null;
-      const toolbarWidth = toolbar.baseWidth * (toolbar.scale || 1),
+      const hasDecisions = spec.toolbarHasDecisions !== false,
+        toolbarWidth = toolbar.baseWidth * (toolbar.scale || 1),
         toolbarHeight = toolbar.baseHeight * (toolbar.scale || 1),
         itemGap = 4,
         inset = 4,
         itemY = toolbar.y + (toolbarHeight - height) / 2,
         leadingX = toolbar.x + inset,
-        trailingX = toolbar.x + toolbarWidth - inset - width;
+        leadingInset = hasDecisions ? 28 + itemGap : 0,
+        trailingInset = hasDecisions ? (spec.toolbarSlot === "trailing" ? width : 28) : 0,
+        trailingX = toolbar.x + toolbarWidth - inset - trailingInset;
       let itemX;
       if (spec.toolbarSlot === "leading") itemX = leadingX;
       else if (spec.toolbarSlot === "trailing") itemX = trailingX;
+      else if (spec.kind === "interact") itemX = toolbar.x + (toolbarWidth - width) / 2;
       else {
         const itemCount = Math.max(1, Number(spec.toolbarItemCount) || 1),
           itemOrder = Math.max(0, Math.min(itemCount - 1, Number(spec.toolbarOrder) || 0)),
-          groupWidth = itemCount * width + (itemCount - 1) * itemGap,
-          groupLeft = Math.max(leadingX + width + itemGap, trailingX - itemGap - groupWidth);
-        itemX = groupLeft + itemOrder * (width + itemGap);
+          groupWidth = spec.toolbarGroupWidth ?? (itemCount * width + (itemCount - 1) * itemGap),
+          groupLeft = Math.max(leadingX + leadingInset, trailingX - itemGap - groupWidth);
+        itemX = groupLeft + (spec.toolbarGroupOffset ?? itemOrder * (width + itemGap));
         if (itemX + width > trailingX - itemGap) return null;
       }
       return { x:itemX, y:itemY, scale:controlScale, baseWidth, baseHeight };
@@ -4266,7 +4528,8 @@
     declaration?.setProperty("--widget-refine-confirm-y", `${position.y.toFixed(1)}px`);
   }
   function beginObjectChromeMove(event, spec) {
-    if (state.mode !== "hand" || Number(event.button) !== 0) return false;
+    const handObjectMove = state.mode === "hand" && ["widget", "image", "animation"].includes(spec.target);
+    if ((state.mode !== "select" && !handObjectMove) || state.viewMode || state.spacePan || Number(event.button) !== 0) return false;
     const point = clientPoint(event);
     let started = false;
     if (spec.target === "pending") {
@@ -4305,6 +4568,11 @@
     button.className = kind === "toolbar" ? "object-chrome-button" : `object-chrome-button ${kind}`;
     button.dataset.objectChromeKey = key;
     button.innerHTML = OBJECT_CHROME_ICONS[kind] || "";
+    if (kind === "interact") {
+      const label = document.createElement("span");
+      label.className = "widget-interact-label";
+      button.append(label);
+    }
     if (kind === "refine") {
       const label = document.createElement("span"),
         hint = document.createElement("span");
@@ -4454,14 +4722,20 @@
   function objectChromeSpecs() {
     const persistentCandidate = currentWidgetRefineCandidate(),
       hoverCandidate = currentWidgetRefineHoverCandidate();
-    if (state.mode !== "hand") {
+    if (state.viewMode || state.interactingWidgetId || !["select", "hand", "pen"].includes(state.mode)) {
       const specs = [];
-      if (persistentCandidate) addWidgetToolSpecs(specs, persistentCandidate.widget, { refine:persistentCandidate });
-      if (hoverCandidate && hoverCandidate.widget !== persistentCandidate?.widget) addWidgetToolSpecs(specs, hoverCandidate.widget, { refine:hoverCandidate });
+      if (!state.viewMode && !state.interactingWidgetId && persistentCandidate) addWidgetToolSpecs(specs, persistentCandidate.widget, { refine:persistentCandidate });
+      if (!state.viewMode && !state.interactingWidgetId && hoverCandidate && hoverCandidate.widget !== persistentCandidate?.widget) addWidgetToolSpecs(specs, hoverCandidate.widget, { refine:hoverCandidate });
       return specs;
     }
     const specs = [];
+    // Pen keeps its hover Refine action; Hand and Select own object toolbars.
+    if (state.mode === "pen") {
+      if (persistentCandidate) addWidgetToolSpecs(specs, persistentCandidate.widget, { refine:persistentCandidate });
+      if (hoverCandidate && hoverCandidate.widget !== persistentCandidate?.widget) addWidgetToolSpecs(specs, hoverCandidate.widget, { refine:hoverCandidate });
+    }
     for (const [key, record] of state.handToolbarTargets) {
+      if (state.mode === "pen" && record.kind !== "widget") continue;
       const handTarget = handToolbarObject(record),
         shared = { handToolbar:true, handToolbarKey:key, handToolbarHiding:Boolean(record.hiding) };
       if (!handTarget) continue;
@@ -4536,13 +4810,9 @@
             box,
             target:"widget",
             object:handTarget,
-            cancelLabel:t("widgetDelete"),
-            acceptLabel:t("widgetAccept"),
-            cancel:() => deleteWidget(handTarget),
-            accept:() => {
-              if (state.widgetEdit?.id !== handTarget.id) beginWidgetEdit(handTarget);
-              return acceptWidgetEdit({ showHint:true });
-            },
+            // An existing Widget keeps its tools but never offers draft-style
+            // accept/cancel decisions; Delete and Escape still apply.
+            decisions:false,
             shared,
             priority:2,
           });
@@ -4550,6 +4820,7 @@
           copy:true,
           community:true,
           download:true,
+          decisions:false,
           handToolbar:true,
           handToolbarKey:key,
           handToolbarHiding:Boolean(record.hiding),
@@ -4557,8 +4828,8 @@
         });
       }
     }
-    pendingChromeSpecs(specs, state.pending);
-    if (state.pendingWidget) {
+    if (state.mode !== "pen") pendingChromeSpecs(specs, state.pending);
+    if (state.mode !== "pen" && state.pendingWidget) {
       const widget = state.pendingWidget,
         box = widgetBox(widget),
         toolbarKey = addObjectToolbarSpecs(specs, {
@@ -4612,7 +4883,7 @@
       button.classList.toggle("object-toolbar-shell", Boolean(spec.objectToolbar));
       button.classList.toggle("widget-object-toolbar", Boolean(spec.objectToolbar && ["widget", "pending-widget"].includes(spec.target)));
       button.classList.toggle("object-toolbar-item", Boolean(spec.objectToolbarItem));
-      button.classList.toggle("icon-only", Boolean(spec.iconOnly || spec.objectToolbarItem));
+      button.classList.toggle("icon-only", Boolean(spec.iconOnly || (spec.objectToolbarItem && spec.kind !== "interact")));
       button.classList.toggle("solo-widget-tool", Boolean(spec.widgetTool && spec.groupItemCount === 1));
       button.classList.toggle("hand-toolbar-control", Boolean(spec.handToolbar));
       button.classList.toggle("hand-toolbar-hiding", Boolean(spec.handToolbar && spec.handToolbarHiding));
@@ -4630,6 +4901,7 @@
       else button.removeAttribute("aria-busy");
       if (spec.kind === "refine" || spec.objectToolbar) button.removeAttribute("title");
       else button.title = spec.tooltip || label;
+      if (spec.kind === "interact") button.querySelector(".widget-interact-label").textContent = t("widgetInteractShort");
       if (spec.kind === "refine") {
         const buttonLabel = button.querySelector(".widget-refine-button-label"),
           hint = button.querySelector(".widget-refine-hint"),
@@ -4698,6 +4970,49 @@
     declaration?.setProperty("--selected-widget-toolbar-height", `${toolbarHeight.toFixed(1)}px`);
     declaration?.setProperty("z-index", String(widgetStackIndex));
   }
+  function syncWidgetInteractionStatus() {
+    const widget = state.interactingWidgetId
+      ? state.widgets.find(item => item.id === state.interactingWidgetId && item.shell)
+      : null;
+    if (!widget || widget.maximized || !widgetRuntimeEnabled() || widget.renderActive === false) {
+      if (widgetInteractionStatusElement) widgetInteractionStatusElement.hidden = true;
+      return;
+    }
+    if (!widgetInteractionStatusElement) {
+      const element = document.createElement("div"),
+        label = document.createElement("span");
+      element.className = "widget-interaction-status";
+      element.setAttribute("role", "status");
+      element.setAttribute("aria-live", "polite");
+      label.className = "widget-interaction-status-label";
+      const maximize = document.createElement("button");
+      maximize.type = "button";
+      maximize.title = t("widgetMaximize");
+      maximize.setAttribute("aria-label", t("widgetMaximize"));
+      maximize.innerHTML = OBJECT_CHROME_ICONS.interact;
+      maximize.addEventListener("click", () => {
+        const current = state.widgets.find(item => item.id === state.interactingWidgetId);
+        if (current) switchWidgetPresentation(current, true);
+      });
+      element.append(label, maximize);
+      view.append(element);
+      widgetInteractionStatusElement = element;
+    }
+    const element = widgetInteractionStatusElement,
+      label = element.querySelector(".widget-interaction-status-label"),
+      screenBox = screenObjectBox(widgetBox(widget)),
+      viewportWidth = Math.max(0, view.clientWidth),
+      height = 30,
+      width = Math.max(180, Math.min(Math.max(180, viewportWidth - 12), screenBox.width)),
+      x = Math.max(6, Math.min(Math.max(6, viewportWidth - width - 6), screenBox.left + (screenBox.width - width) / 2)),
+      y = Math.max(6, screenBox.top - height - 6),
+      declaration = runtimeElementStyle(element, "widget-interaction-status");
+    label.textContent = t("widgetInteracting");
+    declaration?.setProperty("--widget-interaction-status-x", `${x.toFixed(1)}px`);
+    declaration?.setProperty("--widget-interaction-status-y", `${y.toFixed(1)}px`);
+    declaration?.setProperty("--widget-interaction-status-width", `${width.toFixed(1)}px`);
+    element.hidden = false;
+  }
   objectChromeLayer?.addEventListener("pointermove", (event) => {
     if (finishReleasedWidgetGesture(event)) return;
     const overChromeControl = event.target?.closest?.(".object-chrome-button, .widget-refine-confirmation");
@@ -4757,6 +5072,7 @@
         interactionCtx.restore();
       }
       interactionCtx.restore();
+      syncWidgetInteractionStatus();
       return;
     }
     if (state.drawing?.preview) drawPreview(state.drawing.preview, interactionCtx);
@@ -4781,6 +5097,7 @@
     positionAnimationControls();
     positionImageSelectionMaterial();
     syncObjectChrome();
+    syncWidgetInteractionStatus();
   }
   function clientPoint(e) {
     const point = canvasClientPosition(e.clientX, e.clientY);
@@ -5354,6 +5671,44 @@
     textHelpInvoker = null;
     if (invoker?.isConnected && !invoker.disabled) invoker.focus({ preventScroll: true });
   }
+  function textEditorOwnsFocusTarget(editor, target) {
+    return Boolean(target && (editor.element.contains(target)
+      || target.closest?.("#textHelpDialog") && textHelpInvoker && editor.element.contains(textHelpInvoker)));
+  }
+  async function unselectTextEditor(editor) {
+    if (!editor || editor.committing || editor.unselecting || editor.cancelled) return;
+    const source = state.textBoxes.find(item => item.id === editor.sourceTextBoxId);
+    if (source && editor.textarea.value === source.text && !editor.moved && !editor.resized) {
+      state.selectedTextBoxId = null;
+      removeTextEditor(editor);
+      requestRender();
+      return;
+    }
+    if (!editor.textarea.value.trim()) {
+      cancelTextEditor(editor);
+      return;
+    }
+    editor.unselecting = true;
+    editor.element.classList.remove("active");
+    editor.element.classList.add("unselecting");
+    try {
+      await confirmTextEditor(editor, { focusLoss:true });
+    } catch (error) {
+      // Keep the draft recoverable if formatting fails during implicit commit.
+      editor.unselecting = false;
+      editor.committing = false;
+      editor.element.classList.remove("unselecting", "committing");
+      editor.element.classList.add("active");
+      editor.element.querySelectorAll("button").forEach(button => (button.disabled = false));
+      setStatusKey("textMixedModeError");
+    }
+  }
+  function unselectTextEditorsOutside(event) {
+    for (const editor of [...state.textEditors.values()]) {
+      if (event.type !== "blur" && textEditorOwnsFocusTarget(editor, event.target)) continue;
+      void unselectTextEditor(editor);
+    }
+  }
   async function confirmTextEditor(editor, options = null) {
     options ||= {};
     if (!editor) return;
@@ -5368,7 +5723,7 @@
       editor.cancelled = false;
       editor.element.classList.add("committing");
       cancelTextEditorPreview(editor);
-      blockCanvasInput(TEXT_INPUT_GUARD_MS);
+      if (!options.focusLoss) blockCanvasInput(TEXT_INPUT_GUARD_MS);
       if (!editor.returnMode && state.mode === "text") setCanvasMode("pen");
       supersedeActiveAI("text-input-confirmed");
       clearTimeout(state.timer);
@@ -5420,14 +5775,15 @@
       else state.textBoxes.push(item);
       state.userRevision++;
       state.dirtyTextBoxIds.add(item.id);
+      mcpRecordFeedback("text",textBoxBox(item),item);
       recomputeDirtyBounds();
       state.latestTypedInput = { text: text.slice(0, TEXT_INPUT_MAX_LENGTH), box };
       state.autoEligible = true;
-      const refineCandidate = latchWidgetRefineCandidate(item, "text-box");
-      state.selectedTextBoxId = null;
+      const refineCandidate = options.focusLoss ? null : latchWidgetRefineCandidate(item, "text-box");
+      if (!editor.sourceTextBoxId || state.selectedTextBoxId === editor.sourceTextBoxId) state.selectedTextBoxId = null;
       removeTextEditor(editor);
-      blockCanvasInput(TEXT_INPUT_GUARD_MS);
-      restoreTextEditorMode(editor);
+      if (!options.focusLoss) blockCanvasInput(TEXT_INPUT_GUARD_MS);
+      if (!options.focusLoss) restoreTextEditorMode(editor);
       saveUserCanvasChange();
       render();
       setStatusKey(mixedFallback ? "textMixedModeError" : "ready");
@@ -5444,7 +5800,7 @@
   }
   function restoreTextEditorMode(editor) {
     const returnMode = editor?.returnMode;
-    if (returnMode && state.mode === "hand") {
+    if (returnMode && state.mode === "select") {
       setCanvasMode(returnMode, {
         preserveSelection:true,
         skipDraftFinalize:true,
@@ -5637,7 +5993,7 @@
     return editor;
   }
   function editTextBox(item) {
-    if (state.mode !== "hand" || !item || !state.textBoxes.includes(item) || state.textEditors.size) return false;
+    if (!["select", "hand"].includes(state.mode) || state.viewMode || !item || !state.textBoxes.includes(item) || state.textEditors.size) return false;
     clearHandToolbarTarget("text-box", item.id);
     if (state.widgetEdit) acceptWidgetEdit();
     if (state.imageEdit) acceptImageEdit({ restoreMode:false });
@@ -5657,7 +6013,7 @@
         sourceFontSize:item.fontSize,
         fontFamily:item.fontFamily,
         color:item.color,
-        returnMode:"hand",
+        returnMode:state.mode,
       });
     if (!editor) {
       state.selectedTextBoxId = null;
@@ -5678,7 +6034,7 @@
     screen.classList.add(`cursor-${cursor}`);
   }
   function resetCanvasCursor() {
-    setCanvasCursor(state.mode === "hand" ? "grab" : state.mode === "pen" ? "pen" : state.mode === "eraser" ? "eraser" : "crosshair");
+    setCanvasCursor(state.spacePan || state.viewMode && state.viewTool === "hand" || state.mode === "hand" && !state.viewMode ? "grab" : state.mode === "pen" ? "pen" : state.mode === "eraser" ? "eraser" : "crosshair");
   }
   function beginTouchGesture() {
     if (state.navigationLocked || state.touches.size < 2) return;
@@ -5739,12 +6095,13 @@
     return true;
   }
   function zoomCanvasAt(clientX, clientY, deltaY) {
+    if (!Number.isFinite(deltaY) || deltaY === 0) return false;
     if (state.navigationLocked) {
       setNavigating(true);
       return false;
     }
     const point = canvasClientPosition(clientX, clientY),
-      factor = deltaY < 0 ? 1.12 : 0.89,
+      factor = Math.exp(-Math.max(-300, Math.min(300, deltaY)) * .002),
       next = Math.max(0.03, Math.min(2, state.scale * factor)),
       px = point.x,
       py = point.y,

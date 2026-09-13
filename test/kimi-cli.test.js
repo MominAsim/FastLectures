@@ -83,6 +83,22 @@ process.stdout.write(JSON.stringify({type:"message",role:"assistant",content:[{t
   assert.deepEqual(usage,{input_tokens:20,cache_read_tokens:70,output_tokens:8});
 });
 
+test("Kimi CLI rejects a partial assistant response when the process exits unsuccessfully", async () => {
+  const executable = fakeKimi(`
+process.stdout.write(JSON.stringify({role:"assistant",content:'{"intent":"none","commands":[]}'})+"\\n");
+process.stderr.write("authentication expired");
+process.exit(7);
+`);
+  await assert.rejects(
+    callKimiCliSpawn({ executable, prompt:"Return JSON." }),
+    error => {
+      assert.match(error.message, /exited with code 7: authentication expired/);
+      assert.match(error.traceDiagnostic || "", /authentication expired/);
+      return true;
+    },
+  );
+});
+
 test("PenEcho Agent Kimi uses the disposable no-tools CLI path instead of ACP", async () => {
   const executable = fakeKimi(`
 const fs=require("fs"),args=process.argv.slice(2);

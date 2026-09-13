@@ -16,7 +16,7 @@
     artifactUrl: `/api/v1/community/items/${itemId}/view`,
     previewUrl: `/api/v1/community/items/${itemId}/preview`,
     communityUrl: "/community.html",
-    signupUrl: "/auth.html",
+    signupUrl: `/auth.html?returnTo=${encodeURIComponent(`/canvas/community/${itemId}`)}`,
     dashboardUrl: "/dashboard.html#community",
     takeFurtherUrl: `/canvas/community/${itemId}`,
   };
@@ -32,8 +32,6 @@
       previewOnly:"This Craft's full view needs a redemption. Showing the preview.",
       failed:"This Craft could not be opened.",
       backTitle:"Back to Echoes",
-      staticWidgetNotice:"Dynamically loaded content is available after you sign in and complete Link Device.",
-      dismissNotice:"Hide this message",
     },
     zh: {
       loading:"正在打开这个 Craft…",
@@ -45,8 +43,6 @@
       previewOnly:"查看完整内容需要先赎回，正在展示预览图。",
       failed:"这个 Craft 暂时无法打开。",
       backTitle:"返回 Echoes",
-      staticWidgetNotice:"动态加载的内容需登录并完成设备连接后才能查看。",
-      dismissNotice:"隐藏此提示",
     },
   };
   function viewerLanguage() {
@@ -61,6 +57,7 @@
   let copy = COPY[viewerLanguage()];
 
   document.documentElement.classList.add("viewer-mode");
+  window.PenEchoViewerFetch?.install({ itemId });
 
   const topbar = document.createElement("div");
   topbar.className = "viewer-topbar";
@@ -75,31 +72,13 @@
   topbar.append(brand, actions);
   document.body.append(topbar);
 
-  const notice = document.createElement("button");
-  notice.type = "button";
-  notice.dataset.peButton = "ghost";
-  notice.dataset.peDensity = "standard";
-  notice.className = "viewer-notice";
-  notice.textContent = copy.staticWidgetNotice;
-  notice.title = copy.dismissNotice;
-  notice.setAttribute("aria-label", `${copy.staticWidgetNotice} ${copy.dismissNotice}`);
-  notice.addEventListener("click", () => { notice.hidden = true; });
-  // Dock the notice at the bottom of the page (inside the flex-column <main>)
-  // instead of floating it over the canvas; #viewport is flex:1, so it yields
-  // the space and the app's ResizeObserver re-fits the canvas automatically.
-  (document.querySelector("main") || document.body).append(notice);
-
   const status = document.createElement("div");
   status.className = "viewer-status";
   status.setAttribute("role", "status");
   status.innerHTML = `<div><div class="spinner"></div>${copy.loading}</div>`;
   document.body.append(status);
 
-  // Paid or license-restricted Crafts answer the artifact fetch with 403;
-  // continuing them needs a redemption the read-only viewer cannot perform,
-  // so the primary "Echo" action must not render for them.
-  let previewOnly = false;
-  let accountState = { kind:"loading", account:null, devices:0 };
+  let accountState = { kind:"loading", account:null };
 
   function chip(label, hint, href, className = "") {
     const link = document.createElement("a");
@@ -120,7 +99,7 @@
     link.className = "viewer-primary";
     link.dataset.peButton = "primary";
     link.dataset.peDensity = "standard";
-    link.href = config.takeFurtherUrl;
+    link.href = accountState.kind === "signed-in" ? config.takeFurtherUrl : config.signupUrl;
     link.setAttribute("aria-label", copy.takeFurther);
     const text = document.createElement("span");
     text.className = "viewer-action-label";
@@ -135,15 +114,11 @@
 
   function renderActions() {
     actions.replaceChildren();
-    if (accountState.kind === "loading") return;
-    if (accountState.kind !== "signed-in") {
-      actions.append(chip(copy.signIn, copy.signInHint, config.signupUrl || "/auth.html", "viewer-auth-action"));
-      return;
-    }
-    if (accountState.devices > 0 && config.takeFurtherUrl && !previewOnly) actions.append(primaryAction());
+    actions.append(primaryAction());
+    if (accountState.kind !== "signed-in") return;
     actions.append(chip(
       accountState.account.name || copy.openDashboard,
-      accountState.devices > 0 ? copy.openDashboard : copy.readOnly,
+      copy.openDashboard,
       config.dashboardUrl || "/dashboard.html",
       "viewer-account-action",
     ));
@@ -153,9 +128,6 @@
     copy = COPY[viewerLanguage()];
     brand.title = copy.backTitle;
     brand.setAttribute("aria-label", copy.backTitle);
-    notice.textContent = copy.staticWidgetNotice;
-    notice.title = copy.dismissNotice;
-    notice.setAttribute("aria-label", `${copy.staticWidgetNotice} ${copy.dismissNotice}`);
     const statusKey = status.dataset.copyKey;
     if (statusKey && COPY.en[statusKey]) showPreview(statusKey);
     else if (!status.hidden) status.innerHTML = `<div><div class="spinner"></div>${copy.loading}</div>`;
@@ -168,19 +140,14 @@
       if (!session.ok) throw new Error("session unavailable");
       const account = (await session.json())?.account;
       if (!account?.id) {
-        accountState = { kind:"signed-out", account:null, devices:0 };
+        accountState = { kind:"signed-out", account:null };
         renderActions();
         return;
       }
-      let devices = 0;
-      try {
-        const response = await fetch("/api/v1/devices", { credentials: "same-origin", headers: { accept: "application/json" } });
-        if (response.ok) devices = ((await response.json())?.devices || []).filter((device) => device.online !== false).length;
-      } catch { /* read-only stays the honest default */ }
-      accountState = { kind:"signed-in", account, devices };
+      accountState = { kind:"signed-in", account };
       renderActions();
     } catch {
-      accountState = { kind:"signed-out", account:null, devices:0 };
+      accountState = { kind:"signed-out", account:null };
       renderActions();
     }
   }
@@ -201,13 +168,13 @@
 
   window.addEventListener("penecho:languagechange", applyViewerLanguage);
 
+  renderActions();
+
   (async () => {
     void renderAccountArea();
     try {
       const response = await fetch(config.artifactUrl, { headers: { accept: "application/json" } });
       if (response.status === 403) {
-        previewOnly = true;
-        renderActions();
         showPreview("previewOnly");
         return;
       }

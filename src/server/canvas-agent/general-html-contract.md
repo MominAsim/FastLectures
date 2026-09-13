@@ -27,7 +27,7 @@ Treat the Canvas as an existing document. For an overlay or annotation, align th
 
 Keep `html`, `body`, and the outer stage transparent by default. Add the smallest useful opaque or translucent local surface only when it improves contrast, grouping, or media presentation, or when the user asks for it. Match the current Canvas palette, typography, spacing, density, line weight, and shape language when those facts are available.
 
-Before adding a standalone Widget to a nonempty Canvas, inspect and capture the complete Canvas, then use `canvas_inspect` with `plannedWidget` for authoritative placement. After creation or a geometry change, review the complete Canvas before another mutation.
+Before adding a standalone Widget to a nonempty Canvas, inspect and capture the complete Canvas, then use `canvas_inspect` with `plannedWidget` for authoritative placement. After creation or a geometry change, review the complete Canvas before another spatial mutation. Source-only content patches are exempt from this layout gate and preserve the current live geometry.
 
 ## Runtime safety
 
@@ -39,4 +39,6 @@ After initial render and meaningful layout or state changes, call `window.parent
 
 ## Refinement
 
-For an existing General HTML Widget, read the exact `widget.html` lines and patch only the requested behavior or concrete defect. Use canonical unified-diff headers `--- a/widget.html` and `+++ b/widget.html`, preserve unrelated content and established style, then inspect the rendered result only as needed.
+For an existing General HTML Widget, read enough exact `widget.html` source to cover the requested change, then combine all known edits into one coherent multi-hunk patch when practical. Pass the returned `sourceHash` to `canvas_patch_widget`; it guards the canonical source package without making unrelated Canvas geometry part of the write precondition. Use canonical unified-diff headers `--- a/widget.html` and `+++ b/widget.html`, and preserve unrelated content and established style.
+
+Do not publish a timed scaffold or repeatedly re-read source after a successful patch. For a consecutive patch, use the successful receipt's `newSourceHash` and `afterWindows` line numbers instead of the old hash. Re-read only when the requested source range was incomplete or a real source conflict or patch mismatch identifies a range to refresh. A routine refinement normally needs no intermediate capture and one final capture; take a second only when the first identifies a concrete visual or behavior concern. If evidence reveals a defect, fix it; completing known changes together is a speed target, not a claim that follow-up is never necessary.

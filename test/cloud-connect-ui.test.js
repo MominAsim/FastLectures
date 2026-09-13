@@ -337,6 +337,7 @@ function boot({ status, remoteCloudStatus = null, cloudOrigin = "https://interna
     if (target === "/api/cloud/community/share" && publishItem) return Promise.resolve(jsonResponse({ item:publishItem }));
     if (communityItem && target === `/api/cloud/community/${communityItem.id}/artifact`) return Promise.resolve(jsonResponse({ item:communityItem, artifact:communityArtifact }));
     if (communityItem && target === `/api/v1/community/items/${communityItem.id}`) return Promise.resolve(jsonResponse({ item:communityItem }));
+    if (communityItem && target === `/api/v1/community/items/${communityItem.id}/artifact`) return Promise.resolve(jsonResponse({ item:communityItem, download:{ url:"https://storage.test/artifact" } }));
     if (communityItem && target === `/api/v1/community/items/${communityItem.id}/view`) return Promise.resolve(jsonResponse(communityArtifact));
     if (communityItem && [
       `/api/cloud/community/${communityItem.id}/favorite`,
@@ -433,7 +434,7 @@ function boot({ status, remoteCloudStatus = null, cloudOrigin = "https://interna
   };
 }
 
-test("Remote Canvas imports a public Craft with the browser Cloud session", async () => {
+test("Remote Canvas registers the public Craft copy for later Echo publication using the browser session", async () => {
   const item = { id:"123e4567-e89b-42d3-a456-426614174000", kind:"widget", name:"Remote Craft" };
   const artifact = { format:"penecho-widget", formatVersion:1, widget:{ id:"widget-1", title:"Remote Craft" } };
   const run = boot({ runtime:"cloud", status:deviceStatus({}), communityItem:item, communityArtifact:artifact });
@@ -441,7 +442,7 @@ test("Remote Canvas imports a public Craft with the browser Cloud session", asyn
 
   assert.deepEqual(run.imported, [{ kind:"widget", artifact, item }]);
   assert.deepEqual(run.fetchCalls.map((call) => call.url), [
-    `/api/v1/community/items/${item.id}`,
+    `/api/v1/community/items/${item.id}/artifact`,
     `/api/v1/community/items/${item.id}/view`,
   ]);
   assert.equal(run.statusCalls(), 0, "the Cloud shell must not ask the linked host for a second Cloud login");
@@ -451,7 +452,7 @@ test("Remote Canvas shows the Cloud account and online-device state before the C
   const run = boot({
     runtime:"cloud",
     status:deviceStatus({ connected:true }),
-    remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true },
+    remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true, deviceReady:true },
   });
 
   assert.equal(run.cloudButton.querySelector(".cloud-account-label").textContent, "Remote");
@@ -463,7 +464,7 @@ test("Remote Canvas updates the Cloud header when the gate response arrives afte
   const run = boot({ runtime:"cloud", status:deviceStatus({ connected:true }) });
   assert.equal(run.cloudButton.querySelector(".cloud-account-label").textContent, "Cloud");
 
-  run.window.PENECHO_REMOTE_CLOUD_STATUS = { accountName:"Late User", deviceOnline:true };
+  run.window.PENECHO_REMOTE_CLOUD_STATUS = { accountName:"Late User", deviceOnline:true, deviceReady:true };
   await run.window.dispatch("penecho:remote-cloud-status");
 
   assert.equal(run.cloudButton.querySelector(".cloud-account-label").textContent, "Late");
@@ -475,7 +476,7 @@ test("Remote Canvas reads Cloud-owned libraries directly instead of relaying the
   const run = boot({
     runtime:"cloud",
     status:deviceStatus({ connected:true }),
-    remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true },
+    remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true, deviceReady:true },
     communityFavorites:[{ id:"123e4567-e89b-42d3-a456-426614174090", kind:"canvas", name:"Roadmap", artifactSha256:"9".repeat(64) }],
     widgetFavorites:[{ id:"123e4567-e89b-42d3-a456-426614174091", name:"Timer", artifactSha256:"8".repeat(64), artifact:{ widget:{ title:"Timer" } } }],
   });
@@ -671,27 +672,25 @@ test("new publication forms keep title and description empty and block incomplet
   assert.equal(run.fetchCalls.some((call)=>call.url==="/api/cloud/community/share"), false);
 });
 
-test("Cloud Center pairing instructions link PenEcho Cloud → Devices to the configured cloud origin", async () => {
-  const uat = boot({ status:deviceStatus({ configured:false, enabled:false, state:"disconnected", id:null, name:null }) });
-  await uat.flush();
-  const overlay = await openCloudCenter(uat);
-  selectCloudSection(overlay, "device");
-  const links = flatten(overlay).filter((node) => node.tagName === "A");
-  const devices = links.find((node) => node.textContent === "PenEcho Cloud → Devices");
-  assert.ok(devices, "expected the pairing instructions to contain a Devices link");
-  assert.equal(devices.getAttribute("href"), "https://internaltest.penecho.ai/dashboard.html#devices");
-  assert.equal(devices.getAttribute("target"), "_blank");
-  assert.equal(devices.getAttribute("rel"), "noopener");
-  assert.ok(overlay.textContent.includes("Generate a pairing key in PenEcho Cloud → Devices, then enter it below."));
+test("signed-in users enable Linked Device without a pairing code", async () => {
+  const run=boot({status:deviceStatus({configured:false,enabled:false,state:"disconnected",id:null,name:null})});
+  await run.flush();const overlay=await openCloudCenter(run);selectCloudSection(overlay,"device");
+  assert.equal(flatten(overlay).some(node=>node.getAttribute("placeholder")==="Pairing key"),false);
+  const enable=flatten(overlay).find(node=>node.tagName==="BUTTON"&&node.textContent==="Enable link");assert.ok(enable);enable.click();await run.flush();
+  assert.ok(run.fetchCalls.some(call=>call.url==="/api/cloud/device/enable"));
+  assert.equal(run.fetchCalls.some(call=>call.url==="/api/cloud/pair"),false);
+});
 
-  const prod = boot({ status:deviceStatus({ configured:false, enabled:false, state:"disconnected", id:null, name:null }), cloudOrigin:"https://penecho.ai" });
-  await prod.flush();
-  const prodOverlay = await openCloudCenter(prod);
-  selectCloudSection(prodOverlay, "device");
-  const prodLink = flatten(prodOverlay).find((node) => node.tagName === "A" && node.textContent === "PenEcho Cloud → Devices");
-  assert.equal(prodLink.getAttribute("href"), "https://penecho.ai/dashboard.html#devices");
-  assert.equal(prodLink.getAttribute("target"), "_blank");
-  assert.equal(prodLink.getAttribute("rel"), "noopener");
+test("disconnect and reconnect use the existing link without pairing or credential input", async () => {
+  for (const enabled of [true, false]) {
+    const run=boot({status:deviceStatus({enabled,connected:enabled,state:enabled?"connected":"disconnected"})});
+    await run.flush();const overlay=await openCloudCenter(run);selectCloudSection(overlay,"device");
+    assert.ok(overlay.textContent.includes("Disconnect keeps your login and connection settings."));
+    const button=flatten(overlay).find(node=>node.tagName==="BUTTON"&&node.textContent===(enabled?"Disconnect":"Reconnect"));assert.ok(button);
+    button.click();await run.flush();
+    const request=run.fetchCalls.find(call=>call.url===`/api/cloud/device/${enabled?"disable":"enable"}`);assert.ok(request);
+    assert.equal(run.fetchCalls.some(call=>call.url==="/api/cloud/device/revoke"||call.url==="/api/cloud/pair"),false);
+  }
 });
 
 test("signed-in account and configured device expose actions on their own pages", async () => {
@@ -716,7 +715,7 @@ test("signed-in account and configured device expose actions on their own pages"
   selectCloudSection(overlay, "projects");
   assert.ok(!overlay.textContent.includes("Cloud storage used"), "storage statistics live on Account, not Projects");
   selectCloudSection(overlay, "device");
-  assert.ok(flatten(overlay).some((node) => node.tagName === "BUTTON" && node.textContent === "Pause link"));
+  assert.ok(flatten(overlay).some((node) => node.tagName === "BUTTON" && node.textContent === "Disconnect"));
   assert.ok(flatten(overlay).some((node) => node.tagName === "BUTTON" && node.textContent === "Remove this link"));
   assert.ok(!overlay.textContent.includes("Account settings"));
   assert.ok(!overlay.textContent.includes("Signing out removes"));
@@ -780,7 +779,7 @@ test("a linked device remains visible and controllable when the Cloud account is
 
   assert.ok(overlay.textContent.includes("My PenEcho"));
   assert.ok(overlay.textContent.includes("Connected"));
-  assert.ok(flatten(overlay).some((node) => node.tagName === "BUTTON" && node.textContent === "Pause link"));
+  assert.ok(flatten(overlay).some((node) => node.tagName === "BUTTON" && node.textContent === "Disconnect"));
   assert.ok(flatten(overlay).some((node) => node.tagName === "BUTTON" && node.textContent === "Remove this link"));
   assert.ok(!overlay.textContent.includes("enter a one-time pairing key"));
 });
@@ -802,17 +801,13 @@ test("Cloud Center re-renders from Connecting to Connected through the retained 
   assert.equal(run.cloudButton.dataset.state, "connected");
 });
 
-test("a newly paired device automatically changes from Connecting to Connected", async () => {
+test("a newly enabled device automatically changes from Connecting to Connected", async () => {
   const run = boot({ status:deviceStatus({ configured:false, enabled:false, connected:false, state:"disconnected", id:null, name:null }) });
   await run.flush();
   const overlay = await openCloudCenter(run);
   selectCloudSection(overlay, "device");
-  const pairingKey = flatten(overlay).find((node) => node.getAttribute("placeholder") === "Pairing key");
-  const linkDevice = flatten(overlay).find((node) => node.tagName === "BUTTON" && node.textContent === "Link device");
-  assert.ok(pairingKey);
+  const linkDevice = flatten(overlay).find((node) => node.tagName === "BUTTON" && node.textContent === "Enable link");
   assert.ok(linkDevice);
-
-  pairingKey.value = "PEN-ABCD-2345";
   run.setStatus(deviceStatus());
   linkDevice.click();
   await run.flush();
@@ -829,7 +824,7 @@ test("a newly paired device automatically changes from Connecting to Connected",
   assert.ok(overlay.textContent.includes("My PenEcho"));
   assert.ok(overlay.textContent.includes("Connected"));
   assert.equal(run.cloudButton.dataset.state, "connected");
-  assert.equal(run.timers.count(), 0, "the watcher stops as soon as Relay is connected");
+  assert.equal(run.timers.count(), 1, "the visible device page keeps monitoring after Relay connects");
 });
 
 test("a re-enabled device automatically changes from Connecting to Connected", async () => {
@@ -837,7 +832,7 @@ test("a re-enabled device automatically changes from Connecting to Connected", a
   await run.flush();
   const overlay = await openCloudCenter(run);
   selectCloudSection(overlay, "device");
-  const enableLink = flatten(overlay).find((node) => node.tagName === "BUTTON" && node.textContent === "Enable link");
+  const enableLink = flatten(overlay).find((node) => node.tagName === "BUTTON" && node.textContent === "Reconnect");
   assert.ok(enableLink);
 
   run.setStatus(deviceStatus());
@@ -852,7 +847,7 @@ test("a re-enabled device automatically changes from Connecting to Connected", a
   await run.flush();
   assert.ok(overlay.textContent.includes("My PenEcho"));
   assert.ok(overlay.textContent.includes("Connected"));
-  assert.equal(run.timers.count(), 0);
+  assert.equal(run.timers.count(), 1);
 });
 
 test("Cloud Center stays open when it was manually opened for an account that was already signed in", async () => {
@@ -1078,8 +1073,8 @@ test("Cloud Center uses History-style vertical navigation with Account and Link 
   await run.flush();
   const overlay = await openCloudCenter(run);
   const tabs = flatten(overlay).filter((node) => node.getAttribute("role") === "tab");
-  assert.deepEqual(tabs.map((tab) => tab.getAttribute("data-cloud-section")), ["account", "device", "projects", "favorites"]);
-  assert.equal(tabs[2].getAttribute("aria-selected"), "true");
+  assert.deepEqual(tabs.map((tab) => tab.getAttribute("data-cloud-section")), ["account", "device", "mcp", "projects", "favorites"]);
+  assert.equal(tabs.find(tab=>tab.getAttribute("data-cloud-section")==="projects").getAttribute("aria-selected"), "true");
   assert.ok(tabs[0].textContent.includes("Test User"), "the Account entry exposes the signed-in name");
   assert.ok(tabs[1].textContent.includes("My PenEcho"), "the Link device entry exposes the configured device name");
   const tablist = flatten(overlay).find((node) => node.getAttribute("role") === "tablist");
@@ -1096,7 +1091,7 @@ test("Cloud Center uses History-style vertical navigation with Account and Link 
   assert.equal(libraryHeading?.textContent, "Library");
   assert.equal(libraryHeading?.getAttribute("role"), "presentation");
   assert.equal(tabs[2].getAttribute("data-nav-heading"), null, "the Library label must not live inside the selected Projects row");
-  assert.deepEqual(tablist.children.map((node) => node.getAttribute("data-cloud-section")), ["account", "device", null, "projects", "favorites", "echoes"]);
+  assert.deepEqual(tablist.children.map((node) => node.getAttribute("data-cloud-section")), ["account", "device", "mcp", null, "projects", "favorites", "echoes"]);
 });
 
 test("Link device navigation shows the live connection state with a semantic status dot", async () => {
@@ -1104,7 +1099,7 @@ test("Link device navigation shows the live connection state with a semantic sta
     ["connected", deviceStatus({ connected:true, state:"connected" }), "Connected"],
     ["unconfigured", deviceStatus({ configured:false, enabled:false, connected:false, state:"disconnected", id:null, name:null }), "Not linked"],
     ["failed", { ...deviceStatus({ connected:false, state:"waiting" }), lastError:"relay unavailable" }, "Connection failed"],
-    ["paused", deviceStatus({ enabled:false, connected:false, state:"disconnected" }), "Paused"],
+    ["paused", deviceStatus({ enabled:false, connected:false, state:"disconnected" }), "Disconnected"],
     ["connecting", deviceStatus({ enabled:true, connected:false, state:"connecting" }), "Connecting"],
   ];
   for (const [expectedState, status, expectedLabel] of cases) {
@@ -1138,6 +1133,31 @@ test("Cloud Center preserves long account names in both the navigation and Accou
   assert.ok(!overlay.textContent.includes("..."), "long names must wrap instead of being replaced with an ellipsis");
 });
 
+test("Cloud Profile shows paid membership and date only, without changing the toolbar label", async () => {
+  for (const language of ["en", "zh"]) {
+    for (const tier of ["plus", "pro"]) {
+      const expiresAt = new Date(2035, 9, 9, 16, 41, 18).getTime();
+      const run = boot({ language, status:{ ...deviceStatus(), account:{ name:"Ada", credits:25772, membership:{ tier, expiresAt } } } });
+      await run.flush();
+      const overlay = await openCloudCenter(run);
+      selectCloudSection(overlay, "account");
+      await run.flush();
+      assert.ok(flatten(overlay).some(node => node.className === `cloud-membership-badge cloud-membership-${tier}` && node.textContent === tier.toUpperCase()));
+      const expiry = flatten(overlay).find(node => node.className === "cloud-subscription-expiry");
+      assert.equal(expiry.textContent, language === "zh" ? "订阅有效期至 2035年10月9日" : "Subscription valid until October 9, 2035");
+      assert.ok(!expiry.textContent.includes(":"));
+      assert.ok(!run.document.getElementById("cloudAccountBtn").textContent.includes(tier.toUpperCase()));
+    }
+  }
+  for (const membership of [undefined, { tier:"pro", expiresAt:Date.now() - 1 }, { tier:"vip", expiresAt:Date.now() + 86400000 }, { tier:"pro", expiresAt:"invalid" }]) {
+    const run = boot({ status:{ ...deviceStatus(), account:{ name:"Ada", credits:25772, membership } } });
+    await run.flush();
+    const overlay = await openCloudCenter(run);
+    selectCloudSection(overlay, "account");
+    assert.ok(!flatten(overlay).some(node => node.className.startsWith("cloud-membership-badge") || node.className === "cloud-subscription-expiry"));
+  }
+});
+
 test("Cloud Center keeps the concise account and device copy bilingual", async () => {
   const english = boot({ status:signedOutStatus(), language:"en" });
   await english.flush();
@@ -1145,7 +1165,7 @@ test("Cloud Center keeps the concise account and device copy bilingual", async (
   selectCloudSection(englishOverlay, "account");
   assert.ok(englishOverlay.textContent.includes("Sign in for private projects and favorites; API keys stay on this device."));
   selectCloudSection(englishOverlay, "device");
-  assert.ok(englishOverlay.textContent.includes("After signing in, enter a one-time pairing key to reach this host securely from Cloud."));
+  assert.ok(englishOverlay.textContent.includes("Sign in, then enable Linked Device with one click."));
   selectCloudSection(englishOverlay, "account");
   assert.equal(flatten(englishOverlay).filter((node) => node.tagName === "BUTTON" && node.textContent === "Sign in with browser").length, 1, "the Account page has one sign-in action");
 
@@ -1163,8 +1183,8 @@ test("Cloud Center keeps the concise account and device copy bilingual", async (
   selectCloudSection(overlay, "account");
   assert.ok(overlay.textContent.includes("登录后即可使用私有项目和收藏；API 密钥仍保存在此设备。"));
   selectCloudSection(overlay, "device");
-  assert.ok(overlay.textContent.includes("登录后输入一次性配对密钥，即可从 Cloud 安全访问此主机。"));
-  assert.deepEqual(flatten(overlay).filter((node) => node.getAttribute("role") === "tab").map((node) => node.getAttribute("data-cloud-section")), ["account", "device", "projects", "favorites"]);
+  assert.ok(overlay.textContent.includes("登录后即可一键启用 Linked Device。"));
+  assert.deepEqual(flatten(overlay).filter((node) => node.getAttribute("role") === "tab").map((node) => node.getAttribute("data-cloud-section")), ["account", "device", "mcp", "projects", "favorites"]);
   assert.ok(flatten(overlay).some((node) => node.tagName === "A" && node.textContent === "Echoes ↗"));
   assert.ok(!overlay.textContent.includes("Sign in for private projects"));
 });
@@ -1187,7 +1207,7 @@ test("Cloud Center opens project Canvases in the current local Canvas", async ()
 test("Cloud-hosted Canvas thumbnails use the immutable revision as their cache key", async () => {
   const projectId = "123e4567-e89b-42d3-a456-426614174011", canvasId = "123e4567-e89b-42d3-a456-426614174012", revisionId = "123e4567-e89b-42d3-a456-426614174013";
   const library = { workspace:{}, projects:[{ id:projectId, name:"Research" }], canvases:[{ id:canvasId, projectId, currentRevisionId:revisionId, name:"Notes", updatedAt:Date.now(), sizeBytes:42 }], sync:{ bundleVersion:2, conflictPolicy:"base-revision-required" } };
-  const run = boot({ runtime:"cloud", status:deviceStatus(), remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true }, library });
+  const run = boot({ runtime:"cloud", status:deviceStatus(), remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true, deviceReady:true }, library });
   await run.flush();
   const overlay = await openCloudCenter(run);
   await run.flush();
@@ -1364,7 +1384,7 @@ test("Remote Canvas toolbar Favorites keeps a failed retry manual and uses the C
   const run = boot({
     runtime:"cloud",
     status:deviceStatus({ connected:true }),
-    remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true },
+    remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true, deviceReady:true },
     cloudFavoriteFeedError:{ status:403, message:"PenEcho Cloud rejected this request." },
     withCrafts:true,
   });
@@ -1954,7 +1974,7 @@ test("the local favorite API has no 1 MiB artifact or 128 KiB thumbnail cap", ()
 
 test("Cloud Connect refreshes views by interaction and keeps background watchers bounded", () => {
   assert.match(cloudScript, /function cloudDevicesUrl\(\) \{\s*return new URL\("\/dashboard\.html#devices", `\$\{cloudOrigin\(\)\}\/`\)\.toString\(\);/);
-  assert.match(cloudScript, /cloudDevicesLink\(cloudT\("penechoDevices"\)\)/);
+  assert.match(cloudScript, /api\("\/api\/cloud\/device\/enable"/);
   assert.doesNotMatch(cloudScript, /Use a one-time code instead|Paste local sign-in code|Authorization code/);
   assert.doesNotMatch(cloudScript, /startCloudStatusWatch|CLOUD_STATUS_POLL_MS|cloudStatusPoll/);
   assert.match(cloudScript, /function render\(\)/);
@@ -1963,10 +1983,10 @@ test("Cloud Connect refreshes views by interaction and keeps background watchers
   assert.match(cloudScript, /favoriteRequestId:\s*0/);
   assert.doesNotMatch(cloudScript, /refreshCurrentView|render\(\{ reload:true \}\)/);
   assert.match(cloudScript, /startBrowserSignInWatch/);
-  assert.match(cloudScript, /DEVICE_CONNECTION_TIMEOUT_MS = 60_000/);
+  assert.match(cloudScript, /state.cloudSection !== "device"/);
   assert.match(cloudScript, /DEVICE_CONNECTION_POLL_MS = 2_000/);
   assert.match(cloudScript, /function startDeviceConnectionWatch/);
-  assert.match(cloudScript, /device\.connected \|\| !device\.configured \|\| !device\.enabled/);
+  assert.match(cloudScript, /document.visibilityState === "hidden"/);
   assert.match(cloudScript, /visibilitychange/);
   assert.match(cloudScript, /if \(seq !== statusRequestSeq\) return state\.status;/);
 });
@@ -1985,10 +2005,12 @@ test("Cloud Center uses a compact workbench shell and restores 44px coarse-point
   assert.match(cloudCss, /\.penecho-cloud-panel p a\s*\{[^}]*min-height:\s*2rem/);
   assert.match(cloudCss, /\.cloud-project-web-link\s*\{[^}]*min-height:\s*2rem/);
   assert.match(cloudCss, /\.cloud-account-button\s*\{[^}]*min-height:\s*2\.25rem[^}]*min-width:\s*2\.25rem/);
-  assert.match(cloudCss, /\.penecho-cloud-overlay\s*\{[^}]*background:\s*var\(--penecho-dialog-backdrop,[^}]*backdrop-filter:\s*var\(--penecho-dialog-backdrop-filter/);
+  const overlayStyle = cloudCss.match(/\.penecho-cloud-overlay\s*\{([^}]+)\}/)[1];
+  assert.doesNotMatch(overlayStyle, /backdrop-filter:/, "The scrim must not become a backdrop root around the Cloud window");
+  assert.match(cloudCss, /\.penecho-cloud-overlay::before\s*\{[^}]*background:\s*var\(--penecho-dialog-backdrop,[^}]*backdrop-filter:\s*var\(--penecho-dialog-backdrop-filter/);
   assert.match(cloudCss, /\.penecho-cloud-dialog\.cloud-center\s*\{[^}]*background:\s*var\(--penecho-large-dialog-surface,[^}]*62%, transparent\)\)[^}]*box-shadow:\s*var\(--penecho-large-dialog-shadow,[^}]*0 28px 80px[^}]*backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter, saturate\(1\.15\) blur\(20px\)\)/);
   assert.match(cloudCss, /\.penecho-cloud-dialog\.cloud-center\s*\{[^}]*height:\s*min\(760px, calc\(100svh - 40px\)\)[^}]*max-width:\s*1120px/);
-  assert.match(cloudCss, /\.cloud-center \.cloud-dialog-titlebar\s*\{[^}]*background:\s*var\(--penecho-workbench-navigation-surface,[^}]*68%, transparent\)\)[^}]*min-height:\s*var\(--penecho-workbench-header-h\)[^}]*padding:\s*var\(--penecho-workbench-header-padding\)[^}]*backdrop-filter:\s*var\(--penecho-workbench-navigation-filter,[^}]*blur\(24px\) saturate\(1\.14\)\)/);
+  assert.match(cloudCss, /\.penecho-cloud-dialog\.cloud-center\s*\{[^}]*background:\s*var\(--penecho-large-dialog-surface,[^}]*62%, transparent\)\)[^}]*box-shadow:\s*var\(--penecho-large-dialog-shadow,[^}]*0 28px 80px[^}]*backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter, saturate\(1\.15\) blur\(20px\)\)/);
   assert.match(cloudCss, /\.penecho-cloud-dialog\.share > \.cloud-dialog-titlebar\s*\{[^}]*background:\s*var\(--penecho-workbench-navigation-surface,[^}]*68%, transparent\)\)[^}]*backdrop-filter:\s*var\(--penecho-workbench-navigation-filter,[^}]*blur\(24px\) saturate\(1\.14\)\)/);
   assert.match(cloudCss, /\.penecho-cloud-dialog\.share > \.penecho-cloud-body\s*\{[^}]*background:\s*var\(--penecho-workbench-content-surface,[^}]*62%, transparent\)\)/);
   assert.match(cloudCss, /\.cloud-center \.cloud-dialog-mark\s*\{[^}]*flex:\s*0 0 20px[^}]*background:\s*transparent/);
@@ -2069,4 +2091,59 @@ test("Cloud Center keeps narrow layouts and theme contrast token-driven", () => 
 
 test("Cloud sign-in CTAs keep explicit foreground and background colors for hover and focus", () => {
   assert.match(cloudCss, /\.cloud-button\.primary:hover:not\(:disabled\), \.cloud-button\.primary:focus-visible\s*\{[^}]*background:\s*var\(--ai-primary-hover\)[^}]*color:\s*var\(--ai-primary-ink\)/);
+});
+
+
+test("device status follows disconnect and recovery without account changes and stops while hidden", async () => {
+  const run = boot({ status:deviceStatus({ connected:true, state:"connected" }) });
+  await run.flush();
+  const overlay = await openCloudCenter(run);
+  selectCloudSection(overlay, "device");
+  const pageState = () => flatten(overlay).find(node => node.className === "cloud-device-state");
+  run.setStatus({ ...deviceStatus({ connected:false, state:"waiting" }), lastError:"transport closed" });
+  await run.timers.advance(2_000);
+  await run.flush();
+  assert.equal(pageState().getAttribute("data-state"), "failed");
+  run.setStatus(deviceStatus({ connected:true, state:"connected" }));
+  await run.timers.advance(2_000);
+  await run.flush();
+  assert.equal(pageState().getAttribute("data-state"), "connected");
+  run.document.visibilityState = "hidden";
+  run.document.dispatch("visibilitychange");
+  assert.equal(run.timers.count(), 0);
+  run.setStatus(deviceStatus({ connected:false, state:"waiting" }));
+  run.document.visibilityState = "visible";
+  run.document.dispatch("visibilitychange");
+  await run.flush();
+  assert.equal(pageState().getAttribute("data-state"), "failed");
+  selectCloudSection(overlay, "account");
+  assert.equal(run.timers.count(), 0);
+});
+
+test("reopening the device page redraws a changed connection for the same account", async () => {
+  const run = boot({ status:deviceStatus({ connected:false, state:"waiting" }) });
+  await run.flush();
+  let overlay = await openCloudCenter(run);
+  selectCloudSection(overlay, "device");
+  flatten(overlay).find(node => node.className.includes("cloud-dialog-close")).click();
+  run.setStatus(deviceStatus({ connected:true, state:"connected" }));
+  overlay = await openCloudCenter(run);
+  await run.flush();
+  assert.equal(flatten(overlay).find(node => node.className === "cloud-device-state").getAttribute("data-state"), "connected");
+});
+
+test("an unavailable local status cannot retain a green connected badge", async () => {
+  const run = boot({ status:deviceStatus({ connected:true, state:"connected" }) });
+  await run.flush();
+  const overlay = await openCloudCenter(run);
+  selectCloudSection(overlay, "device");
+  run.setStatusError(new Error("status request failed"));
+  await run.timers.advance(2_000);
+  await run.flush();
+  assert.equal(flatten(overlay).find(node => node.className === "cloud-device-state").textContent, "Status unavailable");
+  assert.equal(run.cloudButton.dataset.state, "signed-in", "account is retained, connection is unverified");
+  run.setStatusError(null);
+  await run.timers.advance(2_000);
+  await run.flush();
+  assert.equal(flatten(overlay).find(node => node.className === "cloud-device-state").textContent, "Connected");
 });

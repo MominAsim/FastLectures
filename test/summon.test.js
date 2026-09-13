@@ -48,8 +48,8 @@ test("the two organic contours are deterministic, smooth, and distinct", () => {
   const rect = { x:80, y:60, w:640, h:300 },
     outer = SUMMON.buildEchoContour(rect, "outer"),
     inner = SUMMON.buildEchoContour({ x:102, y:82, w:596, h:256 }, "inner");
-  assert.equal(outer.length, SUMMON.THINKING_LAYOUT.samples);
-  assert.equal(inner.length, SUMMON.THINKING_LAYOUT.samples);
+  assert.ok(outer.length >= SUMMON.THINKING_LAYOUT.samples);
+  assert.ok(inner.length >= SUMMON.THINKING_LAYOUT.samples);
   assert.ok(outer.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y)));
   assert.deepEqual(SUMMON.buildEchoContour(rect, "outer"), outer);
   assert.notDeepEqual(inner, outer);
@@ -71,10 +71,11 @@ test("the request lifetime drives one restrained spatial echo with reduced-motio
   assert.match(html, /<canvas id="summonLayer" class="summon-layer" hidden aria-hidden="true"><\/canvas>/);
   assert.ok(summon >= 0 && summon < ink, "the echo must remain behind ink and widgets");
   assert.match(source, /dataset\.effect = "spatial-echo"/);
-  assert.match(source, /buildEchoContour\(layout\.outer, "outer"\)[\s\S]*?buildEchoContour\(layout\.inner, "inner"\)[\s\S]*?drawHighlight/);
-  assert.match(source, /getReducedMotion\(\) \? 0\.13/);
+  assert.match(source, /drawLightSweep\(ctx, model\.outline, outer, elapsed, getReducedMotion\(\), tint, fade\)/);
+  assert.match(source, /reducedMotion \? 1 : easeOutCubic/);
+  assert.match(source, /progress = reducedMotion \? 0\.5 :/);
   assert.match(source, /t\("summonUnderstanding"\)/);
-  assert.doesNotMatch(source, /LOADER_TYPES|PHRASE_KEYS|TIP_KEYS|setInterval|create(?:Radial|Linear)Gradient|shadowBlur|hsla\(/);
+  assert.doesNotMatch(source, /LOADER_TYPES|PHRASE_KEYS|TIP_KEYS|setInterval|createRadialGradient|shadowBlur|hsla\(/);
   assert.match(css, /AI thinking: a spatial echo around the current input region/);
   assert.match(css, /\.summon-caption\s*\{[^}]*var\(--summon-accent[^}]*font-family:\s*var\(--pe-font-ui[^}]*animation:\s*summonStatusIn/);
   assert.doesNotMatch(css, /font-family:\s*ui-rounded/);

@@ -14,80 +14,104 @@
   <a href="README.de.md">Deutsch</a>
 </p>
 
-<p align="center"><strong>跳出聊天框，与 AI 一起思考。</strong></p>
-
-<p align="center">PenEcho 是一块共享画布，让手写内容、公式、图表和空间关系都成为对话的一部分。</p>
-
-<h2 align="center">
-  <a href="https://penecho.ai">官方网站 · penecho.ai</a>
-</h2>
-
-<h3 align="center"><a href="https://penecho.ai">发布想法 · 协作共创 · 分享作品</a></h3>
-
+<h1 align="center">与 AI 一起思考的<br>空间工作台。</h1>
+<p align="center">手写、探索、创作，让内置 Agent 或你自己的 MCP 助手加入同一块画布。</p>
 <p align="center">
-  <a href="https://discord.gg/3jrPJ3mXdX"><img src="https://img.shields.io/badge/Discord-加入社区-5865F2?style=for-the-badge&amp;logo=discord&amp;logoColor=white" alt="加入 PenEcho Discord"></a>
-  <a href="https://github.com/penecho/penecho/stargazers"><img src="https://img.shields.io/github/stars/penecho/penecho?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;color=f5b301" alt="在 GitHub 上为 PenEcho 点亮 Star"></a>
-  <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-AGPL%20v3-blue?style=for-the-badge" alt="许可证：AGPL v3"></a>
+  <img src="https://img.shields.io/badge/version-1.3.1-087f83" alt="版本 1.3.1">
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="AGPL-3.0-only"></a>
 </p>
-
-> 本译文提供项目概览。最新、最完整的技术信息以[英文 README](../../README.md) 为准。
-
 <p align="center">
-  <a href="https://penecho.ai">官网</a> &bull;
-  <a href="#-功能特性">功能特性</a> &bull;
-  <a href="#-快速开始">快速开始</a> &bull;
-  <a href="#penecho-cloud">云端</a> &bull;
-  <a href="#-常见问题">常见问题</a> &bull;
+  <a href="https://penecho.ai">官网</a> ·
+  <a href="https://github.com/penecho/penecho/releases/latest">下载</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="../mcp-setup.md">MCP 指南</a> ·
   <a href="https://discord.gg/3jrPJ3mXdX">Discord</a>
 </p>
 
-<p align="center"><img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins.webp" alt="PenEcho 专业图示演示" width="49%"> <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_full_demo.webp" alt="PenEcho 完整演示" width="49%"></p>
+<p align="center">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_full_demo.webp" alt="PenEcho 完整演示" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins.webp" alt="PenEcho 专业图表演示" width="49%">
+</p>
 
-<p align="center"><img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins_sub_x10.webp" alt="PenEcho 插件演示" width="49%"> <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/play_patris.webp" alt="PenEcho 交互画布演示" width="49%"></p>
-
-## Kimi 开源伙伴
+<p align="center">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins_sub_x10.webp" alt="PenEcho 插件演示" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/play_patris.webp" alt="PenEcho 交互画布演示" width="49%">
+</p>
 
 <p align="center">
   <a href="https://www.kimi.com/code?aff=penecho">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="../assets/kimi-open-source-friends-dark.svg">
-      <img alt="Kimi Open Source Friends" src="../assets/kimi-open-source-friends-light.svg">
+      <img src="../assets/kimi-open-source-friends-light.svg" alt="Kimi Open Source Friends" width="326" height="56">
     </picture>
   </a>
 </p>
 
-PenEcho 是 **Kimi Open Source Friends** 的正式成员。该计划由 [Moonshot AI](https://www.kimi.com/) 发起，用于支持优秀的开源项目。Kimi 团队通过 API 额度支持 PenEcho 的开发；Kimi K3 也是处理手写内容、图表等复杂画布任务时的推荐模型之一。
+## 让 AI 对话在空间中展开
 
-- [Kimi Code](https://www.kimi.com/code?aff=penecho) - 面向全球用户的编程订阅服务
-- [Kimi 开放平台（中国）](https://platform.kimi.com?aff=penecho) - 中国大陆 API 服务
-- [Kimi 开放平台（全球）](https://platform.kimi.ai?aff=penecho) - 其他地区 API 服务
+继续使用你熟悉的 **Codex、Claude、Kimi 或其他 AI Agent**，让 PenEcho 为对话中的成果提供一个工作空间。
 
-## ✨ 功能特性
+通过 MCP，让 AI 把解释变成图解，把方案变成可操作的预览。资料、推理和作品并排展开；你在画布上的圈画、批注与反馈，可以被 AI 客户端读取，接着推进下一轮修改。
 
-- **PenEcho Agent：从资料到视觉成果。** 加入只读目录与文件（包括 PDF、Word、PowerPoint、Excel、图片和代码），结合网络研究与当前画布，让同一个 Agent 连续完成分析、规划、创作和修改。
-- **Visual Explorer 提升生产力。** 把密集信息转化为一份响应式、可编辑的视觉工作区，用清晰总览、相互关联的细节和关键证据组织内容。它缩短了从研究到可分享成果的路径，减少复制粘贴、工具切换、手工绘图，以及在聊天、文档和设计工具之间反复交接与返工。
-- **在空间中思考，而不是在聊天框里。** 在 `20,000 x 20,000` 的大画布任意位置写下问题、公式、图表或尚未成形的想法，PenEcho 会理解笔迹及其空间关系，并把回答放在相关内容旁边。
-- **回答直接呈现在画布上。** 在工作位置直接获得提示、解释、公式、函数图像和图表；AI 草稿可移动、缩放、复制，并在成为正式内容前逐项接受或丢弃。
-- **自然的输入方式。** 使用手写笔或鼠标书写；用套索选择已确认的笔迹进行移动、缩放、改色或删除，或只将选中部分交给 Typeset 排版。编辑自己的笔迹不会触发 AI 请求。
-- **可编辑的 AI 控件。** 隔离的交互式 HTML、专业图示、动画和实时数据插件，支持基于 unified diff 的原地增量修改，无需重新生成整个控件。
-- **多套 AI 连接。** 最多保存十套 API 或 CLI 连接并一键切换，内置可编辑的 Kimi 与 MiniMax 预设，连接同一主机的每个客户端都能独立选择当前连接。
-- **项目与共享。** 在服务器上按项目管理画布，从其他授权设备打开，并将确认后的画布内容导出为 PNG。
-- **PenEcho 云端。** 登录 [penecho.ai](https://penecho.ai) 即可在其他设备上继续私人项目、同步收藏、通过已连接设备远程访问本机，并在 Echoes 中分享公开作品 — API 凭据永远不会离开本机。
-- **四种主题**：Arcane、Sci-fi、Research、Studio，匹配你在探索的问题类型。
+| 继续熟悉的对话 | 看见成果逐步成形 | 让反馈回到对话 |
+| --- | --- | --- |
+| 使用你已有的 AI Agent 讨论问题、推进任务。 | 通过 PenEcho MCP 服务，把图解、文档和交互预览放到画布上。 | 试用结果、圈画批注，让 Agent 读取反馈并继续修改。 |
 
-## 🚀 快速开始
+<p align="center">
+  <a href="../assets/mcp-spatial-example.png">
+    <img src="../assets/mcp-spatial-example.png" alt="与 AI 讨论架构，在 PenEcho 画布上并排查看方案并用手写标注提出反馈" width="760">
+  </a>
+</p>
+<p align="center"><em>在画布上讨论架构，并用手写标注提出反馈。</em></p>
 
-**桌面应用** — [前往 GitHub Releases 下载](https://github.com/penecho/penecho/releases/latest)。
+**在完成之前，先看到它的样子。** 在与 AI 的交互中，看见项目逐步成形。先试一试，再给出反馈，一起把项目向前推进。
 
-**npm 安装** — 需要 [Node.js 22.19 或更高版本](https://nodejs.org/)，并准备以下任意一种：API Key、已登录的 [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code)、已登录的 [Codex CLI](https://developers.openai.com/codex/cli)，或已登录的 [Claude Code CLI](https://code.claude.com/docs/en/overview)。
+[通过 MCP 接入你的 Agent →](#通过-mcp-接入你的-agent)
+
+## 你可以做什么
+
+- **用画布思考。** 在同一空间组合手写内容、公式、文字、图片、图表和交互式 HTML Widget。
+- **与 AI 创作。** 让内置 Agent 结合文件、网络研究和画布上下文，分析问题并生成可编辑的可视化结果。
+- **接入自己的 Agent。** 通过 MCP，让 Codex、Claude Code 或其他兼容客户端读写你明确开放的 Canvas。
+- **保存与分享。** 用项目组织画布，保存云端版本、同步收藏，通过 Echoes 发布作品。
+
+## 1.3.0 新内容
+
+| 更新 | 带来的能力 |
+| --- | --- |
+| **MCP 工作空间** | 画布发现、截图、对象编辑、交互 Widget、虚拟源文件和用户反馈；支持明确开放的本机、局域网和关联设备云端浏览器。 |
+| **Cloud MCP** | 外部 AI Agent 可直接连接已启用的 PenEcho Cloud 画布，读取内容、创建和编辑成果，并根据手写批注继续完善。Cloud MCP 与 Local MCP 均为可选连接方式。 |
+| **PenEcho Cloud Credits API** | 使用账号积分调用 PenEcho 托管模型，也可继续使用自己的 API 或 CLI；设置中可查看可用模型、费率和余额。 |
+| **连接管理** | 保存多个 AI 连接，为不同客户端选择各自的活动连接。 |
+| **画布与工作台** | 更流畅的绘写和导航、更简洁的 Studio 控件、自适应 Agent 面板与可自定义的快捷键。 |
+
+## 工作原理
+
+<p align="center">
+  <img src="../../public/penecho-architecture.webp" alt="PenEcho 架构：浏览器连接 PenEcho Cloud 或本机；Cloud 提供云端模型并连接关联设备，本机运行 PenEcho CLI 或 App，使用自有 LLM API 或 Agent。外部 AI Agent 可通过 Cloud MCP 或 Local MCP 连接，两条 MCP 连接均为可选。" width="1483">
+</p>
+
+通过浏览器访问 PenEcho Cloud，或访问本机运行的 PenEcho CLI / 桌面应用。Cloud 提供云端模型，并可连接你的关联设备；本机可以使用自有模型 API 或 Agent。Codex、Claude 等外部 AI Agent 可通过 Cloud MCP 或 Local MCP 连接，两条 MCP 连接均为可选。
+
+实现细节见[架构文档](../architecture.md)。
+
+## 快速开始
+
+**桌面应用：** 从 [GitHub Releases](https://github.com/penecho/penecho/releases/latest) 下载 Windows 或 macOS 版本。
+
+**npm：** 需要 Node.js **22.19 或更新版本**。
 
 ```bash
 npm install -g penecho
-penecho configure   # 选择 LLM 来源：API、Kimi、Codex 或 Claude CLI
-penecho             # 然后打开 http://localhost:3888
+penecho
 ```
 
-**从源码运行**
+打开 `http://localhost:3888`。在**设置 → 连接**中添加自己的模型 API，或已安装并登录的 Codex、Claude Code、Kimi CLI。连接保存在 `~/.penecho/connections.json`，通用设置保存在 `~/.penecho/config.env`。使用 PenEcho 托管模型时，登录账号并在设置中选择可用模型。
+
+启动时设置六位访问码，或明确选择在可信网络开放访问。终端也会显示供其他设备使用的局域网地址。
+
+<details>
+<summary>从源码运行</summary>
 
 ```bash
 git clone https://github.com/penecho/penecho.git
@@ -96,92 +120,62 @@ npm install
 npm start
 ```
 
-首次启动时，最先打开的浏览器会话必须设置一个共用的 6 位安全码，或明确确认将进程保持为局域网开放状态。配置保存在 `~/.penecho/config.env`，API 凭据不会发送到浏览器。CLI 模式要求对应的 CLI 已安装、登录并位于 `PATH` 中，详见[配置参考](../configuration.md)。
+</details>
 
-<a id="penecho-cloud"></a>
-## ☁️ PenEcho 云端
+## 通过 MCP 接入你的 Agent
 
-[PenEcho 云端](https://penecho.ai) 是 1.0.0 推出的配套网站与账户体系，把你的设备和作品连接起来 — 它完全可选：不登录云端时，PenEcho 依然可以用你自己的 API 或 CLI 完整运行。
+使用 **Local MCP**：
 
-在官网上你可以：
+1. 启动 PenEcho，在 **设置 → MCP 服务** 中开放当前 Canvas。
+2. 在设置中配置受支持的本机客户端，或复制生成的启动配置。全局 npm 安装可在接受 `mcpServers` JSON 的客户端中使用：
 
-- 用浏览器登录并管理云端账户、存储空间和额度
-- 打开 **Echoes**，浏览社区分享的公开画布和组件
-- 以只读网页视图打开任意公开作品，并把链接分享给任何人
-- 管理项目的修订版本、回收站与恢复
-- 在 **云端 → 设备** 中生成配对密钥，连接你的 PenEcho 主机
+   ```json
+   {
+     "mcpServers": {
+       "penecho": { "command": "penecho", "args": ["mcp"] }
+     }
+   }
+   ```
 
-在应用中登录后，还可以：
+3. 告诉 Agent：**“把刚才讨论的架构展示到我的 PenEcho 画布上。”**
 
-- **云端项目。** 把私有的、带版本的画布保存到项目中，在任何已登录设备上继续。每次成功保存都会生成一个不可变的修订版本；画布在其他设备上更新时不会被静默覆盖 — 你可以选择读取最新版本或另存一份。
-- **已连接设备（Linked device）。** 用云端 → 设备生成的一次性密钥配对这台主机后，你已登录的浏览器和应用就能通过云端中继从任何地方访问它。无需把主机暴露到公网即可远程访问画布；API 凭据仍然只保存在这台设备上。链接随时可以暂停、恢复或移除。
-- **Echoes：共同创作与知识分享。** 在 12 个分类下浏览公开画布和组件，收藏到通过云端同步的个人收藏夹，并把社区组件直接加入自己的画布。你也可以为自己的画布选择分享分类并公开发布，让其他人学习、在其基础上 Echo — 作品谱系（Craft lineage）会在版本之间保留。
+Agent 可以查看相关内容、编辑对象、创建可视化结果、修改文档源文件，并接收你的反馈。只有已开放且连接中的 Canvas 才会被发现。使用 Local MCP 时，MCP 客户端运行在 PenEcho 主机上；支持局域网和关联设备浏览器不会将本地 MCP 接口公开到互联网。Cloud MCP 则通过独立的、经过身份验证的 HTTPS 连接访问已启用的 PenEcho Cloud 画布。
 
-## 🔔 1.2.0 新功能
+桌面应用请使用设置生成的配置，其中包含正确的内置运行时。详见 [MCP 配置指南](../mcp-setup.md)和可选的 [Agent 工作流 skill](../../skills/penecho-mcp/SKILL.md)。
 
-- **更简洁的磨砂 Studio。** 工具栏、导航、Agent、设置、弹窗和紧凑控件统一使用克制的半透明材质与细描边。界面更轻盈、更一致，同时让画布始终清晰可见。
-- **层级更清楚，界面干扰更少。** 常用工具保持触手可及，次要操作在需要时再出现；Cloud 状态、历史记录、收藏和 Agent 界面也遵循统一的视觉与交互语言。
-- **自适应的工作台。** 控件在宽屏和窄屏上都保持紧凑，Agent 会在右侧栏与底部面板之间自适应，工具栏换行时重要操作依然可见；界面缩放与 Studio 配色也能适配更多使用环境。
-- **画布交互更流畅。** 低延迟实时笔迹层与统一的逐帧调度让书写、擦除、平移和缩放更跟手，同时保持 Widget 实时状态，并在移动结束后恢复更清晰的文字。
-- **其他小改进统一整理。** Agent 提示和附件、Widget 与对象控件、已连接设备查看、请求反馈、长时间任务和桌面端可靠性均有完善，并新增更细的 3 px 笔尖。
+## PenEcho Cloud 与 AI 连接
 
-1.1.7 稳定了 PenEcho Agent 运行时与托管 Codex CLI 集成。1.0.0 推出了 [PenEcho 云端](https://penecho.ai)、私有版本化项目、已连接设备远程访问、Echoes、公开作品和同步收藏。0.9.0 带来了多套 AI 连接与一键切换、按项目管理的共享画布、有明确目标的原地完善、基于 unified diff 的增量修改、SSE 流式请求以及清晰的请求进度与取消。完整历史请查看 [Releases](https://github.com/penecho/penecho/releases)。
+[PenEcho Cloud](https://penecho.ai) 提供私有项目与版本保存、收藏同步、Echoes 公开分享，以及关联电脑的远程访问。
 
-## 📖 工作原理
-
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="../assets/how-it-works-dark.svg"><img alt="PenEcho 工作原理" src="../assets/how-it-works-light.svg"></picture></p>
-
-浏览器只会发送与当前任务相关的画布区域及其几何信息。服务器验证请求并交给选定的执行器，然后返回可移动的草稿；草稿在接受之前始终与已确认笔迹分开。PenEcho 只在有笔迹的地方分配 `512 x 512` 分块，巨大的逻辑画布不会变成巨大的位图。当前模型推荐和费用示例请参阅[英文 README](../../README.md#recommended-model-configurations)。
-
-## ⚙️ 配置
-
-`penecho configure` 会打开交互式配置中心，涵盖 LLM 来源、模型、推理等级、无活动超时、单次 Agent 请求轮次上限、响应 token 上限、图片格式、请求记录和监听地址端口。最常用的设置（也可直接写在 `~/.penecho/config.env`）：
-
-| 设置 | 用途 |
+| 连接方式 | 使用方法 |
 | --- | --- |
-| `AI_PROVIDER` | 执行器：`api`、`kimi-cli`、`codex-cli` 或 `claude-cli` |
-| `AI_API_URL` / `AI_API_KEY` / `AI_API_MODEL` | API 端点、凭据和模型（仅 API 模式） |
-| `AI_EFFORT` | 保存的推理等级；画布工具栏的 `Reasoning` 菜单可按请求覆盖，不会改写连接配置 |
-| `AI_TIMEOUT_SECONDS` | PenEcho Agent 的无活动截止时间；模型输出或工具真实进度会重新计时 |
-| `PENECHO_CANVAS_AGENT_TURN_LIMIT` | 单次请求最少 50 轮、不设最大值，默认 100；达到所设轮次时保留结果和会话 |
-| `HOST` / `PORT` | 监听地址和端口，默认 `0.0.0.0:3888` |
-| `AUTO_AI_DELAY_SECONDS` | 自动识别前的延迟，可在画布上调整 0–10 秒 |
+| **PenEcho 模型** | 登录账号，选择可用托管模型并使用积分；设置中展示当前费率和余额。 |
+| **自己的模型 API** | 配置兼容 OpenAI 或 Anthropic 格式的服务地址、模型和 API Key，用量由对应服务商结算。 |
+| **自己的 CLI** | 使用本机已安装并登录的 Codex、Claude Code 或 Kimi CLI，可用性与用量取决于对应服务商套餐。 |
 
-单次启动可使用 `--config ./team.env` 指定其他配置文件，或用参数临时覆盖，如 `penecho --claude --model opus --effort max`。CLI 准备工作、推理等级映射、超时、请求追踪等完整说明见 [docs/configuration.md](../configuration.md)。
+在本机使用托管模型只需登录 Cloud，无需关联设备或另填 Credits API Key。Cloud MCP 可直接访问已启用的云端画布。通过 Cloud 访问电脑上托管的画布时，需要关联设备在线并具备相应中继支持。
 
-## 🔒 安全
+自有 API 和 CLI 连接不消耗 PenEcho 积分。使用自己的连接在本地工作，无需 Cloud 账号。AI 功能需要访问所选服务；本地运行 PenEcho 不代表远程模型可以离线使用。
 
-- 每次启动必须设置共用的 6 位安全码（仅以加盐哈希保存在进程内存中，并有频率限制），或明确确认风险。它是可信局域网的日常防护，不能替代公网级身份验证。
-- CLI 模式在有效请求时会启动本地 CLI 进程：请仅在本机或可信局域网内使用，不要直接暴露到公网。
-- 如需公网访问，请将 PenEcho 部署在具备 HTTPS、更强身份验证、频率限制和请求大小限制的反向代理之后。
-- 凭据只保存在 Node.js 进程和配置文件中，不会发送到浏览器代码。不要公开配置文件、日志、截图或包含隐私内容的请求记录。
+## 模型与效果
 
-## ❓ 常见问题
+以下推荐基于 PenEcho 实际画布任务的实测，在回答质量与延迟之间取得平衡；实际响应时间会随服务商、画布复杂度和推理行为变化。
 
-**必须有 API Key 吗？**
-不是。已登录的 [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code)、[Codex CLI](https://developers.openai.com/codex/cli) 或 [Claude Code CLI](https://code.claude.com/docs/en/overview) 都可以 — PenEcho 在本地调用所选 CLI，该来源不需要 API Key。
+| 模型 | 推理强度 | 说明 | 推荐用途 |
+| --- | --- | --- | --- |
+| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `medium` | 质量强，延迟更均衡 | 日常画布任务 |
+| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `high` | 推理质量更高，等待更长且波动更大 | 复杂手写、数学、图表或布局 |
+| Fable 5 (`claude-fable-5` 或 `fable`) | `medium` | 响应时间通常约为 `gpt-5.6-sol` 在 `xhigh` 下的一半 | 快速、高质量的通用任务 |
+| [Kimi K3](https://platform.kimi.ai?aff=penecho) (`kimi-k3`) | `medium` | 质量很好，`medium` 保持实用的平衡 | Kimi 推荐默认配置 |
+| `gpt-5.6-terra` | `low` 至 `high` | 质量与响应速度表现出色 | 灵活兼顾质量与延迟 |
+| `gpt-5.6-luna` | `xhigh` | 画布效果很好，速度快 | 质量优先，同时兼顾响应 |
+| `gpt-5.6-sol` | `high` | 满足多数请求，比 `xhigh` 响应更快 | 重视响应速度时的默认配置 |
+| `gpt-5.6-sol` | `xhigh` | 质量很好，但更慢且波动更大 | 高难度画布任务 |
+| `deepseek-v4-flash-vision-exp` | `medium` | 良好 | 通过 DeepSeek API 完成视觉任务 |
+| `glm-5.3-flash` | `medium` | 良好 | 通过 GLM Anthropic 兼容 API 快速完成任务 |
 
-**应该从哪个模型开始？**
-[Kimi K3](https://platform.kimi.ai?aff=penecho)、Claude Opus 4.8 / 5.0、`gpt-5.6` 系列、`deepseek-v4-flash-vision-exp` 和 `glm-5.3-flash` 都是已测试的起点，详见[英文 README 的模型推荐](../../README.md#recommended-model-configurations)。
+## 社区与许可
 
-**PenEcho 免费吗？**
-应用本身采用 AGPL v3 开源、免费使用。模型用量由你的服务商计费，或包含在你登录的 Codex/Claude 订阅中。典型的低推理等级请求每次只要几美分。
+参与贡献请阅读 [CONTRIBUTING.md](../../CONTRIBUTING.md)，提交 PR 前运行 `npm run check`。欢迎在 [Issues](https://github.com/penecho/penecho/issues) 报告问题、在 [Discussions](https://github.com/penecho/penecho/discussions) 交流，或加入 [Discord](https://discord.gg/3jrPJ3mXdX)。
 
-**必须有云端账户吗？**
-不是。PenEcho 用你自己的 API 或 CLI 就能完整运行。登录 [penecho.ai](https://penecho.ai) 是可选增强：跨设备的私人项目、同步收藏、通过已连接设备远程访问本机，以及在 Echoes 中公开发布作品。
-
-**我的数据存在哪里？**
-画布和设置保存在你的设备或你自己的 PenEcho 服务器上；密钥和设置保存在 `~/.penecho/config.env`，请求记录默认关闭。
-
-**能在局域网内用平板访问吗？**
-可以。启动时会打印本机的局域网地址，在其他设备上打开并输入同一个 6 位安全码即可。如果无法连接，请在主机防火墙中放行相应 TCP 端口。
-
-## 🤝 参与贡献
-
-PenEcho 还很年轻，最重要的问题 — 手写识别、画布视觉工具、更广的模型支持和自然的笔交互 — 仍然开放，而且不写代码也能帮忙：测试一个模型并报告执行器、模型 ID、推理等级、延迟和示例结果；分享一个效果好（或不好）的画布；或者报告任何粗糙的细节，再小也值得提。
-
-提交 Pull Request 前请运行 `npm run check`。从 [CONTRIBUTING.md](../../CONTRIBUTING.md) 开始，也可以在 [Discord](https://discord.gg/3jrPJ3mXdX)、[GitHub Discussions](https://github.com/penecho/penecho/discussions) 和 [GitHub Issues](https://github.com/penecho/penecho/issues) 找到我们。
-
-## 📄 许可证
-
-PenEcho 采用 [GNU AGPL v3.0 only](../../LICENSE) 开源许可证，允许商业使用；如果你修改 PenEcho 并通过网络提供给用户，必须按 AGPL 要求提供对应源代码。无法满足 AGPL 要求的产品可选择单独的[商业许可证](../../COMMERCIAL-LICENSE.md)。名称与标志受[商标政策](../../TRADEMARKS.md)约束；贡献者保留其成果的所有权，见[贡献者协议](../../CONTRIBUTOR-LICENSE-AGREEMENT.md)。
+采用 [AGPL-3.0-only](../../LICENSE) 许可，同时提供[商业许可](../../COMMERCIAL-LICENSE.md)。另见[商标政策](../../TRADEMARKS.md)和[贡献者协议](../../CONTRIBUTOR-LICENSE-AGREEMENT.md)。

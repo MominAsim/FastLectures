@@ -22,11 +22,14 @@
     historyNoticeTimer = 0,
     historyActivityTimer = 0,
     historyPreviewUrls = new Map(),
+    historyPreviewLoader = null,
     snapshotListInProgress = false,
     snapshotLoadInProgress = false,
     snapshotLoadingId = null,
     snapshotItemsLocation = null,
+    snapshotListFailedLocation = null,
     snapshotLocationCountCache = new Map(),
+    serverSnapshotUnavailableKey = "",
     serverCanvasProjects = [],
     selectedServerProjectId = storedServerProjectId(),
     cloudCanvasProjects = [],
@@ -212,6 +215,7 @@
     activity.dataset.tone = tone;
     title.textContent = text;
     description.textContent = detail;
+    bar.hidden = tone === "error";
     if (Number.isFinite(progress)) bar.value = Math.max(0, Math.min(100, progress));
     else bar.removeAttribute("value");
   }
@@ -308,13 +312,14 @@
   }
   async function saveCurrentCanvas() {
     if (snapshotSaveInProgress) return;
-    const location = state.currentSnapshotLocation || state.snapshotLocation,
+    const location = state.currentSnapshotLocation || (window.PENECHO_CONFIG?.browserCanvasEditing ? "cloud" : state.snapshotLocation),
       overwriteId = state.currentSnapshotId && state.currentSnapshotLocation === location ? state.currentSnapshotId : null,
       requestedName = document.querySelector("#historyName")?.value.trim(),
       name = requestedName || currentCanvasDisplayName();
     setHistorySaveBusy(true);
     showHistoryNoticeKey("snapshotSaving", "busy", 0);
     try {
+      if (location === "cloud" && !overwriteId) await cloudSnapshotItems();
       const selectionBusy = selectionAIBusy(),
         selectionBusyKey = selectionAIStatusKey(),
         id = await saveSnapshot({ overwriteId, name, location });
@@ -356,7 +361,7 @@
     setHistorySaveBusy(true);
     showHistoryNoticeKey("snapshotSaving", "busy", 0);
     try {
-      const id = await saveSnapshot({ overwriteId, name, location });
+      const id = await saveSnapshot({ overwriteId, name, location, allowEmpty:true });
       if (!id) {
         showHistoryNoticeKey(selectionAIBusy() ? selectionAIStatusKey() : "emptyCanvas", "info");
         return false;
@@ -535,15 +540,15 @@
     if (!response.ok) {
       const error = Error(body?.error || `PenEcho server returned HTTP ${response.status}`);
       error.status = response.status;
-      error.code = body?.code || null;
+      error.code = body?.code || body?.error || null;
       throw error;
     }
     return body;
   }
   async function serverSnapshotItems() {
     const [canvasResponse, projectResponse] = await Promise.all([
-        fetch("/api/canvases", { credentials:"same-origin", cache:"no-store", headers:authenticatedApiHeaders() }),
-        fetch("/api/canvas-projects", { credentials:"same-origin", cache:"no-store", headers:authenticatedApiHeaders() }),
+        fetch("/api/canvases?metadataOnly=1", { credentials:"same-origin", cache:"no-store", headers:authenticatedApiHeaders(), signal:AbortSignal.timeout(12000) }),
+        fetch("/api/canvas-projects", { credentials:"same-origin", cache:"no-store", headers:authenticatedApiHeaders(), signal:AbortSignal.timeout(12000) }),
       ]),
       body = await snapshotApiResponse(canvasResponse),
       projectBody = projectResponse.ok ? await snapshotApiResponse(projectResponse) : null;
@@ -552,7 +557,7 @@
     return Promise.all((Array.isArray(body?.canvases) ? body.canvases : []).map(async (item) => ({
       ...item,
       projectId:item.projectId || SERVER_DEFAULT_PROJECT_ID,
-      preview:dataUrlBlob(item.preview),
+      preview:item.preview ? dataUrlBlob(item.preview) : null,
     }))).then((items) => items.sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)));
   }
   async function cloudSnapshotItems() {
@@ -568,6 +573,7 @@
     })).sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
   }
   async function snapshotsAt(location) {
+    if (location === "server") await window.PenEchoLinkedDevice?.refresh({ ifNeeded:true });
     return location === "server" ? serverSnapshotItems() : location === "cloud" ? cloudSnapshotItems() : allSnapshots();
   }
   function animationBounds(region = null) {
@@ -645,7 +651,13 @@
   async function renderExportCanvas() {
     const region = exportRegion();
     if (!region) return null;
-    await prepareVisibleWidgetSnapshots(null, false, null, true);
+    try { await prepareVisibleWidgetSnapshots(null, false, null, true); }
+    catch (error) {
+      // A fresh raster is optional when every Widget already has usable pixels.
+      // Never silently omit a Widget from an image download.
+      if (capturableWidgets(region).some(widget => !widget.snapshotImage || widget.snapshotVersion < widget.contentVersion)) throw error;
+      debug("widget-export-cached", {error:String(error?.message || error).slice(0,300)});
+    }
     const scale = Math.min(CANVAS_DOWNLOAD_RESOLUTION_SCALE, EXPORT_MAX_DIMENSION / region.w, EXPORT_MAX_DIMENSION / region.h, Math.sqrt(EXPORT_MAX_PIXELS / (region.w * region.h))),
       canvas = offscreen(Math.max(1, Math.ceil(region.w * scale)), Math.max(1, Math.ceil(region.h * scale))),
       context = canvas.getContext("2d");
@@ -830,6 +842,15 @@
       return {};
     }
   }
+  function snapshotCanvasObjectExtensions() {
+    return { ...snapshotExtensionObject(state.currentSnapshotBundleExtensions), penechoObjectOrder:{
+      version:1, frontKind:state.frontCanvasObjectKind, placedKind:state.frontPlacedCanvasObjectKind,
+    } };
+  }
+  function restoreSnapshotCanvasObjectOrder(extensions) {
+    const order = extensions?.penechoObjectOrder;
+    restoreCanvasObjectFrontKinds(order?.version === 1 ? order.frontKind : "image", order?.version === 1 ? order.placedKind : "image");
+  }
   function snapshotPreservedAssets(value) {
     if (!Array.isArray(value)) return [];
     try {
@@ -898,7 +919,7 @@
         textBoxes,
         images,
         preview,
-        bundleExtensions:snapshotExtensionObject(state.currentSnapshotBundleExtensions),
+        bundleExtensions:snapshotCanvasObjectExtensions(),
         manifestExtensions:snapshotExtensionObject(state.currentSnapshotManifestExtensions),
     };
     return { ...(await serverSnapshotPayload(item, tileEntries)), ...communityImages };
@@ -997,6 +1018,7 @@
       state.textBoxHistoryBefore = null;
       for (const [key, canvas] of decodedTiles) tiles.set(key, canvas);
       decodedTiles.clear();
+      state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       restoreAnimations(item.animations);
       restoreWidgets(item.widgets);
       applyTheme(item.theme);
@@ -1014,8 +1036,8 @@
       state.currentSnapshotProjectId = null;
       state.currentSnapshotRevisionId = null;
       state.currentSnapshotBundleExtensions = snapshotExtensionObject(item.bundleExtensions);
+      restoreSnapshotCanvasObjectOrder(item.bundleExtensions);
       state.currentSnapshotManifestExtensions = snapshotExtensionObject(item.manifestExtensions);
-      state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       state.dirty = null;
       state.snapshotSavedRevision = state.userRevision;
       setCanvasNavigationLocked(false);
@@ -1125,7 +1147,7 @@
     if (!body?.canvas?.id || !body?.revision?.id) throw Error("PenEcho Cloud returned an invalid save confirmation");
     return { id:body.canvas.id, revisionId:body.revision.id };
   }
-  async function saveSnapshot({ overwriteId = null, name = null, location = state.snapshotLocation } = {}) {
+  async function saveSnapshot({ overwriteId = null, name = null, location = state.snapshotLocation, allowEmpty = false } = {}) {
     if (selectionAIBusy()) {
       setStatusKey(selectionAIStatusKey());
       return null;
@@ -1133,11 +1155,12 @@
     if (!SNAPSHOT_LOCATIONS.has(location)) throw Error("Invalid snapshot location");
     if (overwriteId && state.currentSnapshotLocation !== location) throw Error(t("noCurrentSnapshot"));
     await finalizeCanvasForSnapshot();
-    if (!tiles.size && !state.images.length && !state.textBoxes.length && !state.preservedSnapshotAnimations.length && (!pluginEnabled("animation") || !state.animations.length) && !visibleWidgets().length) {
+    if (!allowEmpty && !tiles.size && !state.images.length && !state.textBoxes.length && !state.preservedSnapshotAnimations.length && (!pluginEnabled("animation") || !state.animations.length) && !visibleWidgets().length) {
       setStatusKey("emptyCanvas");
       return null;
     }
-    await prepareVisibleWidgetSnapshots(null, false);
+    // Widget source is authoritative; preview failure must not prevent saving it.
+    await prepareVisibleWidgetSnapshots(null, true);
     const savedUserRevision = state.userRevision;
     const nameInput = document.querySelector("#historyName"),
       existing = overwriteId ? snapshotItems.find((item) => item.id === overwriteId) : null,
@@ -1168,7 +1191,7 @@
               : selectedCloudSaveProjectId()
           : null,
         theme: state.theme,
-        view: { scale: state.scale, panX: state.panX, panY: state.panY, navigationLocked:state.navigationLocked },
+        view: { scale: state.scale, panX: state.panX, panY: state.panY, navigationLocked:state.navigationLocked, ...(typeof canvasDocumentsSavedView==="function"?{region:canvasDocumentsSavedView().region}:{}) },
         tileCount: tileEntries.length,
         animationCount: animations.length,
         animations,
@@ -1179,7 +1202,7 @@
         imageCount: images.length,
         images,
         preview,
-        bundleExtensions:snapshotExtensionObject(state.currentSnapshotBundleExtensions),
+        bundleExtensions:typeof canvasDocumentsSaveMetadata==="function"?canvasDocumentsSaveMetadata({copy:!overwriteId&&Boolean(state.currentSnapshotId)}):snapshotCanvasObjectExtensions(),
         manifestExtensions:snapshotExtensionObject(state.currentSnapshotManifestExtensions),
         preservedAssets:snapshotPreservedAssets(state.currentSnapshotPreservedAssets),
       };
@@ -1204,6 +1227,7 @@
     state.currentSnapshotManifestExtensions = snapshotExtensionObject(item.manifestExtensions);
     state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
     state.snapshotSavedRevision = savedUserRevision;
+    if(typeof canvasDocumentsDidSave==="function")await canvasDocumentsDidSave(item,location,storedId,tileEntries);
     canvasAgentCanvasDidPersist(location, storedId);
     await refreshSnapshots();
     window.PenEchoStudioNavigator?.refreshSource?.(location, { force:true });
@@ -1315,6 +1339,16 @@
   }
   async function loadSnapshot(id, location = state.snapshotLocation) {
     if (snapshotLoadInProgress) return false;
+    if(typeof canvasDocuments!=="undefined"&&canvasDocuments.activeId) {
+      const open=[...canvasDocuments.records.values()].find(doc=>doc.locator?.id===id&&doc.locator?.location===location);
+      if(open){
+        await canvasDocumentsShow(open.id);
+        closeHistoryPanel();
+        setStatusKey("snapshotLoaded");
+        return true;
+      }
+      await canvasDocumentsPark();
+    }
     const loadGeneration=++state.snapshotLoadGeneration,
       expectedRevision=state.userRevision,
       metadata=snapshotItems.find((item) => item.id === id),
@@ -1375,12 +1409,14 @@
       state.textBoxHistoryBefore = null;
       for (const [k, canvas] of decodedTiles) tiles.set(k, canvas);
       decodedTiles.clear();
+      state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       restoreAnimations(item.animations);
       restoreWidgets(item.widgets);
       applyTheme(item.theme);
       restoreImages(images);
       await restoreTextBoxes(item.textBoxes, 1);
-      if (item.view) {
+      if(typeof canvasDocumentsApplyView==="function")canvasDocumentsApplyView(item.view);
+      else if (item.view) {
         state.scale = Math.max(0.03, Math.min(2, item.view.scale));
         state.panX = item.view.panX;
         state.panY = item.view.panY;
@@ -1395,9 +1431,11 @@
       state.currentSnapshotProjectId = item.projectId || null;
       state.currentSnapshotRevisionId = location === "cloud" ? item.currentRevisionId || null : null;
       state.currentSnapshotBundleExtensions = snapshotExtensionObject(item.bundleExtensions);
+      restoreSnapshotCanvasObjectOrder(item.bundleExtensions);
       state.currentSnapshotManifestExtensions = snapshotExtensionObject(item.manifestExtensions);
-      state.currentSnapshotPreservedAssets = snapshotPreservedAssets(item.preservedAssets);
       state.snapshotSavedRevision = state.userRevision;
+      if(typeof canvasDocumentsAdopt==="function")await canvasDocumentsAdopt(item,location);
+      resetCanvasDefaultMode();
       const restoreStudioConversation=window.PenEchoStudioNavigator?.wantsConversationForCanvas?.({ id:item.id, location })===true;
       canvasAgentCanvasDidChange({ id:item.id, location },{clearProject:true,deferConversationStart:restoreStudioConversation});
       window.PenEchoStudioNavigator?.canvasDidLoad?.({ id:item.id, location });
@@ -1541,13 +1579,14 @@
       discard = document.querySelector("#newDiscard"),
       saveCopy = document.querySelector("#newSaveCopy"),
       loading = pendingCanvasTransition?.type === "load",
+      closing = pendingCanvasTransition?.type === "close",
       cloudBlocked = state.snapshotLocation === "cloud" && cloudHistorySignInRequired;
     if (!label || !overwrite) return;
-    if (title) title.textContent = t(loading ? "loadCanvasTitle" : "newCanvasTitle");
-    if (description) description.textContent = t(loading ? "loadCanvasDescription" : "newCanvasDescription");
-    if (discard) discard.textContent = t(loading ? "loadWithoutSave" : "newWithoutSave");
-    if (saveCopy) saveCopy.textContent = t(loading ? "saveAsNewAndLoad" : "saveAsNewAndCreate");
-    overwrite.textContent = t(loading ? "overwriteAndLoad" : "overwriteAndCreate");
+    if (title) title.textContent = t(closing ? "closeCanvasTitle" : loading ? "loadCanvasTitle" : "newCanvasTitle");
+    if (description) description.textContent = t(closing ? "closeCanvasDescription" : loading ? "loadCanvasDescription" : "newCanvasDescription");
+    if (discard) discard.textContent = t(closing ? "closeWithoutSave" : loading ? "loadWithoutSave" : "newWithoutSave");
+    if (saveCopy) saveCopy.textContent = t(closing ? "saveAsNewAndClose" : loading ? "saveAsNewAndLoad" : "saveAsNewAndCreate");
+    overwrite.textContent = t(closing ? "overwriteAndClose" : loading ? "overwriteAndLoad" : "overwriteAndCreate");
     const hasCurrentSnapshot = Boolean(state.currentSnapshotId);
     label.hidden = !hasCurrentSnapshot;
     overwrite.hidden = !hasCurrentSnapshot;
@@ -1569,6 +1608,14 @@
     dialog.dataset.busy = String(busy);
     dialog.querySelectorAll("button, input, select").forEach((control) => (control.disabled = busy));
     if (!busy) updateNewCanvasDialog();
+  }
+  function resetCanvasDefaultMode() {
+    const hasContent = tiles.size || state.images.length || state.textBoxes.length || state.preservedSnapshotAnimations.length || (pluginEnabled("animation") && state.animations.length) || visibleWidgets().length;
+    setCanvasMode(hasContent ? "hand" : "pen", {
+      preserveSelection:true,
+      skipDraftFinalize:true,
+      preserveWidgetRefinement:true,
+    });
   }
   function startBlankCanvas() {
     const dialog = document.querySelector("#newCanvasDialog");
@@ -1602,6 +1649,7 @@
     state.currentSnapshotBundleExtensions = {};
     state.currentSnapshotManifestExtensions = {};
     state.currentSnapshotPreservedAssets = [];
+    if(typeof canvasDocuments!=="undefined"){canvasDocuments.activeId=null;canvasDocuments.epoch++;canvasDocumentsCurrent();mcpRuntime.feedback=[];mcpRuntime.feedbackSequence=0;canvasDocumentsRender();}
     canvasAgentCanvasDidChange(null,{clearProject:true});
     window.PenEchoStudioNavigator?.renderCanvases?.();
     window.PenEchoStudioNavigator?.updateDocument?.();
@@ -1609,11 +1657,7 @@
     state.aiDraftReturnMode = null;
     state.pendingHistoryRestored = false;
     setCanvasNavigationLocked(false);
-    setCanvasMode("pen", {
-      preserveSelection:true,
-      skipDraftFinalize:true,
-      preserveWidgetRefinement:true,
-    });
+    resetCanvasDefaultMode();
     state.snapshotSavedRevision = state.userRevision;
     pendingCanvasTransition = null;
     document.querySelector("#newSnapshotName").value = "";
@@ -1630,6 +1674,7 @@
     const name = document.querySelector("#newSnapshotName").value;
     setNewCanvasDialogBusy(true);
     try {
+      if(pendingCanvasTransition?.type==="close"&&canvasDocumentsCurrent().id!==pendingCanvasTransition.documentId)throw canvasDocumentsError("CANVAS_CHANGED",canvasDocumentsCopy("The active Canvas changed. Close it again when ready.","当前画布已切换，请重新选择要关闭的画布。"));
       let saved = true;
       if (saveMode === "new") saved = await saveSnapshot({ name, location:state.snapshotLocation });
       else if (saveMode === "overwrite") saved = await saveSnapshot({ overwriteId:state.currentSnapshotId, name, location:state.snapshotLocation });
@@ -1638,8 +1683,9 @@
         return;
       }
       const transition = pendingCanvasTransition;
+      if(transition?.type==="close"&&canvasDocumentsCurrent().id!==transition.documentId){transition.sourceDocumentId=transition.documentId;transition.documentId=canvasDocumentsCurrent().id;}
       pendingCanvasTransition = null;
-      if (transition?.type === "load") {
+      if (transition?.type === "load" || transition?.type === "close") {
         const dialog = document.querySelector("#newCanvasDialog");
         if (dialog.open) dialog.close();
       }
@@ -1655,16 +1701,26 @@
     const hasContent = tiles.size || state.images.length || state.textBoxes.length || state.preservedSnapshotAnimations.length || (pluginEnabled("animation") && state.animations.length) || visibleWidgets().length;
     return Boolean(state.currentSnapshotId || hasContent);
   }
-  function performCanvasTransition(transition) {
+  async function performCanvasTransition(transition) {
+    if (transition?.type === "close") {
+      const closed=await canvasDocumentsClose(transition.documentId,transition.sourceDocumentId);
+      if(closed)await transition.onComplete?.();
+      return closed;
+    }
     if (transition?.type === "load") return loadSnapshot(transition.id, transition.location);
+    if(typeof canvasDocuments!=="undefined"&&canvasDocuments.activeId)await canvasDocumentsPark();
     startBlankCanvas();
     return true;
   }
   function requestCanvasTransition(transition) {
+    if (transition?.type === "new" && typeof canvasDocuments !== "undefined" && canvasDocuments.records.size >= (typeof CANVAS_DOCUMENT_LIMIT === "number" ? CANVAS_DOCUMENT_LIMIT : 32)) {
+      setStatus(typeof canvasDocumentsLimitMessage === "function" ? canvasDocumentsLimitMessage() : "32 Canvases are already open. Close an unused Canvas before opening another.");
+      return Promise.resolve(false);
+    }
     if (!canvasHasUnsavedChanges()) return performCanvasTransition(transition);
     pendingCanvasTransition = transition;
     const dialog = document.querySelector("#newCanvasDialog");
-    document.querySelector("#newSnapshotName").value = "";
+    document.querySelector("#newSnapshotName").value = transition?.type === "close" ? currentCanvasDisplayName() || "" : "";
     setNewCanvasDialogBusy(false);
     updateNewCanvasDialog();
     if (!dialog.open) dialog.showModal();
@@ -1686,6 +1742,14 @@
     // used to surface a misleading 502 after an otherwise successful load.
     openHistoryPanel(false);
     return true;
+  }
+  async function saveEchoToCloud(name) {
+    if (window.PENECHO_CONFIG?.runtime !== "cloud" || !window.PENECHO_CONFIG?.browserCanvasEditing) throw Error("Cloud browser editing is unavailable");
+    await cloudSnapshotItems();
+    setSnapshotLocation("cloud", { refresh:false });
+    const id = await saveSnapshot({ location:"cloud", overwriteId:null, name:String(name || currentCanvasDisplayName() || "Untitled Canvas"), allowEmpty:true });
+    if (!id) throw Error("The Cloud copy could not be saved");
+    return id;
   }
   async function openCloudCanvas(canvasId) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(canvasId || ""))) throw Error("Invalid Cloud Canvas");
@@ -1736,6 +1800,7 @@
         state.currentSnapshotHasExplicitName = true;
         state.currentCanvasSuggestedName = "";
         canvasAgentCanvasDidPersist(location, id);
+        if(typeof canvasDocumentsSyncExtension==="function"){canvasDocumentsSyncExtension();canvasDocumentsRender();}
         window.PenEchoStudioNavigator?.updateDocument?.();
       }
       await refreshSnapshots();
@@ -1811,22 +1876,42 @@
     const loading = document.createElement("div");
     loading.className = "history-list-loading";
     loading.setAttribute("role", "status");
+    renderServerProjectUi();
+    updateHistoryLibrarySummary(null);
     loading.textContent = t("snapshotLibraryLoading").replace("{location}", snapshotLocationLabel(location));
     list.replaceChildren(loading);
     updateHistorySelectionUi(null);
     window.PenEchoStudioNavigator?.renderCanvases?.();
   }
-  function renderSnapshotListError(location = state.snapshotLocation) {
+  function renderSnapshotListError(location = state.snapshotLocation, retainItems = false) {
     const list = document.querySelector("#historyList");
     if (!list) return;
     cancelHistoryListRender();
-    releaseHistoryPreviewUrls();
-    const error = document.createElement("div");
-    error.className = "history-list-loading error";
+    if (!retainItems) releaseHistoryPreviewUrls();
+    list.querySelector(".history-library-error")?.remove();
+    const error = document.createElement("div"), copy = document.createElement("div"),
+      title = document.createElement("strong"), detail = document.createElement("p"), retry = document.createElement("button");
+    error.className = `history-library-error${retainItems ? " with-cache" : ""}`;
     error.setAttribute("role", "alert");
-    error.textContent = t("snapshotLibraryLoadFailed").replace("{location}", snapshotLocationLabel(location));
-    list.replaceChildren(error);
-    updateHistorySelectionUi(null);
+    title.textContent = t("snapshotLibraryUnavailable").replace("{location}", snapshotLocationLabel(location));
+    detail.textContent = t(location === "server" && serverSnapshotUnavailableKey || (retainItems ? "snapshotLibraryCacheRetained" : "snapshotLibraryRetryDetail"));
+    retry.type = "button";
+    peButton(retry, "secondary", "standard");
+    retry.textContent = t("snapshotLibraryRetry");
+    retry.onclick = () => {
+      if (snapshotListInProgress || location !== state.snapshotLocation) return;
+      retry.disabled = true;
+      void refreshSnapshots().catch(() => {});
+    };
+    copy.append(title, detail, retry);
+    error.append(copy);
+    if (retainItems) list.prepend(error);
+    else {
+      list.replaceChildren(error);
+      renderServerProjectUi();
+      updateHistoryLibrarySummary(null);
+      updateHistorySelectionUi(null);
+    }
     window.PenEchoStudioNavigator?.renderCanvases?.();
   }
   function renderCloudHistorySignIn() {
@@ -1911,6 +1996,7 @@
       icon.append(path);
       label.textContent = option.textContent;
       count.textContent = String(itemCount);
+      count.hidden = snapshotItemsLocation !== location;
       button.append(icon, label, count);
       button.onclick = () => {
         if (button.disabled || select.value === option.value) return;
@@ -2022,12 +2108,12 @@
       windowSummary = document.querySelector("#historyWindowSummary"),
       select = document.querySelector("#historyProjectSelect"),
       projectName = location === "device" ? t("historyAllCanvases") : select?.selectedOptions?.[0]?.textContent || t("historyAllCanvases"),
-      countText = t("historyCanvasCount").replace("{count}", String(visibleCount)),
+      countText = Number.isFinite(visibleCount) ? t("historyCanvasCount").replace("{count}", String(visibleCount)) : "",
       locationText = snapshotLocationLabel(location);
-    if (snapshotItemsLocation === location) snapshotLocationCountCache.set(location, scopedCount);
+    if (snapshotItemsLocation === location && Number.isFinite(scopedCount)) snapshotLocationCountCache.set(location, scopedCount);
     if (title) title.textContent = projectName;
-    if (summary) summary.textContent = `${countText} · ${locationText}`;
-    if (windowSummary) windowSummary.textContent = `${locationText} · ${projectName} · ${countText}`;
+    if (summary) summary.textContent = [countText, locationText].filter(Boolean).join(" · ");
+    if (windowSummary) windowSummary.textContent = [locationText, projectName, countText].filter(Boolean).join(" · ");
     document.querySelectorAll(".history-location-count").forEach((node) => {
       const cachedCount = snapshotLocationCountCache.get(node.dataset.location);
       const hasLoadedCount = Number.isFinite(cachedCount);
@@ -2143,7 +2229,67 @@
       image.addEventListener("error", revoke);
     }
   }
+  function observeServerHistoryPreview(item, image, fallback) {
+    if (!item.hasPreview || typeof IntersectionObserver !== "function") return;
+    if (!historyPreviewLoader) {
+      const loader = { queue:[], active:0, controllers:new Set(), observer:null };
+      const pump = () => {
+        while (historyPreviewLoader === loader && loader.active < 2 && loader.queue.length) {
+          const task = loader.queue.shift();
+          if (!task.image.isConnected) continue;
+          const controller = new AbortController();
+          loader.controllers.add(controller);
+          loader.active++;
+          const timer = setTimeout(() => controller.abort(), 12000);
+          void fetch(`/api/canvases/${encodeURIComponent(task.item.id)}/preview`, {
+            credentials:"same-origin", headers:authenticatedApiHeaders(), signal:controller.signal,
+          }).then(snapshotApiResponse).then((body) => {
+            if (historyPreviewLoader !== loader || !task.image.isConnected || !body?.preview) return;
+            const blob = dataUrlBlob(body.preview);
+            if (!blob) return;
+            task.item.preview = blob;
+            const url = URL.createObjectURL(blob);
+            historyPreviewUrls.set(url, task.image);
+            task.image.onerror = () => {
+              if (historyPreviewUrls.delete(url)) URL.revokeObjectURL(url);
+              task.image.hidden = true;
+              task.fallback.hidden = false;
+            };
+            task.image.src = url;
+            task.image.hidden = false;
+            task.fallback.hidden = true;
+          }).catch(() => {}).finally(() => {
+            clearTimeout(timer);
+            loader.controllers.delete(controller);
+            loader.active--;
+            pump();
+          });
+        }
+      };
+      const tasks = new WeakMap();
+      loader.tasks = tasks;
+      loader.observer = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          loader.observer.unobserve(entry.target);
+          const task = tasks.get(entry.target);
+          if (task) loader.queue.push(task);
+        }
+        pump();
+      });
+      historyPreviewLoader = loader;
+    }
+    historyPreviewLoader.tasks.set(image.parentElement, { item, image, fallback });
+    historyPreviewLoader.observer.observe(image.parentElement);
+  }
   function releaseHistoryPreviewUrls() {
+    const loader = historyPreviewLoader;
+    historyPreviewLoader = null;
+    if (loader) {
+      loader.observer.disconnect();
+      loader.queue.length = 0;
+      for (const controller of loader.controllers) controller.abort();
+    }
     const entries = [...historyPreviewUrls];
     historyPreviewUrls.clear();
     queueMicrotask(() => {
@@ -2175,6 +2321,10 @@
     if (location === "cloud" && cloudHistorySignInRequired) {
       renderCloudHistorySignIn();
       updateHistoryReadControls();
+      return;
+    }
+    if ((location === "server" && serverSnapshotUnavailableKey) || snapshotListFailedLocation === location) {
+      renderSnapshotListError(location, snapshotItemsLocation === location && snapshotItems.length > 0);
       return;
     }
     if (snapshotListInProgress && snapshotItemsLocation !== location) {
@@ -2235,6 +2385,7 @@
       selectButton.setAttribute("aria-label", isCurrent ? `${snapshotName(item)} · ${t("studioNavigatorCurrent")}` : snapshotName(item));
       image.dataset.peMedia = "prompt-preview";
       image.alt = "";
+      image.decoding = "async";
       fallback.dataset.peMedia = "prompt-icon";
       fallback.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4Z"/><path d="m7 15 3-3 2.5 2.5L15 12l3 3"/><circle cx="9" cy="9" r="1.2"/></svg>`;
       if (url) {
@@ -2248,6 +2399,7 @@
         };
       } else image.hidden = true;
       selectButton.append(image, fallback);
+      if (!url && location === "server") observeServerHistoryPreview(item, image, fallback);
       if (isCurrent) {
         currentLabel.className = "history-current-label";
         currentLabel.textContent = t("studioNavigatorCurrent");
@@ -2421,22 +2573,30 @@
       replacingLocation = snapshotItemsLocation !== location,
       showingCloudCache = location === "cloud" && snapshotItemsLocation === "cloud" && Boolean(cloudHistoryCache);
     snapshotListInProgress = true;
+    snapshotListFailedLocation = null;
+    if (location === "server") serverSnapshotUnavailableKey = "";
     if (replacingLocation) {
       snapshotItems = [];
       snapshotItemsLocation = null;
       renderSnapshotListLoading(location);
     }
-    setHistoryActivity(
+    // The content region owns first-load feedback. Only refreshing visible
+    // cached rows needs the existing activity indicator.
+    if (replacingLocation || snapshotItems.length === 0) {
+      hideHistoryActivity();
+      if (!replacingLocation) renderSnapshotListLoading(location);
+    } else setHistoryActivity(
       t("snapshotLibraryLoading").replace("{location}", snapshotLocationLabel(location)),
-      t(showingCloudCache ? "snapshotCloudCacheRefreshing" : "snapshotLibraryLoadingDetail"),
+      showingCloudCache ? t("snapshotCloudCacheRefreshing") : "",
       null,
     );
     updateHistoryReadControls();
-    let authenticationRequired = false;
+    let authenticationRequired = false, loadFailed = false;
     try {
       const items = await snapshotsAt(location);
       if (generation !== snapshotListGeneration || location !== state.snapshotLocation) return false;
       if (location === "cloud") cloudHistorySignInRequired = false;
+      if (location === "server") serverSnapshotUnavailableKey = "";
       snapshotItems = items;
       snapshotItemsLocation = location;
       if (location === "cloud") cacheCloudHistory(items);
@@ -2445,6 +2605,17 @@
       return true;
     } catch (error) {
       if (generation === snapshotListGeneration && location === state.snapshotLocation) {
+        loadFailed = true;
+        snapshotListFailedLocation = location;
+        if (location === "server" && ["device_offline", "linked_device_required"].includes(error.code)) {
+          serverSnapshotUnavailableKey = error.code === "device_offline" ? "serverHistoryDeviceOffline" : "serverHistoryDeviceRequired";
+          snapshotItems = [];
+          snapshotItemsLocation = null;
+          serverCanvasProjects = [];
+          renderSnapshotList();
+          hideHistoryActivity();
+          return false;
+        }
         authenticationRequired = location === "cloud" && cloudHistoryRequiresSignIn(error);
         if (location === "cloud") cloudHistorySignInRequired = authenticationRequired;
         if (authenticationRequired) {
@@ -2453,20 +2624,13 @@
           cloudCanvasProjects = [];
           clearCloudHistoryCache();
           renderCloudHistorySignIn();
-        } else if (replacingLocation) {
-          snapshotItems = [];
-          snapshotItemsLocation = null;
-          renderSnapshotListError(location);
-        }
-        if (!authenticationRequired) {
-          setHistoryActivity(
-            t("snapshotLibraryLoading").replace("{location}", snapshotLocationLabel(location)),
-            t(location === "cloud" && snapshotItemsLocation === "cloud" && cloudHistoryCache
-              ? "snapshotCloudCacheLoadFailed"
-              : "snapshotLibraryLoadFailed").replace("{location}", snapshotLocationLabel(location)),
-            null,
-            "error",
-          );
+        } else {
+          const retainItems = snapshotItemsLocation === location && snapshotItems.length > 0;
+          if (!retainItems) {
+            snapshotItems = [];
+            snapshotItemsLocation = null;
+          }
+          renderSnapshotListError(location, retainItems);
         }
       }
       if (authenticationRequired) return false;
@@ -2474,7 +2638,7 @@
     } finally {
       if (generation === snapshotListGeneration) {
         snapshotListInProgress = false;
-        if (authenticationRequired) hideHistoryActivity();
+        if (authenticationRequired || loadFailed) hideHistoryActivity();
         updateHistoryReadControls();
       }
     }
@@ -2873,13 +3037,13 @@
     const returnMode = clearPendingHistoryState(),
       hasPendingTransition = !Array.isArray(entry) && Object.prototype.hasOwnProperty.call(entry || {}, "pendingBefore");
     if (!hasPendingTransition) {
-      if (returnMode && state.mode === "hand") setCanvasMode(returnMode, { preserveSelection:true, skipDraftFinalize:true });
+      if (returnMode && state.mode === "select") setCanvasMode(returnMode, { preserveSelection:true, skipDraftFinalize:true });
       return;
     }
     const snapshot = side === "before" ? entry.pendingBefore : entry.pendingAfter;
     if (!snapshot) {
       const mode = entry.aiDraftReturnMode;
-      if (mode && state.mode === "hand") setCanvasMode(mode, { preserveSelection:true, skipDraftFinalize:true });
+      if (mode && state.mode === "select") setCanvasMode(mode, { preserveSelection:true, skipDraftFinalize:true });
       return;
     }
     state.aiDraftReturnMode = snapshot.returnMode;
@@ -2901,7 +3065,7 @@
     }
     state.pendingHistoryRestored = Boolean(state.pending || state.pendingWidget);
     if (state.pendingHistoryRestored) {
-      setCanvasMode("hand", { preserveSelection:true, skipDraftFinalize:true });
+      setCanvasMode("select", { preserveSelection:true, skipDraftFinalize:true });
       updateBatchActions();
       setStatusKey(state.pending?.items ? "batchDraftReady" : "draftReady");
     }

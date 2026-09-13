@@ -37,9 +37,32 @@ test("the read-only viewer mode ships inert locally and activates only on /canva
   assert.match(css, /pointer-events: none !important/);
   assert.match(css, /viewer-topbar/);
   assert.match(core, /window\.PENECHO_CONFIG\?\.runtime === "viewer"[\s\S]*?\? "device"/);
-  assert.match(bootstrap, /window\.PENECHO_CONFIG\?\.runtime !== "viewer"\) refreshSnapshots\(\)\.catch/);
+  assert.match(bootstrap, /window\.PENECHO_CONFIG\?\.runtime !== "viewer"\s*&& !\(window\.PENECHO_CONFIG\?\.runtime === "cloud" && window\.PENECHO_CONFIG\?\.remoteCanvasNativeReads === true\)\) refreshSnapshots\(\)\.catch/);
   assert.match(built, /window\.PENECHO_CONFIG\?\.runtime === "viewer"[\s\S]*?\? "device"/);
-  assert.match(built, /window\.PENECHO_CONFIG\?\.runtime !== "viewer"\) refreshSnapshots\(\)\.catch/);
+  assert.match(built, /window\.PENECHO_CONFIG\?\.runtime !== "viewer"\s*&& !\(window\.PENECHO_CONFIG\?\.runtime === "cloud" && window\.PENECHO_CONFIG\?\.remoteCanvasNativeReads === true\)\) refreshSnapshots\(\)\.catch/);
+});
+
+test("startup history stays private in Viewer and defers native Cloud reads to Library", () => {
+  for (const file of ["src/client/app/ui-bootstrap.js", "public/app.js"]) {
+    const source = read(file);
+    const guard = source.match(/if \(window\.PENECHO_CONFIG\?\.runtime !== "viewer"[^;{}]*?refreshSnapshots\(\)\.catch\(\(\) => \{\}\);/)?.[0];
+    assert.ok(guard, `${file} exposes the guarded startup refresh`);
+    for (const [config, expected] of [
+      [{ runtime:"viewer" }, 0],
+      [{ runtime:"viewer", remoteCanvasNativeReads:true }, 0],
+      [{ runtime:"cloud", remoteCanvasNativeReads:true }, 0],
+      [{ runtime:"cloud", remoteCanvasNativeReads:false }, 1],
+      [{ runtime:"local" }, 1],
+      [undefined, 1],
+    ]) {
+      let refreshes = 0;
+      vm.runInNewContext(guard, {
+        window:{ PENECHO_CONFIG:config },
+        refreshSnapshots() { refreshes++; return Promise.resolve(); },
+      });
+      assert.equal(refreshes, expected, `${file}: ${JSON.stringify(config)}`);
+    }
+  }
 });
 
 test("the viewer localizes its actions and responsively frames Widgets and complete Canvases", () => {
@@ -89,21 +112,8 @@ test("Canvas viewer restores the published bundle in memory without importing it
   assert.doesNotMatch(viewerRestore, /requestLoadSnapshot\(/);
 });
 
-test("the viewer presents its Widget limitation as a localized, transparent caption", () => {
-  const js = read("public/viewer.js"), css = read("public/viewer.css");
-  assert.match(js, /Dynamically loaded content is available after you sign in and complete Link Device\./);
-  assert.match(js, /动态加载的内容需登录并完成设备连接后才能查看。/);
-  assert.match(js, /createElement\("button"\)/);
-  assert.match(js, /notice\.hidden = true/);
-  assert.match(js, /dismissNotice:"Hide this message"/);
-  assert.match(js, /dismissNotice:"隐藏此提示"/);
-  assert.match(css, /\.viewer-notice\s*\{[\s\S]*?background:\s*transparent;/);
-  assert.match(css, /\.viewer-notice\s*\{[\s\S]*?color:\s*var\(--muted,/);
-  assert.match(css, /white-space:\s*nowrap/);
-  assert.match(css, /text-overflow:\s*ellipsis/);
-  assert.match(css, /\.viewer-notice\[hidden\]\s*\{\s*display:\s*none/);
-  assert.match(css, /safe-area-inset-bottom/);
-  assert.doesNotMatch(css, /\.viewer-notice\s*\{[\s\S]*?background:\s*rgb\(10 9 6/);
+test("the viewer has no obsolete five-minute refresh notice", () => {
+  assert.doesNotMatch(read("public/viewer.js"), /staticWidgetNotice|viewer-notice|5 minutes|5 分钟/);
 });
 
 test("the viewer controls stay quiet until hovered or focused", () => {
@@ -139,7 +149,7 @@ test("Widget hosts stay same-origin in Viewer and Cloud while the local app keep
         configuredAccessSession:"",
         location:{ origin:page.origin },
         window:{ PENECHO_CONFIG:{ runtime } },
-      })({ connect });
+      })({ id:"general", connect });
     };
 
   for (const page of [
@@ -150,6 +160,7 @@ test("Widget hosts stay same-origin in Viewer and Cloud while the local app keep
     const host = new URL(resolveHost("viewer", page, ["https://api.example"]));
     assert.equal(host.origin, new URL(page).origin);
     assert.equal(host.pathname, "/canvas/widget-host.html");
+    assert.equal(host.searchParams.get("public-https"), "1");
     assert.equal(host.searchParams.has("parent-origin"), false);
     assert.deepEqual(host.searchParams.getAll("connect"), ["https://api.example"]);
   }
@@ -222,6 +233,7 @@ test("Viewer Widget initialization recovers when the host's first ready message 
       state,
       location:{ origin },
       pluginManifests:new Map([["general", { styles:"main{display:block}" }]]),
+      canvasWidgetInteractive:()=>false, canvasWidgetSelectionEnabled:()=>false, syncMcpWidgetProgress() {},
     });
 
   // The outer iframe load callback uses this probe after its message listener
@@ -261,8 +273,8 @@ test("Viewer fit produces visible transforms for a multi-Widget Canvas", () => {
   const canvas = read("src/client/app/canvas-runtime.js"),
     core = read("src/client/app/core.js"),
     widgets = [
-      { id:"widget-1", x:1000, y:2000, w:600, h:400, contentW:600, contentH:400, styleRule:{ style:{} } },
-      { id:"widget-2", x:2300, y:2400, w:800, h:600, contentW:800, contentH:600, styleRule:{ style:{} } },
+      { id:"widget-1", x:1000, y:2000, w:600, h:400, contentW:600, contentH:400, styleRule:{ style:{ setProperty(name, value) { this[name] = value; } } } },
+      { id:"widget-2", x:2300, y:2400, w:800, h:600, contentW:800, contentH:600, styleRule:{ style:{ setProperty(name, value) { this[name] = value; } } } },
     ];
   for (const widget of widgets) {
     const classes = new Set();

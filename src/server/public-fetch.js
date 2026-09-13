@@ -158,15 +158,25 @@ function createPublicFetchService(options = {}) {
 
   async function fetchPublicResponse(value, signal, redirects = 0, options = {}) {
     const allowHttp = options.allowHttp === true;
+    let origin;
+    if (options.origin !== undefined) {
+      try {
+        const parsed = new URL(options.origin);
+        if (!["http:", "https:"].includes(parsed.protocol) || parsed.origin !== options.origin || parsed.username || parsed.password) throw new Error();
+        origin = parsed.origin;
+      } catch { throw publicFetchFailure("A valid HTTP(S) origin without credentials or a path is required."); }
+    }
     const target = await resolvedPublicFetchTarget(value, { allowHttp });
     const response = await new Promise((resolve, reject) => {
       const request = makeRequest(target.url, {
         method:"GET",
         signal,
+        rejectUnauthorized:true,
         headers:{
           "Accept":"*/*",
           "Accept-Language":"zh-CN,zh;q=0.9,en;q=0.7",
           "User-Agent":"Mozilla/5.0 (compatible; PenEcho/0.8; public-data-reader)",
+          ...(origin ? { "Origin":origin } : {}),
         },
         lookup(_hostname, requestOptions, callback) {
           if (requestOptions && typeof requestOptions === "object" && requestOptions.all) callback(null, [{ address:target.address, family:target.family }]);
@@ -203,7 +213,10 @@ function createPublicFetchService(options = {}) {
       response.once("end", () => resolve(Buffer.concat(chunks)));
       response.once("error", reject);
     });
-    return { status:status >= 200 && status <= 599 ? status : 502, contentType, body, finalUrl:target.url.href };
+    return {
+      status:status >= 200 && status <= 599 ? status : 502, contentType, body, finalUrl:target.url.href,
+      ...(options.inspectResponse === true ? { corsAllowOrigin:String(response.headers["access-control-allow-origin"] || "").slice(0, 2048) } : {}),
+    };
   }
 
   async function fetchPublicResource(value, signal, options = {}) {

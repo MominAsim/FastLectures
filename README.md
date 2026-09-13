@@ -14,42 +14,23 @@
   <a href="docs/readme/README.de.md">Deutsch</a>
 </p>
 
-<p align="center"><strong>Think with AI beyond the chat box.</strong></p>
-
-<p align="center">PenEcho is a shared canvas where handwriting, equations, diagrams, and spatial context become part of the conversation.</p>
-
-<h2 align="center">
-  <a href="https://penecho.ai">Official Website · penecho.ai</a>
-</h2>
-
-<h3 align="center"><a href="https://penecho.ai">Publish ideas · Collaborate through shared canvases · Share your work</a></h3>
-
+<h1 align="center">A spatial workspace<br>for thinking with AI.</h1>
+<p align="center">Draw, explore, and build with the built-in Agent or your own MCP-compatible assistant.</p>
 <p align="center">
-  <a href="https://discord.gg/3jrPJ3mXdX">
-    <img src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&amp;logo=discord&amp;logoColor=white" alt="Join the PenEcho Discord">
-  </a>
-  <a href="https://github.com/penecho/penecho/stargazers">
-    <img src="https://img.shields.io/github/stars/penecho/penecho?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;color=f5b301" alt="Star PenEcho on GitHub">
-  </a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/badge/License-AGPL%20v3-blue?style=for-the-badge" alt="License: AGPL v3">
-  </a>
+  <img src="https://img.shields.io/badge/version-1.3.1-087f83" alt="Version 1.3.1">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="AGPL-3.0-only"></a>
 </p>
-
 <p align="center">
-  <a href="https://penecho.ai">Website</a> &bull;
-  <a href="#-features">Features</a> &bull;
-  <a href="#-quick-start">Quick Start</a> &bull;
-  <a href="#penecho-cloud">Cloud</a> &bull;
-  <a href="#recommended-model-configurations">Models</a> &bull;
-  <a href="#-faq">FAQ</a> &bull;
-  <a href="docs/architecture.md">Architecture</a> &bull;
+  <a href="https://penecho.ai">Website</a> ·
+  <a href="https://github.com/penecho/penecho/releases/latest">Download</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="docs/mcp-setup.md">MCP guide</a> ·
   <a href="https://discord.gg/3jrPJ3mXdX">Discord</a>
 </p>
 
 <p align="center">
-  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins.webp" alt="PenEcho professional diagrams demo" width="49%">
   <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_full_demo.webp" alt="PenEcho full demo" width="49%">
+  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins.webp" alt="PenEcho professional diagrams demo" width="49%">
 </p>
 
 <p align="center">
@@ -57,51 +38,80 @@
   <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/play_patris.webp" alt="PenEcho interactive canvas demo" width="49%">
 </p>
 
-## Kimi Open Source Friends
-
 <p align="center">
   <a href="https://www.kimi.com/code?aff=penecho">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="docs/assets/kimi-open-source-friends-dark.svg">
-      <img alt="Kimi Open Source Friends" src="docs/assets/kimi-open-source-friends-light.svg">
+      <img src="docs/assets/kimi-open-source-friends-light.svg" alt="Kimi Open Source Friends" width="326" height="56">
     </picture>
   </a>
 </p>
 
-PenEcho is an official member of **Kimi Open Source Friends**, [Moonshot AI](https://www.kimi.com/)'s program supporting outstanding open source projects. The Kimi team backs PenEcho's development with API credits, and Kimi K3 is one of the [recommended models](#recommended-model-configurations) for demanding canvas work — accurate on handwriting, strong on diagrams, and fast in practice.
+## A spatial extension of your AI conversation
 
-Using these links directly supports the project:
+Keep talking in **Codex, Claude, Kimi, or other AI agents**. Let PenEcho give the work a place to live.
 
-- **[Kimi Code](https://www.kimi.com/code?aff=penecho)** — Kimi's coding subscription, available worldwide
-- **[Kimi Open Platform · China](https://platform.kimi.com?aff=penecho)** — API access for mainland China
-- **[Kimi Open Platform · Global](https://platform.kimi.ai?aff=penecho)** — API access for the rest of the world
+Through MCP, your AI can turn explanations into diagrams and ideas into interactive previews. Keep references, reasoning, and work side by side — then mark up the canvas and bring feedback into the next round.
 
-## ✨ Features
+| Keep the conversation | See the work take shape | Bring feedback back |
+| --- | --- | --- |
+| Work with the AI agent you already use. | PenEcho's MCP server brings diagrams, documents, and interactive previews onto the Canvas. | Try the result, annotate it, and let your agent read your feedback for the next revision. |
 
-- **PenEcho Agent: from source material to finished visual work.** Bring in read-only folders and files—including PDF, Word, PowerPoint, Excel, images, and code—combine them with web research and the current canvas, then keep the same agent working through analysis, planning, creation, and revision.
-- **Visual Explorer for productivity.** Turn dense information into one responsive, editable visual workspace with a clear overview, connected detail, and supporting evidence. It shortens the path from research to a shareable result, reducing copy-paste, tool switching, manual diagramming, and repeated handoffs between chat, documents, and design tools.
-- **Think in space, not in chat.** Write a question, equation, diagram, or half-formed idea anywhere on a `20,000 x 20,000` canvas. PenEcho reads your marks and their spatial relationships, then answers beside them.
-- **Answers on the canvas.** Get hints, explanations, formulas, plots, and diagrams where you are working. Move, resize, and copy each AI draft, then accept or discard it before it becomes part of your ink.
-- **Natural input.** Draw with a stylus or mouse; lasso confirmed ink to move, resize, recolor, or delete it, or send just that selection to Typeset. Editing your own ink never triggers an AI request.
-- **Editable AI widgets.** Sandboxed interactive HTML, professional diagrams, animations, and live-data plugins — refinable in place with incremental unified-diff edits instead of full regeneration.
-- **Multiple AI connections.** Save up to ten API or CLI connections with one-click switching, including editable Kimi and MiniMax presets, and pick a different active connection per client.
-- **Projects and sharing.** Organize server canvases into projects, open them from other authorized devices, and export confirmed ink as a cropped PNG.
-- **PenEcho Cloud.** Sign in at [penecho.ai](https://penecho.ai) to continue private projects on other devices, sync favorites, reach this host remotely through a linked device, and share public Crafts through Echoes — API credentials never leave the device.
-- **Four themes** to match the problem you are exploring: Arcane, Sci-fi, Research, or Studio.
+<p align="center">
+  <a href="docs/assets/mcp-spatial-example.png">
+    <img src="docs/assets/mcp-spatial-example.png" alt="An architecture discussion with AI, with handwritten feedback alongside the proposed design on a PenEcho Canvas" width="760">
+  </a>
+</p>
+<p align="center"><em>An architecture discussion, annotated by hand on the Canvas.</em></p>
 
-## 🚀 Quick start
+**See it before it’s finished.** See the work take shape as you talk with AI. Try it, give feedback, and move your project forward together.
 
-**Desktop app** — [download from GitHub Releases](https://github.com/penecho/penecho/releases/latest).
+[Connect your agent with MCP →](#connect-your-agent-with-mcp)
 
-**npm** — needs [Node.js 22.19+](https://nodejs.org/) and one of: an API key, an authenticated [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code), an authenticated [Codex CLI](https://developers.openai.com/codex/cli), or an authenticated [Claude Code CLI](https://code.claude.com/docs/en/overview).
+## What you can do
+
+- **Work visually.** Combine handwriting, equations, text, images, diagrams, and interactive HTML Widgets on a spacious canvas.
+- **Create with AI.** Use the built-in Agent to research, work with files, explain ideas, and create editable visual results.
+- **Bring your own agent.** Connect Codex, Claude Code, or another MCP-compatible client to read and edit an explicitly enabled Canvas.
+- **Keep and share your work.** Organize Canvases into projects, save Cloud revisions, sync favorites, and publish through Echoes.
+
+## New in 1.3.0
+
+| Update | What it adds |
+| --- | --- |
+| **MCP workspace** | Canvas discovery, captures, object editing, interactive Widgets, virtual source files, and user feedback for external agents. Supports opted-in local, LAN, and linked-device Cloud browsers. |
+| **Cloud MCP** | Connect external AI agents directly to your enabled PenEcho Cloud canvases to read content, create and edit results, and follow handwritten feedback. Cloud MCP and Local MCP are optional connection paths. |
+| **PenEcho Cloud Credits API** | Use PenEcho-hosted models with account credits, alongside your own API and CLI connections. View available models, rates, and balance in Settings. |
+| **Connection management** | Save multiple AI connections and choose the active connection for each client. |
+| **Canvas and workbench** | More responsive drawing and navigation, refined Studio controls, an adaptive Agent panel, and customizable keyboard shortcuts. |
+
+## How it works
+
+<p align="center">
+  <img src="public/penecho-architecture.webp" alt="PenEcho architecture: a browser connects to PenEcho Cloud or your local PC. Cloud includes hosted models and connects to your linked device. Your PC runs PenEcho CLI or App with your LLM API or agents. External AI agents can use Cloud MCP or Local MCP; both connections are optional." width="1483">
+</p>
+
+Open PenEcho in a browser through PenEcho Cloud or your local PC running the CLI or desktop app. Cloud provides hosted models and can connect to your linked device; your PC can use your own model API or agents. External AI agents such as Codex and Claude can connect through Cloud MCP or Local MCP. Both MCP connections are optional.
+
+See the [architecture notes](docs/architecture.md) for implementation details.
+
+## Quick start
+
+**Desktop:** download the Windows or macOS app from [GitHub Releases](https://github.com/penecho/penecho/releases/latest).
+
+**npm:** requires Node.js **22.19 or newer**.
 
 ```bash
 npm install -g penecho
-penecho configure   # pick your LLM source: API, Kimi, Codex, or Claude CLI
-penecho             # then open http://localhost:3888
+penecho
 ```
 
-**From source**
+Open `http://localhost:3888`. Add your own model API or an authenticated Codex, Claude Code, or Kimi CLI in **Settings → Connections**. Connections are saved in `~/.penecho/connections.json`; general settings remain in `~/.penecho/config.env`. For PenEcho-hosted models, sign in and select an available model in Settings.
+
+At startup, set a six-digit access code or explicitly enable open access on your trusted network. Startup also prints LAN addresses for other devices.
+
+<details>
+<summary>Run from source</summary>
 
 ```bash
 git clone https://github.com/penecho/penecho.git
@@ -110,117 +120,62 @@ npm install
 npm start
 ```
 
-On first start, the initial browser session must set a shared six-digit security code or explicitly acknowledge leaving the process open to the local network. Configuration is saved to `~/.penecho/config.env`; API keys never reach browser code. CLI modes require an authenticated CLI on your `PATH` — see the [configuration reference](docs/configuration.md) for CLI setup, effort mapping, and every setting.
+</details>
 
-<a id="penecho-cloud"></a>
-## ☁️ PenEcho Cloud
+## Connect your agent with MCP
 
-[PenEcho Cloud](https://penecho.ai) is the companion website and account introduced in 1.0.0. It connects your devices and your work — and it is entirely optional: PenEcho keeps working fully offline with your own API or CLI setup.
+For **Local MCP**:
 
-On the website you can:
+1. Start PenEcho and enable the current Canvas in **Settings → MCP service**.
+2. Use Settings to configure a supported local client or copy its generated launch configuration. For a global npm installation, clients that accept `mcpServers` JSON can use:
 
-- Sign in with your browser and manage your Cloud account, storage, and credits
-- Open **Echoes** and browse public Canvases and Widgets shared by the community
-- View any public Craft in a read-only web viewer and share its link with anyone
-- Manage project revisions, Trash, and recovery
-- Generate pairing keys under **Cloud → Devices** to link your PenEcho hosts
+   ```json
+   {
+     "mcpServers": {
+       "penecho": { "command": "penecho", "args": ["mcp"] }
+     }
+   }
+   ```
 
-In the app, signing in adds:
+3. Ask your agent: **“Show the architecture we discussed on my PenEcho Canvas.”**
 
-- **Cloud projects.** Save private, versioned Canvases into projects and continue them on any signed-in device. Every successful save creates an immutable revision, and a Canvas updated on another device is never silently overwritten — you are asked to load the latest version or save a copy.
-- **Linked device.** Pair this host with a one-time key from Cloud → Devices, and your signed-in browsers and apps can reach it from anywhere through Cloud relay. Remote access to your canvas host without exposing it to the internet; API credentials still live only on that device. Pause, resume, or remove the link at any time.
-- **Echoes: co-creation and knowledge sharing.** Browse public Canvases and Widgets across twelve categories, favorite them into a personal library that syncs through Cloud, and add community Widgets straight into your own Canvas. Publish a Canvas of your own with a share category so others can learn from it, build on it, and Echo it — with Craft lineage preserved between versions.
+The agent can capture relevant content, edit objects, create visual results, patch document source files, and receive your feedback. Only enabled, connected Canvases are discoverable. With Local MCP, the MCP client runs on the PenEcho host; support for LAN and linked-device browsers does not expose the local MCP endpoint publicly. Cloud MCP is a separate authenticated HTTPS connection for your enabled PenEcho Cloud canvases.
 
-## 🔔 What's new in 1.2.0
+Desktop installations should use the generated configuration, which includes the correct bundled runtime. See [MCP setup](docs/mcp-setup.md) and the optional [agent workflow skill](skills/penecho-mcp/SKILL.md).
 
-- **A simpler frosted Studio.** The toolbar, Navigator, Agent, settings, dialogs, and compact controls now share a restrained translucent material with fine hairlines. The workspace feels lighter and more coherent while keeping the Canvas clearly visible.
-- **Faster Canvas interaction.** A low-latency live ink layer and coordinated frame work make drawing, erasing, panning, and zooming feel more immediate, while Widgets remain live and text returns sharper after movement.
-- **Customizable keyboard shortcuts.** A dedicated Settings page lets you review, change, clear, and reset shortcuts for focusing the Agent, saving, undo and redo, opening the Canvas Library, fullscreen, and Settings.
-- **Clearer hierarchy, less interface noise.** Primary tools stay within reach, secondary controls recede until needed, and Cloud status, history, favorites, and Agent surfaces follow the same visual and interaction language.
-- **A responsive workbench.** Controls remain compact across wide and narrow screens, the Agent adapts between a right sidebar and bottom panel, and important actions remain visible when the toolbar wraps. Interface scale and Studio palette choices make the workspace comfortable in more environments.
-- **Smaller improvements together.** Agent suggestions and attachments, Widget and object controls, linked-device viewing, request feedback, long-running tasks, and desktop reliability have been refined; the pen also adds a finer 3 px option.
+## PenEcho Cloud and AI connections
 
-1.1.7 stabilized the PenEcho Agent runtime and managed Codex CLI integration. 1.0.0 introduced [PenEcho Cloud](https://penecho.ai), private versioned projects, linked-device remote access, Echoes, public Crafts, and synced favorites. 0.9.0 added multiple AI connections with one-click switching, project-based shared canvases, guided in-place Refine, unified-diff incremental edits, SSE streaming, and request progress with cancellation. See [Releases](https://github.com/penecho/penecho/releases) for the full history.
+[PenEcho Cloud](https://penecho.ai) adds private versioned projects, synced favorites, public sharing through Echoes, and remote access to a linked computer.
 
-## 📖 How it works
+| Connection | How it works |
+| --- | --- |
+| **PenEcho models** | Sign in, select an available hosted model, and use account credits. Settings shows current rates and balance. |
+| **Your model API** | Configure an OpenAI- or Anthropic-compatible endpoint, model, and API key. Usage is handled by your provider. |
+| **Your CLI** | Use a locally installed and authenticated Codex, Claude Code, or Kimi CLI. Availability and usage depend on that provider's plan. |
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/how-it-works-dark.svg">
-    <img alt="How PenEcho works: canvas ink becomes a visual atlas, the server routes it to the configured executor, and a structured editable draft returns to the canvas" src="docs/assets/how-it-works-light.svg">
-  </picture>
-</p>
+Hosted models on your computer require a Cloud sign-in, without device pairing or a separate Credits API key. Cloud MCP can access enabled Cloud canvases directly. Accessing a Canvas hosted on your computer through Cloud requires the linked device to be online and the necessary relay support.
 
-The browser sends only the relevant canvas crop and geometry. The server validates the request, routes it to your selected executor, and returns a movable draft that stays separate from confirmed ink until you accept it. PenEcho allocates `512 x 512` tiles only where ink exists, so the huge logical canvas never becomes a huge bitmap. Implementation details are in the [architecture notes](docs/architecture.md).
+Your own API and CLI connections do not spend PenEcho credits. A Cloud account is optional for local use with your own connection. AI features require access to the selected provider; running PenEcho locally does not make a remote model available offline.
 
 ## Recommended model configurations
 
 These recommendations balance answer quality against the latency of PenEcho's real canvas workload, based on current hands-on testing; actual response time varies with the provider, canvas complexity, and reasoning behavior.
 
-| Model | Effort | Quality and speed | Recommended use |
+| Model | Effort | Notes | Recommended use |
 | --- | --- | --- | --- |
-| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `medium` | Strong quality with a better latency balance | Recommended Opus default for everyday canvas work |
-| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `high` | Higher reasoning quality, with longer and more variable waits | Complex handwriting, mathematics, diagrams, or layout decisions where quality matters more than speed |
-| Fable 5 (`claude-fable-5` or `fable`) | `medium` | Very good results; in current tests, often around half the response time of `gpt-5.6-sol` at `xhigh` | A fast, high-quality general-purpose choice |
-| [Kimi K3](https://platform.kimi.ai?aff=penecho) (`kimi-k3`) | `medium` | Very good quality in the current comparison; `medium` keeps the quality/speed balance practical | Recommended Kimi Open Platform default for demanding canvas work |
-| `gpt-5.6-terra` | `low` to `high` | Surprisingly strong and responsive; current PenEcho canvas tests produced better results than `gpt-5.6-sol` with fast response times | Recommended OpenAI option across a flexible range of quality and latency targets |
-| `gpt-5.6-luna` | `xhigh` | Very good canvas results with strong response speed | A responsive quality-first option when `xhigh` reasoning is appropriate |
-| `gpt-5.6-sol` | `high` | Good enough for most requests and more responsive than `xhigh` | Recommended Sol default when responsiveness matters |
-| `gpt-5.6-sol` | `xhigh` | Very good results, but slower and more variable | Quality-first Sol configuration for difficult canvas tasks |
-| `deepseek-v4-flash-vision-exp` | `medium` | Good | Vision-capable canvas work through the DeepSeek API (`https://api.deepseek.com`) |
-| `glm-5.3-flash` | `medium` | Good | Fast canvas work through the GLM Anthropic-compatible API (`https://open.bigmodel.cn/api/anthropic`) |
+| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `medium` | Strong quality with a better latency balance | Everyday canvas work |
+| Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `high` | Higher reasoning quality, longer and more variable waits | Complex handwriting, mathematics, diagrams, or layout |
+| Fable 5 (`claude-fable-5` or `fable`) | `medium` | Often around half the response time of `gpt-5.6-sol` at `xhigh` | Fast, high-quality general use |
+| [Kimi K3](https://platform.kimi.ai?aff=penecho) (`kimi-k3`) | `medium` | Very good quality; `medium` keeps the balance practical | Recommended Kimi default |
+| `gpt-5.6-terra` | `low` to `high` | Surprisingly strong and responsive | Flexible quality and latency targets |
+| `gpt-5.6-luna` | `xhigh` | Very good canvas results with strong speed | Quality-first, still responsive |
+| `gpt-5.6-sol` | `high` | Good enough for most requests, more responsive than `xhigh` | Default when responsiveness matters |
+| `gpt-5.6-sol` | `xhigh` | Very good but slower and more variable | Difficult canvas tasks |
+| `deepseek-v4-flash-vision-exp` | `medium` | Good | Vision-capable work through the DeepSeek API |
+| `glm-5.3-flash` | `medium` | Good | Fast work through the GLM Anthropic-compatible API |
 
-Typical output usage per request, including hidden reasoning tokens, is roughly `1,000` tokens at `low`, `3,000` at `medium`, and `5,000–8,000` at `xhigh`/`max`. At a typical low-effort volume (`10,000` input / `1,000` output tokens), current standard GPT-5.6 API rates work out to about $0.003–$0.08 per request across Luna, Terra, and Sol; higher effort levels cost more because reasoning tokens are billed as output. Check current [OpenAI API pricing](https://developers.openai.com/api/docs/pricing) before budgeting. CLI modes use the plan you are already signed in with rather than API billing. Google models are untested — if you try Gemini, please share the configuration and results in an issue.
+## Community and license
 
-## ⚙️ Configuration
+Read [CONTRIBUTING.md](CONTRIBUTING.md) to contribute; run `npm run check` before opening a pull request. Report bugs in [Issues](https://github.com/penecho/penecho/issues), discuss ideas in [Discussions](https://github.com/penecho/penecho/discussions), or join [Discord](https://discord.gg/3jrPJ3mXdX).
 
-`penecho configure` opens an interactive center covering everything: LLM source, model, effort, no-activity timeout, per-request Agent round limit, response-token limit, image format, request recording, and the listening interface and port. The settings people touch most, also writable in `~/.penecho/config.env`:
-
-| Setting | Purpose |
-| --- | --- |
-| `AI_PROVIDER` | Executor: `api`, `kimi-cli`, `codex-cli`, or `claude-cli` |
-| `AI_API_URL` / `AI_API_KEY` / `AI_API_MODEL` | API endpoint, credential, and model (API mode only) |
-| `AI_EFFORT` | Saved reasoning level; the canvas toolbar `Reasoning` menu can override it per request without rewriting the connection |
-| `AI_TIMEOUT_SECONDS` | PenEcho Agent inactivity deadline; genuine model or tool progress restarts the timer |
-| `PENECHO_CANVAS_AGENT_TURN_LIMIT` | Agent rounds allowed per request, minimum 50 with no maximum; default 100, with results and conversation preserved at the limit |
-| `HOST` / `PORT` | Listening interface and port, default `0.0.0.0:3888` |
-| `AUTO_AI_DELAY_SECONDS` | Delay before automatic recognition, adjustable from 0 to 10 seconds on the canvas |
-
-Use a different config file for one launch with `--config ./team.env`, or override the model, effort, and port for one process with flags such as `penecho --claude --model opus --effort max`. The full reference — CLI prerequisites, effort mapping, timeouts, tracing, and every setting — lives in [docs/configuration.md](docs/configuration.md).
-
-## 🔒 Security
-
-- Each start requires a shared six-digit code (stored only as a salted in-memory hash, rate-limited) or an explicit acknowledgement. It is a trusted-LAN guard, not Internet-grade authentication.
-- CLI modes start local CLI processes on valid requests: keep them on the local machine or a trusted, directly connected LAN, and never expose them to the public internet or an untrusted reverse proxy.
-- For public exposure, place PenEcho behind HTTPS, stronger authentication, rate limiting, and request-size controls.
-- Credentials stay in the Node.js process and the config file and are never sent to browser code. Do not publish config files, logs, screenshots, or request traces containing private content.
-
-## ❓ FAQ
-
-**Do I need an API key?**
-No. An authenticated [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code), [Codex CLI](https://developers.openai.com/codex/cli), or [Claude Code CLI](https://code.claude.com/docs/en/overview) works too — PenEcho uses the selected CLI locally and never needs an API key for that source.
-
-**Which model should I start with?**
-[Kimi K3](https://platform.kimi.ai?aff=penecho), Claude Opus 4.8 / 5.0, the `gpt-5.6` family, `deepseek-v4-flash-vision-exp`, and `glm-5.3-flash` are tested starting points — see [recommended models](#recommended-model-configurations).
-
-**Is PenEcho free?**
-The app is free and open source under AGPL v3. Model usage is billed by your provider or included in the Codex/Claude plan you sign in with. A typical low-effort request costs a few cents.
-
-**Do I need a Cloud account?**
-No. PenEcho works fully locally with your own API or CLI. Signing in to [penecho.ai](https://penecho.ai) optionally adds private cross-device projects, synced favorites, remote access to this host through a linked device, and public sharing through Echoes.
-
-**Where does my data live?**
-Canvases and settings stay on your device or your own PenEcho server. Keys and settings live in `~/.penecho/config.env`, and request recording is disabled by default.
-
-**Can I use it from a tablet on my LAN?**
-Yes. Startup prints the machine's LAN URLs; open one on the other device and enter the same six-digit code. If it cannot connect, allow the configured TCP port in the host firewall.
-
-## 🤝 Contributing
-
-PenEcho is young and built in the open, and the problems that matter most — handwriting recognition, on-canvas visual tools, wider model support, and natural pen interaction — are still open. You do not need to write code to help: test a model and report the executor, model ID, effort, latency, and a sample result; share a canvas that worked or fell apart; or report rough edges, however small.
-
-Run `npm run check` before opening a pull request. Start with [CONTRIBUTING.md](CONTRIBUTING.md), and find us on [Discord](https://discord.gg/3jrPJ3mXdX), [GitHub Discussions](https://github.com/penecho/penecho/discussions), and [GitHub Issues](https://github.com/penecho/penecho/issues).
-
-## 📄 License
-
-PenEcho is open source under [GNU AGPL v3.0 only](LICENSE); commercial use is allowed under the AGPL. If you modify PenEcho and serve it over a network, you must offer users the corresponding source code. An alternative [commercial license](COMMERCIAL-LICENSE.md) is available for products that cannot meet AGPL requirements. The PenEcho name and logo are governed by the [trademark policy](TRADEMARKS.md), and contributors keep ownership of their work under the [contributor agreement](CONTRIBUTOR-LICENSE-AGREEMENT.md).
+Licensed under [AGPL-3.0-only](LICENSE). Alternative [commercial licensing](COMMERCIAL-LICENSE.md) is available. See the [trademark policy](TRADEMARKS.md) and [contributor agreement](CONTRIBUTOR-LICENSE-AGREEMENT.md).

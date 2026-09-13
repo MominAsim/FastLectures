@@ -18,6 +18,19 @@ async function eventually(predicate, message, timeoutMs = 2000) {
   assert.fail(message);
 }
 
+test("account status drops expired or invalid membership without exposing billing fields", () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-membership-status-"));
+  try {
+    const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}) });
+    for (const membership of [undefined, { tier:"pro", expiresAt:Date.now()-1 }, { tier:"vip", expiresAt:2200000000000 }, { tier:"pro", expiresAt:"2200000000000" }]) {
+      connector.account = { id:"account-id", name:"Ada", credits:1000, membership };
+      assert.equal(connector.status().account.membership, undefined);
+    }
+    connector.account.membership = { tier:"plus", expiresAt:2200000000000, customerId:"private" };
+    assert.deepEqual(connector.status().account.membership, { tier:"plus", expiresAt:2200000000000 });
+  } finally { fs.rmSync(stateDir, { recursive:true, force:true }); }
+});
+
 test("cloud origin requires HTTPS except for loopback development", () => {
   assert.equal(normalizedOrigin("https://penecho.ai"), "https://penecho.ai");
   assert.equal(normalizedOrigin("http://127.0.0.1:8080"), "http://127.0.0.1:8080");
@@ -616,7 +629,7 @@ test("local account sign-in and sign-out are independent from the paired device"
         return new Response(JSON.stringify({
           accessToken: "independent-account-token",
           expiresAt: "2030-01-01T00:00:00.000Z",
-          account: { id: "account-id", name: "Ada", credits: 1000, email: "hidden@example.com" },
+          account: { id: "account-id", name: "Ada", credits: 1000, email: "hidden@example.com", membership:{ tier:"pro", expiresAt:2200000000000, stripeSubscriptionId:"private" } },
         }), { status: 201, headers: { "content-type": "application/json" } });
       }
       if (url.endsWith("/api/v1/local-access/session") && options.method === "DELETE") return new Response(null, { status: 204 });
@@ -627,6 +640,7 @@ test("local account sign-in and sign-out are independent from the paired device"
     assert.equal(signedIn.accountSession.signedIn, true);
     assert.equal(signedIn.account.name, "Ada");
     assert.equal(signedIn.account.email, undefined);
+    assert.deepEqual(signedIn.account.membership, { tier:"pro", expiresAt:2200000000000 });
     assert.equal(signedIn.device.configured, true);
     let saved = JSON.parse(fs.readFileSync(path.join(stateDir, "cloud-device.json"), "utf8"));
     assert.equal(saved.accountToken, "independent-account-token");
@@ -1085,7 +1099,7 @@ test("a legacy Cloud hello without acknowledgement support keeps the relay conne
   }
 });
 
-test("relay heartbeat acknowledgements refresh the silence watchdog and missing acknowledgements reconnect", async () => {
+test("relay heartbeat acknowledgements refresh the silence watchdog and missing acknowledgements reconnect", async t => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-heartbeat-test-"));
   const server = new WebSocketServer({ host:"127.0.0.1", port:0 });
   await new Promise((resolve) => server.once("listening", resolve));
@@ -1109,6 +1123,8 @@ test("relay heartbeat acknowledgements refresh the silence watchdog and missing 
     });
     connector.start();
     const remoteSocket = await accepted;
+    t.mock.timers.enable({apis:["setTimeout"]});
+    const helloReceived=new Promise(resolve=>connector.socket.once("message",resolve));
     remoteSocket.send(JSON.stringify({
       type:"hello",
       protocol:1,
@@ -1116,15 +1132,22 @@ test("relay heartbeat acknowledgements refresh the silence watchdog and missing 
       heartbeatSeconds:60,
       heartbeatTimeoutSeconds:150,
     }));
-    await eventually(() => connector.status().connected, "relay did not become connected after hello");
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await helloReceived;
+    assert.equal(connector.status().connected,true);
+    t.mock.timers.tick(40);
+    const acknowledgementReceived=new Promise(resolve=>connector.socket.once("message",resolve));
     remoteSocket.send(JSON.stringify({ type:"heartbeat_ack" }));
-    await new Promise((resolve) => setTimeout(resolve, 55));
+    await acknowledgementReceived;
+    t.mock.timers.tick(55);
     assert.equal(connector.status().connected, true, "the acknowledgement should refresh the watchdog");
-    await eventually(() => connector.status().state === "waiting", "a silent relay did not enter reconnect backoff", 500);
+    const closed=new Promise(resolve=>connector.socket.once("close",resolve));
+    t.mock.timers.tick(26);
+    await closed;
+    assert.equal(connector.status().state,"waiting","a silent relay did not enter reconnect backoff");
     assert.match(connector.status().lastError, /heartbeat acknowledgement timed out/i);
     assert.ok(events.some((entry) => entry.event === "heartbeat-timeout" && entry.timeoutMs === 80));
   } finally {
+    t.mock.timers.reset();
     connector?.close();
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(stateDir, { recursive:true, force:true });
@@ -1174,7 +1197,7 @@ test("cloud relay routes PenEcho Agent channel operations to the dedicated local
   }
 });
 
-test("a revoked relay credential becomes invalid without ever reporting connected", async () => {
+test("a revoked relay (4003) becomes invalid and cannot automatically reclaim ownership", async () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-revoked-test-"));
   const server = new WebSocketServer({ host:"127.0.0.1", port:0 });
   await new Promise((resolve) => server.once("listening", resolve));
@@ -1194,10 +1217,41 @@ test("a revoked relay credential becomes invalid without ever reporting connecte
     assert.equal(connector.status().connected, false);
     assert.equal(connector.lastConnectedAt, null);
     assert.equal(connector.reconnectTimer, null);
+    assert.equal(connector.status().device.configured, false, "the next explicit enable can obtain a fresh credential");
+    assert.equal(connector.status().cloudMcpEnabled, false);
   } finally {
     connector.close();
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(stateDir, { recursive: true, force: true });
+  }
+});
+
+test("socket replacement (4001) preserves device credentials and reconnects", async () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-replaced-test-"));
+  const server = new WebSocketServer({ host:"127.0.0.1", port:0 });
+  await new Promise((resolve) => server.once("listening", resolve));
+  let connections = 0;
+  const authorizations = [];
+  server.on("connection", (socket, request) => {
+    authorizations.push(request.headers.authorization);
+    if (++connections === 1) return socket.close(4001, "replaced by a newer connection");
+    socket.send(JSON.stringify({ type:"hello", protocol:1, deviceId:"replacement-device", heartbeatSeconds:60 }));
+  });
+  const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
+  try {
+    connector.writeConfiguration({ version:2, origin:`http://127.0.0.1:${server.address().port}`, deviceToken:"replacement-device-token", deviceId:"replacement-device", deviceName:"Replacement device", enabled:true });
+    connector.start();
+    await eventually(() => connector.reconnectTimer !== null, "replaced relay did not schedule reconnect");
+    assert.equal(connector.configuration.deviceToken, "replacement-device-token");
+    assert.equal(connector.configuration.enabled, true);
+    assert.equal(connector.status().device.configured, true);
+    await eventually(() => connector.status().connected, "replaced relay did not reconnect", 15_000);
+    assert.equal(connections, 2);
+    assert.deepEqual(authorizations, ["Bearer replacement-device-token", "Bearer replacement-device-token"]);
+  } finally {
+    connector.close();
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(stateDir, { recursive:true, force:true });
   }
 });
 
@@ -1288,7 +1342,7 @@ test("Cloud model context is applied only at the local AI loopback boundary", ()
   const source = fs.readFileSync(path.join(__dirname, "..", "src", "server", "main.js"), "utf8");
   assert.match(source, /async function executeCloudCommand\(payload, timeoutMs, context = null\)/);
   assert.match(source, /headers:\{[^\n]+\.\.\.cloudAiConnectionHeaders\(context\)[^\n]+body:JSON\.stringify\(payload\)/);
-  assert.match(source, /findConnection\(store, requestedId\) \|\| store\.defaultConnection/);
+  assert.match(source, /findConnection\(store, requestedId\) \|\| \(requestedId === "default" \? store\.connections\[0\] : null\)/);
 });
 
 test("Remote Canvas relay operations use the isolated HTTP callback", async () => {
@@ -1587,4 +1641,68 @@ test("Cloud Canvas loading downloads one verified bundle and preserves asset ord
     global.fetch = originalFetch;
     fs.rmSync(stateDir, { recursive: true, force: true });
   }
+});
+
+test("cloud relay advertises and isolates MCP channel operations", async () => {
+  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-cloud-mcp-test-"));
+  try {
+    const calls=[], connector=new CloudConnector({stateDir,executeRequest:async()=>assert.fail("MCP reached AI executor"),executeHttpRequest:async()=>assert.fail("MCP reached HTTP executor"),executeMcpRequest:async payload=>{calls.push(payload);return {channelId:"test-channel"};}});
+    assert.equal(connector.capabilities.mcp,true);
+    const responses=[], socket={readyState:WebSocket.OPEN,send:value=>responses.push(JSON.parse(value))};
+    for(const operation of ["canvas.mcp.open","canvas.mcp.frame","canvas.mcp.pull","canvas.mcp.close"])await connector.handleRequest(socket,{requestId:operation,payload:{operation}});
+    assert.deepEqual(calls.map(item=>item.operation),["canvas.mcp.open","canvas.mcp.frame","canvas.mcp.pull","canvas.mcp.close"]);
+    assert.equal(responses.every(item=>item.ok),true);
+    const unsupported=new CloudConnector({stateDir,executeRequest:async()=>assert.fail("Unsupported MCP reached AI")});
+    assert.equal(unsupported.capabilities.mcp,undefined);
+    await unsupported.handleRequest(socket,{requestId:"unsupported",payload:{operation:"canvas.mcp.open"}});
+    assert.equal(responses.at(-1).ok,false);
+  } finally {fs.rmSync(stateDir,{recursive:true,force:true});}
+});
+
+test('Cloud MCP auto-links a signed-in host once and never returns device credentials to the browser',async t=>{
+  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),'penecho-one-click-'));
+  const connector=new CloudConnector({stateDir,executeRequest:async()=>({})});
+  t.after(()=>{connector.close();fs.rmSync(stateDir,{recursive:true,force:true});});
+  await assert.rejects(connector.enableLinkedDevice(),error=>error.code==='cloud_sign_in_required');
+  connector.writeConfiguration({origin:'https://penecho.test',accountToken:'account-test',accountExpiresAt:new Date(Date.now()+3600000).toISOString()});
+  connector.connect=()=>{connector.connectionState='connected';};connector.refreshAccount=async()=>connector.status();
+  const requests=[];
+  t.mock.method(global,'fetch',async(url,options)=>{
+    requests.push({url,body:JSON.parse(options.body),authorization:options.headers.authorization});
+    return new Response(JSON.stringify({token:'private-device-token',device:{id:'device-id',name:'This host',platform:'test'}}),{status:201});
+  });
+  await Promise.all([connector.enableLinkedDevice(),connector.enableLinkedDevice()]);
+  assert.equal(requests.length,1);assert.equal(requests[0].url,'https://penecho.test/api/v1/device/link');assert.equal(requests[0].body.code,undefined);
+  assert.equal(connector.status().cloudMcpEnabled,true,'Enable link includes Cloud MCP without a second settings action');
+  assert.equal(requests[0].authorization,'Bearer account-test');assert.equal(requests[0].body.deviceToken,undefined);
+  await connector.setCloudMcpAccess(true);assert.equal(requests.length,1);assert.equal(connector.status().cloudMcpEnabled,true);
+  assert.equal(JSON.stringify(connector.status()).includes('private-device-token'),false);
+  let closed=0;connector.cloudMcpBridge.channels.add(()=>{closed++;connector.cloudMcpBridge.channels.clear();});
+  await connector.setCloudMcpAccess(false);assert.equal(closed,1);assert.equal(connector.status().cloudMcpEnabled,false);assert.equal(connector.status().device.enabled,true);
+  await connector.setCloudMcpAccess(true);connector.disconnect();assert.equal(connector.status().cloudMcpEnabled,false);
+  await connector.enableLinkedDevice();assert.equal(requests.length,2,'explicit reconnect validates the saved credential');
+  assert.equal(requests[1].body.deviceToken,'private-device-token');assert.equal(connector.configuration.deviceToken,'private-device-token');assert.equal(connector.configuration.accountToken,'account-test');assert.equal(connector.status().cloudMcpEnabled,true);
+  connector.connectionState='disconnected';
+  await connector.setCloudMcpAccess(true);assert.equal(requests.length,3,'Cloud MCP reclaims an offline host whose credential may have been revoked');
+});
+
+test('explicit Linked Device enable repairs a disabled Cloud MCP route, but a later MCP disable wins',async t=>{
+  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),'penecho-link-mcp-'));
+  const connector=new CloudConnector({stateDir,executeRequest:async()=>({})});
+  t.after(()=>{connector.close();fs.rmSync(stateDir,{recursive:true,force:true});});
+  connector.writeConfiguration({origin:'https://penecho.test',accountToken:'account-test',accountExpiresAt:new Date(Date.now()+3600000).toISOString(),enabled:true,deviceToken:'saved-device',deviceId:'saved-id',cloudMcpEnabled:false});
+  connector.connect=()=>{connector.connectionState='connected';};connector.refreshAccount=async()=>connector.status();
+  let release,entered;
+  const gate=new Promise(resolve=>release=resolve),started=new Promise(resolve=>entered=resolve);
+  t.mock.method(global,'fetch',async(_url,options)=>{
+    assert.equal(JSON.parse(options.body).deviceToken,'saved-device');entered();await gate;
+    return new Response(JSON.stringify({token:'saved-device',device:{id:'saved-id'}}),{status:201});
+  });
+  const linking=connector.enableLinkedDevice();await started;
+  await connector.setCloudMcpAccess(false);release();await linking;
+  assert.equal(connector.status().cloudMcpEnabled,false,'a later explicit opt-out is not overwritten by delayed link completion');
+  await connector.enableLinkedDevice();assert.equal(connector.status().cloudMcpEnabled,true);
+  assert.equal(connector.configuration.deviceToken,'saved-device');
+  connector.disconnect();assert.equal(connector.status().cloudMcpEnabled,false);
+  assert.equal(connector.configuration.deviceToken,'saved-device');
 });

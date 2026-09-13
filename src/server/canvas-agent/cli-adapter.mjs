@@ -17,14 +17,15 @@ const CLI_REQUEST_IMAGE_MAX_BYTES = 5 * 1024 * 1024
 const DEFAULT_CLI_TIMEOUT_MS = DEFAULT_CANVAS_AGENT_IDLE_TIMEOUT_MS
 const MAX_CLI_PROMPT_CHARS = 500_000
 const MAX_CLI_DECISION_REPAIR_CHARS = 120_000
+const MAX_CLI_PROGRESS_SOURCE_CHARS = 16_384
+const MAX_CLI_PROGRESS_CHARS = 160
 const CLI_RETRY_POLICY = resolveRetryPolicy({ mode:'normal', maxRetries:0 }, 'penecho-cli-llm.retryPolicy')
 const CLI_REASONING_LEVELS = Object.freeze(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
 
-const CLI_PROTOCOL_SYSTEM = `You are PenEcho Canvas's model backend. Harness owns the conversation and tools. Never invoke CLI built-ins (ReadMediaFile, Read, Bash, MCP, Agent, etc.); use supplied images directly.
-Return exactly one standard JSON object, without prose or fences:
-- To answer the user: {"type":"final","text":"..."}
-- One Harness tool: {"type":"tool_call","name":"canvas_inspect","arguments":{}}
-Choose at most one tool. Its name must be listed in HARNESS REQUEST.availableTools and arguments must match its schema. Put complete HTML/source/patch in arguments with valid JSON escaping. Treat errors as feedback and continue. Return final only when complete or unable to proceed. Never expose private reasoning.`
+const CLI_PROTOCOL_SYSTEM = `Harness owns the conversation and tools. Return bare JSON. Never invoke CLI built-ins; no prose/fences/reasoning. Use images.
+Before substantial tool work, first add "progress":"Progress: public update" (or "进展：…"), max 160 chars, no reasoning/args; never alone.
+Forms: {"type":"final","text":"..."}, {"type":"tool_call","name":"NAME","arguments":{}}, or {"type":"tool_calls","calls":[{"name":"NAME","arguments":{}},{"name":"NAME","arguments":{}}]} for up to 16 known calls.
+Use schema-valid HARNESS REQUEST.availableTools names; JSON-escape source/patch. Canvas calls run in order. Never guess earlier results. Errors are feedback; final only when done/blocked.`
 
 function hash(value) {
   return createHash('sha256').update(String(value)).digest('hex')
@@ -34,6 +35,61 @@ function bounded(value, limit = MAX_CLI_PROMPT_CHARS) {
   const text = String(value ?? '')
   if (text.length > limit) throw new Error('PenEcho Agent CLI context exceeds the safe local CLI prompt limit. Start a new conversation or use a larger-context model.')
   return text
+}
+
+function scanJsonString(text, start) {
+  if (text[start] !== '"') return { status:'invalid' }
+  let escaped = false
+  for (let index = start + 1; index < text.length; index++) {
+    const char = text[index]
+    if (escaped) { escaped = false; continue }
+    if (char === '\\') { escaped = true; continue }
+    if (char !== '"') continue
+    const source = text.slice(start, index + 1)
+    try { return { status:'complete', end:index + 1, value:JSON.parse(source) } }
+    catch { return { status:'invalid' } }
+  }
+  return { status:'incomplete' }
+}
+
+export function createCliProgressDecoder() {
+  let source = '', stopped = false
+  return Object.freeze({
+    get stopped() { return stopped },
+    push(value, metadata = undefined) {
+      if (stopped) return null
+      const text = String(value ?? ''), mode = String(metadata?.mode || 'delta')
+      if (mode === 'complete' || mode === 'cumulative') source = text.slice(0,MAX_CLI_PROGRESS_SOURCE_CHARS)
+      else source += text.slice(0,Math.max(0,MAX_CLI_PROGRESS_SOURCE_CHARS-source.length))
+      const atCapacity=source.length>=MAX_CLI_PROGRESS_SOURCE_CHARS
+      const incomplete=()=>{if(atCapacity)stopped=true;return null}
+      let cursor = 0
+      while (/\s/.test(source[cursor] || '')) cursor += 1
+      if (cursor >= source.length) return incomplete()
+      if (source[cursor++] !== '{') { stopped = true; return null }
+      while (/\s/.test(source[cursor] || '')) cursor += 1
+      if (cursor >= source.length) return incomplete()
+      const key = scanJsonString(source, cursor)
+      if (key.status === 'incomplete') return incomplete()
+      if (key.status !== 'complete' || key.value !== 'progress') { stopped = true; return null }
+      cursor = key.end
+      while (/\s/.test(source[cursor] || '')) cursor += 1
+      if (cursor >= source.length) return incomplete()
+      if (source[cursor++] !== ':') { stopped = true; return null }
+      while (/\s/.test(source[cursor] || '')) cursor += 1
+      if (cursor >= source.length) return incomplete()
+      const progress = scanJsonString(source, cursor)
+      if (progress.status === 'incomplete') return incomplete()
+      if (progress.status !== 'complete') { stopped = true; return null }
+      cursor = progress.end
+      while (/\s/.test(source[cursor] || '')) cursor += 1
+      if (cursor >= source.length) return incomplete()
+      if (source[cursor] !== ',') { stopped = true; return null }
+      const publicText = String(progress.value || '').trim()
+      stopped = true
+      return publicText && publicText.length <= MAX_CLI_PROGRESS_CHARS ? publicText : null
+    },
+  })
 }
 
 function connectionSnapshot(connection) {
@@ -171,13 +227,21 @@ function invalidCliDecision(message) {
   return Object.assign(new Error(message), { cliDecisionInvalid:true })
 }
 
+function decisionProgress(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !Object.hasOwn(value, 'progress')) return null
+  if (typeof value.progress !== 'string') return null
+  const progress = value.progress.trim()
+  return progress && progress.length <= MAX_CLI_PROGRESS_CHARS ? progress : null
+}
+
 export function parseCliDecision(output, toolNames = []) {
   let value
   try { value = jsonObject(output) }
   catch (error) { throw invalidCliDecision(`PenEcho Agent CLI returned an invalid Harness decision: ${error.message}`) }
+  const progress=decisionProgress(value)
   const multiple=Array.isArray(value)?value:(value?.type==='tool_calls'&&Array.isArray(value.calls)?value.calls:null)
   if(multiple){
-    if(multiple.length<2)throw invalidCliDecision('PenEcho Agent CLI tool_calls must contain more than one call so Harness can reject the whole decision.')
+    if(multiple.length<2)throw invalidCliDecision('PenEcho Agent CLI tool_calls must contain at least two calls; use tool_call for one.')
     const calls=multiple.map((call,index)=>{
       if(!call||typeof call!=='object'||Array.isArray(call)||!['tool_call',undefined].includes(call.type))throw invalidCliDecision(`PenEcho Agent CLI tool_calls[${index}] is invalid.`)
       const name=String(call.name||'')
@@ -187,13 +251,13 @@ export function parseCliDecision(output, toolNames = []) {
       if(!args||typeof args!=='object'||Array.isArray(args))throw invalidCliDecision(`PenEcho Agent CLI tool_calls[${index}] arguments must be a JSON object.`)
       return {name,arguments:JSON.stringify(args)}
     })
-    return {type:'tool_calls',calls}
+    return {type:'tool_calls',calls,...(progress?{progress}:{})}
   }
   if (!value || typeof value !== 'object') throw invalidCliDecision('PenEcho Agent CLI decision must be a JSON object.')
   if (value.type === 'final') {
     const text = String(value.text || '').trim()
     if (!text) throw invalidCliDecision('PenEcho Agent CLI returned an empty final answer.')
-    return { type:'final', text }
+    return { type:'final', text, ...(progress?{progress}:{}) }
   }
   if (value.type !== 'tool_call') throw invalidCliDecision('PenEcho Agent CLI decision type must be final or tool_call.')
   const name = String(value.name || '')
@@ -202,7 +266,7 @@ export function parseCliDecision(output, toolNames = []) {
   try { args = typeof value.arguments === 'string' ? jsonObject(value.arguments) : value.arguments }
   catch (error) { throw invalidCliDecision(`PenEcho Agent CLI tool arguments are invalid JSON: ${error.message}`) }
   if (!args || typeof args !== 'object' || Array.isArray(args)) throw invalidCliDecision('PenEcho Agent CLI tool arguments must be a JSON object.')
-  return { type:'tool_call', name, arguments:JSON.stringify(args) }
+  return { type:'tool_call', name, arguments:JSON.stringify(args), ...(progress?{progress}:{}) }
 }
 
 function repairCliDecisionRequest(prompt, output, error) {
@@ -246,13 +310,14 @@ export function normalizeCliTokenUsage(value) {
   }
 }
 
-export async function callPenEchoCli({ connection, systemPrompt, prompt, atlasImage, signal, onActivity = null, onUsage = null }) {
+export async function callPenEchoCli({ connection, systemPrompt, prompt, atlasImage, signal, onText = null, onActivity = null, onUsage = null }) {
   const request = {
     executable:connection.cliPath,
     model:connection.cliModel || null,
     effort:connection.effort,
     atlasImage,
     signal,
+    onText,
     onActivity,
   }
   if (connection.provider === 'kimi-cli') {
@@ -345,7 +410,7 @@ export class PenEchoCliAdapter extends LlmAdapter {
     yield * this.streamWithConnection(options, this.route(options.provider).connection)
   }
 
-  async decision(options, connection) {
+  async decision(options, connection, onProgress = null) {
     options.signal?.throwIfAborted()
     const activeConnection=requestConnection(connection,options.reasoningEffort)
     const controller = new AbortController(),
@@ -354,14 +419,27 @@ export class PenEchoCliAdapter extends LlmAdapter {
       }),
       signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal
     try {
-      let usage=null
+      let usage=null, reportedProgress=false
       const request = await serializeCliRequest({ ...options, signal }, this.attachments())
       const toolNames = (options.tools || []).map(tool => tool.name)
       let activeRequest = request
       for (let attempt = 0;; attempt += 1) {
-        const output = await this.callCli({ connection:activeConnection, ...activeRequest, signal, purpose:options.purpose || 'conversation', onActivity:timeout.activity, onUsage:value=>{usage=normalizeCliTokenUsage(value)} })
+        const progressDecoder=createCliProgressDecoder()
+        const reportProgress=(value,metadata)=>{
+          timeout.activity()
+          const progress=progressDecoder.push(value,metadata)
+          if(!progress||reportedProgress)return !progressDecoder.stopped
+          reportedProgress=true
+          try{onProgress?.(progress)}catch{}
+          return false
+        }
+        const output = await this.callCli({ connection:activeConnection, ...activeRequest, signal, purpose:options.purpose || 'conversation', onText:reportProgress, onActivity:timeout.activity, onUsage:value=>{usage=normalizeCliTokenUsage(value)} })
         signal.throwIfAborted()
-        try { return { ...parseCliDecision(output, toolNames), ...(usage?{usage}:{}) } }
+        try {
+          const decision=parseCliDecision(output, toolNames)
+          if(decision.progress&&!reportedProgress){reportedProgress=true;try{onProgress?.(decision.progress)}catch{}}
+          return { ...decision, ...(usage?{usage}:{}) }
+        }
         catch (error) {
           if (!error?.cliDecisionInvalid || attempt >= 1) throw error
           try {
@@ -399,24 +477,45 @@ export class PenEchoCliAdapter extends LlmAdapter {
   }
 
   async * streamWithConnection(options, connection) {
-    const decision = await this.decision(options, connection)
-    if (decision.type === 'final') {
-      yield { type:'block-start', index:0, blockType:'text' }
-      yield { type:'text-delta', index:0, text:decision.text }
-      yield { type:'block-end', index:0, block:{ type:'text', text:decision.text } }
+    const iteratorController=new AbortController(),signal=options.signal?AbortSignal.any([options.signal,iteratorController.signal]):iteratorController.signal
+    let decision=null,error=null,complete=false,progress=null,wake=null
+    const notify=()=>{const resume=wake;wake=null;resume?.()}
+    const pending=this.decision({ ...options, signal },connection,value=>{
+      if(progress!==null)return
+      progress=value
+      notify()
+    }).then(value=>{decision=value},reason=>{error=reason}).finally(()=>{complete=true;notify()})
+    try {
+      while(progress===null&&!complete)await new Promise(resolve=>{wake=resolve})
+      if(progress!==null){
+        yield { type:'block-start', index:0, blockType:'text' }
+        yield { type:'text-delta', index:0, text:progress }
+        yield { type:'block-end', index:0, block:{ type:'text', text:progress } }
+      }
+      if(!complete)await pending
+      if(error)throw error
+      const blockOffset=progress===null?0:1
+      if (decision.type === 'final') {
+        const text=progress===null?decision.text:`\n\n${decision.text}`
+        yield { type:'block-start', index:blockOffset, blockType:'text' }
+        yield { type:'text-delta', index:blockOffset, text }
+        yield { type:'block-end', index:blockOffset, block:{ type:'text', text } }
+        if (decision.usage) yield { type:'usage', usage:decision.usage }
+        yield { type:'finish', reason:{ kind:'stop' } }
+        return
+      }
+      const calls=decision.type==='tool_calls'?decision.calls:[decision]
+      for(let index=0;index<calls.length;index++){
+        const call=calls[index],blockIndex=index+blockOffset,id=CallId(`penecho_cli_${randomUUID()}`)
+        yield { type:'block-start', index:blockIndex, blockType:'tool-call' }
+        yield { type:'tool-call-delta', index:blockIndex, id, name:call.name, argumentsDelta:call.arguments }
+        yield { type:'block-end', index:blockIndex, block:{ type:'tool-call', id, name:call.name, arguments:call.arguments } }
+      }
       if (decision.usage) yield { type:'usage', usage:decision.usage }
-      yield { type:'finish', reason:{ kind:'stop' } }
-      return
+      yield { type:'finish', reason:{ kind:'tool-calls' } }
+    } finally {
+      if(!complete)iteratorController.abort(Object.assign(new Error('PenEcho Agent CLI stream closed.'),{name:'AbortError'}))
     }
-    const calls=decision.type==='tool_calls'?decision.calls:[decision]
-    for(let index=0;index<calls.length;index++){
-      const call=calls[index],id=CallId(`penecho_cli_${randomUUID()}`)
-      yield { type:'block-start', index, blockType:'tool-call' }
-      yield { type:'tool-call-delta', index, id, name:call.name, argumentsDelta:call.arguments }
-      yield { type:'block-end', index, block:{ type:'tool-call', id, name:call.name, arguments:call.arguments } }
-    }
-    if (decision.usage) yield { type:'usage', usage:decision.usage }
-    yield { type:'finish', reason:{ kind:'tool-calls' } }
   }
 }
 

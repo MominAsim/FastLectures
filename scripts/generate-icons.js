@@ -96,30 +96,10 @@ async function installerWordmark() {
 
 async function installerGif(output) {
   const width = 268, height = 167,
-    panel = { left:24, top:20, width:220, height:127, radius:16 },
-    stageArtwork = Buffer.from(`<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${width}" height="${height}" fill="#eef0f3"/>
-      <rect x="14" y="28" width="150" height="10" rx="3" fill="#dcdaf7"/>
-      <rect x="92" y="54" width="162" height="10" rx="3" fill="#e0e2e6"/>
-      <rect x="30" y="121" width="184" height="10" rx="3" fill="#d8d9dc"/>
-    </svg>`),
-    stage = await sharp(stageArtwork).png().toBuffer(),
-    glass = await sharp(stage)
-      .extract({ left:panel.left, top:panel.top, width:panel.width, height:panel.height })
-      .blur(14)
-      .modulate({ saturation:1.12 })
-      .composite([{ input:{ create:{ width:panel.width, height:panel.height, channels:4, background:{ r:255, g:255, b:255, alpha:.88 } } } }])
-      .png()
-      .toBuffer(),
-    panelMask = Buffer.from(`<svg width="${panel.width}" height="${panel.height}" xmlns="http://www.w3.org/2000/svg"><rect width="${panel.width}" height="${panel.height}" rx="${panel.radius}" fill="#fff"/></svg>`),
-    roundedGlass = await sharp(glass).composite([{ input:panelMask, blend:"dest-in" }]).png().toBuffer(),
-    border = Buffer.from(`<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><rect x="${panel.left + .5}" y="${panel.top + .5}" width="${panel.width - 1}" height="${panel.height - 1}" rx="${panel.radius - .5}" fill="none" stroke="rgba(31,36,45,.14)"/></svg>`),
     mark = await sharp(source).resize(52, 52, { fit:"contain" }).png().toBuffer(),
     wordmark = await installerWordmark();
-  await sharp(stage)
+  await sharp({ create:{ width, height, channels:4, background:{ r:0, g:0, b:0, alpha:0 } } })
     .composite([
-      { input:roundedGlass, top:panel.top, left:panel.left },
-      { input:border },
       { input:mark, top:40, left:108 },
       { input:wordmark, top:103, left:88 },
     ])

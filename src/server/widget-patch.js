@@ -1,5 +1,6 @@
 "use strict";
 
+const { createHash } = require("node:crypto");
 const { applyPatch, parsePatch } = require("diff");
 
 const MAX_WIDGET_PATCH_BYTES = 256 * 1024;
@@ -10,6 +11,9 @@ const WIDGET_MANIFEST_PATH = "widget.json";
 const WIDGET_HTML_PATH = "widget.html";
 const WIDGET_SOURCE_PATH = "widget.source";
 const FINAL_NEWLINE = /(?:\r\n|\r|\n)$/;
+const MAX_WIDGET_PATCH_AFTER_WINDOWS = 8;
+const MAX_WIDGET_PATCH_AFTER_LINES = 160;
+const MAX_WIDGET_PATCH_AFTER_CHARS = 24000;
 
 function normalizedWidgetSource(value) {
   return typeof value === "string" ? value.replace(/\r\n/g, "\n").trim() : "";
@@ -75,6 +79,17 @@ function patchFilesForWidgetEdit(widgetEdit) {
     widgetPatchFile(WIDGET_HTML_PATH,widgetEdit.html),
     widgetPatchFile(WIDGET_SOURCE_PATH,!widgetEdit.sourceMirrorsHtml ? widgetEdit.source : ""),
   ];
+}
+
+function widgetSourceFingerprintPayloadFromFiles(files) {
+  return JSON.stringify({
+    version:1,
+    files:files.map(file => ({ path:file.path, content:file.originalContent })),
+  });
+}
+
+function widgetSourceHash(widgetEdit) {
+  return createHash("sha256").update(widgetSourceFingerprintPayloadFromFiles(patchFilesForWidgetEdit(widgetEdit))).digest("hex");
 }
 
 function widgetPatchContract(widgetEdit) {
@@ -639,7 +654,7 @@ function parsedWidgetPatch(command, widgetEdit, diagnostics = null) {
 function commandFromWidgetPatch(command, widgetEdit, diagnostics = null) {
   const parsed = parsedWidgetPatch(command, widgetEdit, diagnostics);
   if (!parsed) return null;
-  const updated = new Map(), files = patchFilesForWidgetEdit(widgetEdit);
+  const updated = new Map(), files = patchFilesForWidgetEdit(widgetEdit), appliedRanges = [];
   for (const patch of parsed.patches) {
     const path = patch.oldFileName.slice(2), file = parsed.allowed.get(path);
     const exactPatch = exactContextPatch(file.content, patch);
@@ -659,6 +674,13 @@ function commandFromWidgetPatch(command, widgetEdit, diagnostics = null) {
       return null;
     }
     updated.set(path, content);
+    for (const hunk of exactPatch.hunks) appliedRanges.push({
+      path,
+      oldStart:hunk.oldStart,
+      oldLines:hunk.oldLines,
+      newStart:hunk.newStart,
+      newLines:hunk.newLines,
+    });
   }
   const originalContents = new Map(files.map(file => [file.path,file.originalContent])),
     finalContents = new Map(files.map(file => {
@@ -675,7 +697,48 @@ function commandFromWidgetPatch(command, widgetEdit, diagnostics = null) {
     setPatchDiagnostic(diagnostics,"patch-has-no-changes");
     return null;
   }
+  if (diagnostics?.includeAppliedRanges === true) {
+    diagnostics.changedResources=[...updated.keys()];
+    diagnostics.appliedRanges=appliedRanges;
+    diagnostics.afterWindows=widgetPatchAfterWindows(finalContents,appliedRanges);
+  }
   return updatedCommand;
+}
+
+function widgetPatchAfterWindows(contents, appliedRanges) {
+  const candidates=[];
+  for (const range of appliedRanges) {
+    const raw=String(contents.get(range.path)||""), lines=raw.split(/\r\n|\r|\n/), total=lines.length,
+      anchor=Math.max(1,Math.min(total,Number(range.newStart)||1)), changed=Math.max(1,Number(range.newLines)||1),
+      start=Math.max(1,anchor-2), end=Math.min(total,anchor+changed+1), previous=candidates.at(-1);
+    if (previous?.path===range.path && start<=previous.end+1) previous.end=Math.max(previous.end,end);
+    else candidates.push({path:range.path,start,end,total,lines});
+  }
+  const windows=[];
+  let remainingLines=MAX_WIDGET_PATCH_AFTER_LINES,remainingChars=MAX_WIDGET_PATCH_AFTER_CHARS;
+  for (const candidate of candidates.slice(0,MAX_WIDGET_PATCH_AFTER_WINDOWS)) {
+    if (remainingLines<=0||remainingChars<=0) break;
+    const requestedEnd=Math.min(candidate.end,candidate.start+remainingLines-1), selected=candidate.lines.slice(candidate.start-1,requestedEnd),
+      numberedLines=selected.map((line,index)=>`${String(candidate.start+index).padStart(6," ")}\t${line}`), included=[];
+    let usedChars=0;
+    for (const line of numberedLines) {
+      const additional=(included.length?1:0)+line.length;
+      if(usedChars+additional>remainingChars)break;
+      included.push(line);usedChars+=additional;
+    }
+    const content=included.join("\n"), end=included.length?candidate.start+included.length-1:candidate.start-1,
+      truncated=end<candidate.end;
+    windows.push({
+      resource:candidate.path,
+      lineRange:{start:candidate.start,end,total:candidate.total,truncated},
+      ...(included.length===0&&numberedLines.length?{lineTooLong:true}:{}),
+      content,
+      contentFormat:"nl -ba -w6 -s TAB",
+    });
+    remainingLines-=included.length;
+    remainingChars-=content.length;
+  }
+  return windows;
 }
 
 function resolveWidgetEditPatchCommands(commands, widgetEdit, diagnostics = null) {
@@ -694,6 +757,7 @@ module.exports = {
   commandFromWidgetPatch,
   resolveWidgetEditPatchCommands,
   widgetSourceMirrorsHtml,
+  widgetSourceHash,
   widgetPatchFileContent,
   widgetPatchContract,
   widgetPatchFiles,

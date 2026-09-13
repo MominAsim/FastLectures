@@ -104,9 +104,9 @@ test("Visual Explainer assets use the single current plan, local AntV, fallback 
   assert.match(agent,/repeated-issue-signature/);
   assert.match(agent,/VISUAL_EXPLAINER_SOURCE_PATCH_REQUIRED/);
   assert.match(agent,/artifactId.*embedded General HTML artifact/);
-  assert.match(agent,/target=canvas shows the complete composition/);
-  assert.match(agent,/target=viewport shows current user framing/);
-  assert.match(agent,/an object-only capture validates neither/);
+  assert.match(agent,/Spatial work: canvas=composition/);
+  assert.match(agent,/viewport=user framing/);
+  assert.match(agent,/Only a Widget can be delivered as a requested object screenshot/);
   assert.match(agent,/CANVAS_LAYOUT_OVERVIEW_REQUIRED/);
   assert.match(browser,/canvasAgentVisualExplainerCreate/);
   assert.match(browser,/canvasAgentVisualExplainerUpdate/);
@@ -121,7 +121,8 @@ test("PenEcho Agent frames a new Visual Explainer in the unobscured viewport bes
   const frame=vm.runInNewContext(`(() => { ${framePlanSource} return ${frameSource}; })()`,{
     SIZE:20000,state,
     view:{clientWidth:viewRect.width,clientHeight:viewRect.height,getBoundingClientRect:()=>viewRect},
-    canvasAgentPanel:{hidden:false,getBoundingClientRect:()=>panelRect},
+    document:{body:{classList:{contains:name=>name==="canvas-agent-open"}}},
+      canvasAgentPanel:{hidden:false,getBoundingClientRect:()=>panelRect},
     canvasElementLayoutRect:()=>panelRect,
     requestRender:()=>calls.render++,canvasAgentViewFacts:()=>({viewport:{x:0,y:0,w:1,h:1}}),canvasAgentSyncState:()=>calls.sync++,
     canvasAgentExternalRect:region=>({x:region.x,y:region.y,width:region.w,height:region.h}),
