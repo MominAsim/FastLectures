@@ -1,4 +1,8 @@
   // Bounded MCP content preparation. Native text/image records share Canvas history and capture.
+  // Authoring pixels remain raster pixels; only the placed frame enters world space.
+  function mcpPrimitiveWorldBox(box, worldPerPixel, origin = {x:0,y:0}) {
+    return {x:origin.x+box.x*worldPerPixel,y:origin.y+box.y*worldPerPixel,w:box.w*worldPerPixel,h:box.h*worldPerPixel};
+  }
   function mcpPrimitiveLayout(items) {
     const nodes=new Map(),result=[],occupied=[];
     for(const item of items.filter(item=>!['line','arrow','path'].includes(item.type))){
@@ -71,6 +75,8 @@
     canvasAgentMutationIdle(execution);
     const revision=state.userRevision,previous=session.artifacts.get(args.artifactId);
     if(previous&&previous.kind!==kind)throw Error('This artifact belongs to a different tool. Use a new artifactId.');
+    // An artifact keeps its original mapping even when the user later zooms.
+    const worldPerPixel=previous?(previous.worldPerPixel||1):1/(Number.isFinite(state.scale)&&state.scale>0?state.scale:1);
     const old=new Map(previous?.elements||[]);
     for(const value of old.values())if(!canvasAgentObject(value.objectId))throw Error('An object in this artifact was removed. Use a new artifactId.');
     const prepared=[];let scene;
@@ -89,8 +95,8 @@
         }else if(['rect','ellipse'].includes(item.type))item={...item,width:Math.max(80,item.width||260),height:Math.max(80,item.height||100)};
         if(object&&!['line','arrow','path'].includes(item.type)){
           if((item.type==='text')!==(object.kind==='text'))throw Error('Changing a text object into a shape requires a new element id.');
-          item.x=object.item.x-previous.origin.x;item.y=object.item.y-previous.origin.y;
-          if(item.type!=='text'){item.width=object.item.w;item.height=object.item.h;}
+          item.x=(object.item.x-previous.origin.x)/worldPerPixel;item.y=(object.item.y-previous.origin.y)/worldPerPixel;
+          item.width=object.item.w/worldPerPixel;item.height=object.item.h/worldPerPixel;
         }
         items.push(item);
       }
@@ -105,9 +111,9 @@
       }
     }
     canvasAgentAssertRevision(revision);canvasAgentMutationIdle(execution);
-    const plan=previous?null:mcpPlanPlacement(scene.bounds.w,scene.bounds.h,session,mcpPresentation(args,previous)),origin=previous?.origin||{x:plan.placement.x-scene.bounds.x,y:plan.placement.y-scene.bounds.y},elements=new Map(),records=[];
+    const worldBounds=mcpPrimitiveWorldBox(scene.bounds,worldPerPixel),plan=previous?null:mcpPlanPlacement(worldBounds.w,worldBounds.h,session,mcpPresentation(args,previous)),origin=previous?.origin||{x:plan.placement.x-worldBounds.x,y:plan.placement.y-worldBounds.y},elements=new Map(),records=[];
     for(const item of prepared){
-      const former=old.get(item.id),object=former&&canvasAgentObject(former.objectId),box={x:origin.x+item.box.x,y:origin.y+item.box.y,w:item.box.w,h:item.box.h};
+      const former=old.get(item.id),object=former&&canvasAgentObject(former.objectId),box=mcpPrimitiveWorldBox(item.box,worldPerPixel,origin);
       if(object&&(kind==='plot'||item.preserveFrame))Object.assign(box,canvasAgentBox(object));
       if(box.x<0||box.y<0||box.x+box.w>SIZE||box.y+box.h>SIZE)throw Error('This drawing extends beyond the Canvas. Move it inward or split the content.');
       const record=item.kind==='text'?{...item.record,...box,...(object?{id:object.item.id}:{})}:imageRecord({...box,...(object?{id:object.item.id}:{}),image:item.image,blob:item.blob,naturalW:item.image.width,naturalH:item.image.height,sourceName:args.title,...(item.plotExpression?{plotExpression:item.plotExpression}:{})});
@@ -122,7 +128,7 @@
     // Match normal new-text creation: opaque native shapes must not cover labels.
     // Existing artifacts retain the user's later foreground choice.
     if(!previous&&records.some(item=>item.kind==='text'))setCanvasObjectFrontKind('text-box');
-    const objectIds=records.map(item=>item.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,presentation:mcpPresentation(args,previous),elements:[...elements]});
+    const objectIds=records.map(item=>item.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,worldPerPixel,presentation:mcpPresentation(args,previous),elements:[...elements]});
     if(plan)session.layout=plan.layout;
     state.userRevision++;save();requestRender();canvasAgentSyncState();
     const presentation=mcpPresentation(args,previous);

@@ -108,4 +108,5 @@ test("server request routing uses real saved or explicit transient connections a
   assert.equal((await context.requestProviderSnapshot({ headers:{ "x-penecho-connection":"second" } })).provider, "kimi-cli");
   assert.equal((await context.requestProviderSnapshot({ headers:{} })).id, "default");
   await assert.rejects(() => context.requestProviderSnapshot({ headers:{ "x-penecho-connection":"hosted:missing" } }), /unavailable/);
+  await assert.rejects(() => context.requestProviderSnapshot({ headers:{ "x-penecho-connection":"123e4567-e89b-42d3-a456-426614174000" } }), /unavailable/);
 });

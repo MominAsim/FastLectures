@@ -54,6 +54,32 @@ test("local connection rows preserve model, endpoint, and accessible selection s
  assert.equal(h.document.getElementById("settingsLocalConnectionsEmpty").hidden,true);
 });
 
+test("online linked device adds local connections without removing hosted models or account controls",()=>{
+ const h=harness(),get=id=>h.document.getElementById(id);
+ Object.assign(h.window.PENECHO_CONFIG,{runtime:"cloud",browserCanvasEditing:true,linkedDeviceLinked:true,linkedDeviceOnline:true});
+ h.hostedSettings.signedIn=true;h.hostedSettings.models=[{id:"model-a",displayName:"Cloud model",multiplier:1}];
+ h.settings.connections=[{id:"default",provider:"api",apiModel:"Local model",apiUrl:"https://local-provider.test/v1",active:true}];
+ h.context.renderConnectionLists();
+ assert.equal(get("settingsHostedList").querySelectorAll("button").length,1);
+ assert.equal(get("settingsConnectionQuickList").querySelectorAll("button").length,1);
+ assert.equal(get("settingsCloudAccount").hidden,false);
+ for(const id of ["settingsOpenApi","settingsOpenSearch","settingsOpenSystem"]){assert.equal(get(id).disabled,false);assert.equal(get(id).hasAttribute("aria-describedby"),false);}
+ assert.equal(get("settingsHostedBrowserNotice").hidden,true);
+ assert.equal(get("settingsHostedLinkDevice").hidden,true);
+});
+
+test("linked offline state explains recovery instead of claiming no connections or asking to link again",()=>{
+ const h=harness(),get=id=>h.document.getElementById(id);
+ Object.assign(h.window.PENECHO_CONFIG,{runtime:"cloud",browserCanvasEditing:true,linkedDeviceLinked:true,linkedDeviceOnline:false});
+ h.hostedSettings.signedIn=true;h.hostedSettings.models=[{id:"model-a",displayName:"Cloud model",multiplier:1}];
+ h.context.renderConnectionLists();
+ assert.equal(get("settingsHostedBrowserNotice").textContent,"settingsLinkedDeviceOffline");
+ assert.equal(get("settingsHostedBrowserNotice").hidden,false);
+ assert.equal(get("settingsHostedLinkDevice").hidden,true);
+ assert.equal(get("settingsLocalConnectionsEmpty").hidden,true);
+ assert.equal(get("settingsHostedList").querySelectorAll("button").length,1);
+});
+
 test("sign-in opens the local Cloud account area and retains web authentication fallback",()=>{
  const script=fs.readFileSync(path.join(root,"public/cloud-connect.js"),"utf8");
  const start=script.indexOf('  document.getElementById("settingsCloudSetupLink")?.addEventListener');

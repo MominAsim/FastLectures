@@ -165,7 +165,7 @@
       changed = true;
     }
     if (generation !== canvasTextQualityGeneration || !changed) return false;
-    renderPlacedContentLayer(canvasRenderRegion().visible);
+    renderTextContentLayer(canvasRenderRegion().visible);
     return true;
   }
   function textBoxHistoryRecord(item) {
@@ -276,7 +276,13 @@
       let record = null;
       try {
         if (item?.image && textImageRasterRatio(item.image) >= pixelRatio / 1.05) record = textBoxHistoryRecord(item);
-        else record = await renderedTextBoxRecord(item, pixelRatio);
+        else {
+          record = await renderedTextBoxRecord(item, pixelRatio);
+          // Raster dimensions describe typography; the saved frame describes
+          // world placement. Rehydrating pixels must not reset their mapping.
+          if(record&&[item.x,item.y,item.w,item.h].every(Number.isFinite)&&item.x>=0&&item.y>=0&&item.w>0&&item.h>0&&item.x+item.w<=SIZE&&item.y+item.h<=SIZE)
+            Object.assign(record,{x:item.x,y:item.y,w:item.w,h:item.h});
+        }
       } catch {
         // One invalid or unsupported text box must not make an otherwise valid
         // saved Canvas impossible to restore.
@@ -329,7 +335,7 @@
   }
   function imageRecord(item) {
     if (!item || typeof item !== "object" || !(item.blob instanceof Blob) || !item.image || item.blob.size <= 0 || item.blob.size > MAX_IMAGE_SOURCE_BYTES) return null;
-    if (!n(item.x) || !n(item.y) || !n(item.w, 80) || !n(item.h, 80) || item.x + item.w > SIZE || item.y + item.h > SIZE) return null;
+    if (!n(item.x) || !n(item.y) || !n(item.w, item.naturalW > 0 ? 1 : 80) || !n(item.h, item.naturalH > 0 ? 1 : 80) || item.x + item.w > SIZE || item.y + item.h > SIZE) return null;
     const naturalW = Number(item.naturalW) || item.image.naturalWidth || item.image.width,
       naturalH = Number(item.naturalH) || item.image.naturalHeight || item.image.height,
       plotExpression = typeof item.plotExpression === "string" ? item.plotExpression.trim() : "";
@@ -370,7 +376,7 @@
     if (widgetStyle) widgetStyle.zIndex = selectedWidgetMaterialActive ? "3" : widgetInFront ? "2" : "1";
     if (imageMaterialStyle) imageMaterialStyle.zIndex = widgetInFront ? "1" : "2";
     if (imageStyle) imageStyle.zIndex = widgetInFront ? "1" : "2";
-    if (textEditorStyle) textEditorStyle.setProperty("--text-editor-layer-z", state.frontCanvasObjectKind === "text-box" ? "6" : "1");
+    if (textEditorStyle) textEditorStyle.setProperty("--text-editor-layer-z", selectedWidgetMaterialActive ? "2" : "3");
   }
   function setCanvasObjectFrontKind(kind) {
     if (!["image", "widget", "text-box"].includes(kind)) return false;
@@ -713,6 +719,7 @@
     return true;
   }
   function showHandObjectToolbar(kind, object) {
+    if (kind === "text-box") return editTextBox(object);
     const ensured = ensureHandToolbarRecord(kind, object);
     if (!ensured) return false;
     const { key } = ensured;
@@ -743,7 +750,9 @@
       ordered = state.frontCanvasObjectKind === "widget"
         ? [{ kind:"widget", object:widget }, ...placed]
         : [...placed, { kind:"widget", object:widget }],
-      target = ordered.find(candidate => candidate.object);
+      target = widget && (state.selectedWidgetId === widget.id || state.interactingWidgetId === widget.id)
+        ? { kind:"widget", object:widget }
+        : textBox ? { kind:"text-box", object:textBox } : ordered.find(candidate => candidate.object);
     if (target) return target;
     const animation = animationPointerHit(point)?.animation;
     if (animation) return { kind:"animation", object:animation };
@@ -950,7 +959,7 @@
       maximumHeight = SIZE - start.y;
     if (hit === "width") return { ...start, w:Math.max(minimumWidth, Math.min(maximumWidth, point.x - start.x)) };
     if (hit === "height") return { ...start, h:Math.max(minimumHeight, Math.min(maximumHeight, point.y - start.y)) };
-    const minimumScale = Math.max(minimumWidth / start.w, minimumHeight / start.h),
+    const minimumScale = Math.max(minimumWidth / contentW, minimumHeight / contentH),
       maximumScale = Math.min(maximumWidth / start.w, maximumHeight / start.h),
       requestedScale = Math.max((point.x - start.x) / start.w, (point.y - start.y) / start.h),
       scale = Math.max(minimumScale, Math.min(maximumScale, requestedScale));
@@ -1273,7 +1282,7 @@
         : typeof item.html === "string" ? item.html : "";
     if (widgetType === "html_widget" && (!html.trim() || html.length > MAX_WIDGET_HTML_LENGTH)
       || widgetType === "diagram_source" && (!source || !normalizedSourceFormat || html.length > MAX_WIDGET_HTML_LENGTH)) return null;
-    if (!n(item.x) || !n(item.y) || !n(item.w, 300, SIZE) || !n(item.h, 200, SIZE) || item.x + item.w > SIZE || item.y + item.h > SIZE) return null;
+    if (!n(item.x) || !n(item.y) || !n(item.w, item.contentW !== undefined ? 1 : 300, SIZE) || !n(item.h, item.contentH !== undefined ? 1 : 200, SIZE) || item.x + item.w > SIZE || item.y + item.h > SIZE) return null;
     const contentW = item.contentW ?? item.w,
       contentH = item.contentH ?? item.h;
     if (!Number.isFinite(contentW) || contentW < 300 || contentW > MAX_WIDGET_CONTENT_DIMENSION
@@ -2162,19 +2171,19 @@
       contentH = start.contentH ?? start.h;
     if (hit === "width") {
       const displayScale = start.h / contentH,
-        minimum = Math.max(minimumWidth, minimumWidth * displayScale),
+        minimum = Math.max(1, minimumWidth * displayScale),
         maximum = limit - start.x,
         width = Math.max(minimum, Math.min(maximum, point.x - start.x));
       return { ...start, w:width, contentW:width / displayScale };
     }
     if (hit === "height") {
       const displayScale = start.w / contentW,
-        minimum = Math.max(minimumHeight, minimumHeight * displayScale),
+        minimum = Math.max(1, minimumHeight * displayScale),
         maximum = limit - start.y,
         height = Math.max(minimum, Math.min(maximum, point.y - start.y));
       return { ...start, h:height, contentH:height / displayScale };
     }
-    const minimumScale = Math.max(minimumWidth / start.w, minimumHeight / start.h),
+    const minimumScale = Math.max(minimumWidth / contentW, minimumHeight / contentH),
       maximumScale = Math.min((limit - start.x) / start.w, (limit - start.y) / start.h),
       requestedScale = Math.max((point.x - start.x) / start.w, (point.y - start.y) / start.h),
       scale = Math.max(minimumScale, Math.min(maximumScale, requestedScale));
@@ -3228,7 +3237,37 @@
     fit();
     return true;
   }
+  function renderTextContentLayer(region = null) {
+    if (!state.textBoxes.length) {
+      textContentLayer.width = textContentLayer.height = 1;
+      return;
+    }
+    const d = devicePixelRatio || 1,
+      metrics = canvasViewportMetrics(),
+      r = { width:metrics.width, height:metrics.height },
+      visible = region || {
+        x:Math.max(0, -state.panX / state.scale),
+        y:Math.max(0, -state.panY / state.scale),
+        w:Math.min(SIZE, (r.width - state.panX) / state.scale) - Math.max(0, -state.panX / state.scale),
+        h:Math.min(SIZE, (r.height - state.panY) / state.scale) - Math.max(0, -state.panY / state.scale),
+      };
+    const width = Math.max(1, Math.round(r.width * d)), height = Math.max(1, Math.round(r.height * d));
+    if (textContentLayer.width !== width) textContentLayer.width = width;
+    if (textContentLayer.height !== height) textContentLayer.height = height;
+    textContentCtx.setTransform(d, 0, 0, d, 0, 0);
+    textContentCtx.clearRect(0, 0, r.width, r.height);
+    if (visible.w <= 0 || visible.h <= 0) return;
+    textContentCtx.save();
+    textContentCtx.translate(state.panX, state.panY);
+    textContentCtx.scale(state.scale, state.scale);
+    textContentCtx.beginPath();
+    textContentCtx.rect(0, 0, SIZE, SIZE);
+    textContentCtx.clip();
+    drawTextBoxesToContext(textContentCtx, visible);
+    textContentCtx.restore();
+  }
   function renderPlacedContentLayer(region = null) {
+    renderTextContentLayer(region);
     const d = devicePixelRatio || 1,
       metrics = canvasViewportMetrics(),
       r = { width:metrics.width, height:metrics.height },
@@ -3251,12 +3290,7 @@
     placedContentCtx.restore();
   }
   function drawPlacedCanvasObjectsToContext(context, region = null, withShadow = false) {
-    if (state.frontPlacedCanvasObjectKind === "text-box") {
-      drawImagesToContext(context, region, withShadow);
-      drawTextBoxesToContext(context, region);
-      return;
-    }
-    drawTextBoxesToContext(context, region);
+    // Text has its own foreground surface so the live eraser cannot remove it.
     drawImagesToContext(context, region, withShadow);
   }
   function renderInkLayer(region = null) {
@@ -5637,6 +5671,44 @@
     textHelpInvoker = null;
     if (invoker?.isConnected && !invoker.disabled) invoker.focus({ preventScroll: true });
   }
+  function textEditorOwnsFocusTarget(editor, target) {
+    return Boolean(target && (editor.element.contains(target)
+      || target.closest?.("#textHelpDialog") && textHelpInvoker && editor.element.contains(textHelpInvoker)));
+  }
+  async function unselectTextEditor(editor) {
+    if (!editor || editor.committing || editor.unselecting || editor.cancelled) return;
+    const source = state.textBoxes.find(item => item.id === editor.sourceTextBoxId);
+    if (source && editor.textarea.value === source.text && !editor.moved && !editor.resized) {
+      state.selectedTextBoxId = null;
+      removeTextEditor(editor);
+      requestRender();
+      return;
+    }
+    if (!editor.textarea.value.trim()) {
+      cancelTextEditor(editor);
+      return;
+    }
+    editor.unselecting = true;
+    editor.element.classList.remove("active");
+    editor.element.classList.add("unselecting");
+    try {
+      await confirmTextEditor(editor, { focusLoss:true });
+    } catch (error) {
+      // Keep the draft recoverable if formatting fails during implicit commit.
+      editor.unselecting = false;
+      editor.committing = false;
+      editor.element.classList.remove("unselecting", "committing");
+      editor.element.classList.add("active");
+      editor.element.querySelectorAll("button").forEach(button => (button.disabled = false));
+      setStatusKey("textMixedModeError");
+    }
+  }
+  function unselectTextEditorsOutside(event) {
+    for (const editor of [...state.textEditors.values()]) {
+      if (event.type !== "blur" && textEditorOwnsFocusTarget(editor, event.target)) continue;
+      void unselectTextEditor(editor);
+    }
+  }
   async function confirmTextEditor(editor, options = null) {
     options ||= {};
     if (!editor) return;
@@ -5651,7 +5723,7 @@
       editor.cancelled = false;
       editor.element.classList.add("committing");
       cancelTextEditorPreview(editor);
-      blockCanvasInput(TEXT_INPUT_GUARD_MS);
+      if (!options.focusLoss) blockCanvasInput(TEXT_INPUT_GUARD_MS);
       if (!editor.returnMode && state.mode === "text") setCanvasMode("pen");
       supersedeActiveAI("text-input-confirmed");
       clearTimeout(state.timer);
@@ -5707,11 +5779,11 @@
       recomputeDirtyBounds();
       state.latestTypedInput = { text: text.slice(0, TEXT_INPUT_MAX_LENGTH), box };
       state.autoEligible = true;
-      const refineCandidate = latchWidgetRefineCandidate(item, "text-box");
-      state.selectedTextBoxId = null;
+      const refineCandidate = options.focusLoss ? null : latchWidgetRefineCandidate(item, "text-box");
+      if (!editor.sourceTextBoxId || state.selectedTextBoxId === editor.sourceTextBoxId) state.selectedTextBoxId = null;
       removeTextEditor(editor);
-      blockCanvasInput(TEXT_INPUT_GUARD_MS);
-      restoreTextEditorMode(editor);
+      if (!options.focusLoss) blockCanvasInput(TEXT_INPUT_GUARD_MS);
+      if (!options.focusLoss) restoreTextEditorMode(editor);
       saveUserCanvasChange();
       render();
       setStatusKey(mixedFallback ? "textMixedModeError" : "ready");
@@ -5921,7 +5993,7 @@
     return editor;
   }
   function editTextBox(item) {
-    if (state.mode !== "select" || !item || !state.textBoxes.includes(item) || state.textEditors.size) return false;
+    if (!["select", "hand"].includes(state.mode) || state.viewMode || !item || !state.textBoxes.includes(item) || state.textEditors.size) return false;
     clearHandToolbarTarget("text-box", item.id);
     if (state.widgetEdit) acceptWidgetEdit();
     if (state.imageEdit) acceptImageEdit({ restoreMode:false });
@@ -5941,7 +6013,7 @@
         sourceFontSize:item.fontSize,
         fontFamily:item.fontFamily,
         color:item.color,
-        returnMode:"select",
+        returnMode:state.mode,
       });
     if (!editor) {
       state.selectedTextBoxId = null;

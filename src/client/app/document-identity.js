@@ -558,6 +558,8 @@ var canvasDocumentIdentity = (() => {
     if (!artifact.objectId && !artifact.objectIds) return null;
     const origin = normalizePoint(ownValue(value, "origin"));
     if (origin) artifact.origin = origin;
+    const worldPerPixel = ownValue(value, "worldPerPixel");
+    if (typeof worldPerPixel === "number" && Number.isFinite(worldPerPixel) && worldPerPixel >= .5 && worldPerPixel <= 1 / .03) artifact.worldPerPixel = worldPerPixel;
     const elements = normalizeElements(ownValue(value, "elements"));
     if (elements.length > 0) artifact.elements = elements;
     const presentation = normalizePresentation(ownValue(value, "presentation"));

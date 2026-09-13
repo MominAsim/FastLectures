@@ -50,11 +50,13 @@ test("startup and Agent share one in-flight configuration request",async()=>{
 test("selection falls back to first saved connection and preserves explicit saved choice",()=>{
   let selected="default";
   const settings={connections:[{id:"first"},{id:"second"}]};
-  const context=vm.createContext({settings,AI_CONNECTION_STORAGE_KEY:"connection",selectedAiConnectionId:()=>selected,localStorage:{setItem:(_key,value)=>{selected=value;}}});
+  const context=vm.createContext({window:{PENECHO_CONFIG:{}},settings,AI_CONNECTION_STORAGE_KEY:"connection",selectedAiConnectionId:()=>selected,localStorage:{setItem:(_key,value)=>{selected=value;}}});
   vm.runInContext(extract("syncLocalConnectionSelection"),context);
   context.syncLocalConnectionSelection();assert.equal(selected,"first");assert.equal(settings.connections[0].active,true);
   selected="second";context.syncLocalConnectionSelection();assert.equal(selected,"second");assert.equal(settings.connections[1].active,true);
   settings.connections=[];context.syncLocalConnectionSelection();assert.equal(settings.connections.length,0);
+  selected="second";Object.assign(context.window.PENECHO_CONFIG,{browserCanvasEditing:true,linkedDeviceOnline:false});
+  context.syncLocalConnectionSelection();assert.equal(selected,"second","offline must not silently select a different local model");
 });
 test("desktop Settings menu reveals the existing Canvas and sends the shared-page event",()=>{
   const main=fs.readFileSync(path.join(__dirname,"../desktop/main.js"),"utf8"),calls=[];

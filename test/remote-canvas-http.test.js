@@ -61,9 +61,14 @@ test("Remote Canvas allows only reviewed local routes and methods", () => {
   assert.throws(() => remoteCanvasTarget("GET", "/api/canvas-agent/roots/root-1234567890abcdef12345678/entries?path=%2Fetc"), /not available/);
   assert.throws(() => remoteCanvasTarget("POST", "/api/canvas-agent/projects?path=%2Fetc"), /not available/);
   assert.throws(() => remoteCanvasTarget("GET", "/api/local-access"), /not available/);
-  assert.throws(() => remoteCanvasTarget("POST", "/api/ai/command"), /not available/);
+  for (const target of ["/api/ai/command", "/api/plugins/improve", "/api/settings"]) {
+    assert.equal(remoteCanvasTarget("POST", target), target);
+    assert.throws(() => remoteCanvasTarget("POST", `${target}?other=1`), /not available/);
+  }
+  for (const target of ["/api/ai/command", "/api/plugins/improve", "/api/ai/arbitrary"]) {
+    assert.throws(() => remoteCanvasTarget("GET", target), /not available/);
+  }
   for (const target of [
-    "/api/settings",
     "/api/cloud/sign-in/start", "/api/cloud/sign-in", "/api/cloud/sign-out", "/api/cloud/pair",
     "/api/cloud/device/enable", "/api/cloud/device/disable", "/api/cloud/device/revoke",
   ]) assert.throws(() => remoteCanvasTarget("POST", target), /not available/);
@@ -80,7 +85,8 @@ test("Canvas rename updates only validated server metadata", () => {
 
 test("Remote Canvas client pins bridged HTTP and PenEcho Agent WebSocket traffic to the status device", () => {
   assert.match(remoteCanvasClientSource, /deviceIdPattern/);
-  assert.match(remoteCanvasClientSource, /bridgeDeviceId\s*=\s*deviceIdPattern\.test/);
+  assert.match(remoteCanvasClientSource, /const candidate\s*=\s*deviceIdPattern\.test/);
+  assert.match(remoteCanvasClientSource, /if \(!bridgeDeviceId && candidate\) bridgeDeviceId = candidate/);
   assert.match(remoteCanvasClientSource, /path=\$\{encodeURIComponent[\s\S]*&deviceId=\$\{encodeURIComponent\(bridgeDeviceId\)/);
   assert.match(remoteCanvasClientSource, /!\["\/api\/v1\/remote-canvas\/canvas-agent", "\/api\/v1\/remote-canvas\/mcp"\]\.includes\(target\.pathname\)/);
   assert.match(remoteCanvasClientSource, /target\.searchParams\.set\("deviceId", bridgeDeviceId\)/);
@@ -142,4 +148,35 @@ test("Remote Canvas executor keeps the local session private and returns bounded
   assert.equal(plugin.contentType, "text/markdown");
   assert.equal(plugin.body, "# Air quality");
   assert.equal(plugin.headers["set-cookie"], undefined);
+});
+
+test("linked AI HTTP execution forwards an explicit connection and preserves final JSON and errors", async () => {
+  const calls = [];
+  let status = 200;
+  const result = { requestId:"request", operations:[{ type:"text", text:"Done" }] };
+  const execute = createRemoteCanvasHttpExecutor({ origin:"http://127.0.0.1:3888", sessionCookie:"session=secret", fetchImpl:async (url, options) => {
+    calls.push({ url, options });
+    return new Response(JSON.stringify(result), { status, headers:{ "content-type":"application/json" } });
+  } });
+  for (const path of ["/api/ai/command", "/api/plugins/improve"]) {
+    for (const connectionId of [undefined, "", "invalid", "hosted:123e4567-e89b-42d3-a456-426614174000"]) {
+      await assert.rejects(execute({ operation:"canvas.http", request:{ method:"POST", path, connectionId, body:{} } }), { code:"remote_canvas_connection" });
+    }
+    for (const connectionId of ["default", "123e4567-e89b-42d3-a456-426614174000"]) {
+      const body = { typedInput:{ text:"Create a diagram" }, reasoningEffort:"high" };
+      const response = await execute({ operation:"canvas.http", request:{ method:"POST", path, connectionId, body } });
+      assert.deepEqual(response.body, result);
+      assert.equal(response.status, status);
+      assert.equal(calls.at(-1).options.headers["x-penecho-connection"], connectionId);
+      assert.equal(calls.at(-1).options.headers.cookie, "session=secret");
+      assert.equal(calls.at(-1).options.headers.origin, "http://127.0.0.1:3888");
+      assert.doesNotMatch(calls.at(-1).options.headers.accept, /ndjson/);
+      assert.deepEqual(JSON.parse(calls.at(-1).options.body), body);
+      status = 409;
+    }
+  }
+  assert.equal(calls.length, 4);
+  const settings = { PENECHO_SETTINGS_SCOPE:"search", DEEPSEEK_SEARCH_PROVIDER:"tavily" };
+  await execute({ operation:"canvas.http", request:{ method:"POST", path:"/api/settings", body:settings } });
+  assert.deepEqual(JSON.parse(calls.at(-1).options.body), settings);
 });

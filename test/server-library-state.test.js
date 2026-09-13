@@ -48,11 +48,13 @@ test("successful empty Server read clears an earlier connection notice", async (
   assert.equal(context.serverSnapshotUnavailableKey, "");
   assert.equal(rendered.at(-1), "empty");
 });
-test("connection notice rendering contains localized text and no retry control", () => {
-  const list = {replaceChildren(...items) { this.children = items; }};
+test("connection notice renders one localized message and a working retry control", async () => {
+  const list = {querySelector:()=>null, replaceChildren(...items) { this.children = items; }};
+  let retries = 0;
   const context = {
     state:{snapshotLocation:"server"}, serverSnapshotUnavailableKey:"serverHistoryDeviceOffline",
-    document:{querySelector:() => list, createElement:tag => ({tag,setAttribute(){}})},
+    document:{querySelector:() => list, createElement:tag => ({tag,setAttribute(){},append(...nodes){this.children=nodes;}})},
+    renderServerProjectUi(){}, updateHistoryLibrarySummary(){}, peButton(){}, snapshotListInProgress:false, refreshSnapshots:async()=>{retries++;},
     cancelHistoryListRender(){}, releaseHistoryPreviewUrls(){}, updateHistorySelectionUi(){}, window:{},
     t:key => key, snapshotLocationLabel:value => value,
   };
@@ -61,13 +63,18 @@ test("connection notice rendering contains localized text and no retry control",
   context.renderSnapshotListError();
   assert.equal(list.children.length, 1);
   assert.equal(list.children[0].tag, "div");
-  assert.equal(list.children[0].textContent, "serverHistoryDeviceOffline");
+  const [title, detail, retry] = list.children[0].children[0].children;
+  assert.equal(detail.textContent, "serverHistoryDeviceOffline");
+  assert.equal(title.textContent, "snapshotLibraryUnavailable");
+  retry.onclick();
+  assert.equal(retries, 1);
+  assert.equal(retry.disabled, true);
 });
 test("list rerender preserves the connection notice while the refresh is settling", () => {
   let shown = "";
   const context = {
     state:{snapshotLocation:"server"}, snapshotItems:[], snapshotItemsLocation:null,
-    snapshotListInProgress:true, serverSnapshotUnavailableKey:"serverHistoryDeviceOffline",
+    snapshotListInProgress:true, snapshotListFailedLocation:null, serverSnapshotUnavailableKey:"serverHistoryDeviceOffline",
     document:{querySelector:selector => selector === "#historyPanel" ? {classList:{contains:() => true}} : {}},
     snapshotItemsForCurrentView:() => [], historySearchQuery:() => "", historySortItems:items => items,
     cancelHistoryListRender(){}, renderServerProjectUi(){}, updateHistoryLibrarySummary(){},
@@ -77,4 +84,15 @@ test("list rerender preserves the connection notice while the refresh is settlin
   vm.runInContext(extract("renderSnapshotList"), context);
   context.renderSnapshotList();
   assert.equal(shown, "offline");
+});
+
+test("gateway failure replaces the old location with one error and hides loading", async () => {
+  const {context,rendered,activity} = harness("gateway_error", "cloud");
+  context.renderSnapshotListError=(location,retained)=>rendered.push({location,retained});
+  await assert.rejects(context.refreshSnapshots(), /gateway_error/);
+  assert.deepEqual(rendered.at(-1), {location:"server",retained:false});
+  assert.equal(context.snapshotItems.length,0);
+  assert.equal(context.snapshotListInProgress,false);
+  assert.equal(activity.at(-1),"hidden");
+  assert.equal(activity.filter(x=>x==="loading").length,1);
 });

@@ -191,3 +191,82 @@ test("Pen mode keeps toolbar records limited to widgets", () => {
   }
   assert.equal(state.handToolbarTargets.size, 1);
 });
+
+test("Hand text activation opens the existing editor instead of an outline-only toolbar", () => {
+  const item = { id:"text-box-1" }, calls = [];
+  const show = vm.runInNewContext(`(${extractFunction(canvasRuntimeSource, 'showHandObjectToolbar')})`, {
+    editTextBox:object => { calls.push(object); return true; },
+  });
+  assert.equal(show('text-box', item), true);
+  assert.deepEqual(calls, [item]);
+});
+
+test("text editing accepts Hand and Select and preserves the originating tool", () => {
+  for (const mode of ['hand', 'select', 'pen']) {
+    const item = {id:'text-box-1',x:10,y:20,maxWidth:200,h:60,fontSize:20,image:{}}, editor = {}, calls = [];
+    const state = {mode,textBoxes:[item],textEditors:new Map(),scale:1};
+    const edit = vm.runInNewContext(`(${extractFunction(canvasRuntimeSource, 'editTextBox')})`, {
+      state,TEXT_EDITOR_MIN_WIDTH:170,TEXT_EDITOR_MIN_HEIGHT:96,
+      clearHandToolbarTarget(){},bringTextBoxToFront(){},
+      createTextEditor:(_point, options) => { calls.push(options); return editor; },
+      textEditorContentMetrics:() => ({}),textImageContentInset:() => ({}),
+      textEditorOriginFromTextBox:() => ({x:10,y:20}),positionTextEditors(){},setStatusKey(){},render(){},
+    });
+    assert.equal(edit(item), mode !== 'pen');
+    if (mode !== 'pen') assert.equal(calls[0].returnMode, mode);
+    else assert.equal(calls.length,0);
+  }
+});
+
+test("text rendering is isolated from ink and releases its backing store when empty", () => {
+  const draws = [], context = new Proxy({}, {get:(_target,key) => (...args) => { if(key === 'drawImage') draws.push(args[0]); }});
+  const inkTile = {id:'ink'}, text = {id:'text'}, state = {panX:0,panY:0,scale:1,textBoxes:[text]}, layer = {};
+  const render = vm.runInNewContext(`(${extractFunction(canvasRuntimeSource,'renderTextContentLayer')})`, {
+    state,textContentLayer:layer,devicePixelRatio:1,SIZE:32768,TILE:256,
+    canvasViewportMetrics:() => ({width:800,height:600}),textContentCtx:context,
+    forTiles:(_x,_y,_w,_h,draw) => draw(inkTile,0,0),drawSharpOverlays(){},
+    drawTextBoxesToContext:ctx => ctx.drawImage(text,20,30),
+  });
+  render();
+  assert.deepEqual(draws,[text]);
+  assert.equal(layer.width,800);
+  state.textBoxes = [];
+  render();
+  assert.equal(layer.width,1);
+  assert.equal(layer.height,1);
+  assert.deepEqual(inkTile,{id:'ink'});
+});
+
+test("text blur commits changed drafts without consuming the next Canvas action", async () => {
+  const calls=[], classes=new Set(['active']);
+  const editor={id:1,sourceTextBoxId:'text-1',textarea:{value:'changed'},element:{classList:{add:(...names)=>names.forEach(n=>classes.add(n)),remove:(...names)=>names.forEach(n=>classes.delete(n))}}};
+  const unselect=vm.runInNewContext(`(async ${extractFunction(canvasRuntimeSource,'unselectTextEditor')})`,{
+    state:{textBoxes:[{id:'text-1',text:'original'}]},
+    confirmTextEditor:async(item,options)=>calls.push([item,options.focusLoss]),
+  });
+  await unselect(editor);
+  assert.deepEqual(calls,[[editor,true]]);
+  assert.equal(classes.has('active'),false);
+  assert.equal(classes.has('unselecting'),true);
+  await unselect(editor);
+  assert.equal(calls.length,1);
+});
+
+test("unchanged selected text loses selection without creating another history entry", async () => {
+  const calls=[], editor={id:1,sourceTextBoxId:'text-1',textarea:{value:'same'}};
+  const state={textBoxes:[{id:'text-1',text:'same'}],selectedTextBoxId:'text-1'};
+  const unselect=vm.runInNewContext(`(async ${extractFunction(canvasRuntimeSource,'unselectTextEditor')})`,{
+    state,removeTextEditor:e=>calls.push(e),requestRender:()=>calls.push('render'),
+  });
+  await unselect(editor);
+  assert.equal(state.selectedTextBoxId,null);
+  assert.deepEqual(calls,[editor,'render']);
+});
+
+test("focus within text controls or their help dialog keeps the editor selected", () => {
+  const input={},button={},help={closest:selector=>selector==='#textHelpDialog'},outside={};
+  const editor={element:{contains:target=>target===input||target===button}};
+  const owns=vm.runInNewContext(`(${extractFunction(canvasRuntimeSource,'textEditorOwnsFocusTarget')})`,{textHelpInvoker:button});
+  for(const target of [input,button,help]) assert.equal(owns(editor,target),true);
+  assert.equal(owns(editor,outside),false);
+});

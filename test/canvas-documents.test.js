@@ -85,7 +85,7 @@ function harness(options = {}) {
     authenticatedApiHeaders: () => ({}),
     readSnapshot: async (location, id) => options.saved?.get(`${location}:${id}`) || null,
     widgetRecord: value => ({ ...value }), widgetUsesHtmlCopySource: () => false,
-    renderedTextBoxRecord: async value => ({ id: value.id || `text-box-${state.nextTextBoxId++}`, text: value.text, x: value.x || 0, y: value.y || 0, w: value.w || value.maxWidth || 240, h: value.h || 48 }),
+    renderedTextBoxRecord: async value => ({ id: value.id || `text-box-${state.nextTextBoxId++}`, text: value.text, fontSize:value.fontSize, maxWidth:value.maxWidth, x: value.x || 0, y: value.y || 0, w: value.w || value.maxWidth || 240, h: value.h || 48 }),
     canvasAgentHash: async value => crypto.createHash("sha256").update(String(value)).digest("hex"),
     canvasAgentAssertToolExecution: () => {}, canvasAgentMutationIdle: () => {},
     canvasAgentObject: id => {
@@ -133,6 +133,8 @@ function harness(options = {}) {
   const scripts = ["document-identity.js", "mcp-runtime.js", "canvas-documents.js"]
     .map(file => fs.readFileSync(path.join(ROOT, "src/client/app", file), "utf8")).join("\n");
   vm.runInContext(`${clientFunction("core.js", "canvasClientId")}\n${["resetCanvasDefaultMode","snapshotCanvasObjectExtensions","restoreSnapshotCanvasObjectOrder","currentCanvasDisplayName","currentCanvasNeedsAgentName","applyCurrentCanvasGeneratedName"].map(name=>clientFunction("persistence.js",name)).join("\n")}\n${scripts}\nglobalThis.api={canvasDocumentIdentity,canvasDocuments,canvasDocumentsReady,canvasDocumentsCurrent,canvasDocumentsExternal,canvasDocumentsRecord,canvasDocumentsSaveMetadata,canvasDocumentsDidSave,canvasDocumentsExecute,canvasAgentDocumentOperation,canvasDocumentsQueueMessage,canvasDocumentsClose,mcpRuntime};`, context);
+  const primitiveSource=fs.readFileSync(path.join(ROOT,"src/client/app/mcp-primitives.js"),"utf8");
+  vm.runInContext(primitiveSource.slice(0,primitiveSource.indexOf("  function mcpPrimitiveLayout")),context);
   context.api.canvasDocuments.db = memoryDb(records, control);
   return { ...context.api, context, control, records, state, listeners };
 }
@@ -844,8 +846,8 @@ test("internal and external Agents use the same current-document source and pres
     assert.equal(h.state.widgets.length,1);
   }
   assert.deepEqual(internal.state.widgets.map(w=>[w.w,w.h,w.html]),external.state.widgets.map(w=>[w.w,w.h,w.html]));
-  assert.deepEqual(internal.state.widgets.map(w=>[w.x,w.y]),[[96,96]],"internal Agent uses the viewport free-space placement helper");
-  assert.deepEqual(external.state.widgets.map(w=>[w.x,w.y]),[[1000,1000]],"external MCP starts at the inset");
+  assert.deepEqual(internal.state.widgets.map(w=>[w.x,w.y]),[[0,0]],"internal Agent shares viewport-origin placement");
+  assert.deepEqual(external.state.widgets.map(w=>[w.x,w.y]),[[0,0]],"external MCP shares viewport-origin placement");
   assert.equal(internal.canvasDocuments.activeId,firstCanvas);
   assert.equal(internal.canvasDocuments.records.size,1,"binding internal Agent must not create a document");
   assert.equal(internal.canvasDocumentsExternal(),false,"binding internal Agent must not opt into an external processor");
@@ -911,6 +913,7 @@ test("internal conversations do not consume external binding slots and retain bo
 
 test("the real document executor places Widgets beside and below an anchor, and explicit moves preserve content", async () => {
   const h=harness();
+  h.context.mcpReadingWorldRect=()=>({x:1000,y:1000,w:1400,h:900});
   await h.canvasDocumentsReady();
   await h.canvasDocumentsExecute("mcp_start_session",{sessionId:"placement-session",sessionKey:"placement-key",client:"Codex",target:"current",title:"Placement"},{});
   const present=(artifactId,html,presentation,width,height)=>h.canvasDocumentsExecute("mcp_present_widget",{
@@ -1102,7 +1105,7 @@ test("MCP automatic text uses the active viewport and queues reveal; explicit an
   h.mcpRuntime.sessions.set(session.sessionId,session);
   const queued=[];
   h.context.mcpQueueView=(owner,record)=>queued.push({sessionId:owner.sessionId,id:record.id});
-  h.context.canvasAgentPlacementBox=(w,h)=>({x:8200,y:6400,w,h,crowded:false});
+  h.context.canvasAgentFramePlan=()=>({stage:{x:0,y:0,w:1200,h:800}});h.state.scale=1;h.state.panX=24-8200;h.state.panY=48-6400;
   const result=await h.context.canvasDocumentsEdit(doc,{action:"create_text",sessionId:session.sessionId,text:"Visible text"},{});
   assert.equal(h.state.textBoxes[0].x,8200);
   assert.equal(h.state.textBoxes[0].y,6400);
@@ -1119,7 +1122,7 @@ test("MCP automatic text uses the active viewport and queues reveal; explicit an
 
 function imageAssetHarness() {
   const h=harness();
-  Object.assign(h.context,{n:(v,min=0,max=32768)=>typeof v==="number"&&Number.isFinite(v)&&v>=min&&v<=max,MAX_IMAGE_SOURCE_BYTES:32000000,MAX_IMAGE_DIMENSION:16000,MAX_IMAGE_PIXELS:64000000,
+  Object.assign(h.context,{n:(v,min=0,max=32768)=>typeof v==="number"&&Number.isFinite(v)&&v>=min&&v<=max,MAX_IMAGE_SOURCE_BYTES:32000000,MAX_IMAGE_DIMENSION:2048,MAX_IMAGE_PIXELS:16*1024*1024,
     dataUrlBlob:source=>{const [prefix,bytes]=source.split(',');return new Blob([Buffer.from(bytes,'base64')],{type:prefix.slice(5).split(';')[0]});},
     canvasAgentReadDataUrl:async blob=>`data:${blob.type};base64,${Buffer.from(await blob.arrayBuffer()).toString('base64')}`,
     createImageBitmap:async blob=>({width:120,height:60,close(){}}),
@@ -1155,7 +1158,7 @@ for (const cryptoMode of ['native','missing-subtle','missing-crypto','rejected-d
 test('image placement uses attachment bytes, auto-layout or explicit position and rejects missing sources before mutation',async()=>{
   const h=imageAssetHarness();await h.canvasDocumentsReady();const doc=h.canvasDocumentsCurrent();
   const asset=await h.context.canvasDocumentsUploadImage(doc,{name:'sample.png',source:assetTestImage},{});
-  h.context.canvasAgentPlacementBox=(w,h)=>({x:8200,y:6400,w,h,crowded:false});
+  h.context.canvasAgentFramePlan=()=>({stage:{x:0,y:0,w:1200,h:800}});h.state.scale=1;h.state.panX=24-8200;h.state.panY=48-6400;
   const placed=await h.context.canvasDocumentsPlaceImage(doc,{source:asset.source,width:240},{});
   assert.equal(h.state.images[0].id,placed.objectId);assert.equal(h.state.images[0].x,8200);assert.equal(h.state.images[0].h,120);
   await h.context.canvasDocumentsPlaceImage(doc,{source:asset.source,height:80,region:{x:400,y:500,w:1,h:1}},{});
@@ -1260,6 +1263,50 @@ test("routed source patch permits a selected Widget after user geometry edits bu
  await assert.rejects(h.canvasDocumentsExecute("mcp_patch_file",{...args,requestId:"stale-source"},{}),{code:"SOURCE_CONFLICT"});
 });
 
+test("background geometry patches preserve Widget content and image raster mapping at scale 2", async()=>{
+ const h=harness();await h.canvasDocumentsReady();
+ const opened=await createHidden(h,"geometry-mapping","Geometry mapping");
+ const sessionId="geometry-mapping-session";await startHidden(h,opened.documentId,sessionId);
+ const doc=h.canvasDocuments.records.get(opened.documentId);h.state.scale=2;
+ doc.stored.item.view={scale:2,panX:17,panY:29,readingStage:{x:0,y:0,w:1000,h:1600},region:{x:0,y:0,w:500,h:800}};
+ const widget={id:"geometry-widget",title:"Geometry Widget",widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",html:"<p>Widget</p>",x:100,y:100,w:240,h:110,contentW:480,contentH:220};
+ const image={id:"geometry-image",sourceName:"fixture",x:600,y:100,w:40,h:40,naturalW:80,naturalH:80};
+ doc.stored.item.widgets.push(widget);doc.stored.item.images.push(image);doc.spatial=null;
+ const patchGeometry=async(pathName,next,requestId)=>{
+  const read=await h.canvasDocumentsExecute("mcp_read_file",{sessionId,path:pathName},{});
+  return h.canvasDocumentsExecute("mcp_patch_file",{sessionId,path:pathName,expectedHash:read.contentHash,patch:patchText(pathName,read.content,JSON.stringify(next)),requestId},{});
+ };
+ const widgetPath="objects/geometry-widget/geometry.json",imagePath="objects/geometry-image/geometry.json";
+ const movedWidget=await patchGeometry(widgetPath,{x:1000,y:1200,w:240,h:110},"move-widget");
+ assert.equal(movedWidget.applied,true);assert.equal(movedWidget.objectId,widget.id);
+ assert.deepEqual([widget.x,widget.y,widget.w,widget.h],[1000,1200,240,110]);
+ assert.deepEqual([widget.w*2,widget.h*2,widget.contentW,widget.contentH],[480,220,480,220]);
+ const movedImage=await patchGeometry(imagePath,{x:1600,y:1400,w:40,h:40},"move-image");
+ assert.equal(movedImage.applied,true);assert.equal(movedImage.objectId,image.id);
+ assert.deepEqual([image.x,image.y,image.w,image.h],[1600,1400,40,40]);
+ assert.deepEqual([image.w*2,image.h*2,image.naturalW,image.naturalH],[80,80,80,80]);
+ await assert.rejects(patchGeometry(widgetPath,{x:1000,y:1200,w:149,h:110},"shrink-widget"),error=>error.code==="INVALID_GEOMETRY"&&/supported content minimum/.test(error.message));
+ assert.deepEqual([widget.x,widget.y,widget.w,widget.h,widget.contentW,widget.contentH],[1000,1200,240,110,480,220]);
+});
+
+test("background text content patches preserve the existing world to raster ratio", async()=>{
+ const h=harness();await h.canvasDocumentsReady();
+ const opened=await createHidden(h,"text-ratio","Text ratio");
+ const sessionId="text-ratio-session";await startHidden(h,opened.documentId,sessionId);
+ const doc=h.canvasDocuments.records.get(opened.documentId);h.state.scale=2;
+ doc.stored.item.view={scale:2,panX:0,panY:0,readingStage:{x:0,y:0,w:1000,h:1600},region:{x:0,y:0,w:500,h:800}};
+ const text={id:"text-ratio-object",text:"before",x:100,y:200,w:240,h:48,fontSize:20,maxWidth:240};doc.stored.item.textBoxes.push(text);doc.spatial=null;
+ const rasterByText={before:{w:120,h:24},after:{w:180,h:36}};
+ h.context.renderedTextBoxRecord=async value=>{const raster=rasterByText[value.text];if(!raster)return null;return {id:value.id||"text-ratio-object",text:value.text,fontSize:value.fontSize,maxWidth:value.maxWidth,x:value.x||0,y:value.y||0,w:raster.w,h:raster.h};};
+ const pathName="objects/text-ratio-object/content.txt",read=await h.canvasDocumentsExecute("mcp_read_file",{sessionId,path:pathName},{});
+ const originalRaster=await h.context.renderedTextBoxRecord(text),originalRatio={w:text.w/originalRaster.w,h:text.h/originalRaster.h};
+ const result=await h.canvasDocumentsExecute("mcp_patch_file",{sessionId,path:pathName,expectedHash:read.contentHash,patch:patchText(pathName,read.content,"after"),requestId:"text-ratio-patch"},{});
+ assert.equal(result.applied,true);assert.equal(result.objectId,text.id);
+ const nextRaster=rasterByText.after;
+ assert.equal(text.text,"after");assert.deepEqual([text.x,text.y,text.w,text.h],[100,200,360,72]);
+ assert.equal(text.w/nextRaster.w,originalRatio.w);assert.equal(text.h/nextRaster.h,originalRatio.h);
+});
+
 
 test("background native labels store text foreground without changing the current Canvas",async()=>{
  const h=harness();
@@ -1277,4 +1324,60 @@ test("background native labels store text foreground without changing the curren
  doc.stored.item.bundleExtensions.penechoObjectOrder={version:1,frontKind:"image",placedKind:"image"};
  await h.canvasDocumentsExecute("mcp_draw",args,{});
  assert.equal(doc.stored.item.bundleExtensions.penechoObjectOrder.placedKind,"image");
+});
+
+test('MCP text and background native content retain screen dimensions and camera across zoom and reopen',async()=>{
+ for(const zoom of [.1,.5,1,2]){
+  const h=harness();await h.canvasDocumentsReady();
+  Object.assign(h.state,{scale:zoom,panX:-1000*zoom,panY:-1000*zoom});
+  h.context.canvasAgentFramePlan=()=>({stage:{x:0,y:0,w:1000,h:900}});
+  const visible=h.canvasDocumentsCurrent(),before=[h.state.scale,h.state.panX,h.state.panY];
+  const text=await h.context.canvasDocumentsEdit(visible,{action:'create_text',text:'当前缩放保持清晰'},{});
+  const record=h.state.textBoxes.find(t=>t.id===text.objectId);
+  assert.equal(record.w*zoom,400);assert.equal(record.h*zoom,48);
+  assert.equal((record.x*zoom)+h.state.panX,24);assert.equal((record.y*zoom)+h.state.panY,48);
+  const hidden=await createHidden(h,`viewport-native-${zoom}`,'Background native');
+  await startHidden(h,hidden.documentId,`native-${zoom}`,`native-key-${zoom}`);
+  const primitiveSource=fs.readFileSync(path.join(ROOT,'src/client/app/mcp-primitives.js'),'utf8');
+  vm.runInContext(primitiveSource,h.context);
+  h.context.mcpPrimitiveRaster=item=>({width:item.box.w,height:item.box.h});
+  h.context.canvasBlob=async()=>new Blob(['test-raster']);h.context.decodeStoredImage=async item=>({...item,image:{width:item.naturalW,height:item.naturalH}});
+  const args={sessionId:`native-${zoom}`,artifactId:'native',title:'原生图文',items:[{id:'box',type:'rect',width:300,height:100},{id:'label',type:'text',text:'原生中文标签',width:260}]};
+  const made=await h.canvasDocumentsExecute('mcp_draw',args,{}),doc=h.canvasDocuments.records.get(hidden.documentId);
+  const artifact=h.mcpRuntime.sessions.get(`native-${zoom}`).artifacts.get('native');
+  assert.equal(artifact.worldPerPixel,2);
+  assert.equal(doc.stored.item.images[0].w*0.5,300);
+  assert.equal(doc.stored.item.textBoxes[0].fontSize,20);
+  assert.deepEqual([h.state.scale,h.state.panX,h.state.panY],before,'background preparation does not change the active camera');
+  const textFrame=JSON.parse(JSON.stringify(doc.stored.item.textBoxes[0]));
+  await h.context.canvasDocumentsShow(hidden.documentId);
+  assert.deepEqual([h.state.scale,h.state.panX,h.state.panY],[0.5,-1000,-1000],'new MCP Canvas opens at 50% with world origin (2000, 2000)');
+  assert.equal(h.state.textBoxes[0].w,textFrame.w);assert.equal(h.state.textBoxes[0].h,textFrame.h);
+  const persisted=h.context.canvasDocumentIdentity.normalizeWorkspace(h.context.canvasDocumentsWorkspaceData(doc),h.context.canvasDocumentsMetadata(doc));
+  assert.equal(persisted.sessions[0].artifacts[0][1].worldPerPixel,2);
+ }
+});
+
+test('raw image upload targets the current document without a conversation and preserves legacy uploads',async()=>{
+  const h=imageAssetHarness();await h.canvasDocumentsReady();const doc=h.canvasDocumentsCurrent();
+  const args={documentId:doc.id,requestId:'raw-1',name:'sample.png',originalName:'sample.tiff',inputSha256:'a'.repeat(64),source:assetTestImage};
+  const first=await h.canvasDocumentsExecute('mcp_upload_image_to_document',args,{}),revision=h.state.userRevision;
+  assert.equal(first.documentId,doc.id);assert.match(first.source,/^penecho-asset:/);assert.equal(h.mcpRuntime.sessions.size,0);
+  assert.equal((await h.canvasDocumentsExecute('mcp_upload_image_to_document',args,{})).source,first.source);
+  assert.equal(h.state.userRevision,revision);
+  await assert.rejects(h.canvasDocumentsExecute('mcp_upload_image_to_document',{...args,inputSha256:'b'.repeat(64)},{}),/different content/);
+  const hidden=await createHidden(h,'raw-hidden','Hidden');
+  await assert.rejects(h.canvasDocumentsExecute('mcp_upload_image_to_document',{...args,documentId:hidden.documentId},{}),/open and current/);
+  await assert.rejects(h.canvasDocumentsExecute('mcp_upload_image_to_document',{...args,documentId:'missing'},{}),/open and current/);
+  const legacy=await h.context.canvasDocumentsUploadImage(doc,{name:'legacy.png',source:assetTestImage},{});
+  assert.equal(legacy.source,first.source);
+  assert.equal(JSON.parse(h.context.canvasDocumentsFile(doc,'assets/index.json')).images[0].source,first.source);
+});
+
+test('raw upload refuses an active-document switch during decoding before saving bytes',async()=>{
+  const h=imageAssetHarness();await h.canvasDocumentsReady();const doc=h.canvasDocumentsCurrent();
+  const hidden=await createHidden(h,'raw-switch','Other');let closed=0;
+  h.context.createImageBitmap=async()=>{h.canvasDocuments.activeId=hidden.documentId;return {width:120,height:60,close(){closed++;}};};
+  await assert.rejects(h.canvasDocumentsExecute('mcp_upload_image_to_document',{documentId:doc.id,requestId:'raw-switch',name:'a.png',originalName:'a.png',inputSha256:'a'.repeat(64),source:assetTestImage},{}),/no longer/);
+  assert.equal(closed,1);assert.equal(doc.receipts.size,0);assert.equal(h.state.currentSnapshotPreservedAssets?.length||0,0);
 });

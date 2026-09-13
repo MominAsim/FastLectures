@@ -34,7 +34,7 @@ function harness({documents=[],dirty=false}={}){
     canvasHasUnsavedChanges:()=>context.dirty,
     currentCanvasDisplayName:()=>"Unsaved Canvas",
     setNewCanvasDialogBusy:value=>calls.push(["busy",value]),updateNewCanvasDialog:()=>calls.push("dialog-update"),
-    t:key=>key,canvasDocumentsReport:error=>reports.push(error),canvasAgentFrameRegion:(region,padding)=>calls.push(["frame",region,padding]),mcpRenderCanvasStatus:()=>{},
+    t:key=>key,canvasDocumentsReport:error=>reports.push(error),canvasAgentFrameRegion:(region,padding)=>calls.push(["frame",region,padding]),mcpRevealRegion:(region,...options)=>calls.push(["reveal",region,...options]),mcpRenderCanvasStatus:()=>{},
     clearTimeout,performance,queueMicrotask,
   });
   context.dirty=dirty;
@@ -173,29 +173,29 @@ test("Follow latest keeps the newest update, waits for real idle state, and swit
   const closing=harness({documents:[mcpDoc("active"),mcpDoc("latest")]});closing.setFollowLatest(true);closing.noteStudioMcpContentUpdate("latest");closing.setCloseQueue(["closing"]);await closing.flushStudioMcpFollowLatest();assert.equal(closing.calls.length,0);assert.equal(closing.mcpState().pending,"latest");closing.setCloseQueue(null);await closing.flushStudioMcpFollowLatest();assert.deepEqual(closing.calls.filter(call=>Array.isArray(call)&&call[0]==="show"),[["show","latest"]]);
 });
 
-test("Follow latest frames the newest region on the active canvas and after switching",async()=>{
+test("Follow latest reveals the newest region on the active canvas and after switching",async()=>{
   const sameRegion=mcpRegion(10,20,30,40),same=harness({documents:[mcpDoc("active")]});
   same.noteStudioMcpContentUpdate("active",sameRegion);same.setFollowLatest(true);await same.flushStudioMcpFollowLatest();
-  assert.deepEqual(same.calls,[["frame",sameRegion,96]]);assert.equal(same.mcpState().pending,null);assert.deepEqual(same.mcpState().pendingRegion,null);
+  assert.deepEqual(same.calls,[["reveal",sameRegion]]);assert.equal(same.mcpState().pending,null);assert.deepEqual(same.mcpState().pendingRegion,null);
 
   const crossRegion=mcpRegion(100,120,300,240),cross=harness({documents:[mcpDoc("active"),mcpDoc("latest")]});
   cross.noteStudioMcpContentUpdate("latest",crossRegion);cross.setFollowLatest(true);await cross.flushStudioMcpFollowLatest();
-  assert.deepEqual(cross.calls,[["show","latest"],["frame",crossRegion,96]]);assert.equal(cross.canvasDocuments.activeId,"latest");assert.equal(cross.mcpState().pending,null);
+  assert.deepEqual(cross.calls,[["show","latest"],["reveal",crossRegion]]);assert.equal(cross.canvasDocuments.activeId,"latest");assert.equal(cross.mcpState().pending,null);
 });
 
-test("Follow latest clears automatic framing only for the followed document",async()=>{
+test("Follow latest clears automatic reveals only for the followed document",async()=>{
   const region=mcpRegion(40,50,160,120),h=harness({documents:[mcpDoc("active"),mcpDoc("hidden")]});
   h.mcpRuntime.sessions.set("active-session",{documentId:"active"});h.mcpRuntime.sessions.set("hidden-session",{documentId:"hidden"});
   h.mcpRuntime.pendingView.set("active-session",new Set(["active-object"]));h.mcpRuntime.pendingView.set("hidden-session",new Set(["hidden-object"]));
   h.noteStudioMcpContentUpdate("active",region);h.setFollowLatest(true);await h.flushStudioMcpFollowLatest();
-  assert.deepEqual(h.calls,[["frame",region,96]]);assert.equal(h.mcpRuntime.pendingView.has("active-session"),false);assert.deepEqual([...h.mcpRuntime.pendingView.get("hidden-session")],["hidden-object"]);assert.equal(h.mcpState().pending,null);
+  assert.deepEqual(h.calls,[["reveal",region]]);assert.equal(h.mcpRuntime.pendingView.has("active-session"),false);assert.deepEqual([...h.mcpRuntime.pendingView.get("hidden-session")],["hidden-object"]);assert.equal(h.mcpState().pending,null);
 });
 
 test("Follow latest coalesces the newest region while blocked and does not move after follow is turned off",async()=>{
   const firstRegion=mcpRegion(1,2,30,40),latestRegion=mcpRegion(11,12,130,140),h=harness({documents:[mcpDoc("active")]});
   h.noteStudioMcpContentUpdate("active",firstRegion);h.setFollowLatest(true);h.mcpRuntime.queued=1;h.noteStudioMcpContentUpdate("active",latestRegion);await h.flushStudioMcpFollowLatest();
   assert.equal(h.calls.length,0);assert.equal(h.mcpState().pending,"active");assert.deepEqual(h.mcpState().pendingRegion,latestRegion);
-  h.mcpRuntime.queued=0;await h.flushStudioMcpFollowLatest();assert.deepEqual(h.calls,[["frame",latestRegion,96]]);
+  h.mcpRuntime.queued=0;await h.flushStudioMcpFollowLatest();assert.deepEqual(h.calls,[["reveal",latestRegion]]);
 
   const offRegion=mcpRegion(20,30,40,50),off=harness({documents:[mcpDoc("active")]});
   off.noteStudioMcpContentUpdate("active",offRegion);off.setFollowLatest(true);off.setFollowLatest(false);await off.flushStudioMcpFollowLatest();
@@ -209,12 +209,12 @@ test("Follow latest retains a pending region when navigation locks after show",a
   h.controls.showGate={id:"latest",promise:gate};h.controls.showAfter=()=>{h.state.navigationLocked=true};h.noteStudioMcpContentUpdate("latest",region);h.setFollowLatest(true);
   const first=h.flushStudioMcpFollowLatest();await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(h.calls,[["show","latest"]]);assert.equal(h.mcpState().following,true);
   release();await first;
-  assert.equal(h.mcpState().pending,"latest");assert.deepEqual(h.mcpState().pendingRegion,region);assert.equal(h.calls.some(call=>Array.isArray(call)&&call[0]==="frame"),false);
-  h.state.navigationLocked=false;await h.flushStudioMcpFollowLatest();assert.deepEqual(h.calls,[["show","latest"],["frame",region,96]]);assert.equal(h.mcpState().pending,null);
+  assert.equal(h.mcpState().pending,"latest");assert.deepEqual(h.mcpState().pendingRegion,region);assert.equal(h.calls.some(call=>Array.isArray(call)&&call[0]==="reveal"),false);
+  h.state.navigationLocked=false;await h.flushStudioMcpFollowLatest();assert.deepEqual(h.calls,[["show","latest"],["reveal",region]]);assert.equal(h.mcpState().pending,null);
 });
 
 test("Follow latest discards a failed target and follows the next update",async()=>{
-  const h=harness({documents:[mcpDoc("active"),mcpDoc("latest")]});h.controls.showError=()=>Object.assign(Error("load failed"),{code:"LOAD_FAILED"});h.setFollowLatest(true);h.noteStudioMcpContentUpdate("latest");await h.flushStudioMcpFollowLatest();assert.equal(h.calls.filter(call=>Array.isArray(call)&&call[0]==="show").length,1);assert.equal(h.mcpState().follow,true);assert.equal(h.mcpState().pending,null);assert.equal(h.reports.length,1);await h.flushStudioMcpFollowLatest();assert.equal(h.calls.filter(call=>Array.isArray(call)&&call[0]==="show").length,1,"failed follow must not retry itself");h.controls.showError=null;h.noteStudioMcpContentUpdate("latest",mcpRegion(1,2,30,40));await h.flushStudioMcpFollowLatest();assert.equal(h.canvasDocuments.activeId,"latest");assert.equal(h.calls.filter(call=>call[0]==="frame").length,1);
+  const h=harness({documents:[mcpDoc("active"),mcpDoc("latest")]});h.controls.showError=()=>Object.assign(Error("load failed"),{code:"LOAD_FAILED"});h.setFollowLatest(true);h.noteStudioMcpContentUpdate("latest");await h.flushStudioMcpFollowLatest();assert.equal(h.calls.filter(call=>Array.isArray(call)&&call[0]==="show").length,1);assert.equal(h.mcpState().follow,true);assert.equal(h.mcpState().pending,null);assert.equal(h.reports.length,1);await h.flushStudioMcpFollowLatest();assert.equal(h.calls.filter(call=>Array.isArray(call)&&call[0]==="show").length,1,"failed follow must not retry itself");h.controls.showError=null;const nextRegion=mcpRegion(1,2,30,40);h.noteStudioMcpContentUpdate("latest",nextRegion);await h.flushStudioMcpFollowLatest();assert.equal(h.canvasDocuments.activeId,"latest");assert.deepEqual(h.calls.filter(call=>call[0]==="reveal"),[["reveal",nextRegion]]);
 });
 
 test("Follow latest preserves a newer target after an in-flight show without looping on the same target",async()=>{
@@ -230,7 +230,7 @@ test("Follow latest preserves a newer target after an in-flight show without loo
   const same=harness({documents:[mcpDoc("active"),mcpDoc("same")]});same.controls.showGate={id:"same",promise:sameGate};same.setFollowLatest(true);same.noteStudioMcpContentUpdate("same");const sameFirst=same.flushStudioMcpFollowLatest();await new Promise(resolve=>setImmediate(resolve));same.noteStudioMcpContentUpdate("same");releaseSame();await sameFirst;await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(same.calls.filter(call=>Array.isArray(call)&&call[0]==="show"),[["show","same"]]);assert.equal(same.mcpState().pending,null);assert.equal(same.mcpState().following,false);
 });
 
-test("Follow latest frames a newer same-document region that arrives during an in-flight show",async()=>{
+test("Follow latest reveals a newer same-document region that arrives during an in-flight show",async()=>{
   let release;
   const gate=new Promise(resolve=>{release=resolve;});
   const oldRegion=mcpRegion(1,2,30,40),newRegion=mcpRegion(101,102,130,140),h=harness({documents:[mcpDoc("active"),mcpDoc("latest")]});
@@ -238,7 +238,7 @@ test("Follow latest frames a newer same-document region that arrives during an i
   const first=h.flushStudioMcpFollowLatest();await new Promise(resolve=>setImmediate(resolve));
   assert.deepEqual(h.calls,[["show","latest"]]);assert.equal(h.mcpState().following,true);
   h.noteStudioMcpContentUpdate("latest",newRegion);assert.deepEqual(h.mcpState().pendingRegion,newRegion);release();await first;
-  assert.deepEqual(h.calls,[["show","latest"],["frame",newRegion,96]]);assert.equal(h.mcpState().pending,null);assert.equal(h.mcpState().following,false);
+  assert.deepEqual(h.calls,[["show","latest"],["reveal",newRegion]]);assert.equal(h.mcpState().pending,null);assert.equal(h.mcpState().following,false);
 });
 
 test("MCP completion hook only marks content producing tools and excludes reads/progress/inspect",()=>{
@@ -364,6 +364,6 @@ test("A failed in-flight follow preserves a newer target including another updat
     const newest=mcpRegion(10,20,30,40);h.noteStudioMcpContentUpdate(target,newest);h.controls.showGate=null;
     reject(Object.assign(Error("load failed"),{code:"LOAD_FAILED"}));await first;await new Promise(resolve=>setImmediate(resolve));
     assert.equal(h.mcpState().follow,true);assert.equal(h.reports.length,1);assert.equal(h.canvasDocuments.activeId,target);
-    assert.deepEqual(h.calls.filter(call=>call[0]==="frame"),[["frame",newest,96]]);assert.equal(h.mcpState().pending,null);
+    assert.deepEqual(h.calls.filter(call=>call[0]==="reveal"),[["reveal",newest]]);assert.equal(h.mcpState().pending,null);
   }
 });

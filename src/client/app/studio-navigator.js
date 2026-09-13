@@ -861,7 +861,7 @@
         if(!studioMcpFollowLatest||studioMcpPendingDocumentId!==id||canvasDocuments.activeId!==id||mcpRuntime.queued||mcpViewBlockedBy()||document.querySelector("dialog[open]")||document.activeElement?.matches?.("input,textarea,select,[contenteditable='true']"))return;
         const region=studioMcpPendingRegion;
         if(region) {
-          canvasAgentFrameRegion(region,96);
+          mcpRevealRegion(region);
           // This explicit follow supersedes older automatic reveals on this Canvas.
           for(const [sessionId] of mcpRuntime.pendingView||[])if(mcpRuntime.sessions.get(sessionId)?.documentId===id)mcpRuntime.pendingView.delete(sessionId);
           if(!mcpRuntime.pendingView?.size){clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;mcpRuntime.layoutSince=0;}

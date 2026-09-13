@@ -40,17 +40,21 @@
     return {blob,image,naturalW:image.width,naturalH:image.height};
   }
   async function canvasDocumentsUploadImage(doc,args,execution) {
+    const assertUploadTarget=()=>{if(args.requireActiveDocument&&(!canvasDocumentsIsActive(doc)||canvasDocuments.switching||snapshotLoadInProgress))throw canvasDocumentsError("CANVAS_NOT_VISIBLE","The target Canvas is no longer the current open document. Reopen it and retry the same upload.");};
+    assertUploadTarget();
     if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
     const decoded=await canvasImageSource(doc,args.source);
     try {
       const id=await canvasDocumentIdentity.sha256Hex(await decoded.blob.arrayBuffer());
       canvasAgentAssertToolExecution(execution);
+      assertUploadTarget();
       const assets=canvasImageAssets(doc),existing=assets.find(a=>a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE&&a.metadata.resourceId===id);
       if(existing)return {...canvasImageAssetMetadata(existing),revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision};
       const data=await canvasAgentReadDataUrl(decoded.blob),entries=assets.filter(a=>a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE);
       canvasAgentAssertToolExecution(execution);
       if(data.length>800000||entries.length>=CANVAS_IMAGE_ASSET_LIMIT||entries.reduce((sum,a)=>sum+(a.dataBase64?.length||0),0)+data.length>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("ASSET_LIMIT","This Canvas has reached its image attachment limit.");
       const asset={kind:"resource",contentType:decoded.blob.type,dataBase64:data.slice(data.indexOf(",")+1),metadata:{resourceType:CANVAS_IMAGE_ASSET_TYPE,resourceId:id,name:String(args.name||"image").slice(0,255),bytes:decoded.blob.size,width:decoded.naturalW,height:decoded.naturalH}};
+      assertUploadTarget();
       if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
       // Immutable attachments remain available to objects restored by Undo.
       if(canvasDocumentsIsActive(doc))state.currentSnapshotPreservedAssets=[...assets,asset];else doc.stored.item.preservedAssets=[...assets,asset];
@@ -65,8 +69,8 @@
     try {
       canvasAgentAssertToolExecution(execution);
       const ratio=decoded.naturalW/decoded.naturalH,defaultScale=Math.max(80/decoded.naturalW,80/decoded.naturalH,Math.min(1,800/Math.max(decoded.naturalW,decoded.naturalH))),
-        w=args.width??(args.height?args.height*ratio:decoded.naturalW*defaultScale),h=args.height??w/ratio;
-      if(![w,h].every(value=>Number.isFinite(value)&&value>=80&&value<=SIZE))throw canvasDocumentsError("INVALID_GEOMETRY","Both image dimensions must be at least 80 Canvas units and within the Canvas. Supply compatible width/height.");
+        sourceW=args.width??(args.height?args.height*ratio:decoded.naturalW*defaultScale),sourceH=args.height??sourceW/ratio,scale=args.region?1:mcpPresentationViewport(doc).scale,w=sourceW/scale,h=sourceH/scale;
+      if(![sourceW,sourceH].every(value=>Number.isFinite(value)&&value>=80)||![w,h].every(value=>Number.isFinite(value)&&value>0&&value<=SIZE))throw canvasDocumentsError("INVALID_GEOMETRY","Both image dimensions must be at least 80 Canvas units and within the Canvas. Supply compatible width/height.");
       const session=mcpRuntime.sessions.get(args.sessionId),placement=args.region||canvasDocumentsPlace(doc,w,h,session,null,true).placement,
         record=imageRecord({id:canvasDocumentsObjectId(doc,"image"),x:placement.x,y:placement.y,w,h,...decoded,sourceName:args.source.startsWith("data:")?"image":args.source});
       if(!record)throw canvasDocumentsError("INVALID_IMAGE","Image content or geometry was rejected.");
@@ -190,7 +194,7 @@
       projectId:state.currentSnapshotProjectId,currentRevisionId:state.currentSnapshotRevisionId,bundleExtensions:snapshotCanvasObjectExtensions(),manifestExtensions:snapshotExtensionObject(state.currentSnapshotManifestExtensions),preservedAssets:snapshotPreservedAssets(state.currentSnapshotPreservedAssets)};
   }
   function canvasDocumentsSavedView() {
-    const view=viewportRect();return {scale:state.scale,panX:state.panX,panY:state.panY,navigationLocked:state.navigationLocked,region:{x:view.x,y:view.y,w:view.w,h:view.h}};
+    const view=viewportRect();return {scale:state.scale,panX:state.panX,panY:state.panY,readingStage:mcpReadingScreenStage(),navigationLocked:state.navigationLocked,region:{x:view.x,y:view.y,w:view.w,h:view.h}};
   }
   async function canvasDocumentsPark() {
     const doc=canvasDocumentsCurrent();
@@ -252,7 +256,8 @@
     } finally {if(decoded?.size)releaseSnapshotTileCanvases(decoded);canvasDocuments.switching=false;canvasDocumentsRender();}
   }
   function canvasDocumentsApplyView(view) {
-    if(view?.region&&[view.region.x,view.region.y,view.region.w,view.region.h].every(Number.isFinite)&&view.region.w>0&&view.region.h>0)canvasAgentFrameRegion(view.region,0);
+    if(view&&[view.scale,view.panX,view.panY].every(Number.isFinite)&&view.scale>0){state.scale=Math.max(.03,Math.min(2,view.scale));state.panX=Number(view.panX)||0;state.panY=Number(view.panY)||0;updateCoordinates();}
+    else if(view?.region&&[view.region.x,view.region.y,view.region.w,view.region.h].every(Number.isFinite)&&view.region.w>0&&view.region.h>0)canvasAgentFrameRegion(view.region,0);
     else if(view){state.scale=Math.max(.03,Math.min(2,Number(view.scale)||1));state.panX=Number(view.panX)||0;state.panY=Number(view.panY)||0;updateCoordinates();}
     setCanvasNavigationLocked(view?.navigationLocked===true);
   }
@@ -350,16 +355,7 @@
     return result;
   }
   function canvasDocumentsPlace(doc,w,h,session=null,presentation=null,preferViewport=false) {
-    const active=canvasDocumentsIsActive(doc),view=active?viewportRect():doc.stored?.item?.view?.region,
-      stage=active?canvasAgentFramePlan({x:0,y:0,w,h},96).stage:null,
-      readingView=view?{...view,readableWidth:stage?.w?stage.w/.8:view.w*(doc.stored?.item?.view?.scale||1)/.8}:null;
-    // Keep the 1.2.0 Agent's viewport-first free-space placement for a new
-    // conversation; subsequent artifacts follow the shared semantic layout.
-    if(active&&(preferViewport||session?.internalAgent&&!session.artifacts.size)&&!presentation?.relativeTo&&typeof canvasAgentPlacementBox==="function"){
-      const slot=canvasAgentPlacementBox(w,h,{mode:"auto"});
-      if(!slot.crowded&&!canvasDocumentsCollisions(doc,{x:slot.x,y:slot.y,w,h}).length)
-        return {placement:{mode:"absolute",x:slot.x,y:slot.y},layout:{zone:{x:slot.x,y:slot.y,w,h},x:0,y:h+32,rowHeight:h}};
-    }
+    const readingView=mcpReadingWorldRect(doc);
     return mcpArrange(w,h,session,presentation,readingView,a=>{
       let bounds=null;for(const id of a.objectIds||[a.objectId]){const object=canvasDocumentsObject(doc,id);if(object)bounds=unionDirtyBounds(bounds,canvasDocumentsBounds(object));}return bounds;
     },box=>canvasDocumentsCollisions(doc,box));
@@ -372,7 +368,7 @@
   }
   function canvasDocumentsBeginEdit(doc) {
     if(canvasDocumentsIsActive(doc)){save();state.widgetHistoryBefore=serializedWidgets();state.imageHistoryBefore=imageHistoryState();state.textBoxHistoryBefore=textBoxHistoryState();}
-    else {const item=doc.stored.item;doc.pendingUndo={tiles:[],widgetsBefore:item.widgets.map(w=>({...w})),imagesBefore:item.images.map(i=>({...i})),textBoxesBefore:item.textBoxes.map(t=>({...t}))};}
+    else {const item=doc.stored.item;if(!item.view){const {stage,scale,panX,panY}=mcpPresentationViewport();item.view={scale,panX,panY,readingStage:stage};}doc.pendingUndo={tiles:[],widgetsBefore:item.widgets.map(w=>({...w})),imagesBefore:item.images.map(i=>({...i})),textBoxesBefore:item.textBoxes.map(t=>({...t}))};}
   }
   function canvasDocumentsCapacity(doc,kind,delta=1) {
     const limit=kind==="text"?50:100;
@@ -408,10 +404,9 @@
       let geometry;try{geometry=JSON.parse(args.content);}catch{throw canvasDocumentsError("INVALID_JSON","Geometry must be valid JSON.");}
       if(Object.keys(geometry).some(k=>!["x","y","w","h"].includes(k)))throw canvasDocumentsError("INVALID_GEOMETRY","Geometry contains unsupported fields.");
       canvasDocumentsValidateGeometry(doc,geometry,item.id);Object.assign(replacement,geometry);
-      if(object.kind==="widget"&&(geometry.w<300||geometry.h<200)||object.kind==="image"&&(geometry.w<80||geometry.h<80))throw canvasDocumentsError("INVALID_GEOMETRY","This size is below the object's supported minimum.");
-      if(object.kind==="widget"){replacement.contentW=item.contentW*geometry.w/item.w;replacement.contentH=item.contentH*geometry.h/item.h;}
+      if(object.kind==="widget"){replacement.contentW=item.contentW*geometry.w/item.w;replacement.contentH=item.contentH*geometry.h/item.h;if(replacement.contentW<300||replacement.contentH<200)throw canvasDocumentsError("INVALID_GEOMETRY","This size is below the object's supported content minimum.");}
     } else if(object.kind==="text"&&field==="content.txt") {
-      const made=await renderedTextBoxRecord({...item,text:args.content});if(!made)throw canvasDocumentsError("INVALID_TEXT","Text could not be rendered. Shorten it and retry.");replacement=made;
+      const made=await renderedTextBoxRecord({...item,text:args.content});if(!made)throw canvasDocumentsError("INVALID_TEXT","Text could not be rendered. Shorten it and retry.");const original=await renderedTextBoxRecord(item);if(original){made.w*=item.w/original.w;made.h*=item.h/original.h;made.x=item.x;made.y=item.y;}replacement=made;
       canvasDocumentsValidateGeometry(doc,canvasDocumentsBounds({item:replacement}),item.id);
     } else if(object.kind==="widget"&&["widget.html","widget.source","widget.json"].includes(field)) {
       const htmlCopySource=field==="widget.html"&&widgetUsesHtmlCopySource(item);
@@ -480,7 +475,7 @@
     if(args.create) {
       const id=`doc-${await canvasAgentHash(args.requestId)}`;
       if(canvasDocuments.records.size>=CANVAS_DOCUMENT_LIMIT&&!canvasDocuments.records.has(id))throw canvasDocumentsError("DOCUMENT_LIMIT",canvasDocumentsLimitMessage());
-      doc=canvasDocuments.records.get(id)||canvasDocumentsRecord({documentId:id,title:args.title||"Untitled Canvas"},{item:{version:2,name:args.title||"Untitled Canvas",theme:state.theme,widgets:[],textBoxes:[],images:[],animations:[],bundleExtensions:{},manifestExtensions:{},preservedAssets:[]},tileEntries:[]});
+      doc=canvasDocuments.records.get(id)||canvasDocumentsRecord({documentId:id,title:args.title||"Untitled Canvas"},{item:{version:2,name:args.title||"Untitled Canvas",theme:state.theme,view:{scale:0.5,panX:-1000,panY:-1000},widgets:[],textBoxes:[],images:[],animations:[],bundleExtensions:{},manifestExtensions:{},preservedAssets:[]},tileEntries:[]});
       canvasDocuments.records.set(id,doc);
     } else {
       const open=[...canvasDocuments.records.values()].filter(d=>(!args.documentId||d.id===args.documentId)&&(!args.locator||d.locator?.location===args.locator.location&&d.locator?.id===args.locator.id));
@@ -588,7 +583,7 @@
     throw canvasDocumentsError("UNSUPPORTED_OPERATION",`Unsupported Canvas operation: ${name}`);
   }
   async function canvasDocumentsBackgroundPrimitives(doc,session,args,kind,execution) {
-    const previous=session.artifacts.get(args.artifactId),old=new Map(previous?.elements||[]),prepared=[];
+    const previous=session.artifacts.get(args.artifactId),old=new Map(previous?.elements||[]),prepared=[],worldPerPixel=previous?(previous.worldPerPixel||1):1/mcpPresentationViewport(doc).scale;
     if(previous&&previous.kind!==kind)throw canvasDocumentsError("KIND_MISMATCH","Use a new artifact ID for a different type of content.");
     for(const entry of old.values())if(!canvasDocumentsObject(doc,entry.objectId))throw canvasDocumentsError("OBJECT_REMOVED","An artifact object was removed. Use a new artifact ID.");
     let scene;
@@ -601,19 +596,20 @@
         let value={...input};const former=old.get(input.id),object=former&&canvasDocumentsObject(doc,former.objectId);
         if(object&&(input.type==="text")!==(object.kind==="text"))throw canvasDocumentsError("KIND_MISMATCH","Keep each element's type or use a new element ID.");
         if(input.type==="text") {const record=await renderedTextBoxRecord({text:input.text,x:0,y:0,fontSize:input.fontSize||20,maxWidth:input.width||260,fontFamily:state.aiFont,color:input.color||state.inkColor});if(!record)throw canvasDocumentsError("INVALID_TEXT","The text could not be rendered.");value={...value,width:record.w,height:record.h,record};}
-        if(object&&!["line","arrow","path"].includes(input.type)){value.x=object.item.x-previous.origin.x;value.y=object.item.y-previous.origin.y;if(input.type!=="text"){value.width=object.item.w;value.height=object.item.h;}}
+        if(object&&!["line","arrow","path"].includes(input.type)){value.x=(object.item.x-previous.origin.x)/worldPerPixel;value.y=(object.item.y-previous.origin.y)/worldPerPixel;value.width=object.item.w/worldPerPixel;value.height=object.item.h/worldPerPixel;}
         inputs.push(value);
       }
       scene=mcpPrimitiveLayout(inputs);
       for(const value of scene.items) {
         if(value.type==="text")prepared.push({id:value.id,kind:"text",record:value.record,box:value.box,source:JSON.stringify(args.items.find(i=>i.id===value.id))});
-        else {const image=mcpPrimitiveRaster(value),blob=await canvasBlob(image);prepared.push({id:value.id,kind:"image",blob,naturalW:image.width,naturalH:image.height,box:value.box});image.width=image.height=1;}
+        else {const image=mcpPrimitiveRaster(value),blob=await canvasBlob(image);prepared.push({id:value.id,kind:"image",blob,naturalW:image.width,naturalH:image.height,box:value.box,preserveFrame:!value.from});image.width=image.height=1;}
       }
     }
     canvasAgentAssertToolExecution(execution);
-    const plan=previous?null:canvasDocumentsPlace(doc,scene.bounds.w,scene.bounds.h,session,mcpPresentation(args,previous)),origin=previous?.origin||{x:plan.placement.x-scene.bounds.x,y:plan.placement.y-scene.bounds.y},records=[],elements=new Map(),exclude=new Set(previous?.objectIds||[]);
+    const worldBounds=mcpPrimitiveWorldBox(scene.bounds,worldPerPixel),plan=previous?null:canvasDocumentsPlace(doc,worldBounds.w,worldBounds.h,session,mcpPresentation(args,previous)),origin=previous?.origin||{x:plan.placement.x-worldBounds.x,y:plan.placement.y-worldBounds.y},records=[],elements=new Map(),exclude=new Set(previous?.objectIds||[]);
     for(const entry of prepared) {
-      const former=old.get(entry.id),object=former&&canvasDocumentsObject(doc,former.objectId),id=object?.item.id||canvasDocumentsObjectId(doc,entry.kind),box={x:object?.item.x??origin.x+entry.box.x,y:object?.item.y??origin.y+entry.box.y,w:entry.box.w,h:entry.box.h};
+      const former=old.get(entry.id),object=former&&canvasDocumentsObject(doc,former.objectId),id=object?.item.id||canvasDocumentsObjectId(doc,entry.kind),box=mcpPrimitiveWorldBox(entry.box,worldPerPixel,origin);
+      if(object&&(kind==="plot"||entry.preserveFrame))Object.assign(box,canvasDocumentsBounds(object));
       if(box.x<0||box.y<0||box.x+box.w>SIZE||box.y+box.h>SIZE)throw canvasDocumentsError("INVALID_GEOMETRY","Drawing would leave the Canvas. Use a smaller artifact.");
       const collisions=canvasDocumentsCollisions(doc,box,exclude).filter(hit=>!object||!intersection(canvasDocumentsBounds(object),hit));
       if(collisions.length)throw canvasDocumentsError("LAYOUT_CONFLICT","The updated drawing needs more space. Move it or use a new artifact, then retry.");
@@ -627,7 +623,7 @@
     for(const entry of records)item[entry.kind==="text"?"textBoxes":"images"].push(entry.record);
     // Store the same new-text foreground rule without touching the visible Canvas.
     if(!previous&&records.some(entry=>entry.kind==="text"))item.bundleExtensions={...snapshotExtensionObject(item.bundleExtensions),penechoObjectOrder:{version:1,frontKind:"text-box",placedKind:"text-box"}};
-    const objectIds=records.map(r=>r.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,presentation:mcpPresentation(args,previous),elements:[...elements]});if(plan)session.layout=plan.layout;
+    const objectIds=records.map(r=>r.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,worldPerPixel,presentation:mcpPresentation(args,previous),elements:[...elements]});if(plan)session.layout=plan.layout;
     canvasDocumentsEndEdit(doc,kind);return {artifactId:args.artifactId,objectId:objectIds[0],objectIds,kind,revision:doc.revision,feedbackCursor:doc.feedbackSequence,visible:false};
   }
   async function canvasDocumentsEdit(doc,args,execution) {
@@ -635,7 +631,7 @@
       await canvasDocumentsShow(doc.id,execution);
       execution.activeDocumentId=doc.id;execution.documentEpoch=canvasDocuments.epoch;
       const box=args.region||(args.objectId?canvasDocumentsBounds(canvasDocumentsObject(doc,args.objectId)):null);
-      if(box)canvasAgentFrameRegion(box,48);return {documentId:doc.id,active:true};
+      if(box)mcpRevealRegion(box);return {documentId:doc.id,active:true};
     }
     if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
     if(!["create_text","show"].includes(args.action)&&args.baseRevision!==(canvasDocumentsIsActive(doc)?state.userRevision:doc.revision))throw canvasDocumentsError("REVISION_CONFLICT","The Canvas changed. Read canvas.json and retry with its current revision.");
@@ -643,6 +639,7 @@
       canvasDocumentsCapacity(doc,"text");
       const record=await renderedTextBoxRecord({id:canvasDocumentsObjectId(doc,"text"),text:args.text,x:0,y:0,fontSize:20,maxWidth:args.width||400,fontFamily:state.aiFont,color:state.inkColor});
       if(!record)throw canvasDocumentsError("INVALID_TEXT","Text could not be rendered. Shorten it and retry.");
+      if(!args.region){const scale=mcpPresentationViewport(doc).scale;record.w/=scale;record.h/=scale;}
       const session=mcpRuntime.sessions.get(args.sessionId),placement=args.region||canvasDocumentsPlace(doc,record.w,record.h,session,null,true).placement;
       record.x=placement.x;record.y=placement.y;canvasDocumentsValidateGeometry(doc,canvasDocumentsBounds({item:record}));
       canvasAgentAssertToolExecution(execution);canvasDocumentsBeginEdit(doc);
@@ -752,6 +749,19 @@
     if(name==="mcp_start_session"&&!args.client)args={...args,client:"External AI"};
     if(name==="mcp_find_canvases")return canvasDocumentsFind(args);
     if(name==="mcp_open_canvas")return canvasDocumentsOnce(canvasDocuments.receipts,args.requestId,args,()=>canvasDocumentsOpen(args,execution));
+    if(name==="mcp_upload_image_to_document") {
+      await canvasDocumentsReady();
+      const doc=canvasDocuments.records.get(args.documentId);
+      if(!doc||!canvasDocumentsIsActive(doc)||canvasDocuments.switching||snapshotLoadInProgress)throw canvasDocumentsError("CANVAS_NOT_VISIBLE","The exact target document must be open and current for this image upload.");
+      if(typeof args.requestId!=="string"||!args.requestId||args.requestId.length>128||! /^[a-f0-9]{64}$/.test(args.inputSha256||""))throw canvasDocumentsError("INVALID_IMAGE","The upload identity is invalid.");
+      canvasAgentAssertToolExecution(execution);
+      const signature={operation:name,documentId:doc.id,inputSha256:args.inputSha256,originalName:args.originalName};
+      return canvasDocumentsOnce(doc.receipts,`raw-image:${args.requestId}`,signature,async()=>{
+        const result=await canvasDocumentsUploadImage(doc,{...args,requireActiveDocument:true},execution);
+        canvasDocumentsSyncExtension(doc);
+        return {...result,documentId:doc.id};
+      });
+    }
     let session=mcpRuntime.sessions.get(args.sessionId),doc;
     if(name==="mcp_start_session") {
       await canvasDocumentsReady();

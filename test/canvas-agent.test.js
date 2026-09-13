@@ -3129,7 +3129,7 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.doesNotMatch(functionSource(source,"canvasAgentUpdateConnectionButton"),/connectionSummary|apiUrl|provider/);
   assert.match(functionSource(source,"canvasAgentOpenConnectionSettings"),/selectSettingsPage\("connections"\)[\s\S]*openSettings\(\)/);
   assert.match(source,/canvasAgentConnectionButton\?\.addEventListener\("click",canvasAgentOpenConnectionSettings\)/);
-  assert.match(functionSource(source,"canvasAgentPrepareOpenState"),/settings\.connections\.length\)canvasAgentUpdateConnectionButton\(\);[\s\S]*?else void loadCanvasSettings\(\)/);
+  assert.match(functionSource(source,"canvasAgentPrepareOpenState"),/settings\.connections\.length\)canvasAgentUpdateConnectionButton\(\);[\s\S]*?if\(!settings\.connections\.length \|\| window\.PENECHO_CONFIG\?\.browserCanvasEditing\)void loadCanvasSettings\(\)/);
   assert.match(functionSource(source,"canvasAgentFinishDockedOpen"),/canvasAgentPrepareOpenState\(\)/);
   assert.match(functionSource(source,"canvasAgentFinishFloatingOpen"),/canvasAgentPrepareOpenState\(\)/);
   assert.match(changeConnectionSource,/"change_connection"[\s\S]*webSearchEnabled:canvasAgent\.searchEnabled/);
@@ -3270,7 +3270,7 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.match(source,/\[canvasAgentResizeTop,canvasAgentResizeBottom,canvasAgentResizeLeft,canvasAgentResizeRight\][\s\S]*?pointerdown[\s\S]*?canvasAgentBeginPanelResize[\s\S]*?keydown[\s\S]*?canvasAgentKeyboardPanelResize/);
   assert.match(functionSource(source,"canvasAgentMovePanelResize"),/\["top","left"\]\.includes\(resize\.edge\)\?-delta:delta/);
   assert.match(functionSource(source,"canvasAgentResizePanelTo"),/edge==="left"\?anchor\.right-width:anchor\.left/);
-  assert.match(source,/CANVAS_AGENT_WIDTH_KEY = "penecho-canvas-agent-width-v1"/);
+  assert.match(source,/CANVAS_AGENT_WIDTH_KEY = "penecho-canvas-agent-width-v2"/);
   assert.match(css,/\.canvas-agent-panel\s*\{[^}]*right: 18px;[^}]*bottom: 18px;[^}]*background: rgba\(255, 255, 255, \.97\)/s);
   assert.match(css,/\.canvas-agent-panel\s*\{[^}]*z-index: 42/);
   assert.match(css,/\.history-backdrop\s*\{[^}]*z-index: 72/);

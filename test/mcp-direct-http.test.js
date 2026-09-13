@@ -201,3 +201,51 @@ test('occupied preferred port falls back to an available listener',async t=>{
  const net=require('node:net'),occupied=net.createServer();await new Promise(resolve=>occupied.listen(0,'0.0.0.0',resolve));t.after(()=>new Promise(resolve=>occupied.close(resolve)));const port=occupied.address().port;
  const {status}=await fixture(t,{preferredPort:port,getHostnames:()=>['mcp-test-box']});assert.notEqual(new URL(status.localUrl).port,String(port));assert.equal(new URL(status.preferredUrl).port,new URL(status.localUrl).port);assert.equal((await request(status,message('initialize'))).status,200);assert.equal(occupied.listening,true);
 });
+function upload(status,bytes,options={}) {
+ return new Promise((resolve,reject)=>{
+  const req=https.request(status.localUrl.replace('/mcp',options.path||'/mcp/images?canvasId=c&documentId=d&requestId=r&name=photo.png'),{method:options.method||'POST',ca:status.certificatePem,servername:'localhost',agent:false,headers:{authorization:`Bearer ${status.accessToken}`,'content-type':'application/octet-stream',...options.headers}},res=>{let data='';res.on('data',c=>data+=c);res.on('end',()=>resolve({status:res.statusCode,body:JSON.parse(data)}));});req.on('error',reject);req.end(bytes);
+ });
+}
+test('raw images authenticate without MCP sessions, validate exact targets and preserve retry fingerprints',async t=>{
+ const calls=[];const {status}=await fixture(t,{uploadImage:async(args,{signal})=>{calls.push({args,signal});return {assetId:'asset-1'};}});
+ const bytes=await require('sharp')({create:{width:8,height:8,channels:3,background:'red'}}).png().toBuffer();
+ for(const headers of [{authorization:''},{host:'evil.test'},{origin:'https://evil.test'}])assert.ok([401,403].includes((await upload(status,bytes,{headers})).status));
+ for(const path of ['/mcp/images?canvasId=c&documentId=d&requestId=r','/mcp/images?canvasId=c&documentId=d&requestId=r&name=x&canvasId=z','/mcp/images?canvasId=c&documentId=d&requestId=r&name=x&extra=x'])assert.equal((await upload(status,bytes,{path})).status,400);
+ assert.equal((await upload(status,bytes,{headers:{'content-type':'image/png'}})).status,415);
+ assert.equal((await upload(status,bytes,{headers:{'content-length':String(32*1024*1024+1)}})).status,413);
+ assert.equal((await upload(status,Buffer.from('<svg/>'))).status,415);assert.equal(calls.length,0);
+ assert.deepEqual((await upload(status,bytes)).body,{assetId:'asset-1'});assert.equal((await upload(status,bytes)).status,200);
+ assert.equal(calls[0].args.inputSha256,calls[1].args.inputSha256);assert.equal(calls[0].args.documentId,'d');assert.equal(calls[0].args.source,`data:image/png;base64,${bytes.toString('base64')}`);
+});
+test('raw image slots bound global concurrency and redact callback errors',async t=>{
+ const pending=[];const {status}=await fixture(t,{maxRequests:2,uploadImage:(args,{signal})=>new Promise(resolve=>pending.push({resolve,signal}))});
+ const bytes=await require('sharp')({create:{width:8,height:8,channels:3,background:'red'}}).png().toBuffer();
+ const one=upload(status,bytes),two=upload(status,bytes);while(pending.length<2)await new Promise(r=>setTimeout(r,5));
+ assert.equal((await upload(status,bytes)).status,429);assert.equal((await request(status,message('initialize'))).status,429);
+ pending.forEach(p=>p.resolve({ok:true}));await Promise.all([one,two]);
+ const other=await fixture(t,{uploadImage:async()=>{throw Object.assign(new Error('bad '+other.status.accessToken),{code:'conflict',status:409});}});
+ const result=await upload(other.status,bytes);assert.equal(result.status,409);assert.equal(result.body.error.code,'conflict');assert.equal(JSON.stringify(result).includes(other.status.accessToken),false);
+});
+test('raw upload timeout aborts callback and retains occupied capacity until it settles',async t=>{
+ let pending;const {status}=await fixture(t,{maxRequests:1,uploadTimeoutMs:100,uploadImage:(args,{signal})=>new Promise(resolve=>{pending={resolve,signal};})});
+ const bytes=await require('sharp')({create:{width:8,height:8,channels:3,background:'red'}}).png().toBuffer();
+ const result=await upload(status,bytes);assert.equal(result.status,408);assert.equal(pending.signal.aborted,true);assert.equal((await upload(status,bytes)).status,429);pending.resolve({ok:true});
+});
+test('raw upload rejects duplicated security headers before consuming body',async t=>{
+ const tls=require('node:tls');let calls=0;const {status}=await fixture(t,{uploadImage:async()=>{calls++;return {};}});
+ const port=new URL(status.localUrl).port;
+ for(const duplicate of [`Authorization: Bearer ${status.accessToken}`,`Host: localhost:${port}`,'Content-Type: application/octet-stream','Origin: https://localhost:'+port]) {
+  const response=await new Promise((resolve,reject)=>{
+   const socket=tls.connect({host:'127.0.0.1',port:Number(port),ca:status.certificatePem,servername:'localhost'},()=>socket.write(`POST /mcp/images?canvasId=c&documentId=d&requestId=r&name=x HTTP/1.1\r\nHost: localhost:${port}\r\nAuthorization: Bearer ${status.accessToken}\r\nContent-Type: application/octet-stream\r\nOrigin: https://localhost:${port}\r\n${duplicate}\r\nContent-Length: 100\r\nConnection: close\r\n\r\n`));
+   let data='';socket.on('data',c=>{data+=c;if(data.includes('\r\n\r\n')){socket.destroy();resolve(data);}});socket.on('error',reject);
+  });assert.match(response,/HTTP\/1.1 400/);
+ }
+ assert.equal(calls,0);
+});
+test('raw upload bounds chunked bodies and times out incomplete bodies before dispatch',async t=>{
+ let calls=0;const {status}=await fixture(t,{uploadTimeoutMs:100,uploadImage:async()=>{calls++;return {};}});
+ const response=await upload(status,Buffer.alloc(32*1024*1024+1),{headers:{'transfer-encoding':'chunked'}});assert.equal(response.status,413);
+ const incomplete=await new Promise((resolve,reject)=>{
+  const req=https.request(status.localUrl.replace('/mcp','/mcp/images?canvasId=c&documentId=d&requestId=r&name=x'),{method:'POST',ca:status.certificatePem,agent:false,headers:{authorization:`Bearer ${status.accessToken}`,'content-type':'application/octet-stream','content-length':'100'}},res=>{res.resume();res.on('end',()=>resolve(res.statusCode));});req.on('error',reject);req.write('x');
+ });assert.equal(incomplete,408);assert.equal(calls,0);
+});

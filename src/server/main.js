@@ -1025,7 +1025,7 @@ async function requestProviderSnapshot(req) {
     await cloudConnector.prepareHostedConnection(requestedId);
   }
   const store = connectionStore(),
-    connection = findConnection(store, requestedId) || (requestedId.startsWith("hosted:") ? null : store.connections[0]);
+    connection = findConnection(store, requestedId) || (requestedId === "default" ? store.connections[0] : null);
   if (!connection) throw Object.assign(new Error("The selected PenEcho model is unavailable. Refresh AI connections."), { status:409 });
   return connectionProviderSnapshot(connection);
 }
@@ -3288,6 +3288,12 @@ const server = http.createServer(async (req, res) => {
     if(localError)return send(res,403,{error:localError});
     if(!cloudConnector)return send(res,503,{error:"Cloud connector is still starting."});
     try {
+      if(req.method==='POST'&&url.pathname==='/api/cloud/mcp/access')return send(res,200,await cloudConnector.setCloudMcpAccess((await readJson(req,2048)).enabled));
+      if(/^\/api\/cloud\/mcp(?:\/(?:tokens(?:\/restore)?|canvases)|\/grants\/[0-9a-f-]{36})?$/.test(url.pathname)&&["GET","POST","DELETE"].includes(req.method)) {
+        const result=await cloudConnector.cloudRequest(url.pathname.replace("/api/cloud/mcp","/api/v1/mcp"),{method:req.method,...(req.method==="POST"?{body:await readJson(req,4096)}:{})});
+        if(req.method==='GET'&&url.pathname==='/api/cloud/mcp')result.local={cloudMcpEnabled:cloudConnector.status().cloudMcpEnabled,device:cloudConnector.status().device};
+        return send(res,req.method==="POST"?201:200,result);
+      }
       if(req.method==="GET"&&url.pathname==="/api/cloud/status")return send(res,200,cloudConnector.status());
       if(req.method==="GET"&&url.pathname==="/api/cloud/account")return send(res,200,await cloudConnector.refreshAccount({force:true}));
       if(req.method==="GET"&&url.pathname==="/api/cloud/models")return send(res,200,await cloudConnector.hostedModels());
@@ -3308,7 +3314,7 @@ const server = http.createServer(async (req, res) => {
         if(code.length<8||code.length>32)return send(res,400,{error:"Enter the one-time pairing key from PenEcho Cloud."});
         return send(res,200,await cloudConnector.pair({origin,code,name:String(body?.name||"").trim()||undefined,platform:String(body?.platform||"").trim()||undefined}));
       }
-      if(req.method==="POST"&&url.pathname==="/api/cloud/device/enable")return send(res,200,cloudConnector.enable());
+      if(req.method==="POST"&&url.pathname==="/api/cloud/device/enable")return send(res,200,await cloudConnector.enableLinkedDevice());
       if(req.method==="POST"&&url.pathname==="/api/cloud/device/disable")return send(res,200,cloudConnector.disconnect());
       if(req.method==="POST"&&url.pathname==="/api/cloud/device/revoke")return send(res,200,await cloudConnector.revokeDevice());
       if(req.method==="GET"&&url.pathname==="/api/cloud/library")return send(res,200,await cloudConnector.library());
@@ -4208,6 +4214,7 @@ server.applyCliResolution = applyCliResolution;
 const { createMcpService } = require("./mcp/service.js");
 const mcpService = createMcpService({
   server,
+  attachCloudBrowser:socket=>cloudConnector.attachCloudMcpBrowser(socket),
   authorizeBrowser:browserRequestError,
   isLocalBrowserAddress:address=>isLoopback(normalizedIp(address))||LOCAL_INTERFACE_ADDRESSES.has(normalizedIp(address)),
   rootDirectory:ROOT,

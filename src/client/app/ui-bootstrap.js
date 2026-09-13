@@ -1,4 +1,7 @@
 // Pointer and control bindings, portable snapshots, and application startup.
+  document.addEventListener("pointerdown", unselectTextEditorsOutside, true);
+  document.addEventListener("focusin", unselectTextEditorsOutside, true);
+  window.addEventListener("blur", unselectTextEditorsOutside);
   const ERASER_TOOL_MENU_MS = 5000;
   let eraserToolMenuTimer = 0;
   // Derive rejection from live strokes, never a remembered Pencil mode.
@@ -1588,7 +1591,7 @@
   settingsConnectionList?.addEventListener("click", handleConnectionAction);
   settingsConnectionQuickList?.addEventListener("click", handleConnectionAction);
   document.getElementById("settingsHostedList")?.addEventListener("click", handleConnectionAction);
-  document.getElementById("settingsHostedRefresh")?.addEventListener("click", () => void loadHostedModels());
+  document.getElementById("settingsHostedRefresh")?.addEventListener("click", () => void loadCanvasSettings());
   window.addEventListener("penecho:cloud-account-changed", () => void loadHostedModels({ accountChanged:true }));
   void loadHostedModels();
   settingsEffortToggle?.addEventListener("click", () => settingsEffortOptions.hidden ? showSettingsEffortOptions() : hideSettingsEffortOptions());

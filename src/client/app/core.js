@@ -46,6 +46,8 @@
     selectedWidgetMaterial = document.querySelector("#selectedWidgetMaterial"),
     placedContentLayer = document.querySelector("#placedContentLayer"),
     placedContentCtx = placedContentLayer.getContext("2d"),
+    textContentLayer = document.querySelector("#textContentLayer"),
+    textContentCtx = textContentLayer.getContext("2d"),
     summonLayer = document.querySelector("#summonLayer"),
     inkLayer = document.querySelector("#inkLayer"),
     inkCtx = inkLayer.getContext("2d"),
@@ -602,6 +604,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsHostedPricingHelp: "Input, cache reads, cache writes and output have separate rates. The displayed multiplier applies to each base rate. Your own connections do not spend PenEcho credits.",
       settingsHostedBilling: "Account & credits ↗",
       settingsHostedBrowserNotice: "Use PenEcho models to edit this Canvas and save to Cloud. Your own connections, local files and device settings need a linked device.",
+      settingsLinkedDeviceOffline: "Your linked device is offline. Open PenEcho on that device, then refresh. Cloud models and Cloud Library remain available.",
       canvasAgentCloudContext: "Cloud Canvas",
       canvasAgentCloudContextHelp: "This connection works with the current Canvas. Use a device connection for local folders and files.",
       canvasAgentCloudFileFormats: "Cloud documents: PDF text layer, DOCX, XLSX, CSV, TXT, MD, JSON; up to 8 MiB each. No scanned PDFs or OCR. Files expire 30 days after upload.",
@@ -914,6 +917,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       snapshotSavingShort: "Saving...",
       snapshotLibraryLoading: "Loading {location} canvases…",
       snapshotLibraryLoadingDetail: "The previous location is being replaced with verified items.",
+      snapshotLibraryUnavailable: "{location} canvases are unavailable",
+      snapshotLibraryRetryDetail: "The connection could not be reached. Try again in a moment.",
+      snapshotLibraryRetry: "Try again",
       snapshotLibraryLoadFailed: "Could not load {location}. Select the location to try again.",
       snapshotCloudCacheRefreshing: "Showing cached Cloud canvases while the latest version loads.",
       snapshotCloudCacheLoadFailed: "Cloud is unavailable. Cached canvases remain visible; select Cloud to try again.",
@@ -2501,11 +2507,19 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (!section || !list) return;
     const cloudSetupLink = document.getElementById("settingsCloudSetupLink");
     if (cloudSetupLink) cloudSetupLink.href = `${String(window.PENECHO_CONFIG?.cloudOrigin || (window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : "https://penecho.ai")).replace(/\/$/, "")}/auth.html`;
-    const browserEditing = window.PENECHO_CONFIG?.browserCanvasEditing === true;
-    for (const id of ["settingsHostedBrowserNotice", "settingsHostedLinkDevice"]) document.getElementById(id).hidden = !browserEditing;
+    const browserEditing = window.PENECHO_CONFIG?.browserCanvasEditing === true,
+      hostUnavailable = browserEditing && window.PENECHO_CONFIG?.linkedDeviceOnline !== true,
+      deviceLinked = window.PENECHO_CONFIG?.linkedDeviceLinked === true,
+      notice = document.getElementById("settingsHostedBrowserNotice");
+    notice.hidden = !hostUnavailable;
+    notice.dataset.i18n = deviceLinked ? "settingsLinkedDeviceOffline" : "settingsHostedBrowserNotice";
+    notice.textContent = t(notice.dataset.i18n);
+    document.getElementById("settingsHostedLinkDevice").hidden = !hostUnavailable || deviceLinked;
+    document.getElementById("settingsLocalConnectionsEmpty").hidden = hostUnavailable || settings.connections.length > 0;
+    for (const control of settingsConnectionQuickList.querySelectorAll("button")) control.disabled = hostUnavailable;
     for (const control of [settingsOpenApi, settingsOpenSearch, settingsOpenSystem]) {
-      control.disabled = browserEditing;
-      if (browserEditing) control.setAttribute("aria-describedby", "settingsHostedBrowserNotice");
+      control.disabled = hostUnavailable;
+      if (hostUnavailable) control.setAttribute("aria-describedby", "settingsHostedBrowserNotice");
       else control.removeAttribute("aria-describedby");
     }
     section.hidden = !hostedSettings.signedIn && !hostedSettings.loading && !hostedSettings.error;
@@ -2593,7 +2607,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     finally { if (generation === hostedSettings.generation) { hostedSettings.loading = false; renderHostedModels(); } }
   }
   function syncLocalConnectionSelection() {
-    const selected = selectedAiConnectionId(), activeId = selected.startsWith("hosted:") || settings.connections.some(connection => connection.id === selected) ? selected : settings.connections[0]?.id || "default";
+    const selected = selectedAiConnectionId(), hostUnavailable = window.PENECHO_CONFIG?.browserCanvasEditing && window.PENECHO_CONFIG?.linkedDeviceOnline !== true,
+      activeId = hostUnavailable || selected.startsWith("hosted:") || settings.connections.some(connection => connection.id === selected) ? selected : settings.connections[0]?.id || "default";
     if (activeId !== selected) localStorage.setItem(AI_CONNECTION_STORAGE_KEY, activeId);
     settings.activeConnectionId = activeId;
     settings.connections = settings.connections.map(connection => ({ ...connection, active:connection.id === activeId }));
@@ -2604,7 +2619,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     for (const control of section.querySelectorAll("input, select, button")) control.disabled = !visible;
   }
   function openConfiguration(mode, restoreTarget = null) {
-    if (window.PENECHO_CONFIG?.browserCanvasEditing) return false;
+    if (window.PENECHO_CONFIG?.browserCanvasEditing && window.PENECHO_CONFIG?.linkedDeviceOnline !== true) return false;
     if (!configurationLayer || !canvasSettingsForm) return false;
     closeSettings(false);
     settings.configurationMode = mode;
@@ -3257,6 +3272,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     void loadHostedModels();
     setSettingsStatus(t("settingsLoading"));
     try {
+      await window.PenEchoLinkedDevice?.refresh();
       const response = await fetch("/api/settings", { headers:authenticatedApiHeaders() }), body = await response.json();
       if (!response.ok) throw new Error(body?.error || t("settingsLoadFailed"));
       settings.connections = Array.isArray(body.connections) ? body.connections : [];
@@ -3380,7 +3396,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       nextPage = available.has(page) ? page : "appearance",
       pageChanged = settings.activePage !== nextPage;
     settings.activePage = nextPage;
-    if (nextPage === "mcp") void mcpRefreshSettings();
+    if (nextPage === "mcp") { void mcpRefreshSettings(); window.PenEchoMcpSettings?.open(); }
     tabs.forEach((tab) => {
       const selected = tab.dataset.settingsPageTarget === settings.activePage;
       tab.classList.toggle("active", selected);

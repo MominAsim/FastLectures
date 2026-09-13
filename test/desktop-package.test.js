@@ -390,12 +390,15 @@ test("Windows installer splash keeps a font-independent PenEcho wordmark", async
   const generator = fs.readFileSync(path.join(ROOT, "scripts", "generate-icons.js"), "utf8"),
     splash = path.join(ROOT, "build", "icons", "penecho-install.gif"),
     metadata = await sharp(splash).metadata(),
-    pixels = await sharp(splash).removeAlpha().raw().toBuffer({ resolveWithObject:true });
+    pixels = await sharp(splash).flatten({ background:"#ffffff" }).raw().toBuffer({ resolveWithObject:true });
   assert.match(generator, /wordmarkSource = path\.join\(ROOT, "public", "penecho-readme-header\.png"\)/);
   assert.doesNotMatch(generator, /<text\b/);
   assert.match(generator, /insetX = 2[\s\S]*?echoMask = Buffer\.alloc\([\s\S]*?x = 41[\s\S]*?255 - Math\.min\([\s\S]*?dilateAlpha\(echoMask, width, height\)/);
   assert.equal(metadata.width, 268);
   assert.equal(metadata.height, 167);
+  const rgba = await sharp(splash).ensureAlpha().raw().toBuffer();
+  assert.equal(rgba[3], 0, "installer background must be transparent");
+  assert.equal(rgba[(20 * 268 + 24) * 4 + 3], 0, "installer must not paint the old gray frame");
   let inkPixels = 0, rightEdgeInkPixels = 0;
   for (let y = 100; y < 124; y += 1) {
     for (let x = 82; x < 186; x += 1) {

@@ -90,9 +90,20 @@ test("configuration failures and uncertain network outcomes have distinct action
 test("the canvas MCP notice follows live access, not saved client configuration",async()=>{
   const h=harness(()=>ready());await h.mcpRefreshSettings();const notice=h.nodes.get("mcpCanvasNotice");assert.equal(notice.hidden,true);
   h.mcpRuntime.socket={readyState:0};h.mcpRenderSettings();assert.equal(notice.hidden,true);
-  h.mcpRuntime.socket={readyState:1};h.mcpRuntime.ready=true;h.mcpRenderSettings();assert.equal(notice.hidden,false);assert.match(h.nodes.get("mcpCanvasNoticeButton").textContent,/Waiting for AI/);
-  h.state.language="zh";h.mcpRenderSettings();assert.match(h.nodes.get("mcpCanvasNoticeButton").textContent,/等待 AI/);
+  h.mcpRuntime.socket={readyState:1};h.mcpRuntime.ready=true;h.mcpRenderSettings();assert.equal(notice.hidden,false);assert.match(h.nodes.get("mcpCanvasNoticeButton").textContent,/Local online/);
+  h.state.language="zh";h.mcpRenderSettings();assert.match(h.nodes.get("mcpCanvasNoticeButton").textContent,/本地在线/);
   h.mcpRuntime.socket=null;h.mcpRenderSettings();assert.equal(notice.hidden,true);
+});
+
+test("MCP availability notice reports actual Cloud and Local channels in both languages",()=>{
+  const h=harness(()=>ready());h.mcpRuntime.ready=true;let cloudSettingsStatus;
+  h.context.window.PenEchoMcpSettings={setConnection:value=>{cloudSettingsStatus=value;}};
+  for(const [availability,en,zh] of [[{cloud:true,local:true},"MCP · Cloud + Local online","MCP · 云端与本地在线"],[{cloud:true,local:false},"MCP · Cloud online","MCP · 云端在线"],[{cloud:false,local:true},"MCP · Local online","MCP · 本地在线"]]){
+    h.mcpRuntime.socket={readyState:1,availability};h.state.language="en";h.mcpRenderSettings();assert.equal(h.nodes.get("mcpCanvasNoticeButton").textContent,en);
+    assert.equal(h.nodes.get("mcpConnectionStatus").textContent,en);assert.equal(cloudSettingsStatus.label,en);
+    h.state.language="zh";h.mcpRenderSettings();assert.equal(h.nodes.get("mcpCanvasNoticeButton").textContent,zh);
+    assert.equal(h.nodes.get("mcpConnectionStatus").textContent,zh);assert.equal(cloudSettingsStatus.label,zh);
+  }
 });
 
 test("MCP canvas status distinguishes sessions, actual mutation and unexpected disconnect",()=>{
@@ -410,13 +421,25 @@ test("default setup uses the session CLI without changing global AI trust",async
   await h.nodes.get("mcpCopyInstructions").listeners.click();
   const prompt=h.clipboard[0];
   assert.match(prompt,/one lightweight stdio CLI/);
+  assert.match(prompt,/--upload-image/);
+  assert.match(prompt,/SAME HTTPS port/);
+  assert.match(prompt,/returned source verbatim/);
   assert.match(prompt,/WITHOUT --client/);
   assert.match(prompt,/idle for 30 minutes releases only HTTP/);
   assert.doesNotMatch(prompt,/--idle-exit-ms/);
   assert.match(prompt,/same complete sequence runs if reconnecting after idle release fails/);
   const skill=prompt.slice(prompt.indexOf("---\nname: penecho-mcp"),prompt.indexOf("If skill creation is unavailable"));
-  assert.ok(skill.length<800,"bootstrap stays compact");
+  assert.ok(skill.length<1800,"bootstrap stays compact");
   assert.match(skill,/search only missing deferred tools/);
+  assert.match(skill,/--upload-image/);
+  assert.match(skill,/CLIENT_JS_PATH/);
+  assert.match(skill,/never a canvasId\/documentId\/sessionId/);
+  assert.match(skill,/resolves the address\/port automatically/);
+  assert.match(skill,/Required client.js location/);
+  assert.match(prompt,/Do not choose any other directory or filename/);
+  assert.match(prompt,/MUST use this exact downloaded client.js/);
+  assert.match(prompt,/replace NODE_PATH, CLIENT_JS_PATH and HOST_ID/);
+  assert.match(skill,/not the skill or application directory/);
   assert.match(skill,/Read source\/contentHash before patching/);
   assert.doesNotMatch(skill,/tools\/list|resources\/list|prompts\/list/);
   assert.match(prompt,/sessionKey/);assert.match(prompt,/documentId/);

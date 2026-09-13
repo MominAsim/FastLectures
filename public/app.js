@@ -1377,6 +1377,8 @@ globalThis.PenEchoCanvasFilePatch=require("src/shared/canvas-file-patch.js");
     selectedWidgetMaterial = document.querySelector("#selectedWidgetMaterial"),
     placedContentLayer = document.querySelector("#placedContentLayer"),
     placedContentCtx = placedContentLayer.getContext("2d"),
+    textContentLayer = document.querySelector("#textContentLayer"),
+    textContentCtx = textContentLayer.getContext("2d"),
     summonLayer = document.querySelector("#summonLayer"),
     inkLayer = document.querySelector("#inkLayer"),
     inkCtx = inkLayer.getContext("2d"),
@@ -1933,6 +1935,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsHostedPricingHelp: "Input, cache reads, cache writes and output have separate rates. The displayed multiplier applies to each base rate. Your own connections do not spend PenEcho credits.",
       settingsHostedBilling: "Account & credits ↗",
       settingsHostedBrowserNotice: "Use PenEcho models to edit this Canvas and save to Cloud. Your own connections, local files and device settings need a linked device.",
+      settingsLinkedDeviceOffline: "Your linked device is offline. Open PenEcho on that device, then refresh. Cloud models and Cloud Library remain available.",
       canvasAgentCloudContext: "Cloud Canvas",
       canvasAgentCloudContextHelp: "This connection works with the current Canvas. Use a device connection for local folders and files.",
       canvasAgentCloudFileFormats: "Cloud documents: PDF text layer, DOCX, XLSX, CSV, TXT, MD, JSON; up to 8 MiB each. No scanned PDFs or OCR. Files expire 30 days after upload.",
@@ -2245,6 +2248,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       snapshotSavingShort: "Saving...",
       snapshotLibraryLoading: "Loading {location} canvases…",
       snapshotLibraryLoadingDetail: "The previous location is being replaced with verified items.",
+      snapshotLibraryUnavailable: "{location} canvases are unavailable",
+      snapshotLibraryRetryDetail: "The connection could not be reached. Try again in a moment.",
+      snapshotLibraryRetry: "Try again",
       snapshotLibraryLoadFailed: "Could not load {location}. Select the location to try again.",
       snapshotCloudCacheRefreshing: "Showing cached Cloud canvases while the latest version loads.",
       snapshotCloudCacheLoadFailed: "Cloud is unavailable. Cached canvases remain visible; select Cloud to try again.",
@@ -3832,11 +3838,19 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (!section || !list) return;
     const cloudSetupLink = document.getElementById("settingsCloudSetupLink");
     if (cloudSetupLink) cloudSetupLink.href = `${String(window.PENECHO_CONFIG?.cloudOrigin || (window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : "https://penecho.ai")).replace(/\/$/, "")}/auth.html`;
-    const browserEditing = window.PENECHO_CONFIG?.browserCanvasEditing === true;
-    for (const id of ["settingsHostedBrowserNotice", "settingsHostedLinkDevice"]) document.getElementById(id).hidden = !browserEditing;
+    const browserEditing = window.PENECHO_CONFIG?.browserCanvasEditing === true,
+      hostUnavailable = browserEditing && window.PENECHO_CONFIG?.linkedDeviceOnline !== true,
+      deviceLinked = window.PENECHO_CONFIG?.linkedDeviceLinked === true,
+      notice = document.getElementById("settingsHostedBrowserNotice");
+    notice.hidden = !hostUnavailable;
+    notice.dataset.i18n = deviceLinked ? "settingsLinkedDeviceOffline" : "settingsHostedBrowserNotice";
+    notice.textContent = t(notice.dataset.i18n);
+    document.getElementById("settingsHostedLinkDevice").hidden = !hostUnavailable || deviceLinked;
+    document.getElementById("settingsLocalConnectionsEmpty").hidden = hostUnavailable || settings.connections.length > 0;
+    for (const control of settingsConnectionQuickList.querySelectorAll("button")) control.disabled = hostUnavailable;
     for (const control of [settingsOpenApi, settingsOpenSearch, settingsOpenSystem]) {
-      control.disabled = browserEditing;
-      if (browserEditing) control.setAttribute("aria-describedby", "settingsHostedBrowserNotice");
+      control.disabled = hostUnavailable;
+      if (hostUnavailable) control.setAttribute("aria-describedby", "settingsHostedBrowserNotice");
       else control.removeAttribute("aria-describedby");
     }
     section.hidden = !hostedSettings.signedIn && !hostedSettings.loading && !hostedSettings.error;
@@ -3924,7 +3938,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     finally { if (generation === hostedSettings.generation) { hostedSettings.loading = false; renderHostedModels(); } }
   }
   function syncLocalConnectionSelection() {
-    const selected = selectedAiConnectionId(), activeId = selected.startsWith("hosted:") || settings.connections.some(connection => connection.id === selected) ? selected : settings.connections[0]?.id || "default";
+    const selected = selectedAiConnectionId(), hostUnavailable = window.PENECHO_CONFIG?.browserCanvasEditing && window.PENECHO_CONFIG?.linkedDeviceOnline !== true,
+      activeId = hostUnavailable || selected.startsWith("hosted:") || settings.connections.some(connection => connection.id === selected) ? selected : settings.connections[0]?.id || "default";
     if (activeId !== selected) localStorage.setItem(AI_CONNECTION_STORAGE_KEY, activeId);
     settings.activeConnectionId = activeId;
     settings.connections = settings.connections.map(connection => ({ ...connection, active:connection.id === activeId }));
@@ -3935,7 +3950,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     for (const control of section.querySelectorAll("input, select, button")) control.disabled = !visible;
   }
   function openConfiguration(mode, restoreTarget = null) {
-    if (window.PENECHO_CONFIG?.browserCanvasEditing) return false;
+    if (window.PENECHO_CONFIG?.browserCanvasEditing && window.PENECHO_CONFIG?.linkedDeviceOnline !== true) return false;
     if (!configurationLayer || !canvasSettingsForm) return false;
     closeSettings(false);
     settings.configurationMode = mode;
@@ -4588,6 +4603,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     void loadHostedModels();
     setSettingsStatus(t("settingsLoading"));
     try {
+      await window.PenEchoLinkedDevice?.refresh();
       const response = await fetch("/api/settings", { headers:authenticatedApiHeaders() }), body = await response.json();
       if (!response.ok) throw new Error(body?.error || t("settingsLoadFailed"));
       settings.connections = Array.isArray(body.connections) ? body.connections : [];
@@ -4711,7 +4727,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       nextPage = available.has(page) ? page : "appearance",
       pageChanged = settings.activePage !== nextPage;
     settings.activePage = nextPage;
-    if (nextPage === "mcp") void mcpRefreshSettings();
+    if (nextPage === "mcp") { void mcpRefreshSettings(); window.PenEchoMcpSettings?.open(); }
     tabs.forEach((tab) => {
       const selected = tab.dataset.settingsPageTarget === settings.activePage;
       tab.classList.toggle("active", selected);
@@ -6252,7 +6268,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       changed = true;
     }
     if (generation !== canvasTextQualityGeneration || !changed) return false;
-    renderPlacedContentLayer(canvasRenderRegion().visible);
+    renderTextContentLayer(canvasRenderRegion().visible);
     return true;
   }
   function textBoxHistoryRecord(item) {
@@ -6363,7 +6379,13 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       let record = null;
       try {
         if (item?.image && textImageRasterRatio(item.image) >= pixelRatio / 1.05) record = textBoxHistoryRecord(item);
-        else record = await renderedTextBoxRecord(item, pixelRatio);
+        else {
+          record = await renderedTextBoxRecord(item, pixelRatio);
+          // Raster dimensions describe typography; the saved frame describes
+          // world placement. Rehydrating pixels must not reset their mapping.
+          if(record&&[item.x,item.y,item.w,item.h].every(Number.isFinite)&&item.x>=0&&item.y>=0&&item.w>0&&item.h>0&&item.x+item.w<=SIZE&&item.y+item.h<=SIZE)
+            Object.assign(record,{x:item.x,y:item.y,w:item.w,h:item.h});
+        }
       } catch {
         // One invalid or unsupported text box must not make an otherwise valid
         // saved Canvas impossible to restore.
@@ -6416,7 +6438,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function imageRecord(item) {
     if (!item || typeof item !== "object" || !(item.blob instanceof Blob) || !item.image || item.blob.size <= 0 || item.blob.size > MAX_IMAGE_SOURCE_BYTES) return null;
-    if (!n(item.x) || !n(item.y) || !n(item.w, 80) || !n(item.h, 80) || item.x + item.w > SIZE || item.y + item.h > SIZE) return null;
+    if (!n(item.x) || !n(item.y) || !n(item.w, item.naturalW > 0 ? 1 : 80) || !n(item.h, item.naturalH > 0 ? 1 : 80) || item.x + item.w > SIZE || item.y + item.h > SIZE) return null;
     const naturalW = Number(item.naturalW) || item.image.naturalWidth || item.image.width,
       naturalH = Number(item.naturalH) || item.image.naturalHeight || item.image.height,
       plotExpression = typeof item.plotExpression === "string" ? item.plotExpression.trim() : "";
@@ -6457,7 +6479,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (widgetStyle) widgetStyle.zIndex = selectedWidgetMaterialActive ? "3" : widgetInFront ? "2" : "1";
     if (imageMaterialStyle) imageMaterialStyle.zIndex = widgetInFront ? "1" : "2";
     if (imageStyle) imageStyle.zIndex = widgetInFront ? "1" : "2";
-    if (textEditorStyle) textEditorStyle.setProperty("--text-editor-layer-z", state.frontCanvasObjectKind === "text-box" ? "6" : "1");
+    if (textEditorStyle) textEditorStyle.setProperty("--text-editor-layer-z", selectedWidgetMaterialActive ? "2" : "3");
   }
   function setCanvasObjectFrontKind(kind) {
     if (!["image", "widget", "text-box"].includes(kind)) return false;
@@ -6800,6 +6822,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return true;
   }
   function showHandObjectToolbar(kind, object) {
+    if (kind === "text-box") return editTextBox(object);
     const ensured = ensureHandToolbarRecord(kind, object);
     if (!ensured) return false;
     const { key } = ensured;
@@ -6830,7 +6853,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       ordered = state.frontCanvasObjectKind === "widget"
         ? [{ kind:"widget", object:widget }, ...placed]
         : [...placed, { kind:"widget", object:widget }],
-      target = ordered.find(candidate => candidate.object);
+      target = widget && (state.selectedWidgetId === widget.id || state.interactingWidgetId === widget.id)
+        ? { kind:"widget", object:widget }
+        : textBox ? { kind:"text-box", object:textBox } : ordered.find(candidate => candidate.object);
     if (target) return target;
     const animation = animationPointerHit(point)?.animation;
     if (animation) return { kind:"animation", object:animation };
@@ -7037,7 +7062,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       maximumHeight = SIZE - start.y;
     if (hit === "width") return { ...start, w:Math.max(minimumWidth, Math.min(maximumWidth, point.x - start.x)) };
     if (hit === "height") return { ...start, h:Math.max(minimumHeight, Math.min(maximumHeight, point.y - start.y)) };
-    const minimumScale = Math.max(minimumWidth / start.w, minimumHeight / start.h),
+    const minimumScale = Math.max(minimumWidth / contentW, minimumHeight / contentH),
       maximumScale = Math.min(maximumWidth / start.w, maximumHeight / start.h),
       requestedScale = Math.max((point.x - start.x) / start.w, (point.y - start.y) / start.h),
       scale = Math.max(minimumScale, Math.min(maximumScale, requestedScale));
@@ -7360,7 +7385,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         : typeof item.html === "string" ? item.html : "";
     if (widgetType === "html_widget" && (!html.trim() || html.length > MAX_WIDGET_HTML_LENGTH)
       || widgetType === "diagram_source" && (!source || !normalizedSourceFormat || html.length > MAX_WIDGET_HTML_LENGTH)) return null;
-    if (!n(item.x) || !n(item.y) || !n(item.w, 300, SIZE) || !n(item.h, 200, SIZE) || item.x + item.w > SIZE || item.y + item.h > SIZE) return null;
+    if (!n(item.x) || !n(item.y) || !n(item.w, item.contentW !== undefined ? 1 : 300, SIZE) || !n(item.h, item.contentH !== undefined ? 1 : 200, SIZE) || item.x + item.w > SIZE || item.y + item.h > SIZE) return null;
     const contentW = item.contentW ?? item.w,
       contentH = item.contentH ?? item.h;
     if (!Number.isFinite(contentW) || contentW < 300 || contentW > MAX_WIDGET_CONTENT_DIMENSION
@@ -8249,19 +8274,19 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       contentH = start.contentH ?? start.h;
     if (hit === "width") {
       const displayScale = start.h / contentH,
-        minimum = Math.max(minimumWidth, minimumWidth * displayScale),
+        minimum = Math.max(1, minimumWidth * displayScale),
         maximum = limit - start.x,
         width = Math.max(minimum, Math.min(maximum, point.x - start.x));
       return { ...start, w:width, contentW:width / displayScale };
     }
     if (hit === "height") {
       const displayScale = start.w / contentW,
-        minimum = Math.max(minimumHeight, minimumHeight * displayScale),
+        minimum = Math.max(1, minimumHeight * displayScale),
         maximum = limit - start.y,
         height = Math.max(minimum, Math.min(maximum, point.y - start.y));
       return { ...start, h:height, contentH:height / displayScale };
     }
-    const minimumScale = Math.max(minimumWidth / start.w, minimumHeight / start.h),
+    const minimumScale = Math.max(minimumWidth / contentW, minimumHeight / contentH),
       maximumScale = Math.min((limit - start.x) / start.w, (limit - start.y) / start.h),
       requestedScale = Math.max((point.x - start.x) / start.w, (point.y - start.y) / start.h),
       scale = Math.max(minimumScale, Math.min(maximumScale, requestedScale));
@@ -9315,7 +9340,37 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     fit();
     return true;
   }
+  function renderTextContentLayer(region = null) {
+    if (!state.textBoxes.length) {
+      textContentLayer.width = textContentLayer.height = 1;
+      return;
+    }
+    const d = devicePixelRatio || 1,
+      metrics = canvasViewportMetrics(),
+      r = { width:metrics.width, height:metrics.height },
+      visible = region || {
+        x:Math.max(0, -state.panX / state.scale),
+        y:Math.max(0, -state.panY / state.scale),
+        w:Math.min(SIZE, (r.width - state.panX) / state.scale) - Math.max(0, -state.panX / state.scale),
+        h:Math.min(SIZE, (r.height - state.panY) / state.scale) - Math.max(0, -state.panY / state.scale),
+      };
+    const width = Math.max(1, Math.round(r.width * d)), height = Math.max(1, Math.round(r.height * d));
+    if (textContentLayer.width !== width) textContentLayer.width = width;
+    if (textContentLayer.height !== height) textContentLayer.height = height;
+    textContentCtx.setTransform(d, 0, 0, d, 0, 0);
+    textContentCtx.clearRect(0, 0, r.width, r.height);
+    if (visible.w <= 0 || visible.h <= 0) return;
+    textContentCtx.save();
+    textContentCtx.translate(state.panX, state.panY);
+    textContentCtx.scale(state.scale, state.scale);
+    textContentCtx.beginPath();
+    textContentCtx.rect(0, 0, SIZE, SIZE);
+    textContentCtx.clip();
+    drawTextBoxesToContext(textContentCtx, visible);
+    textContentCtx.restore();
+  }
   function renderPlacedContentLayer(region = null) {
+    renderTextContentLayer(region);
     const d = devicePixelRatio || 1,
       metrics = canvasViewportMetrics(),
       r = { width:metrics.width, height:metrics.height },
@@ -9338,12 +9393,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     placedContentCtx.restore();
   }
   function drawPlacedCanvasObjectsToContext(context, region = null, withShadow = false) {
-    if (state.frontPlacedCanvasObjectKind === "text-box") {
-      drawImagesToContext(context, region, withShadow);
-      drawTextBoxesToContext(context, region);
-      return;
-    }
-    drawTextBoxesToContext(context, region);
+    // Text has its own foreground surface so the live eraser cannot remove it.
     drawImagesToContext(context, region, withShadow);
   }
   function renderInkLayer(region = null) {
@@ -11724,6 +11774,44 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     textHelpInvoker = null;
     if (invoker?.isConnected && !invoker.disabled) invoker.focus({ preventScroll: true });
   }
+  function textEditorOwnsFocusTarget(editor, target) {
+    return Boolean(target && (editor.element.contains(target)
+      || target.closest?.("#textHelpDialog") && textHelpInvoker && editor.element.contains(textHelpInvoker)));
+  }
+  async function unselectTextEditor(editor) {
+    if (!editor || editor.committing || editor.unselecting || editor.cancelled) return;
+    const source = state.textBoxes.find(item => item.id === editor.sourceTextBoxId);
+    if (source && editor.textarea.value === source.text && !editor.moved && !editor.resized) {
+      state.selectedTextBoxId = null;
+      removeTextEditor(editor);
+      requestRender();
+      return;
+    }
+    if (!editor.textarea.value.trim()) {
+      cancelTextEditor(editor);
+      return;
+    }
+    editor.unselecting = true;
+    editor.element.classList.remove("active");
+    editor.element.classList.add("unselecting");
+    try {
+      await confirmTextEditor(editor, { focusLoss:true });
+    } catch (error) {
+      // Keep the draft recoverable if formatting fails during implicit commit.
+      editor.unselecting = false;
+      editor.committing = false;
+      editor.element.classList.remove("unselecting", "committing");
+      editor.element.classList.add("active");
+      editor.element.querySelectorAll("button").forEach(button => (button.disabled = false));
+      setStatusKey("textMixedModeError");
+    }
+  }
+  function unselectTextEditorsOutside(event) {
+    for (const editor of [...state.textEditors.values()]) {
+      if (event.type !== "blur" && textEditorOwnsFocusTarget(editor, event.target)) continue;
+      void unselectTextEditor(editor);
+    }
+  }
   async function confirmTextEditor(editor, options = null) {
     options ||= {};
     if (!editor) return;
@@ -11738,7 +11826,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       editor.cancelled = false;
       editor.element.classList.add("committing");
       cancelTextEditorPreview(editor);
-      blockCanvasInput(TEXT_INPUT_GUARD_MS);
+      if (!options.focusLoss) blockCanvasInput(TEXT_INPUT_GUARD_MS);
       if (!editor.returnMode && state.mode === "text") setCanvasMode("pen");
       supersedeActiveAI("text-input-confirmed");
       clearTimeout(state.timer);
@@ -11794,11 +11882,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       recomputeDirtyBounds();
       state.latestTypedInput = { text: text.slice(0, TEXT_INPUT_MAX_LENGTH), box };
       state.autoEligible = true;
-      const refineCandidate = latchWidgetRefineCandidate(item, "text-box");
-      state.selectedTextBoxId = null;
+      const refineCandidate = options.focusLoss ? null : latchWidgetRefineCandidate(item, "text-box");
+      if (!editor.sourceTextBoxId || state.selectedTextBoxId === editor.sourceTextBoxId) state.selectedTextBoxId = null;
       removeTextEditor(editor);
-      blockCanvasInput(TEXT_INPUT_GUARD_MS);
-      restoreTextEditorMode(editor);
+      if (!options.focusLoss) blockCanvasInput(TEXT_INPUT_GUARD_MS);
+      if (!options.focusLoss) restoreTextEditorMode(editor);
       saveUserCanvasChange();
       render();
       setStatusKey(mixedFallback ? "textMixedModeError" : "ready");
@@ -12008,7 +12096,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return editor;
   }
   function editTextBox(item) {
-    if (state.mode !== "select" || !item || !state.textBoxes.includes(item) || state.textEditors.size) return false;
+    if (!["select", "hand"].includes(state.mode) || state.viewMode || !item || !state.textBoxes.includes(item) || state.textEditors.size) return false;
     clearHandToolbarTarget("text-box", item.id);
     if (state.widgetEdit) acceptWidgetEdit();
     if (state.imageEdit) acceptImageEdit({ restoreMode:false });
@@ -12028,7 +12116,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         sourceFontSize:item.fontSize,
         fontFamily:item.fontFamily,
         color:item.color,
-        returnMode:"select",
+        returnMode:state.mode,
       });
     if (!editor) {
       state.selectedTextBoxId = null;
@@ -12350,6 +12438,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     snapshotLoadInProgress = false,
     snapshotLoadingId = null,
     snapshotItemsLocation = null,
+    snapshotListFailedLocation = null,
     snapshotLocationCountCache = new Map(),
     serverSnapshotUnavailableKey = "",
     serverCanvasProjects = [],
@@ -12537,6 +12626,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     activity.dataset.tone = tone;
     title.textContent = text;
     description.textContent = detail;
+    bar.hidden = tone === "error";
     if (Number.isFinite(progress)) bar.value = Math.max(0, Math.min(100, progress));
     else bar.removeAttribute("value");
   }
@@ -12633,7 +12723,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   async function saveCurrentCanvas() {
     if (snapshotSaveInProgress) return;
-    const location = window.PENECHO_CONFIG?.browserCanvasEditing ? "cloud" : state.currentSnapshotLocation || state.snapshotLocation,
+    const location = state.currentSnapshotLocation || (window.PENECHO_CONFIG?.browserCanvasEditing ? "cloud" : state.snapshotLocation),
       overwriteId = state.currentSnapshotId && state.currentSnapshotLocation === location ? state.currentSnapshotId : null,
       requestedName = document.querySelector("#historyName")?.value.trim(),
       name = requestedName || currentCanvasDisplayName();
@@ -12894,6 +12984,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     })).sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
   }
   async function snapshotsAt(location) {
+    if (location === "server") await window.PenEchoLinkedDevice?.refresh();
     return location === "server" ? serverSnapshotItems() : location === "cloud" ? cloudSnapshotItems() : allSnapshots();
   }
   function animationBounds(region = null) {
@@ -14196,22 +14287,42 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const loading = document.createElement("div");
     loading.className = "history-list-loading";
     loading.setAttribute("role", "status");
+    renderServerProjectUi();
+    updateHistoryLibrarySummary(null);
     loading.textContent = t("snapshotLibraryLoading").replace("{location}", snapshotLocationLabel(location));
     list.replaceChildren(loading);
     updateHistorySelectionUi(null);
     window.PenEchoStudioNavigator?.renderCanvases?.();
   }
-  function renderSnapshotListError(location = state.snapshotLocation) {
+  function renderSnapshotListError(location = state.snapshotLocation, retainItems = false) {
     const list = document.querySelector("#historyList");
     if (!list) return;
     cancelHistoryListRender();
-    releaseHistoryPreviewUrls();
-    const error = document.createElement("div");
-    error.className = "history-list-loading error";
+    if (!retainItems) releaseHistoryPreviewUrls();
+    list.querySelector(".history-library-error")?.remove();
+    const error = document.createElement("div"), copy = document.createElement("div"),
+      title = document.createElement("strong"), detail = document.createElement("p"), retry = document.createElement("button");
+    error.className = `history-library-error${retainItems ? " with-cache" : ""}`;
     error.setAttribute("role", "alert");
-    error.textContent = t(location === "server" && serverSnapshotUnavailableKey || "snapshotLibraryLoadFailed").replace("{location}", snapshotLocationLabel(location));
-    list.replaceChildren(error);
-    updateHistorySelectionUi(null);
+    title.textContent = t("snapshotLibraryUnavailable").replace("{location}", snapshotLocationLabel(location));
+    detail.textContent = t(location === "server" && serverSnapshotUnavailableKey || (retainItems ? "snapshotCloudCacheLoadFailed" : "snapshotLibraryRetryDetail"));
+    retry.type = "button";
+    peButton(retry, "secondary", "standard");
+    retry.textContent = t("snapshotLibraryRetry");
+    retry.onclick = () => {
+      if (snapshotListInProgress || location !== state.snapshotLocation) return;
+      retry.disabled = true;
+      void refreshSnapshots().catch(() => {});
+    };
+    copy.append(title, detail, retry);
+    error.append(copy);
+    if (retainItems) list.prepend(error);
+    else {
+      list.replaceChildren(error);
+      renderServerProjectUi();
+      updateHistoryLibrarySummary(null);
+      updateHistorySelectionUi(null);
+    }
     window.PenEchoStudioNavigator?.renderCanvases?.();
   }
   function renderCloudHistorySignIn() {
@@ -14407,12 +14518,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       windowSummary = document.querySelector("#historyWindowSummary"),
       select = document.querySelector("#historyProjectSelect"),
       projectName = location === "device" ? t("historyAllCanvases") : select?.selectedOptions?.[0]?.textContent || t("historyAllCanvases"),
-      countText = t("historyCanvasCount").replace("{count}", String(visibleCount)),
+      countText = Number.isFinite(visibleCount) ? t("historyCanvasCount").replace("{count}", String(visibleCount)) : "",
       locationText = snapshotLocationLabel(location);
-    if (snapshotItemsLocation === location) snapshotLocationCountCache.set(location, scopedCount);
+    if (snapshotItemsLocation === location && Number.isFinite(scopedCount)) snapshotLocationCountCache.set(location, scopedCount);
     if (title) title.textContent = projectName;
-    if (summary) summary.textContent = `${countText} · ${locationText}`;
-    if (windowSummary) windowSummary.textContent = `${locationText} · ${projectName} · ${countText}`;
+    if (summary) summary.textContent = [countText, locationText].filter(Boolean).join(" · ");
+    if (windowSummary) windowSummary.textContent = [locationText, projectName, countText].filter(Boolean).join(" · ");
     document.querySelectorAll(".history-location-count").forEach((node) => {
       const cachedCount = snapshotLocationCountCache.get(node.dataset.location);
       const hasLoadedCount = Number.isFinite(cachedCount);
@@ -14562,8 +14673,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       updateHistoryReadControls();
       return;
     }
-    if (location === "server" && serverSnapshotUnavailableKey) {
-      renderSnapshotListError(location);
+    if ((location === "server" && serverSnapshotUnavailableKey) || snapshotListFailedLocation === location) {
+      renderSnapshotListError(location, snapshotItemsLocation === location && snapshotItems.length > 0);
       return;
     }
     if (snapshotListInProgress && snapshotItemsLocation !== location) {
@@ -14810,6 +14921,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       replacingLocation = snapshotItemsLocation !== location,
       showingCloudCache = location === "cloud" && snapshotItemsLocation === "cloud" && Boolean(cloudHistoryCache);
     snapshotListInProgress = true;
+    snapshotListFailedLocation = null;
+    if (location === "server") serverSnapshotUnavailableKey = "";
     if (replacingLocation) {
       snapshotItems = [];
       snapshotItemsLocation = null;
@@ -14821,7 +14934,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       null,
     );
     updateHistoryReadControls();
-    let authenticationRequired = false;
+    let authenticationRequired = false, loadFailed = false;
     try {
       const items = await snapshotsAt(location);
       if (generation !== snapshotListGeneration || location !== state.snapshotLocation) return false;
@@ -14835,6 +14948,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       return true;
     } catch (error) {
       if (generation === snapshotListGeneration && location === state.snapshotLocation) {
+        loadFailed = true;
+        snapshotListFailedLocation = location;
         if (location === "server" && ["device_offline", "linked_device_required"].includes(error.code)) {
           serverSnapshotUnavailableKey = error.code === "device_offline" ? "serverHistoryDeviceOffline" : "serverHistoryDeviceRequired";
           snapshotItems = [];
@@ -14852,20 +14967,13 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
           cloudCanvasProjects = [];
           clearCloudHistoryCache();
           renderCloudHistorySignIn();
-        } else if (replacingLocation) {
-          snapshotItems = [];
-          snapshotItemsLocation = null;
-          renderSnapshotListError(location);
-        }
-        if (!authenticationRequired) {
-          setHistoryActivity(
-            t("snapshotLibraryLoading").replace("{location}", snapshotLocationLabel(location)),
-            t(location === "cloud" && snapshotItemsLocation === "cloud" && cloudHistoryCache
-              ? "snapshotCloudCacheLoadFailed"
-              : "snapshotLibraryLoadFailed").replace("{location}", snapshotLocationLabel(location)),
-            null,
-            "error",
-          );
+        } else {
+          const retainItems = snapshotItemsLocation === location && snapshotItems.length > 0;
+          if (!retainItems) {
+            snapshotItems = [];
+            snapshotItemsLocation = null;
+          }
+          renderSnapshotListError(location, retainItems);
         }
       }
       if (authenticationRequired) return false;
@@ -14873,7 +14981,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     } finally {
       if (generation === snapshotListGeneration) {
         snapshotListInProgress = false;
-        if (authenticationRequired) hideHistoryActivity();
+        if (authenticationRequired || loadFailed) hideHistoryActivity();
         updateHistoryReadControls();
       }
     }
@@ -18792,7 +18900,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     CANVAS_AGENT_CLIENT_KEY = "penecho-canvas-agent-client-v1",
     CANVAS_AGENT_POSITION_KEY = "penecho-canvas-agent-position-v1",
     CANVAS_AGENT_HEIGHT_KEY = "penecho-canvas-agent-height-v1",
-    CANVAS_AGENT_WIDTH_KEY = "penecho-canvas-agent-width-v1",
+    CANVAS_AGENT_WIDTH_KEY = "penecho-canvas-agent-width-v2",
     CANVAS_AGENT_HISTORY_KEY = "penecho-canvas-agent-history-v1",
     CANVAS_AGENT_SEARCH_ENABLED_KEY = "penecho-canvas-agent-search-enabled-v1",
     CANVAS_AGENT_PROJECT_KEY = "penecho-canvas-agent-project-v1",
@@ -20769,10 +20877,6 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       if (width>=CANVAS_AGENT_WIDTH_MIN) localStorage.setItem(CANVAS_AGENT_WIDTH_KEY,width>=maximumWidth-1?"full":String(width));
     } catch {}
     canvasAgentSyncResizeHandleValues();
-  }
-  function canvasAgentSchedulePanelSizeSave() {
-    cancelAnimationFrame(canvasAgent.panelResizeFrame);
-    canvasAgent.panelResizeFrame=requestAnimationFrame(canvasAgentSavePanelSize);
   }
   function canvasAgentResizeAnchor() {
     const panelRect=canvasElementLayoutRect(canvasAgentPanel);
@@ -22885,7 +22989,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         const pluginId=String(raw.pluginId || (widgetType === "diagram_source"?"flowchart":"general")),frameworkVersion=String(raw.frameworkVersion||"").trim();
         if(widgetType === "diagram_source"||pluginId === "flowchart"||frameworkVersion.startsWith("penecho-professional-diagrams"))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE","PenEcho Agent may edit an existing Professional Diagram, but it cannot create a new Professional Diagram.");
         if(!canvasAgentWidgetPluginAllowed(pluginId,widgetType))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE",`Plugin ${pluginId} is unavailable, disabled, or not available to PenEcho Agent.`);
-        const width=Math.max(300,Math.min(SIZE,Number(raw.width)||Math.max(600,Math.min(1200,visible.w*.7)))),height=Math.max(200,Math.min(SIZE,Number(raw.height)||Math.max(400,Math.min(800,visible.h*.7)))),placed=canvasAgentPlacementBox(width,height,raw.placement,reserved),
+        const width=Math.max(execution?.widgetContentViewport?1:300,Math.min(SIZE,Number(raw.width)||Math.max(600,Math.min(1200,visible.w*.7)))),height=Math.max(execution?.widgetContentViewport?1:200,Math.min(SIZE,Number(raw.height)||Math.max(400,Math.min(800,visible.h*.7)))),placed=canvasAgentPlacementBox(width,height,raw.placement,reserved),
           record=widgetRecord({tool:widgetType,widgetType,pluginId,x:placed.x,y:placed.y,w:width,h:height,contentW:execution?.widgetContentViewport?.width??width,contentH:execution?.widgetContentViewport?.height??height,title:String(raw.title||"Canvas widget"),refreshSeconds:Number.isFinite(Number(raw.refreshSeconds))?Number(raw.refreshSeconds):0,html:typeof raw.html === "string"?raw.html:"",source:typeof raw.source === "string"?raw.source:"",sourceFormat:raw.sourceFormat,diagramKind:raw.diagramKind,frameworkVersion:raw.frameworkVersion,copyText:raw.copyText,copyLabel:raw.copyLabel});
         if(!record)throw canvasAgentToolError("INVALID_WIDGET","Widget content or geometry was rejected. Read the plugin capability contract and retry.");
         reserved.push(canvasAgentBox({kind:"widget",item:record}));prepared.push({type,kind:"widget",record,placed});
@@ -22970,7 +23074,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       }else if(type === "move_object"){
         const box=canvasAgentBox(object),x=canvasAgentFinite(raw.x,"x"),y=canvasAgentFinite(raw.y,"y");if(x<0||y<0||x+box.w>SIZE||y+box.h>SIZE)throw canvasAgentToolError("INVALID_GEOMETRY","Moved object would leave the canvas.");prepared.push({type,kind:object.kind,object,x,y});
       }else if(type === "resize_widget"){
-        if(object.kind !== "widget")throw canvasAgentToolError("KIND_MISMATCH","resize_widget requires a widget.");const dimension=raw.dimension === "height"?"height":"width",value=canvasAgentFinite(raw.value,"value"),minimum=dimension === "width"?300:200,box=canvasAgentBox(object),contentRatio=dimension === "width"?object.item.contentW/object.item.w:object.item.contentH/object.item.h,contentMinimum=dimension === "width"?300:200;if(value<minimum||value*contentRatio<contentMinimum||(dimension === "width"?box.x+value:box.y+value)>SIZE)throw canvasAgentToolError("INVALID_GEOMETRY","Responsive widget size cannot preserve its current typography scale at this value.");prepared.push({type,kind:"widget",object,dimension,value});
+        if(object.kind !== "widget")throw canvasAgentToolError("KIND_MISMATCH","resize_widget requires a widget.");const dimension=raw.dimension === "height"?"height":"width",value=canvasAgentFinite(raw.value,"value"),minimum=1,box=canvasAgentBox(object),contentRatio=dimension === "width"?object.item.contentW/object.item.w:object.item.contentH/object.item.h,contentMinimum=dimension === "width"?300:200;if(value<minimum||value*contentRatio<contentMinimum||(dimension === "width"?box.x+value:box.y+value)>SIZE)throw canvasAgentToolError("INVALID_GEOMETRY","Responsive widget size cannot preserve its current typography scale at this value.");prepared.push({type,kind:"widget",object,dimension,value});
       }else if(type === "resize_image"){
         if(object.kind !== "image")throw canvasAgentToolError("KIND_MISMATCH","resize_image requires an image.");const box=canvasAgentBox(object),ratio=box.w/box.h;let w=Number(raw.width),h=Number(raw.height);if(!Number.isFinite(w)&&!Number.isFinite(h))throw canvasAgentToolError("INVALID_ARGUMENT","resize_image requires width or height.");if(raw.preserveAspect){if(Number.isFinite(w))h=w/ratio;else w=h*ratio;}else{if(!Number.isFinite(w))w=box.w;if(!Number.isFinite(h))h=box.h;}if(w<80||h<80||box.x+w>SIZE||box.y+h>SIZE)throw canvasAgentToolError("INVALID_GEOMETRY","Image size is invalid.");prepared.push({type,kind:"image",object,w,h});
       }else if(type === "delete_object")prepared.push({type,kind:object.kind,object});
@@ -23320,7 +23424,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function canvasAgentPrepareOpenState() {
     if(settings.connections.length)canvasAgentUpdateConnectionButton();
-    else void loadCanvasSettings();
+    if(!settings.connections.length || window.PENECHO_CONFIG?.browserCanvasEditing)void loadCanvasSettings();
     if(canvasAgentWorkbenchNeedsSync())syncStudioWorkbench();
   }
   function canvasAgentFinishDockedOpen(focus,connect) {
@@ -23806,7 +23910,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     else void canvasAgentDesktopClipboardFiles().then(desktopFiles=>desktopFiles.length?canvasAgentHandleFiles(desktopFiles):canvasAgentSetStatus(t("canvasAgentFileReadFailed"),"error")).catch(canvasAgentReportAsyncError);
   },true);
   if (typeof ResizeObserver==="function") {
-    new ResizeObserver(()=>{canvasAgentSchedulePanelSizeSave();canvasAgentResizeInput();}).observe(canvasAgentPanel);
+    new ResizeObserver(()=>{canvasAgentSyncResizeHandleValues();canvasAgentResizeInput();}).observe(canvasAgentPanel);
     new ResizeObserver(canvasAgentScheduleScrollToLatest).observe(canvasAgentTranscript);
     const toolbarLayoutObserver = new ResizeObserver(canvasAgentScheduleToolbarLayout);
     toolbarLayoutObserver.observe(canvasAgentToolbar);
@@ -23820,6 +23924,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   canvasAgentRenderProjects();
   canvasAgentCanvasDidChange();
   // Bounded MCP content preparation. Native text/image records share Canvas history and capture.
+  // Authoring pixels remain raster pixels; only the placed frame enters world space.
+  function mcpPrimitiveWorldBox(box, worldPerPixel, origin = {x:0,y:0}) {
+    return {x:origin.x+box.x*worldPerPixel,y:origin.y+box.y*worldPerPixel,w:box.w*worldPerPixel,h:box.h*worldPerPixel};
+  }
   function mcpPrimitiveLayout(items) {
     const nodes=new Map(),result=[],occupied=[];
     for(const item of items.filter(item=>!['line','arrow','path'].includes(item.type))){
@@ -23892,6 +24000,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     canvasAgentMutationIdle(execution);
     const revision=state.userRevision,previous=session.artifacts.get(args.artifactId);
     if(previous&&previous.kind!==kind)throw Error('This artifact belongs to a different tool. Use a new artifactId.');
+    // An artifact keeps its original mapping even when the user later zooms.
+    const worldPerPixel=previous?(previous.worldPerPixel||1):1/(Number.isFinite(state.scale)&&state.scale>0?state.scale:1);
     const old=new Map(previous?.elements||[]);
     for(const value of old.values())if(!canvasAgentObject(value.objectId))throw Error('An object in this artifact was removed. Use a new artifactId.');
     const prepared=[];let scene;
@@ -23910,8 +24020,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         }else if(['rect','ellipse'].includes(item.type))item={...item,width:Math.max(80,item.width||260),height:Math.max(80,item.height||100)};
         if(object&&!['line','arrow','path'].includes(item.type)){
           if((item.type==='text')!==(object.kind==='text'))throw Error('Changing a text object into a shape requires a new element id.');
-          item.x=object.item.x-previous.origin.x;item.y=object.item.y-previous.origin.y;
-          if(item.type!=='text'){item.width=object.item.w;item.height=object.item.h;}
+          item.x=(object.item.x-previous.origin.x)/worldPerPixel;item.y=(object.item.y-previous.origin.y)/worldPerPixel;
+          item.width=object.item.w/worldPerPixel;item.height=object.item.h/worldPerPixel;
         }
         items.push(item);
       }
@@ -23926,9 +24036,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       }
     }
     canvasAgentAssertRevision(revision);canvasAgentMutationIdle(execution);
-    const plan=previous?null:mcpPlanPlacement(scene.bounds.w,scene.bounds.h,session,mcpPresentation(args,previous)),origin=previous?.origin||{x:plan.placement.x-scene.bounds.x,y:plan.placement.y-scene.bounds.y},elements=new Map(),records=[];
+    const worldBounds=mcpPrimitiveWorldBox(scene.bounds,worldPerPixel),plan=previous?null:mcpPlanPlacement(worldBounds.w,worldBounds.h,session,mcpPresentation(args,previous)),origin=previous?.origin||{x:plan.placement.x-worldBounds.x,y:plan.placement.y-worldBounds.y},elements=new Map(),records=[];
     for(const item of prepared){
-      const former=old.get(item.id),object=former&&canvasAgentObject(former.objectId),box={x:origin.x+item.box.x,y:origin.y+item.box.y,w:item.box.w,h:item.box.h};
+      const former=old.get(item.id),object=former&&canvasAgentObject(former.objectId),box=mcpPrimitiveWorldBox(item.box,worldPerPixel,origin);
       if(object&&(kind==='plot'||item.preserveFrame))Object.assign(box,canvasAgentBox(object));
       if(box.x<0||box.y<0||box.x+box.w>SIZE||box.y+box.h>SIZE)throw Error('This drawing extends beyond the Canvas. Move it inward or split the content.');
       const record=item.kind==='text'?{...item.record,...box,...(object?{id:object.item.id}:{})}:imageRecord({...box,...(object?{id:object.item.id}:{}),image:item.image,blob:item.blob,naturalW:item.image.width,naturalH:item.image.height,sourceName:args.title,...(item.plotExpression?{plotExpression:item.plotExpression}:{})});
@@ -23943,7 +24053,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     // Match normal new-text creation: opaque native shapes must not cover labels.
     // Existing artifacts retain the user's later foreground choice.
     if(!previous&&records.some(item=>item.kind==='text'))setCanvasObjectFrontKind('text-box');
-    const objectIds=records.map(item=>item.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,presentation:mcpPresentation(args,previous),elements:[...elements]});
+    const objectIds=records.map(item=>item.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,worldPerPixel,presentation:mcpPresentation(args,previous),elements:[...elements]});
     if(plan)session.layout=plan.layout;
     state.userRevision++;save();requestRender();canvasAgentSyncState();
     const presentation=mcpPresentation(args,previous);
@@ -23996,7 +24106,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     toolbarRetry:["Connection failed. Click MCP Server to retry.","连接失败。点击 MCP Server 重试。"],
     nav:["MCP service","MCP 服务"], eyebrow:["MCP Service","MCP 服务"], heading:["Connect your AI Agent", "连接你的 AI Agent"],
     canvasNotice:["MCP connected · AI can update this canvas","MCP 已连接 · AI 可更新此画布"],
-    canvasWaiting:["MCP open · Waiting for AI","MCP 已开放 · 等待 AI"],
+    canvasCloudLocal:["MCP · Cloud + Local online","MCP · 云端与本地在线"],
+    canvasCloud:["MCP · Cloud online","MCP · 云端在线"],
+    canvasLocal:["MCP · Local online","MCP · 本地在线"],
+    canvasConnecting:["MCP · Connecting…","MCP · 连接中…"],
     canvasLost:["MCP connection lost","MCP 连接已断开"],
     canvasApplying:["is updating the canvas…","正在更新画布…"],
     canvasSessions:["sessions","个会话"],
@@ -24122,6 +24235,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(doc){canvasDocumentsSyncExtension(doc);if(!canvasDocumentsIsActive(doc))void canvasDocumentsPersist(doc).catch(error=>canvasDocumentsReport(error,()=>canvasDocumentsPersist(doc)));}
     mcpRenderSettings();
   }
+  function mcpAccessLabel() {
+    const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,
+      availability=mcpRuntime.socket?.availability||{cloud:connected&&window.PENECHO_CONFIG?.runtime==="cloud",local:connected&&window.PENECHO_CONFIG?.runtime!=="cloud"};
+    return mcpText(availability.cloud&&availability.local?"canvasCloudLocal":availability.cloud?"canvasCloud":availability.local?"canvasLocal":"canvasConnecting");
+  }
   function mcpRenderCanvasStatus() {
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,
       sessions=[...mcpRuntime.sessions.values()].filter(session=>!session.internalAgent&&!session.closed&&mcpSessionVisible(session)),
@@ -24134,9 +24252,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(button)button.hidden=retrying||!mcpLocal()||(!connected&&!mcpRuntime.connectionLost);
     if(ring){ring.hidden=!connected;ring.setAttribute("data-state",mcpRuntime.glowing&&mutationVisible?"updating":"open");}
     if(newButton){newButton.hidden=!count;newButton.textContent=mcpText("newContent");}
+    const accessLabel=mcpAccessLabel();
     let label=mcpText("canvasLost");
-    if(connected)label=mcpRuntime.activeMutation&&mutationVisible?`${mcpRuntime.activeMutation} ${mcpText("canvasApplying")}`:sessions.length?`MCP · ${clients.slice(0,2).join(" / ")}${clients.length>2?" +":""} · ${sessions.length} ${mcpText(sessions.length===1?"canvasSession":"canvasSessions")}`:mcpText("canvasWaiting");
-    if(button){if(button.textContent!==label)button.textContent=label;button.title=mcpText("canvasNoticeHelp");}
+    if(connected)label=mcpRuntime.activeMutation&&mutationVisible?`${mcpRuntime.activeMutation} ${mcpText("canvasApplying")}`:sessions.length?`MCP · ${clients.slice(0,2).join(" / ")}${clients.length>2?" +":""} · ${sessions.length} ${mcpText(sessions.length===1?"canvasSession":"canvasSessions")}`:accessLabel;
+    if(button){if(button.textContent!==label)button.textContent=label;button.title=connected?`${accessLabel}. ${mcpText("canvasNoticeHelp")}`:mcpText("canvasNoticeHelp");}
   }
   // PenEcho owns deterministic placement and camera batching; MCP clients provide only content.
   function mcpSessionTransportActive(session) {
@@ -24161,37 +24280,61 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const input=args.presentation||previous?.presentation||{},intent=input.intent||"deliver",role=input.role||"primary";
     return {...input,intent,role,attention:input.attention||(intent==="review"?"request":role!=="primary"||intent==="inspect"?"quiet":"normal")};
   }
+  function mcpReadingScreenStage() {
+    const stage=canvasAgentFramePlan({x:0,y:0,w:1,h:1},0).stage;
+    if(!stage)return stage;
+    // The Canvas extends behind its overlaid toolbar. Reading content starts
+    // below that real obstruction, including wrapped toolbars at narrow widths.
+    const toolbar=typeof canvasElementLayoutRect==="function"?canvasElementLayoutRect(document.querySelector?.(".toolbar")):null;
+    if(toolbar&&toolbar.left<stage.x+stage.w&&toolbar.right>stage.x&&toolbar.top<=stage.y&&toolbar.bottom>stage.y){
+      const y=Math.min(stage.y+stage.h,toolbar.bottom);return {...stage,y,h:stage.h-(y-stage.y)};
+    }
+    return stage;
+  }
+  function mcpPresentationViewport(doc=null) {
+    const saved=doc&&!canvasDocumentsIsActive(doc)?doc.stored?.item?.view:null,
+      hasSavedStage=saved?.region?.w>0&&saved?.region?.h>0&&saved?.scale>0,
+      stage=saved?.readingStage||(hasSavedStage?{x:0,y:0,w:saved.region.w*saved.scale,h:saved.region.h*saved.scale}:mcpReadingScreenStage()),
+      scale=Math.max(.03,Math.min(2,Number(saved?.scale??state.scale)||1));
+    return {stage,scale,panX:Number(saved?.panX??state.panX)||0,panY:Number(saved?.panY??state.panY)||0};
+  }
   function mcpPresentationSize(args,doc=null) {
     const preset=MCP_PRESENTATION_SIZES[args.presentation?.size||"page"]||MCP_PRESENTATION_SIZES.page,
       requested={width:args.width||preset[0],height:args.height||preset[1]};
-    // Inspection is an exact authoring viewport, not a placed document.
     if(args.presentation?.intent==="inspect")return requested;
-    const active=!doc||canvasDocumentsIsActive(doc),saved=doc?.stored?.item?.view,
-      stage=active?canvasAgentFramePlan({x:0,y:0,w:1,h:1},0).stage:
-        saved?.region?{w:saved.region.w*saved.scale,h:saved.region.h*saved.scale}:null;
+    const {stage,scale}=mcpPresentationViewport(doc);
     if(!stage?.w||!stage?.h)return {...requested,contentWidth:requested.width,contentHeight:requested.height};
     const page=args.presentation?.size==="page"||(!args.presentation?.size&&requested.width===1200&&requested.height===800),
       availableW=Math.max(300,Math.floor(stage.w-48)),availableH=Math.max(200,Math.floor(stage.h-72)),
-      contentWidth=Math.min(4096,page?availableW:Math.max(300,Math.min(requested.width,availableW))),
-      contentHeight=Math.min(4096,page?availableH:Math.max(200,Math.min(requested.height,availableH))),
-      // Bound new footprints so a zoomed-out overview cannot consume the entire
-      // finite Canvas. Framing later uses this scale without changing old objects.
-      scale=Math.min(contentWidth/300,contentHeight/200,Math.max(Math.max(contentWidth,contentHeight)/4096,Math.min(2,Number(active?state.scale:saved?.scale)||1))),
-      width=Math.round(contentWidth/scale),height=Math.round(contentHeight/scale);
+      // Authoring pixels are screen pixels. Only the finite Canvas boundary,
+      // never a tile-sized footprint cap, limits the world-coordinate conversion.
+      contentWidth=Math.min(4096,(SIZE-96)*scale,page?availableW:Math.max(300,Math.min(requested.width,availableW))),
+      contentHeight=Math.min(4096,(SIZE-96)*scale,page?availableH:Math.max(200,Math.min(requested.height,availableH))),
+      width=contentWidth/scale,height=contentHeight/scale;
     return {width,height,contentWidth,contentHeight};
   }
-  function mcpWidgetFramePlan(widget) {
-    const region=canvasAgentBox({kind:"widget",item:widget}),stage=canvasAgentFramePlan(region,0).stage;
+  function mcpRegionFramePlan(region) {
+    const {stage,scale}=mcpPresentationViewport();
     if(!stage?.w||!stage?.h)return null;
-    const scale=Math.max(.03,Math.min(2,widget.contentW/region.w,widget.contentH/region.h,
-      Math.max(1,stage.w-48)/region.w,Math.max(1,stage.h-72)/region.h));
-    return {stage,scale,panX:stage.x+(stage.w-region.w*scale)/2-region.x*scale,
-      panY:stage.y+48+(stage.h-72-region.h*scale)/2-region.y*scale};
+    return {stage,scale,panX:stage.x+Math.max(24,(stage.w-region.w*scale)/2)-region.x*scale,
+      panY:stage.y+48+Math.max(0,(stage.h-72-region.h*scale)/2)-region.y*scale};
+  }
+  function mcpRevealRegion(region,explicit=false) {
+    const frame=mcpRegionFramePlan(region);
+    if(!frame)return false;
+    const {stage,scale}=frame,x=(state.panX||0)+region.x*scale,y=(state.panY||0)+region.y*scale,
+      visible=x>=stage.x+23&&y>=stage.y+23&&x+region.w*scale<=stage.x+stage.w-23&&y+region.h*scale<=stage.y+stage.h-23;
+    if(!explicit&&visible)return false;
+    state.panX=frame.panX;state.panY=frame.panY;
+    requestRender();canvasAgentSyncState();return true;
+  }
+  function mcpWidgetFramePlan(widget) {
+    return mcpRegionFramePlan(canvasAgentBox({kind:"widget",item:widget}));
   }
   // Semantic placement has one owner for visible and parked documents. It never
   // changes existing geometry, and searches downwards instead of a 4608px shelf.
   function mcpArrange(width,height,session,presentation,view,boundsFor,collisions) {
-    const gap=32,p= presentation||{},owned=[...(session?.artifacts.values()||[])],
+    const gap=32/(view?.scale||1),p= presentation||{},owned=[...(session?.artifacts.values()||[])],
       anchor=p.relativeTo?session?.artifacts.get(p.relativeTo):null;
     if(p.relativeTo&&!anchor)throw Error("Related artifact not found in this session. Use an existing artifactId.");
     const reference=anchor?boundsFor(anchor):null;
@@ -24199,15 +24342,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const primary=owned.find(a=>a.presentation?.role!=="supporting"&&a.presentation?.role!=="alternative"),
       primaryBounds=primary&&boundsFor(primary),last=owned.map(boundsFor).filter(Boolean).at(-1),
       viewport=view||{x:0,y:0,w:1280,h:900},
-      origin=session?.internalAgent?{x:Math.max(48,Math.min(SIZE-width-48,viewport.x+Math.max(48,(viewport.w-width)/2))),y:Math.max(128,Math.min(SIZE-height-48,viewport.y+Math.min(160,viewport.h*.18)))}
-        :{x:Math.max(48,Math.min(SIZE-width-48,1000)),y:Math.max(48,Math.min(SIZE-height-48,1000))};
+      origin={x:Math.max(0,Math.min(SIZE-width,viewport.x)),y:Math.max(0,Math.min(SIZE-height,viewport.y))};
     let x=reference?.x??primaryBounds?.x??last?.x??origin.x,
       y=reference?reference.y+reference.h+gap:last?last.y+last.h+gap:origin.y;
     const beside=reference&&(p.relation==="beside"||!p.relation&&p.intent==="compare");
     if(beside&&reference.w+gap+width<=Math.max(width,(viewport.readableWidth||viewport.w)-96)) {x=reference.x+reference.w+gap;y=reference.y;}
-    x=Math.max(48,Math.min(SIZE-width-48,x));
+    x=Math.max(0,Math.min(SIZE-width,x));
     const findSlot=(column,start)=>{
-      for(let row=Math.max(48,start),attempt=0;attempt<2048&&row+height<=SIZE-48;attempt++){
+      for(let row=Math.max(0,start),attempt=0;attempt<2048&&row+height<=SIZE;attempt++){
         const hits=collisions({x:column-gap/2,y:row-gap/2,w:width+gap,h:height+gap});
         if(!hits.length)return {placement:{mode:"absolute",x:column,y:row},layout:{zone:{x:column,y:row,w:width,h:height},x:0,y:height+gap,rowHeight:height}};
         row=Math.max(row+gap,...hits.map(b=>b.y+b.h+gap));
@@ -24217,15 +24359,20 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const below=findSlot(x,y);if(below)return below;
     // Near the finite Canvas bottom, find another clear column instead of
     // falling back onto the previous result or rejecting an otherwise empty Canvas.
-    const columns=new Set([x,48,SIZE-width-48]);
-    for(let column=48;column+width<=SIZE-48;column+=width+gap)columns.add(column);
-    for(const column of columns){const slot=findSlot(column,48);if(slot)return slot;}
+    const columns=new Set([x,48,SIZE-width]);
+    for(let column=0;column+width<=SIZE;column+=width+gap)columns.add(column);
+    for(const column of columns){const slot=findSlot(column,0);if(slot)return slot;}
     throw Error("No clear space remains for this work. Move the group or use another Canvas.");
+  }
+  function mcpReadingWorldRect(doc=null) {
+    const {stage,scale,panX,panY}=mcpPresentationViewport(doc);
+    return stage?.w&&stage?.h?{x:(stage.x+24-panX)/scale,y:(stage.y+48-panY)/scale,
+      w:Math.max(1,stage.w-48)/scale,h:Math.max(1,stage.h-72)/scale,readableWidth:Math.max(1,stage.w-48)/scale,scale}:null;
   }
   function mcpPlanPlacement(width,height,session=null,presentation=null) {
     if(typeof canvasDocumentsCurrent==="function")return canvasDocumentsPlace(canvasDocumentsCurrent(),width,height,session,presentation);
     const occupied=canvasAgentAllObjects().map(item=>canvasAgentInternalRect(item.box)),ink=visibleInkBounds({x:0,y:0,w:SIZE,h:SIZE});if(ink)occupied.push(ink);
-    return mcpArrange(width,height,session,presentation,typeof viewportRect==="function"?viewportRect():null,a=>mcpTaskBounds(session,a.objectIds||[a.objectId]),box=>occupied.filter(b=>intersection(box,b)));
+    return mcpArrange(width,height,session,presentation,mcpReadingWorldRect(),a=>mcpTaskBounds(session,a.objectIds||[a.objectId]),box=>occupied.filter(b=>intersection(box,b)));
   }
   function mcpContentUpdateRegion(result,args) {
     const doc=canvasDocuments.records.get(result.documentId);
@@ -24298,7 +24445,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     let shown=candidates,region=candidates.reduce((bounds,item)=>unionDirtyBounds(bounds,item.bounds),null);
     // A delivered document gets its own readable viewport. Do not squeeze older
     // pending documents into the same camera frame or focus the oldest result.
-    const widgetFrame=candidates[0].widget?mcpWidgetFramePlan(candidates[0].widget):null;
+    const widgetFrame=candidates[0].widget?mcpWidgetFramePlan(candidates[0].widget):mcpRegionFramePlan(candidates[0].bounds);
     if(widgetFrame||canvasAgentFramePlan(region,96).scale<.65){shown=[candidates[0]];region=shown[0].bounds;}
     const view=typeof viewportRect==="function"?viewportRect():null,stage=canvasAgentFramePlan(region,96).stage,scale=state.scale||1,
       screenX=(state.panX||0)+region.x*scale,screenY=(state.panY||0)+region.y*scale,
@@ -24308,8 +24455,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     // contains the artifact at a scale too small for reading its content.
     if(explicit||!alreadyVisible) {
       if(widgetFrame){
-        state.scale=widgetFrame.scale;state.panX=widgetFrame.panX;state.panY=widgetFrame.panY;
-        requestRender();canvasAgentSyncState();
+        mcpRevealRegion(region,explicit);
       }else canvasAgentFrameRegion(region,96);
     }
     // Older results remain on Canvas, but must not pull focus backwards on a
@@ -24350,7 +24496,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(mcpEl("mcpEnabled")){mcpEl("mcpEnabled").setAttribute("aria-checked",String(mcpRuntime.wanted||connected||connecting));mcpEl("mcpEnabled").classList.toggle("on",mcpRuntime.wanted||connected||connecting);mcpEl("mcpEnabled").disabled=!mcpLocal();}
     const connection=mcpEl("mcpConnectionStatus");
     if(connection){
-      connection.textContent=mcpText(!mcpLocal()?"localOnly":connected?"connected":connecting?"connecting":mcpRuntime.connectionLost?(mcpRuntime.wanted?"toolbarCancelRetry":"toolbarRetry"):"disconnected");
+      connection.textContent=connected?mcpAccessLabel():mcpText(!mcpLocal()?"localOnly":connecting?"connecting":mcpRuntime.connectionLost?(mcpRuntime.wanted?"toolbarCancelRetry":"toolbarRetry"):"disconnected");
       connection.dataset.state=!mcpLocal()?"off":connected?"on":connecting?"pending":mcpRuntime.connectionLost?"error":"off";
     }
     const remote=mcpRemoteBrowser(),config=remote?null:mcpRuntime.status?.config;
@@ -24508,6 +24654,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(mcpRuntime.reconnectAt)mcpRuntime.reconnectStatusTimer=setTimeout(mcpRenderReconnectStatus,1000);
   }
   function mcpRenderToolbar() {
+    window.PenEchoMcpSettings?.setConnection({enabled:Boolean(mcpRuntime.wanted),connected:Boolean(mcpRuntime.ready),label:mcpAccessLabel()});
     window.PenEchoStudioNavigator?.syncMcp?.(Boolean(mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN),{reveal:!mcpRuntime.reconnecting});
     mcpRenderReconnectStatus();
     const button=mcpEl("mcpToolbarToggle");if(!button)return;
@@ -24565,7 +24712,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
 
 ${JSON.stringify(direct,null,2)}
 
-Use this computer's user home: ~/.penecho/mcp on macOS/Linux, %USERPROFILE%\\.penecho\\mcp on Windows. Download discoveryCliUrl to discover.js and sessionCliUrl to client.js in that directory. Verify each SHA-256 against its supplied hash BEFORE execution. Use a locally installed Node.js 18+ and absolute executable/script paths. Never use another computer's paths. Save {hostId,certificatePem,accessToken,initialUrl,addresses} in a private temporary JSON file, run node <absolute discover.js> --import <temporary file> WITHOUT --client, then delete only that temporary file. Discovery only saves verified host credentials and addresses; it does not need the Agent's name and must not rewrite Agent configuration during normal reconnects.
+Use this computer's user home and this REQUIRED installation directory: ~/.penecho/mcp on macOS/Linux, %USERPROFILE%\\.penecho\\mcp on Windows. Download discoveryCliUrl to discover.js and sessionCliUrl to client.js in that directory. Do not choose any other directory or filename. Both the MCP command configuration and upload commands MUST use this exact downloaded client.js. The upload script is this same client.js: ~/.penecho/mcp/client.js on macOS/Linux, %USERPROFILE%\\.penecho\\mcp\\client.js on Windows. It is not stored in the Agent skill directory or PenEcho application directory. Retain its resolved absolute path and the local Node executable for subsequent uploads. hostId identifies the PenEcho server, NOT a Canvas instance, document or session. For every upload copy the hostId supplied above, which is also the value after --host-id in the MCP entry. client.js resolves addresses and ports automatically; do not guess IDs, inspect its source or parse port mappings. Verify each SHA-256 against its supplied hash BEFORE execution. Use a locally installed Node.js 18+ and absolute executable/script paths. Never use another computer's paths. Save {hostId,certificatePem,accessToken,initialUrl,addresses} in a private temporary JSON file, run node <absolute discover.js> --import <temporary file> WITHOUT --client, then delete only that temporary file. Discovery only saves verified host credentials and addresses; it does not need the Agent's name and must not rewrite Agent configuration during normal reconnects.
 
 Configure this Agent's supported stdio MCP entry named penecho with command=<absolute local Node executable> and args=[<absolute client.js>,"--host-id",hostId]. Preserve unrelated settings and replace only the previous PenEcho entry; remove old HTTP url/header fields and any old idle-exit option from that entry. Do not add an idle process-exit timer. For Codex use its MCP command/args format; for Claude use its stdio command/args format; use the actual supported format for other clients. Authorization and certificate trust stay in the shared ~/.penecho/mcp store, read by client.js. Do not place accessToken on the command line, print credentials, disable TLS verification, or configure discover.js as the stdio server.
 
@@ -24575,7 +24722,9 @@ The AI client owns the CLI stdin/stdout. Keep the lightweight CLI alive while st
 
 Reload this Agent's MCP integration and verify initialize, tools/list, and penecho_list_canvases. Keep one unique stable client/sessionKey per logical conversation plus returned sessionId/documentId. HTTP recovery in the living CLI restores its original document; after CLI restart call penecho_start_session with the same client/sessionKey/documentId. Never use a new conversation's key or silently switch an existing conversation to another browser. A closed Canvas can reopen; only definitive DOCUMENT_NOT_FOUND permits replacement. Report the actually verified connection result.
 
-Optional helper skill: if this Agent supports local skills, create or update penecho-mcp using its supported skill location and format. Use this one-shot SKILL.md content (adapt the format if needed):
+Image files on THIS Agent's computer: run the downloaded client.js as a separate one-shot command using the same local Node executable and host ID: node "<absolute client.js>" --host-id HOST_ID --upload-image "<absolute image path>" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Obtain canvasId and documentId from penecho_start_session with target:current; keep that exact document open and current. Reuse the configured environment and --state-directory if present. Quote paths on Windows/macOS/Linux. The CLI sends original bytes to /mcp/images on the SAME HTTPS port and with the same authentication as /mcp; image processing runs on PenEcho, with no client-side converter or Base64 needed. Maximum original file size: 32 MiB. Supported raw files: PNG, WebP, JPG/JPEG, GIF, TIFF, AVIF; HEIC/HEIF depends on server codecs. Prefer WebP generally, PNG for lossless diagrams/transparency, JPEG for photos. Copy the returned source verbatim into Widget img src or CSS url(), or pass it to penecho_place_image with the sessionId and a new requestId. Never pass a local filesystem path as MCP source. Chat attachment Data URLs can use penecho_upload_image directly. Retry uncertain uploads with the identical target, file and requestId. Verify client.js --help includes --upload-image; if absent, download and verify the current client again.
+
+Optional helper skill: if this Agent supports local skills, create or update penecho-mcp using its supported skill location and format. Use this one-shot SKILL.md content (adapt the format if needed): When saving the skill, replace NODE_PATH, CLIENT_JS_PATH and HOST_ID below with the actual absolute local Node executable, fixed installation path expanded to an absolute client.js path and supplied hostId. These are connection identifiers, not credentials; never embed accessToken.
 
 ---
 name: penecho-mcp
@@ -24583,6 +24732,8 @@ description: Create, read, or edit PenEcho canvases, including following the use
 ---
 
 Use connected tools; search only missing deferred tools. Bind once with start_session; retain sessionId/documentId and stable client/sessionKey. Use target:current for the user's current Canvas.
+
+Upload files with the installed bridge: "NODE_PATH" "CLIENT_JS_PATH" --host-id HOST_ID --upload-image "ABSOLUTE_IMAGE_PATH" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Required client.js location: ~/.penecho/mcp/client.js (macOS/Linux), %USERPROFILE%\\.penecho\\mcp\\client.js (Windows), not the skill or application directory. HOST_ID is the setup server hostId, never a canvasId/documentId/sessionId. Copy it from the MCP entry if needed. client.js resolves the address/port automatically; do not inspect source or port mappings. Get canvasId/documentId from start_session target:current; reuse returned source. Read upload_image source parameters for upload details.
 
 Follow live schemas; get_guidance only for the needed topic. Keep artifact IDs. Read source/contentHash before patching. Retry uncertain writes with identical arguments/requestId. Capture when visual evidence is needed; combine final mutation and completion. Inbox reads do not acknowledge.
 
@@ -24606,8 +24757,11 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     mcpRuntime.browserId=mcpRuntime.browserId||canvasClientId();
     const generation=mcpRuntime.generation;
     if(!reconnecting&&typeof canvasDocumentsReady==="function")void canvasDocumentsReady().then(()=>{if(generation!==mcpRuntime.generation||!mcpRuntime.wanted)return;const doc=canvasDocumentsCurrent();mcpRuntime.feedback=doc.feedback;mcpRuntime.feedbackSequence=doc.feedbackSequence;canvasDocumentsRender();}).catch(error=>{if(generation===mcpRuntime.generation&&mcpRuntime.wanted)canvasDocumentsReport(error,()=>canvasDocumentsReady());});
-    const socket=new WebSocket(`${location.protocol==="https:"?"wss:":"ws:"}//${location.host}${window.PENECHO_CONFIG?.runtime==="cloud"?"/api/v1/remote-canvas/mcp":"/api/mcp/canvas"}`);
+    const socket=window.PenEchoCloudMcpSocket
+      ?new window.PenEchoCloudMcpSocket()
+      :new WebSocket(`${location.protocol==="https:"?"wss:":"ws:"}//${location.host}${window.PENECHO_CONFIG?.runtime==="cloud"?"/api/v1/remote-canvas/mcp":"/api/mcp/canvas"}`);
     mcpRuntime.socket=socket;mcpRuntime.lastPong=Date.now();mcpHeartbeat(socket);
+    socket.addEventListener("availabilitychange",()=>{if(socket===mcpRuntime.socket)mcpRenderSettings();});
     socket.addEventListener("open",()=>{if(socket!==mcpRuntime.socket)return;socket.send(JSON.stringify({type:"hello",canvasId:mcpRuntime.browserId,title:state.currentSnapshotName||"PenEcho Canvas"}));mcpRenderSettings();});
     socket.addEventListener("message",event=>{
       if(socket!==mcpRuntime.socket)return;let message;try{message=JSON.parse(event.data);}catch{return;}
@@ -24817,6 +24971,9 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     throw Error(`Unsupported MCP Canvas operation: ${name}`);
   }
   mcpEl("mcpReconnectCancel")?.addEventListener("click",mcpCancelReconnect);
+  addEventListener("penecho:open-cloud-mcp",()=>{if(!mcpRuntime.wanted)mcpConnect();});
+  addEventListener("penecho:close-mcp",()=>mcpCancelReconnect());
+  addEventListener("penecho:show-mcp-settings",()=>{openSettings();selectSettingsPage("mcp");window.PenEchoMcpSettings?.select("cloud");});
   mcpEl("mcpToolbarToggle")?.addEventListener("click",mcpToolbarClick);
   mcpEl("mcpEnabled")?.addEventListener("click",event=>{
     if(mcpRuntime.wanted||mcpRuntime.socket)return mcpCancelReconnect();
@@ -25436,6 +25593,8 @@ var canvasDocumentIdentity = (() => {
     if (!artifact.objectId && !artifact.objectIds) return null;
     const origin = normalizePoint(ownValue(value, "origin"));
     if (origin) artifact.origin = origin;
+    const worldPerPixel = ownValue(value, "worldPerPixel");
+    if (typeof worldPerPixel === "number" && Number.isFinite(worldPerPixel) && worldPerPixel >= .5 && worldPerPixel <= 1 / .03) artifact.worldPerPixel = worldPerPixel;
     const elements = normalizeElements(ownValue(value, "elements"));
     if (elements.length > 0) artifact.elements = elements;
     const presentation = normalizePresentation(ownValue(value, "presentation"));
@@ -25809,17 +25968,21 @@ var canvasDocumentIdentity = (() => {
     return {blob,image,naturalW:image.width,naturalH:image.height};
   }
   async function canvasDocumentsUploadImage(doc,args,execution) {
+    const assertUploadTarget=()=>{if(args.requireActiveDocument&&(!canvasDocumentsIsActive(doc)||canvasDocuments.switching||snapshotLoadInProgress))throw canvasDocumentsError("CANVAS_NOT_VISIBLE","The target Canvas is no longer the current open document. Reopen it and retry the same upload.");};
+    assertUploadTarget();
     if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
     const decoded=await canvasImageSource(doc,args.source);
     try {
       const id=await canvasDocumentIdentity.sha256Hex(await decoded.blob.arrayBuffer());
       canvasAgentAssertToolExecution(execution);
+      assertUploadTarget();
       const assets=canvasImageAssets(doc),existing=assets.find(a=>a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE&&a.metadata.resourceId===id);
       if(existing)return {...canvasImageAssetMetadata(existing),revision:canvasDocumentsIsActive(doc)?state.userRevision:doc.revision};
       const data=await canvasAgentReadDataUrl(decoded.blob),entries=assets.filter(a=>a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE);
       canvasAgentAssertToolExecution(execution);
       if(data.length>800000||entries.length>=CANVAS_IMAGE_ASSET_LIMIT||entries.reduce((sum,a)=>sum+(a.dataBase64?.length||0),0)+data.length>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("ASSET_LIMIT","This Canvas has reached its image attachment limit.");
       const asset={kind:"resource",contentType:decoded.blob.type,dataBase64:data.slice(data.indexOf(",")+1),metadata:{resourceType:CANVAS_IMAGE_ASSET_TYPE,resourceId:id,name:String(args.name||"image").slice(0,255),bytes:decoded.blob.size,width:decoded.naturalW,height:decoded.naturalH}};
+      assertUploadTarget();
       if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
       // Immutable attachments remain available to objects restored by Undo.
       if(canvasDocumentsIsActive(doc))state.currentSnapshotPreservedAssets=[...assets,asset];else doc.stored.item.preservedAssets=[...assets,asset];
@@ -25834,8 +25997,8 @@ var canvasDocumentIdentity = (() => {
     try {
       canvasAgentAssertToolExecution(execution);
       const ratio=decoded.naturalW/decoded.naturalH,defaultScale=Math.max(80/decoded.naturalW,80/decoded.naturalH,Math.min(1,800/Math.max(decoded.naturalW,decoded.naturalH))),
-        w=args.width??(args.height?args.height*ratio:decoded.naturalW*defaultScale),h=args.height??w/ratio;
-      if(![w,h].every(value=>Number.isFinite(value)&&value>=80&&value<=SIZE))throw canvasDocumentsError("INVALID_GEOMETRY","Both image dimensions must be at least 80 Canvas units and within the Canvas. Supply compatible width/height.");
+        sourceW=args.width??(args.height?args.height*ratio:decoded.naturalW*defaultScale),sourceH=args.height??sourceW/ratio,scale=args.region?1:mcpPresentationViewport(doc).scale,w=sourceW/scale,h=sourceH/scale;
+      if(![sourceW,sourceH].every(value=>Number.isFinite(value)&&value>=80)||![w,h].every(value=>Number.isFinite(value)&&value>0&&value<=SIZE))throw canvasDocumentsError("INVALID_GEOMETRY","Both image dimensions must be at least 80 Canvas units and within the Canvas. Supply compatible width/height.");
       const session=mcpRuntime.sessions.get(args.sessionId),placement=args.region||canvasDocumentsPlace(doc,w,h,session,null,true).placement,
         record=imageRecord({id:canvasDocumentsObjectId(doc,"image"),x:placement.x,y:placement.y,w,h,...decoded,sourceName:args.source.startsWith("data:")?"image":args.source});
       if(!record)throw canvasDocumentsError("INVALID_IMAGE","Image content or geometry was rejected.");
@@ -25959,7 +26122,7 @@ var canvasDocumentIdentity = (() => {
       projectId:state.currentSnapshotProjectId,currentRevisionId:state.currentSnapshotRevisionId,bundleExtensions:snapshotCanvasObjectExtensions(),manifestExtensions:snapshotExtensionObject(state.currentSnapshotManifestExtensions),preservedAssets:snapshotPreservedAssets(state.currentSnapshotPreservedAssets)};
   }
   function canvasDocumentsSavedView() {
-    const view=viewportRect();return {scale:state.scale,panX:state.panX,panY:state.panY,navigationLocked:state.navigationLocked,region:{x:view.x,y:view.y,w:view.w,h:view.h}};
+    const view=viewportRect();return {scale:state.scale,panX:state.panX,panY:state.panY,readingStage:mcpReadingScreenStage(),navigationLocked:state.navigationLocked,region:{x:view.x,y:view.y,w:view.w,h:view.h}};
   }
   async function canvasDocumentsPark() {
     const doc=canvasDocumentsCurrent();
@@ -26021,7 +26184,8 @@ var canvasDocumentIdentity = (() => {
     } finally {if(decoded?.size)releaseSnapshotTileCanvases(decoded);canvasDocuments.switching=false;canvasDocumentsRender();}
   }
   function canvasDocumentsApplyView(view) {
-    if(view?.region&&[view.region.x,view.region.y,view.region.w,view.region.h].every(Number.isFinite)&&view.region.w>0&&view.region.h>0)canvasAgentFrameRegion(view.region,0);
+    if(view&&[view.scale,view.panX,view.panY].every(Number.isFinite)&&view.scale>0){state.scale=Math.max(.03,Math.min(2,view.scale));state.panX=Number(view.panX)||0;state.panY=Number(view.panY)||0;updateCoordinates();}
+    else if(view?.region&&[view.region.x,view.region.y,view.region.w,view.region.h].every(Number.isFinite)&&view.region.w>0&&view.region.h>0)canvasAgentFrameRegion(view.region,0);
     else if(view){state.scale=Math.max(.03,Math.min(2,Number(view.scale)||1));state.panX=Number(view.panX)||0;state.panY=Number(view.panY)||0;updateCoordinates();}
     setCanvasNavigationLocked(view?.navigationLocked===true);
   }
@@ -26119,16 +26283,7 @@ var canvasDocumentIdentity = (() => {
     return result;
   }
   function canvasDocumentsPlace(doc,w,h,session=null,presentation=null,preferViewport=false) {
-    const active=canvasDocumentsIsActive(doc),view=active?viewportRect():doc.stored?.item?.view?.region,
-      stage=active?canvasAgentFramePlan({x:0,y:0,w,h},96).stage:null,
-      readingView=view?{...view,readableWidth:stage?.w?stage.w/.8:view.w*(doc.stored?.item?.view?.scale||1)/.8}:null;
-    // Keep the 1.2.0 Agent's viewport-first free-space placement for a new
-    // conversation; subsequent artifacts follow the shared semantic layout.
-    if(active&&(preferViewport||session?.internalAgent&&!session.artifacts.size)&&!presentation?.relativeTo&&typeof canvasAgentPlacementBox==="function"){
-      const slot=canvasAgentPlacementBox(w,h,{mode:"auto"});
-      if(!slot.crowded&&!canvasDocumentsCollisions(doc,{x:slot.x,y:slot.y,w,h}).length)
-        return {placement:{mode:"absolute",x:slot.x,y:slot.y},layout:{zone:{x:slot.x,y:slot.y,w,h},x:0,y:h+32,rowHeight:h}};
-    }
+    const readingView=mcpReadingWorldRect(doc);
     return mcpArrange(w,h,session,presentation,readingView,a=>{
       let bounds=null;for(const id of a.objectIds||[a.objectId]){const object=canvasDocumentsObject(doc,id);if(object)bounds=unionDirtyBounds(bounds,canvasDocumentsBounds(object));}return bounds;
     },box=>canvasDocumentsCollisions(doc,box));
@@ -26141,7 +26296,7 @@ var canvasDocumentIdentity = (() => {
   }
   function canvasDocumentsBeginEdit(doc) {
     if(canvasDocumentsIsActive(doc)){save();state.widgetHistoryBefore=serializedWidgets();state.imageHistoryBefore=imageHistoryState();state.textBoxHistoryBefore=textBoxHistoryState();}
-    else {const item=doc.stored.item;doc.pendingUndo={tiles:[],widgetsBefore:item.widgets.map(w=>({...w})),imagesBefore:item.images.map(i=>({...i})),textBoxesBefore:item.textBoxes.map(t=>({...t}))};}
+    else {const item=doc.stored.item;if(!item.view){const {stage,scale,panX,panY}=mcpPresentationViewport();item.view={scale,panX,panY,readingStage:stage};}doc.pendingUndo={tiles:[],widgetsBefore:item.widgets.map(w=>({...w})),imagesBefore:item.images.map(i=>({...i})),textBoxesBefore:item.textBoxes.map(t=>({...t}))};}
   }
   function canvasDocumentsCapacity(doc,kind,delta=1) {
     const limit=kind==="text"?50:100;
@@ -26177,10 +26332,9 @@ var canvasDocumentIdentity = (() => {
       let geometry;try{geometry=JSON.parse(args.content);}catch{throw canvasDocumentsError("INVALID_JSON","Geometry must be valid JSON.");}
       if(Object.keys(geometry).some(k=>!["x","y","w","h"].includes(k)))throw canvasDocumentsError("INVALID_GEOMETRY","Geometry contains unsupported fields.");
       canvasDocumentsValidateGeometry(doc,geometry,item.id);Object.assign(replacement,geometry);
-      if(object.kind==="widget"&&(geometry.w<300||geometry.h<200)||object.kind==="image"&&(geometry.w<80||geometry.h<80))throw canvasDocumentsError("INVALID_GEOMETRY","This size is below the object's supported minimum.");
-      if(object.kind==="widget"){replacement.contentW=item.contentW*geometry.w/item.w;replacement.contentH=item.contentH*geometry.h/item.h;}
+      if(object.kind==="widget"){replacement.contentW=item.contentW*geometry.w/item.w;replacement.contentH=item.contentH*geometry.h/item.h;if(replacement.contentW<300||replacement.contentH<200)throw canvasDocumentsError("INVALID_GEOMETRY","This size is below the object's supported content minimum.");}
     } else if(object.kind==="text"&&field==="content.txt") {
-      const made=await renderedTextBoxRecord({...item,text:args.content});if(!made)throw canvasDocumentsError("INVALID_TEXT","Text could not be rendered. Shorten it and retry.");replacement=made;
+      const made=await renderedTextBoxRecord({...item,text:args.content});if(!made)throw canvasDocumentsError("INVALID_TEXT","Text could not be rendered. Shorten it and retry.");const original=await renderedTextBoxRecord(item);if(original){made.w*=item.w/original.w;made.h*=item.h/original.h;made.x=item.x;made.y=item.y;}replacement=made;
       canvasDocumentsValidateGeometry(doc,canvasDocumentsBounds({item:replacement}),item.id);
     } else if(object.kind==="widget"&&["widget.html","widget.source","widget.json"].includes(field)) {
       const htmlCopySource=field==="widget.html"&&widgetUsesHtmlCopySource(item);
@@ -26249,7 +26403,7 @@ var canvasDocumentIdentity = (() => {
     if(args.create) {
       const id=`doc-${await canvasAgentHash(args.requestId)}`;
       if(canvasDocuments.records.size>=CANVAS_DOCUMENT_LIMIT&&!canvasDocuments.records.has(id))throw canvasDocumentsError("DOCUMENT_LIMIT",canvasDocumentsLimitMessage());
-      doc=canvasDocuments.records.get(id)||canvasDocumentsRecord({documentId:id,title:args.title||"Untitled Canvas"},{item:{version:2,name:args.title||"Untitled Canvas",theme:state.theme,widgets:[],textBoxes:[],images:[],animations:[],bundleExtensions:{},manifestExtensions:{},preservedAssets:[]},tileEntries:[]});
+      doc=canvasDocuments.records.get(id)||canvasDocumentsRecord({documentId:id,title:args.title||"Untitled Canvas"},{item:{version:2,name:args.title||"Untitled Canvas",theme:state.theme,view:{scale:0.5,panX:-1000,panY:-1000},widgets:[],textBoxes:[],images:[],animations:[],bundleExtensions:{},manifestExtensions:{},preservedAssets:[]},tileEntries:[]});
       canvasDocuments.records.set(id,doc);
     } else {
       const open=[...canvasDocuments.records.values()].filter(d=>(!args.documentId||d.id===args.documentId)&&(!args.locator||d.locator?.location===args.locator.location&&d.locator?.id===args.locator.id));
@@ -26357,7 +26511,7 @@ var canvasDocumentIdentity = (() => {
     throw canvasDocumentsError("UNSUPPORTED_OPERATION",`Unsupported Canvas operation: ${name}`);
   }
   async function canvasDocumentsBackgroundPrimitives(doc,session,args,kind,execution) {
-    const previous=session.artifacts.get(args.artifactId),old=new Map(previous?.elements||[]),prepared=[];
+    const previous=session.artifacts.get(args.artifactId),old=new Map(previous?.elements||[]),prepared=[],worldPerPixel=previous?(previous.worldPerPixel||1):1/mcpPresentationViewport(doc).scale;
     if(previous&&previous.kind!==kind)throw canvasDocumentsError("KIND_MISMATCH","Use a new artifact ID for a different type of content.");
     for(const entry of old.values())if(!canvasDocumentsObject(doc,entry.objectId))throw canvasDocumentsError("OBJECT_REMOVED","An artifact object was removed. Use a new artifact ID.");
     let scene;
@@ -26370,19 +26524,20 @@ var canvasDocumentIdentity = (() => {
         let value={...input};const former=old.get(input.id),object=former&&canvasDocumentsObject(doc,former.objectId);
         if(object&&(input.type==="text")!==(object.kind==="text"))throw canvasDocumentsError("KIND_MISMATCH","Keep each element's type or use a new element ID.");
         if(input.type==="text") {const record=await renderedTextBoxRecord({text:input.text,x:0,y:0,fontSize:input.fontSize||20,maxWidth:input.width||260,fontFamily:state.aiFont,color:input.color||state.inkColor});if(!record)throw canvasDocumentsError("INVALID_TEXT","The text could not be rendered.");value={...value,width:record.w,height:record.h,record};}
-        if(object&&!["line","arrow","path"].includes(input.type)){value.x=object.item.x-previous.origin.x;value.y=object.item.y-previous.origin.y;if(input.type!=="text"){value.width=object.item.w;value.height=object.item.h;}}
+        if(object&&!["line","arrow","path"].includes(input.type)){value.x=(object.item.x-previous.origin.x)/worldPerPixel;value.y=(object.item.y-previous.origin.y)/worldPerPixel;value.width=object.item.w/worldPerPixel;value.height=object.item.h/worldPerPixel;}
         inputs.push(value);
       }
       scene=mcpPrimitiveLayout(inputs);
       for(const value of scene.items) {
         if(value.type==="text")prepared.push({id:value.id,kind:"text",record:value.record,box:value.box,source:JSON.stringify(args.items.find(i=>i.id===value.id))});
-        else {const image=mcpPrimitiveRaster(value),blob=await canvasBlob(image);prepared.push({id:value.id,kind:"image",blob,naturalW:image.width,naturalH:image.height,box:value.box});image.width=image.height=1;}
+        else {const image=mcpPrimitiveRaster(value),blob=await canvasBlob(image);prepared.push({id:value.id,kind:"image",blob,naturalW:image.width,naturalH:image.height,box:value.box,preserveFrame:!value.from});image.width=image.height=1;}
       }
     }
     canvasAgentAssertToolExecution(execution);
-    const plan=previous?null:canvasDocumentsPlace(doc,scene.bounds.w,scene.bounds.h,session,mcpPresentation(args,previous)),origin=previous?.origin||{x:plan.placement.x-scene.bounds.x,y:plan.placement.y-scene.bounds.y},records=[],elements=new Map(),exclude=new Set(previous?.objectIds||[]);
+    const worldBounds=mcpPrimitiveWorldBox(scene.bounds,worldPerPixel),plan=previous?null:canvasDocumentsPlace(doc,worldBounds.w,worldBounds.h,session,mcpPresentation(args,previous)),origin=previous?.origin||{x:plan.placement.x-worldBounds.x,y:plan.placement.y-worldBounds.y},records=[],elements=new Map(),exclude=new Set(previous?.objectIds||[]);
     for(const entry of prepared) {
-      const former=old.get(entry.id),object=former&&canvasDocumentsObject(doc,former.objectId),id=object?.item.id||canvasDocumentsObjectId(doc,entry.kind),box={x:object?.item.x??origin.x+entry.box.x,y:object?.item.y??origin.y+entry.box.y,w:entry.box.w,h:entry.box.h};
+      const former=old.get(entry.id),object=former&&canvasDocumentsObject(doc,former.objectId),id=object?.item.id||canvasDocumentsObjectId(doc,entry.kind),box=mcpPrimitiveWorldBox(entry.box,worldPerPixel,origin);
+      if(object&&(kind==="plot"||entry.preserveFrame))Object.assign(box,canvasDocumentsBounds(object));
       if(box.x<0||box.y<0||box.x+box.w>SIZE||box.y+box.h>SIZE)throw canvasDocumentsError("INVALID_GEOMETRY","Drawing would leave the Canvas. Use a smaller artifact.");
       const collisions=canvasDocumentsCollisions(doc,box,exclude).filter(hit=>!object||!intersection(canvasDocumentsBounds(object),hit));
       if(collisions.length)throw canvasDocumentsError("LAYOUT_CONFLICT","The updated drawing needs more space. Move it or use a new artifact, then retry.");
@@ -26396,7 +26551,7 @@ var canvasDocumentIdentity = (() => {
     for(const entry of records)item[entry.kind==="text"?"textBoxes":"images"].push(entry.record);
     // Store the same new-text foreground rule without touching the visible Canvas.
     if(!previous&&records.some(entry=>entry.kind==="text"))item.bundleExtensions={...snapshotExtensionObject(item.bundleExtensions),penechoObjectOrder:{version:1,frontKind:"text-box",placedKind:"text-box"}};
-    const objectIds=records.map(r=>r.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,presentation:mcpPresentation(args,previous),elements:[...elements]});if(plan)session.layout=plan.layout;
+    const objectIds=records.map(r=>r.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,worldPerPixel,presentation:mcpPresentation(args,previous),elements:[...elements]});if(plan)session.layout=plan.layout;
     canvasDocumentsEndEdit(doc,kind);return {artifactId:args.artifactId,objectId:objectIds[0],objectIds,kind,revision:doc.revision,feedbackCursor:doc.feedbackSequence,visible:false};
   }
   async function canvasDocumentsEdit(doc,args,execution) {
@@ -26404,7 +26559,7 @@ var canvasDocumentIdentity = (() => {
       await canvasDocumentsShow(doc.id,execution);
       execution.activeDocumentId=doc.id;execution.documentEpoch=canvasDocuments.epoch;
       const box=args.region||(args.objectId?canvasDocumentsBounds(canvasDocumentsObject(doc,args.objectId)):null);
-      if(box)canvasAgentFrameRegion(box,48);return {documentId:doc.id,active:true};
+      if(box)mcpRevealRegion(box);return {documentId:doc.id,active:true};
     }
     if(canvasDocumentsIsActive(doc))canvasAgentMutationIdle(execution);
     if(!["create_text","show"].includes(args.action)&&args.baseRevision!==(canvasDocumentsIsActive(doc)?state.userRevision:doc.revision))throw canvasDocumentsError("REVISION_CONFLICT","The Canvas changed. Read canvas.json and retry with its current revision.");
@@ -26412,6 +26567,7 @@ var canvasDocumentIdentity = (() => {
       canvasDocumentsCapacity(doc,"text");
       const record=await renderedTextBoxRecord({id:canvasDocumentsObjectId(doc,"text"),text:args.text,x:0,y:0,fontSize:20,maxWidth:args.width||400,fontFamily:state.aiFont,color:state.inkColor});
       if(!record)throw canvasDocumentsError("INVALID_TEXT","Text could not be rendered. Shorten it and retry.");
+      if(!args.region){const scale=mcpPresentationViewport(doc).scale;record.w/=scale;record.h/=scale;}
       const session=mcpRuntime.sessions.get(args.sessionId),placement=args.region||canvasDocumentsPlace(doc,record.w,record.h,session,null,true).placement;
       record.x=placement.x;record.y=placement.y;canvasDocumentsValidateGeometry(doc,canvasDocumentsBounds({item:record}));
       canvasAgentAssertToolExecution(execution);canvasDocumentsBeginEdit(doc);
@@ -26521,6 +26677,19 @@ var canvasDocumentIdentity = (() => {
     if(name==="mcp_start_session"&&!args.client)args={...args,client:"External AI"};
     if(name==="mcp_find_canvases")return canvasDocumentsFind(args);
     if(name==="mcp_open_canvas")return canvasDocumentsOnce(canvasDocuments.receipts,args.requestId,args,()=>canvasDocumentsOpen(args,execution));
+    if(name==="mcp_upload_image_to_document") {
+      await canvasDocumentsReady();
+      const doc=canvasDocuments.records.get(args.documentId);
+      if(!doc||!canvasDocumentsIsActive(doc)||canvasDocuments.switching||snapshotLoadInProgress)throw canvasDocumentsError("CANVAS_NOT_VISIBLE","The exact target document must be open and current for this image upload.");
+      if(typeof args.requestId!=="string"||!args.requestId||args.requestId.length>128||! /^[a-f0-9]{64}$/.test(args.inputSha256||""))throw canvasDocumentsError("INVALID_IMAGE","The upload identity is invalid.");
+      canvasAgentAssertToolExecution(execution);
+      const signature={operation:name,documentId:doc.id,inputSha256:args.inputSha256,originalName:args.originalName};
+      return canvasDocumentsOnce(doc.receipts,`raw-image:${args.requestId}`,signature,async()=>{
+        const result=await canvasDocumentsUploadImage(doc,{...args,requireActiveDocument:true},execution);
+        canvasDocumentsSyncExtension(doc);
+        return {...result,documentId:doc.id};
+      });
+    }
     let session=mcpRuntime.sessions.get(args.sessionId),doc;
     if(name==="mcp_start_session") {
       await canvasDocumentsReady();
@@ -27579,7 +27748,7 @@ var canvasDocumentIdentity = (() => {
         if(!studioMcpFollowLatest||studioMcpPendingDocumentId!==id||canvasDocuments.activeId!==id||mcpRuntime.queued||mcpViewBlockedBy()||document.querySelector("dialog[open]")||document.activeElement?.matches?.("input,textarea,select,[contenteditable='true']"))return;
         const region=studioMcpPendingRegion;
         if(region) {
-          canvasAgentFrameRegion(region,96);
+          mcpRevealRegion(region);
           // This explicit follow supersedes older automatic reveals on this Canvas.
           for(const [sessionId] of mcpRuntime.pendingView||[])if(mcpRuntime.sessions.get(sessionId)?.documentId===id)mcpRuntime.pendingView.delete(sessionId);
           if(!mcpRuntime.pendingView?.size){clearTimeout(mcpRuntime.layoutTimer);mcpRuntime.layoutTimer=0;mcpRuntime.layoutSince=0;}
@@ -28509,7 +28678,7 @@ var canvasDocumentIdentity = (() => {
       if (hit) { beginPendingGesture(event, hit, result?.itemIndex ?? null); return true; }
     }
     const widget = canvasWidgetAtEvent(event);
-    const target = widget ? { kind:'widget', object:widget } : handObjectToolbarTargetAtPoint(point);
+    const target = handObjectToolbarTargetAtPoint(point) || (widget ? { kind:'widget', object:widget } : null);
     if (state.pendingWidget && !target) {
       const result = widgetPointerHit(point, event.pointerType, true);
       if (result?.pending) return beginWidgetGesture(event, point, result);
@@ -28520,17 +28689,17 @@ var canvasDocumentIdentity = (() => {
       if (state.imageEdit) acceptImageEdit();
       return false;
     }
+    if (target.kind === 'text-box') return editTextBox(target.object);
     showHandObjectToolbar(target.kind, target.object);
     if (target.kind === 'widget') {
-      const hit = state.selectedWidgetId === widget.id ? widgetResizeHit(widgetBox(widget), point, event.pointerType) : null;
-      return beginWidgetGesture(event, point, { widget, hit:hit || 'move', pending:false });
+      const hit = state.selectedWidgetId === target.object.id ? widgetResizeHit(widgetBox(target.object), point, event.pointerType) : null;
+      return beginWidgetGesture(event, point, { widget:target.object, hit:hit || 'move', pending:false });
     }
     if (target.kind === 'image') {
       const result = imagePointerHit(point, event.pointerType, true);
       return beginImageGesture(event, point, result || { image:target.object, hit:'move' });
     }
     if (target.kind === 'animation') return beginAnimationGesture(event, point, animationPointerHit(point, event.pointerType) || { animation:target.object, hit:'move' });
-    if (target.kind === 'text-box') return editTextBox(target.object);
     return false;
   }
   function canvasNavigationSurface(target) {
@@ -28657,6 +28826,9 @@ var canvasDocumentIdentity = (() => {
   window.addEventListener('keyup', (event) => { if (event.code === 'Space') setSpacePan(false); }, true);
   window.addEventListener('blur', () => { setSpacePan(false); state.trackpadGesture = null; state.widgetActivationTap = null; });
 // Pointer and control bindings, portable snapshots, and application startup.
+  document.addEventListener("pointerdown", unselectTextEditorsOutside, true);
+  document.addEventListener("focusin", unselectTextEditorsOutside, true);
+  window.addEventListener("blur", unselectTextEditorsOutside);
   const ERASER_TOOL_MENU_MS = 5000;
   let eraserToolMenuTimer = 0;
   // Derive rejection from live strokes, never a remembered Pencil mode.
@@ -30246,7 +30418,7 @@ var canvasDocumentIdentity = (() => {
   settingsConnectionList?.addEventListener("click", handleConnectionAction);
   settingsConnectionQuickList?.addEventListener("click", handleConnectionAction);
   document.getElementById("settingsHostedList")?.addEventListener("click", handleConnectionAction);
-  document.getElementById("settingsHostedRefresh")?.addEventListener("click", () => void loadHostedModels());
+  document.getElementById("settingsHostedRefresh")?.addEventListener("click", () => void loadCanvasSettings());
   window.addEventListener("penecho:cloud-account-changed", () => void loadHostedModels({ accountChanged:true }));
   void loadHostedModels();
   settingsEffortToggle?.addEventListener("click", () => settingsEffortOptions.hidden ? showSettingsEffortOptions() : hideSettingsEffortOptions());

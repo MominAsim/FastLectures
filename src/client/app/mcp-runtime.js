@@ -41,7 +41,10 @@
     toolbarRetry:["Connection failed. Click MCP Server to retry.","连接失败。点击 MCP Server 重试。"],
     nav:["MCP service","MCP 服务"], eyebrow:["MCP Service","MCP 服务"], heading:["Connect your AI Agent", "连接你的 AI Agent"],
     canvasNotice:["MCP connected · AI can update this canvas","MCP 已连接 · AI 可更新此画布"],
-    canvasWaiting:["MCP open · Waiting for AI","MCP 已开放 · 等待 AI"],
+    canvasCloudLocal:["MCP · Cloud + Local online","MCP · 云端与本地在线"],
+    canvasCloud:["MCP · Cloud online","MCP · 云端在线"],
+    canvasLocal:["MCP · Local online","MCP · 本地在线"],
+    canvasConnecting:["MCP · Connecting…","MCP · 连接中…"],
     canvasLost:["MCP connection lost","MCP 连接已断开"],
     canvasApplying:["is updating the canvas…","正在更新画布…"],
     canvasSessions:["sessions","个会话"],
@@ -167,6 +170,11 @@
     if(doc){canvasDocumentsSyncExtension(doc);if(!canvasDocumentsIsActive(doc))void canvasDocumentsPersist(doc).catch(error=>canvasDocumentsReport(error,()=>canvasDocumentsPersist(doc)));}
     mcpRenderSettings();
   }
+  function mcpAccessLabel() {
+    const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,
+      availability=mcpRuntime.socket?.availability||{cloud:connected&&window.PENECHO_CONFIG?.runtime==="cloud",local:connected&&window.PENECHO_CONFIG?.runtime!=="cloud"};
+    return mcpText(availability.cloud&&availability.local?"canvasCloudLocal":availability.cloud?"canvasCloud":availability.local?"canvasLocal":"canvasConnecting");
+  }
   function mcpRenderCanvasStatus() {
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,
       sessions=[...mcpRuntime.sessions.values()].filter(session=>!session.internalAgent&&!session.closed&&mcpSessionVisible(session)),
@@ -179,9 +187,10 @@
     if(button)button.hidden=retrying||!mcpLocal()||(!connected&&!mcpRuntime.connectionLost);
     if(ring){ring.hidden=!connected;ring.setAttribute("data-state",mcpRuntime.glowing&&mutationVisible?"updating":"open");}
     if(newButton){newButton.hidden=!count;newButton.textContent=mcpText("newContent");}
+    const accessLabel=mcpAccessLabel();
     let label=mcpText("canvasLost");
-    if(connected)label=mcpRuntime.activeMutation&&mutationVisible?`${mcpRuntime.activeMutation} ${mcpText("canvasApplying")}`:sessions.length?`MCP · ${clients.slice(0,2).join(" / ")}${clients.length>2?" +":""} · ${sessions.length} ${mcpText(sessions.length===1?"canvasSession":"canvasSessions")}`:mcpText("canvasWaiting");
-    if(button){if(button.textContent!==label)button.textContent=label;button.title=mcpText("canvasNoticeHelp");}
+    if(connected)label=mcpRuntime.activeMutation&&mutationVisible?`${mcpRuntime.activeMutation} ${mcpText("canvasApplying")}`:sessions.length?`MCP · ${clients.slice(0,2).join(" / ")}${clients.length>2?" +":""} · ${sessions.length} ${mcpText(sessions.length===1?"canvasSession":"canvasSessions")}`:accessLabel;
+    if(button){if(button.textContent!==label)button.textContent=label;button.title=connected?`${accessLabel}. ${mcpText("canvasNoticeHelp")}`:mcpText("canvasNoticeHelp");}
   }
   // PenEcho owns deterministic placement and camera batching; MCP clients provide only content.
   function mcpSessionTransportActive(session) {
@@ -206,37 +215,61 @@
     const input=args.presentation||previous?.presentation||{},intent=input.intent||"deliver",role=input.role||"primary";
     return {...input,intent,role,attention:input.attention||(intent==="review"?"request":role!=="primary"||intent==="inspect"?"quiet":"normal")};
   }
+  function mcpReadingScreenStage() {
+    const stage=canvasAgentFramePlan({x:0,y:0,w:1,h:1},0).stage;
+    if(!stage)return stage;
+    // The Canvas extends behind its overlaid toolbar. Reading content starts
+    // below that real obstruction, including wrapped toolbars at narrow widths.
+    const toolbar=typeof canvasElementLayoutRect==="function"?canvasElementLayoutRect(document.querySelector?.(".toolbar")):null;
+    if(toolbar&&toolbar.left<stage.x+stage.w&&toolbar.right>stage.x&&toolbar.top<=stage.y&&toolbar.bottom>stage.y){
+      const y=Math.min(stage.y+stage.h,toolbar.bottom);return {...stage,y,h:stage.h-(y-stage.y)};
+    }
+    return stage;
+  }
+  function mcpPresentationViewport(doc=null) {
+    const saved=doc&&!canvasDocumentsIsActive(doc)?doc.stored?.item?.view:null,
+      hasSavedStage=saved?.region?.w>0&&saved?.region?.h>0&&saved?.scale>0,
+      stage=saved?.readingStage||(hasSavedStage?{x:0,y:0,w:saved.region.w*saved.scale,h:saved.region.h*saved.scale}:mcpReadingScreenStage()),
+      scale=Math.max(.03,Math.min(2,Number(saved?.scale??state.scale)||1));
+    return {stage,scale,panX:Number(saved?.panX??state.panX)||0,panY:Number(saved?.panY??state.panY)||0};
+  }
   function mcpPresentationSize(args,doc=null) {
     const preset=MCP_PRESENTATION_SIZES[args.presentation?.size||"page"]||MCP_PRESENTATION_SIZES.page,
       requested={width:args.width||preset[0],height:args.height||preset[1]};
-    // Inspection is an exact authoring viewport, not a placed document.
     if(args.presentation?.intent==="inspect")return requested;
-    const active=!doc||canvasDocumentsIsActive(doc),saved=doc?.stored?.item?.view,
-      stage=active?canvasAgentFramePlan({x:0,y:0,w:1,h:1},0).stage:
-        saved?.region?{w:saved.region.w*saved.scale,h:saved.region.h*saved.scale}:null;
+    const {stage,scale}=mcpPresentationViewport(doc);
     if(!stage?.w||!stage?.h)return {...requested,contentWidth:requested.width,contentHeight:requested.height};
     const page=args.presentation?.size==="page"||(!args.presentation?.size&&requested.width===1200&&requested.height===800),
       availableW=Math.max(300,Math.floor(stage.w-48)),availableH=Math.max(200,Math.floor(stage.h-72)),
-      contentWidth=Math.min(4096,page?availableW:Math.max(300,Math.min(requested.width,availableW))),
-      contentHeight=Math.min(4096,page?availableH:Math.max(200,Math.min(requested.height,availableH))),
-      // Bound new footprints so a zoomed-out overview cannot consume the entire
-      // finite Canvas. Framing later uses this scale without changing old objects.
-      scale=Math.min(contentWidth/300,contentHeight/200,Math.max(Math.max(contentWidth,contentHeight)/4096,Math.min(2,Number(active?state.scale:saved?.scale)||1))),
-      width=Math.round(contentWidth/scale),height=Math.round(contentHeight/scale);
+      // Authoring pixels are screen pixels. Only the finite Canvas boundary,
+      // never a tile-sized footprint cap, limits the world-coordinate conversion.
+      contentWidth=Math.min(4096,(SIZE-96)*scale,page?availableW:Math.max(300,Math.min(requested.width,availableW))),
+      contentHeight=Math.min(4096,(SIZE-96)*scale,page?availableH:Math.max(200,Math.min(requested.height,availableH))),
+      width=contentWidth/scale,height=contentHeight/scale;
     return {width,height,contentWidth,contentHeight};
   }
-  function mcpWidgetFramePlan(widget) {
-    const region=canvasAgentBox({kind:"widget",item:widget}),stage=canvasAgentFramePlan(region,0).stage;
+  function mcpRegionFramePlan(region) {
+    const {stage,scale}=mcpPresentationViewport();
     if(!stage?.w||!stage?.h)return null;
-    const scale=Math.max(.03,Math.min(2,widget.contentW/region.w,widget.contentH/region.h,
-      Math.max(1,stage.w-48)/region.w,Math.max(1,stage.h-72)/region.h));
-    return {stage,scale,panX:stage.x+(stage.w-region.w*scale)/2-region.x*scale,
-      panY:stage.y+48+(stage.h-72-region.h*scale)/2-region.y*scale};
+    return {stage,scale,panX:stage.x+Math.max(24,(stage.w-region.w*scale)/2)-region.x*scale,
+      panY:stage.y+48+Math.max(0,(stage.h-72-region.h*scale)/2)-region.y*scale};
+  }
+  function mcpRevealRegion(region,explicit=false) {
+    const frame=mcpRegionFramePlan(region);
+    if(!frame)return false;
+    const {stage,scale}=frame,x=(state.panX||0)+region.x*scale,y=(state.panY||0)+region.y*scale,
+      visible=x>=stage.x+23&&y>=stage.y+23&&x+region.w*scale<=stage.x+stage.w-23&&y+region.h*scale<=stage.y+stage.h-23;
+    if(!explicit&&visible)return false;
+    state.panX=frame.panX;state.panY=frame.panY;
+    requestRender();canvasAgentSyncState();return true;
+  }
+  function mcpWidgetFramePlan(widget) {
+    return mcpRegionFramePlan(canvasAgentBox({kind:"widget",item:widget}));
   }
   // Semantic placement has one owner for visible and parked documents. It never
   // changes existing geometry, and searches downwards instead of a 4608px shelf.
   function mcpArrange(width,height,session,presentation,view,boundsFor,collisions) {
-    const gap=32,p= presentation||{},owned=[...(session?.artifacts.values()||[])],
+    const gap=32/(view?.scale||1),p= presentation||{},owned=[...(session?.artifacts.values()||[])],
       anchor=p.relativeTo?session?.artifacts.get(p.relativeTo):null;
     if(p.relativeTo&&!anchor)throw Error("Related artifact not found in this session. Use an existing artifactId.");
     const reference=anchor?boundsFor(anchor):null;
@@ -244,15 +277,14 @@
     const primary=owned.find(a=>a.presentation?.role!=="supporting"&&a.presentation?.role!=="alternative"),
       primaryBounds=primary&&boundsFor(primary),last=owned.map(boundsFor).filter(Boolean).at(-1),
       viewport=view||{x:0,y:0,w:1280,h:900},
-      origin=session?.internalAgent?{x:Math.max(48,Math.min(SIZE-width-48,viewport.x+Math.max(48,(viewport.w-width)/2))),y:Math.max(128,Math.min(SIZE-height-48,viewport.y+Math.min(160,viewport.h*.18)))}
-        :{x:Math.max(48,Math.min(SIZE-width-48,1000)),y:Math.max(48,Math.min(SIZE-height-48,1000))};
+      origin={x:Math.max(0,Math.min(SIZE-width,viewport.x)),y:Math.max(0,Math.min(SIZE-height,viewport.y))};
     let x=reference?.x??primaryBounds?.x??last?.x??origin.x,
       y=reference?reference.y+reference.h+gap:last?last.y+last.h+gap:origin.y;
     const beside=reference&&(p.relation==="beside"||!p.relation&&p.intent==="compare");
     if(beside&&reference.w+gap+width<=Math.max(width,(viewport.readableWidth||viewport.w)-96)) {x=reference.x+reference.w+gap;y=reference.y;}
-    x=Math.max(48,Math.min(SIZE-width-48,x));
+    x=Math.max(0,Math.min(SIZE-width,x));
     const findSlot=(column,start)=>{
-      for(let row=Math.max(48,start),attempt=0;attempt<2048&&row+height<=SIZE-48;attempt++){
+      for(let row=Math.max(0,start),attempt=0;attempt<2048&&row+height<=SIZE;attempt++){
         const hits=collisions({x:column-gap/2,y:row-gap/2,w:width+gap,h:height+gap});
         if(!hits.length)return {placement:{mode:"absolute",x:column,y:row},layout:{zone:{x:column,y:row,w:width,h:height},x:0,y:height+gap,rowHeight:height}};
         row=Math.max(row+gap,...hits.map(b=>b.y+b.h+gap));
@@ -262,15 +294,20 @@
     const below=findSlot(x,y);if(below)return below;
     // Near the finite Canvas bottom, find another clear column instead of
     // falling back onto the previous result or rejecting an otherwise empty Canvas.
-    const columns=new Set([x,48,SIZE-width-48]);
-    for(let column=48;column+width<=SIZE-48;column+=width+gap)columns.add(column);
-    for(const column of columns){const slot=findSlot(column,48);if(slot)return slot;}
+    const columns=new Set([x,48,SIZE-width]);
+    for(let column=0;column+width<=SIZE;column+=width+gap)columns.add(column);
+    for(const column of columns){const slot=findSlot(column,0);if(slot)return slot;}
     throw Error("No clear space remains for this work. Move the group or use another Canvas.");
+  }
+  function mcpReadingWorldRect(doc=null) {
+    const {stage,scale,panX,panY}=mcpPresentationViewport(doc);
+    return stage?.w&&stage?.h?{x:(stage.x+24-panX)/scale,y:(stage.y+48-panY)/scale,
+      w:Math.max(1,stage.w-48)/scale,h:Math.max(1,stage.h-72)/scale,readableWidth:Math.max(1,stage.w-48)/scale,scale}:null;
   }
   function mcpPlanPlacement(width,height,session=null,presentation=null) {
     if(typeof canvasDocumentsCurrent==="function")return canvasDocumentsPlace(canvasDocumentsCurrent(),width,height,session,presentation);
     const occupied=canvasAgentAllObjects().map(item=>canvasAgentInternalRect(item.box)),ink=visibleInkBounds({x:0,y:0,w:SIZE,h:SIZE});if(ink)occupied.push(ink);
-    return mcpArrange(width,height,session,presentation,typeof viewportRect==="function"?viewportRect():null,a=>mcpTaskBounds(session,a.objectIds||[a.objectId]),box=>occupied.filter(b=>intersection(box,b)));
+    return mcpArrange(width,height,session,presentation,mcpReadingWorldRect(),a=>mcpTaskBounds(session,a.objectIds||[a.objectId]),box=>occupied.filter(b=>intersection(box,b)));
   }
   function mcpContentUpdateRegion(result,args) {
     const doc=canvasDocuments.records.get(result.documentId);
@@ -343,7 +380,7 @@
     let shown=candidates,region=candidates.reduce((bounds,item)=>unionDirtyBounds(bounds,item.bounds),null);
     // A delivered document gets its own readable viewport. Do not squeeze older
     // pending documents into the same camera frame or focus the oldest result.
-    const widgetFrame=candidates[0].widget?mcpWidgetFramePlan(candidates[0].widget):null;
+    const widgetFrame=candidates[0].widget?mcpWidgetFramePlan(candidates[0].widget):mcpRegionFramePlan(candidates[0].bounds);
     if(widgetFrame||canvasAgentFramePlan(region,96).scale<.65){shown=[candidates[0]];region=shown[0].bounds;}
     const view=typeof viewportRect==="function"?viewportRect():null,stage=canvasAgentFramePlan(region,96).stage,scale=state.scale||1,
       screenX=(state.panX||0)+region.x*scale,screenY=(state.panY||0)+region.y*scale,
@@ -353,8 +390,7 @@
     // contains the artifact at a scale too small for reading its content.
     if(explicit||!alreadyVisible) {
       if(widgetFrame){
-        state.scale=widgetFrame.scale;state.panX=widgetFrame.panX;state.panY=widgetFrame.panY;
-        requestRender();canvasAgentSyncState();
+        mcpRevealRegion(region,explicit);
       }else canvasAgentFrameRegion(region,96);
     }
     // Older results remain on Canvas, but must not pull focus backwards on a
@@ -395,7 +431,7 @@
     if(mcpEl("mcpEnabled")){mcpEl("mcpEnabled").setAttribute("aria-checked",String(mcpRuntime.wanted||connected||connecting));mcpEl("mcpEnabled").classList.toggle("on",mcpRuntime.wanted||connected||connecting);mcpEl("mcpEnabled").disabled=!mcpLocal();}
     const connection=mcpEl("mcpConnectionStatus");
     if(connection){
-      connection.textContent=mcpText(!mcpLocal()?"localOnly":connected?"connected":connecting?"connecting":mcpRuntime.connectionLost?(mcpRuntime.wanted?"toolbarCancelRetry":"toolbarRetry"):"disconnected");
+      connection.textContent=connected?mcpAccessLabel():mcpText(!mcpLocal()?"localOnly":connecting?"connecting":mcpRuntime.connectionLost?(mcpRuntime.wanted?"toolbarCancelRetry":"toolbarRetry"):"disconnected");
       connection.dataset.state=!mcpLocal()?"off":connected?"on":connecting?"pending":mcpRuntime.connectionLost?"error":"off";
     }
     const remote=mcpRemoteBrowser(),config=remote?null:mcpRuntime.status?.config;
@@ -553,6 +589,7 @@
     if(mcpRuntime.reconnectAt)mcpRuntime.reconnectStatusTimer=setTimeout(mcpRenderReconnectStatus,1000);
   }
   function mcpRenderToolbar() {
+    window.PenEchoMcpSettings?.setConnection({enabled:Boolean(mcpRuntime.wanted),connected:Boolean(mcpRuntime.ready),label:mcpAccessLabel()});
     window.PenEchoStudioNavigator?.syncMcp?.(Boolean(mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN),{reveal:!mcpRuntime.reconnecting});
     mcpRenderReconnectStatus();
     const button=mcpEl("mcpToolbarToggle");if(!button)return;
@@ -610,7 +647,7 @@
 
 ${JSON.stringify(direct,null,2)}
 
-Use this computer's user home: ~/.penecho/mcp on macOS/Linux, %USERPROFILE%\\.penecho\\mcp on Windows. Download discoveryCliUrl to discover.js and sessionCliUrl to client.js in that directory. Verify each SHA-256 against its supplied hash BEFORE execution. Use a locally installed Node.js 18+ and absolute executable/script paths. Never use another computer's paths. Save {hostId,certificatePem,accessToken,initialUrl,addresses} in a private temporary JSON file, run node <absolute discover.js> --import <temporary file> WITHOUT --client, then delete only that temporary file. Discovery only saves verified host credentials and addresses; it does not need the Agent's name and must not rewrite Agent configuration during normal reconnects.
+Use this computer's user home and this REQUIRED installation directory: ~/.penecho/mcp on macOS/Linux, %USERPROFILE%\\.penecho\\mcp on Windows. Download discoveryCliUrl to discover.js and sessionCliUrl to client.js in that directory. Do not choose any other directory or filename. Both the MCP command configuration and upload commands MUST use this exact downloaded client.js. The upload script is this same client.js: ~/.penecho/mcp/client.js on macOS/Linux, %USERPROFILE%\\.penecho\\mcp\\client.js on Windows. It is not stored in the Agent skill directory or PenEcho application directory. Retain its resolved absolute path and the local Node executable for subsequent uploads. hostId identifies the PenEcho server, NOT a Canvas instance, document or session. For every upload copy the hostId supplied above, which is also the value after --host-id in the MCP entry. client.js resolves addresses and ports automatically; do not guess IDs, inspect its source or parse port mappings. Verify each SHA-256 against its supplied hash BEFORE execution. Use a locally installed Node.js 18+ and absolute executable/script paths. Never use another computer's paths. Save {hostId,certificatePem,accessToken,initialUrl,addresses} in a private temporary JSON file, run node <absolute discover.js> --import <temporary file> WITHOUT --client, then delete only that temporary file. Discovery only saves verified host credentials and addresses; it does not need the Agent's name and must not rewrite Agent configuration during normal reconnects.
 
 Configure this Agent's supported stdio MCP entry named penecho with command=<absolute local Node executable> and args=[<absolute client.js>,"--host-id",hostId]. Preserve unrelated settings and replace only the previous PenEcho entry; remove old HTTP url/header fields and any old idle-exit option from that entry. Do not add an idle process-exit timer. For Codex use its MCP command/args format; for Claude use its stdio command/args format; use the actual supported format for other clients. Authorization and certificate trust stay in the shared ~/.penecho/mcp store, read by client.js. Do not place accessToken on the command line, print credentials, disable TLS verification, or configure discover.js as the stdio server.
 
@@ -620,7 +657,9 @@ The AI client owns the CLI stdin/stdout. Keep the lightweight CLI alive while st
 
 Reload this Agent's MCP integration and verify initialize, tools/list, and penecho_list_canvases. Keep one unique stable client/sessionKey per logical conversation plus returned sessionId/documentId. HTTP recovery in the living CLI restores its original document; after CLI restart call penecho_start_session with the same client/sessionKey/documentId. Never use a new conversation's key or silently switch an existing conversation to another browser. A closed Canvas can reopen; only definitive DOCUMENT_NOT_FOUND permits replacement. Report the actually verified connection result.
 
-Optional helper skill: if this Agent supports local skills, create or update penecho-mcp using its supported skill location and format. Use this one-shot SKILL.md content (adapt the format if needed):
+Image files on THIS Agent's computer: run the downloaded client.js as a separate one-shot command using the same local Node executable and host ID: node "<absolute client.js>" --host-id HOST_ID --upload-image "<absolute image path>" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Obtain canvasId and documentId from penecho_start_session with target:current; keep that exact document open and current. Reuse the configured environment and --state-directory if present. Quote paths on Windows/macOS/Linux. The CLI sends original bytes to /mcp/images on the SAME HTTPS port and with the same authentication as /mcp; image processing runs on PenEcho, with no client-side converter or Base64 needed. Maximum original file size: 32 MiB. Supported raw files: PNG, WebP, JPG/JPEG, GIF, TIFF, AVIF; HEIC/HEIF depends on server codecs. Prefer WebP generally, PNG for lossless diagrams/transparency, JPEG for photos. Copy the returned source verbatim into Widget img src or CSS url(), or pass it to penecho_place_image with the sessionId and a new requestId. Never pass a local filesystem path as MCP source. Chat attachment Data URLs can use penecho_upload_image directly. Retry uncertain uploads with the identical target, file and requestId. Verify client.js --help includes --upload-image; if absent, download and verify the current client again.
+
+Optional helper skill: if this Agent supports local skills, create or update penecho-mcp using its supported skill location and format. Use this one-shot SKILL.md content (adapt the format if needed): When saving the skill, replace NODE_PATH, CLIENT_JS_PATH and HOST_ID below with the actual absolute local Node executable, fixed installation path expanded to an absolute client.js path and supplied hostId. These are connection identifiers, not credentials; never embed accessToken.
 
 ---
 name: penecho-mcp
@@ -628,6 +667,8 @@ description: Create, read, or edit PenEcho canvases, including following the use
 ---
 
 Use connected tools; search only missing deferred tools. Bind once with start_session; retain sessionId/documentId and stable client/sessionKey. Use target:current for the user's current Canvas.
+
+Upload files with the installed bridge: "NODE_PATH" "CLIENT_JS_PATH" --host-id HOST_ID --upload-image "ABSOLUTE_IMAGE_PATH" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Required client.js location: ~/.penecho/mcp/client.js (macOS/Linux), %USERPROFILE%\\.penecho\\mcp\\client.js (Windows), not the skill or application directory. HOST_ID is the setup server hostId, never a canvasId/documentId/sessionId. Copy it from the MCP entry if needed. client.js resolves the address/port automatically; do not inspect source or port mappings. Get canvasId/documentId from start_session target:current; reuse returned source. Read upload_image source parameters for upload details.
 
 Follow live schemas; get_guidance only for the needed topic. Keep artifact IDs. Read source/contentHash before patching. Retry uncertain writes with identical arguments/requestId. Capture when visual evidence is needed; combine final mutation and completion. Inbox reads do not acknowledge.
 
@@ -651,8 +692,11 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     mcpRuntime.browserId=mcpRuntime.browserId||canvasClientId();
     const generation=mcpRuntime.generation;
     if(!reconnecting&&typeof canvasDocumentsReady==="function")void canvasDocumentsReady().then(()=>{if(generation!==mcpRuntime.generation||!mcpRuntime.wanted)return;const doc=canvasDocumentsCurrent();mcpRuntime.feedback=doc.feedback;mcpRuntime.feedbackSequence=doc.feedbackSequence;canvasDocumentsRender();}).catch(error=>{if(generation===mcpRuntime.generation&&mcpRuntime.wanted)canvasDocumentsReport(error,()=>canvasDocumentsReady());});
-    const socket=new WebSocket(`${location.protocol==="https:"?"wss:":"ws:"}//${location.host}${window.PENECHO_CONFIG?.runtime==="cloud"?"/api/v1/remote-canvas/mcp":"/api/mcp/canvas"}`);
+    const socket=window.PenEchoCloudMcpSocket
+      ?new window.PenEchoCloudMcpSocket()
+      :new WebSocket(`${location.protocol==="https:"?"wss:":"ws:"}//${location.host}${window.PENECHO_CONFIG?.runtime==="cloud"?"/api/v1/remote-canvas/mcp":"/api/mcp/canvas"}`);
     mcpRuntime.socket=socket;mcpRuntime.lastPong=Date.now();mcpHeartbeat(socket);
+    socket.addEventListener("availabilitychange",()=>{if(socket===mcpRuntime.socket)mcpRenderSettings();});
     socket.addEventListener("open",()=>{if(socket!==mcpRuntime.socket)return;socket.send(JSON.stringify({type:"hello",canvasId:mcpRuntime.browserId,title:state.currentSnapshotName||"PenEcho Canvas"}));mcpRenderSettings();});
     socket.addEventListener("message",event=>{
       if(socket!==mcpRuntime.socket)return;let message;try{message=JSON.parse(event.data);}catch{return;}
@@ -862,6 +906,9 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     throw Error(`Unsupported MCP Canvas operation: ${name}`);
   }
   mcpEl("mcpReconnectCancel")?.addEventListener("click",mcpCancelReconnect);
+  addEventListener("penecho:open-cloud-mcp",()=>{if(!mcpRuntime.wanted)mcpConnect();});
+  addEventListener("penecho:close-mcp",()=>mcpCancelReconnect());
+  addEventListener("penecho:show-mcp-settings",()=>{openSettings();selectSettingsPage("mcp");window.PenEchoMcpSettings?.select("cloud");});
   mcpEl("mcpToolbarToggle")?.addEventListener("click",mcpToolbarClick);
   mcpEl("mcpEnabled")?.addEventListener("click",event=>{
     if(mcpRuntime.wanted||mcpRuntime.socket)return mcpCancelReconnect();

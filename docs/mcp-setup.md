@@ -48,6 +48,16 @@ Clients may still use native HTTP with a fixed URL and authorization header when
 
 The invitation-based LAN pairing protocol has been removed. Use bundled `client.js` from `session-client.js` with direct HTTPS credentials. Existing local `penecho mcp` / `stdio.js` remains an explicit compatibility entry; Settings never falls back to it when HTTPS is unavailable. Do not configure duplicate PenEcho transports.
 
+## Image uploads from another machine / 跨机器图片上传
+
+Use the configured `client.js --host-id HOST_ID --upload-image FILE --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id REQUEST_ID` on the agent machine. Retain configured Node environment and `--state-directory` when present. Both IDs come from `penecho_start_session` with `target:"current"`; that exact authorized document must remain open/current in the selected connection. This mode works with Windows, macOS and Linux Node clients and PenEcho's Windows/macOS desktop server; it sends raw binary bytes and needs no agent-side image converter. Quote file paths. See the [portable skill](../skills/penecho-mcp/SKILL.md) for platform examples and references.
+
+The exact same authenticated HTTPS listener and port as `/mcp` exposes `POST /mcp/images?canvasId=...&documentId=...&requestId=...&name=...` with `Content-Type: application/octet-stream`. URL-encode all query values. Reuse the configured private CA and bearer authentication through the client; never disable TLS verification. This endpoint does not require creating an MCP transport session or AI conversation. The server detects/decodes raster inputs, applies 32 MiB input/40 MP limits, preserves PNG/JPEG/WebP within the Canvas 2048-pixel long-edge and 800000-byte Data URL limits, tries PNG encoding for other inputs, then compresses oversized output. Larger images are resized before saving; no output exceeds the Canvas long-edge limit. It uses the same document bundle asset store and returns `source`, `assetId`, `documentId`, `canvasId`, `requestId`, `inputSha256`, name, MIME, dimensions, bytes and revision. Store `source` verbatim for HTML/CSS or `penecho_place_image`. Unknown-outcome retries must retain the same target, original file and request ID.
+
+`penecho_upload_image` accepts chat attachment Data URLs and same-document references. File uploads use only the configured `client.js --upload-image`, with image processing on the server. Regenerate bridges without this option through normal setup. The original file stays on the agent machine; only bytes travel to PenEcho. A thumbnail or another machine's path alone cannot supply those bytes.
+
+第三方不需要安装 Sharp 或自行生成 Base64。新接口由 PenEcho 统一转换；旧 Codex 对话框附件、Data URL 和文档引用继续兼容。客户端与服务器须通过正常更新流程取得新版本；已安装的旧 skill 不会自动更新。HEIC/HEIF 依赖服务器解码器，其他支持格式及推荐选择见 skill。
+
 ## Optional workflow skill / 可选工作流 skill
 
 The repository includes the portable workflow skill at
@@ -535,3 +545,11 @@ Isolated validation on installed Codex CLI 0.153.0 observed separate HTTP owners
 ### Automated acceptance
 
 See [the automated acceptance record and commands](mcp-acceptance.md). The live Codex harness defaults to 40 tasks and a 60-second **HTTP** idle timeout in an isolated CODEX_HOME; the CLI remains alive. Do not put `--idle-exit-ms` into everyday configuration. Discovery fault cases and changed-port LAN recovery use disposable state, while the capacity harness starts only an isolated HTTP service. Live Canvas tests intentionally create named test documents. A passing HTTP preflight alone is not a passing Canvas test.
+
+## PenEcho Cloud MCP
+
+After Cloud sign-in, open **Cloud → MCP** (or **Dashboard → MCP**). Copy the standard Streamable HTTP installation prompt, choose OAuth or create a revocable access token, and select **Open MCP Canvas** to open a new page with MCP enabled. Cloud MCP requires no Linked Device; an existing device can connect to the same Canvas through Device Link.
+
+MCP connections and Canvas operations are free and use no PenEcho credits. Paid model execution retains existing pricing. Idle HTTP clients reserve no MCP transport session, active calls are bounded, and browser disconnect recovery preserves document bindings.
+
+UAT endpoint: `https://internaltest.penecho.ai/mcp`. The production endpoint `https://penecho.ai/mcp` requires a separate production deployment.

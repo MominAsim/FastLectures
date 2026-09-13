@@ -97,9 +97,10 @@ test("ordinary work flows down and comparisons stay related without moving user 
   const h=harness();await h.mcpExecute("mcp_start_session",{sessionId:"one",title:"Design"},{});
   const create=(id,presentation)=>h.mcpExecute("mcp_present_widget",{sessionId:"one",artifactId:id,title:id,html:"<p>Preview</p>",presentation},{});
   const a=await create("a"),b=await create("b"),wa=h.widgets.get(a.objectId),wb=h.widgets.get(b.objectId);
-  assert.ok(wa.y>=128);assert.equal(wa.w,1200);assert.equal(wa.h,800);assert.equal(wa.x,wb.x);assert.equal(wb.y,wa.y+wa.h+32);
+  assert.ok(wa.y>=0);assert.equal(wa.w,1200);assert.equal(wa.h,800);assert.equal(wa.x,wb.x);assert.equal(wb.y,wa.y+wa.h+32);
   h.context.viewportRect=()=>({x:0,y:0,w:3000,h:2000});
-  const c=await create("c",{intent:"compare",relativeTo:"a",relation:"beside"}),wc=h.widgets.get(c.objectId);
+  h.context.canvasAgentFramePlan=()=>({scale:.8,stage:{x:0,y:0,w:3000,h:2000}});
+  const c=await create("c",{intent:"compare",relativeTo:"a",relation:"beside",size:"base"}),wc=h.widgets.get(c.objectId);
   assert.equal(wc.x,wa.x+wa.w+32);assert.equal(wc.y,wa.y);
   const old={x:wb.x,y:wb.y};wa.x+=25;await create("d");assert.deepEqual({x:wb.x,y:wb.y},old);
   await assert.rejects(create("bad",{relativeTo:"missing",relation:"below"}),/Related artifact/);
@@ -132,15 +133,15 @@ test("quiet supporting updates never frame and review requests win bounded frami
   assert.equal(h.context.frames.length,1);assert.equal(h.context.frames[0].y,h.widgets.get(review.objectId).y);assert.equal(h.mcpRuntime.pendingView.get("one").size,1);
   h.mcpDisconnect();
 });
-test("narrow comparisons fall below and external first placement uses a stable inset",()=>{
+test("narrow comparisons fall below and initial placement follows the supplied viewport",()=>{
   const h=harness(),session={artifacts:new Map([["a",{objectId:"a"}]])};
   const bounds={x:1050,y:2120,w:480,h:360};
   const plan=h.context.mcpArrange(480,360,session,{intent:"compare",relativeTo:"a"},{x:1000,y:2000,w:700,h:800},()=>bounds,()=>[]);
   assert.equal(plan.placement.x,1050);assert.equal(plan.placement.y,2512);
   const first=h.context.mcpArrange(480,360,{artifacts:new Map()},null,{x:1000,y:2000,w:1000,h:800},()=>null,()=>[]);
-  assert.equal(first.placement.x,1000);assert.equal(first.placement.y,1000);
+  assert.equal(first.placement.x,1000);assert.equal(first.placement.y,2000);
   const internal=h.context.mcpArrange(480,360,{internalAgent:true,artifacts:new Map()},null,{x:1000,y:2000,w:1000,h:800},()=>null,()=>[]);
-  assert.equal(internal.placement.x,1260);assert.equal(internal.placement.y,2144);
+  assert.equal(internal.placement.x,1000);assert.equal(internal.placement.y,2000);
 });
 test("source updates preserve user geometry and presentation identity",async()=>{
   const h=harness();h.context.widgetEditContext=w=>({...w});h.context.canvasAgentHash=async()=>"hash";h.context.canvasAgentReplaceWidget=async({command,objectId})=>Object.assign(h.widgets.get(objectId),{html:command.html});
@@ -261,36 +262,41 @@ test("internal user feedback is available without an external socket",async()=>{
   assert.equal(result.nextCursor,1);
 });
 
-test('new page uses the viewport for reflow while preserving screen typography',async()=>{
+test('new page uses viewport dimensions without changing Canvas scale or camera',async()=>{
  const h=harness();await h.mcpExecute('mcp_start_session',{sessionId:'page',title:'Page'},{});
  h.mcpRuntime.ready=true;h.mcpRuntime.socket={readyState:1,close(){}};
  const source=fs.readFileSync(path.join(__dirname,'../src/client/app/canvas-agent-runtime.js'),'utf8');
  const start=source.indexOf('  function canvasAgentFramePlan('),end=source.indexOf('  function canvasAgentFrameRegion(',start);
  Object.assign(h.context,{view:{clientWidth:640,clientHeight:480},canvasAgentPanel:{hidden:true}});
  vm.runInContext(source.slice(start,end),h.context);
- h.state.scale=.08;
- h.context.canvasAgentFrameRegion=region=>{const plan=h.context.canvasAgentFramePlan(region,96);Object.assign(h.state,{scale:plan.scale,panX:plan.panX,panY:plan.panY});h.context.frames.push(region);};
+ Object.assign(h.state,{scale:.08,panX:17,panY:23});
+ h.context.canvasAgentFrameRegion=region=>{h.context.frames.push(region);};
  const result=await h.mcpExecute('mcp_present_widget',{sessionId:'page',artifactId:'page',title:'Page',html:'<p>Report</p>',presentation:{size:'page'}},{});
- const widget=h.widgets.get(result.objectId);widget.x=2000;widget.y=2000;h.mcpFlushView();
+ const widget=h.widgets.get(result.objectId),beforeView=[h.state.scale,h.state.panX,h.state.panY];h.mcpFlushView();
  assert.equal(h.context.frames.length,0,'responsive widgets do not run the legacy zoom-to-fit');
  assert.equal(widget.contentW,592);assert.equal(widget.contentH,408);
+ assert.equal(widget.w,widget.contentW/beforeView[0]);assert.equal(widget.h,widget.contentH/beforeView[0]);
  assert.ok(Math.abs(widget.w*h.state.scale/widget.contentW-1)<.001,'18px stays 18px on screen');
  assert.ok(Math.abs(widget.h*h.state.scale/widget.contentH-1)<.001);
- assert.ok(widget.w<=4096&&widget.h<=4096,'overview zoom does not consume the finite canvas');
- assert.ok(Math.abs(h.state.panX+(widget.x+widget.w/2)*h.state.scale-320)<1e-8);
- assert.ok(Math.abs(h.state.panY+(widget.y+widget.h/2)*h.state.scale-252)<1e-8);
+ assert.deepEqual([h.state.scale,h.state.panX,h.state.panY],beforeView,'initial placement preserves the current Canvas camera');
  assert.equal(h.mcpRuntime.pendingView.size,0);assert.equal(h.mcpRuntime.viewPaused,false);h.mcpDisconnect();
 });
 
 test("external initial placement avoids occupied inset and stays within Canvas bounds",()=>{
   const h=harness(),arrange=(w,height,collisions)=>h.context.mcpArrange(w,height,{artifacts:new Map()},null,null,()=>null,collisions);
   const empty=arrange(1200,800,()=>[]);
-  assert.deepEqual([empty.placement.x,empty.placement.y],[1000,1000]);
-  const occupied={x:1000,y:1000,w:1200,h:800};
+  assert.deepEqual([empty.placement.x,empty.placement.y],[0,0]);
+  const occupied={x:0,y:0,w:1200,h:800};
   const avoided=arrange(1200,800,box=>h.context.intersection(box,occupied)?[occupied]:[]);
-  assert.deepEqual([avoided.placement.x,avoided.placement.y],[1000,1832]);
+  assert.deepEqual([avoided.placement.x,avoided.placement.y],[0,832]);
   const large=arrange(32000,32000,()=>[]);
-  assert.deepEqual([large.placement.x,large.placement.y],[720,720]);
+  assert.deepEqual([large.placement.x,large.placement.y],[0,0]);
+});
+
+test('initial placement uses the supplied viewport coordinates for an internal document',()=>{
+ const h=harness(),view={x:2400,y:1800,w:1000,h:800,readableWidth:952};
+ const plan=h.context.mcpArrange(480,360,{internalAgent:true,artifacts:new Map()},null,view,()=>null,()=>[]);
+ assert.deepEqual([plan.placement.x,plan.placement.y],[2400,1800]);
 });
 
 test('viewport presentation caps each axis, leaves inspect exact and uses saved geometry for parked documents',()=>{
@@ -305,15 +311,26 @@ test('viewport presentation caps each axis, leaves inspect exact and uses saved 
  assert.deepEqual({...parked},{width:1304,height:856,contentWidth:652,contentHeight:428});
 });
 
-test('new widget dimensions and readable framing remain bounded across overview and close zoom',()=>{
+test('new parked documents use the current Canvas stage before a saved view exists',()=>{
+ const h=harness();h.context.canvasDocumentsIsActive=()=>false;h.state.scale=.5;
+ h.context.canvasAgentFramePlan=()=>({stage:{x:0,y:0,w:1000,h:1600}});
+ const doc={stored:{item:{}}};
+ const page=h.context.mcpPresentationSize({presentation:{size:'page'}},doc);
+ assert.deepEqual({...page},{width:1904,height:3056,contentWidth:952,contentHeight:1528});
+});
+
+test('new widget dimensions follow the current zoom and retain readable framing',()=>{
  const h=harness();h.context.canvasAgentFramePlan=()=>({stage:{x:0,y:0,w:1000,h:700}});
  for(const zoom of [.03,.1,.5,1,2]){
   h.state.scale=zoom;
   const size=h.context.mcpPresentationSize({presentation:{size:'page'}}),widget={x:3000,y:4000,w:size.width,h:size.height,contentW:size.contentWidth,contentH:size.contentHeight};
   const frame=h.context.mcpWidgetFramePlan(widget);
-  assert.ok(widget.w>=300&&widget.h>=200&&widget.w<=4096&&widget.h<=4096);
-  assert.ok(Math.abs(frame.scale*widget.w/widget.contentW-1)<.002);
-  assert.ok(Math.abs(frame.scale*widget.h/widget.contentH-1)<.002);
+  assert.equal(widget.w,size.contentWidth/zoom);
+  assert.equal(widget.h,size.contentHeight/zoom);
+  assert.ok(widget.w>=300&&widget.h>=200&&widget.w<=h.context.SIZE&&widget.h<=h.context.SIZE);
+  assert.equal(frame.scale,zoom,'framing keeps the current Canvas scale');
+  assert.ok(Math.abs(h.state.scale*widget.w/widget.contentW-1)<.002,'screen typography stays 1:1 on the x axis');
+  assert.ok(Math.abs(h.state.scale*widget.h/widget.contentH-1)<.002,'screen typography stays 1:1 on the y axis');
   assert.ok(frame.panX+widget.x*frame.scale>=23.5);
   assert.ok(frame.panY+widget.y*frame.scale>=47.5);
  }

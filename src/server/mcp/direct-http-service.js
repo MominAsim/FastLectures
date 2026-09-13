@@ -1,11 +1,12 @@
 "use strict";
 const https = require('node:https');
+const {prepareUploadedImage,MAX_BYTES} = require('./image-upload.js');
 const {listenMcp} = require('./listen.js');
 const crypto = require('node:crypto');
 const {loadDirectHttpIdentity, createDirectHttpLeaf, resetDirectHttpIdentity} = require('./direct-http-identity.js');
 const {lanAddresses, isPrivateAddress} = require('./network-addresses.js');
 const {createAnnouncer} = require('./lan-discovery.js');
-const {INSTRUCTIONS, PROMPTS, PROTOCOL_VERSION, promptResult, captureToolResult} = require('./stdio.js');
+const {INSTRUCTIONS, PROMPTS, PROTOCOL_VERSION, promptResult, captureToolResult} = require('./protocol.js');
 const {TOOLS, validateToolArguments} = require('./schema.js');
 const {RESOURCES, readResource} = require('./resources.js');
 const {getAuthoringGuidance} = require('./authoring-guidance.js');
@@ -17,11 +18,11 @@ function send(res, status, value, headers = {}) {
   res.writeHead(status, {'content-type':'application/json','cache-control':'no-store','x-content-type-options':'nosniff', ...headers});
   res.end(value === undefined ? undefined : JSON.stringify(value));
 }
-function createDirectHttpService({preferredPort=3922,getHostnames=()=>{const host=require('node:os').hostname().toLowerCase().replace(/\.$/,'');return host.endsWith('.local')?[host]:[host,host+'.local'];},stateDirectory, callTool, disposeOwner, getAddresses = lanAddresses, announce = createAnnouncer, now = Date.now, onChange = () => {}, sessionIdleMs = 30 * 60 * 1000, maxSessions = 256, maxSessionRequests = 8, maxRequests = 32}) {
+function createDirectHttpService({preferredPort=3922,getHostnames=()=>{const host=require('node:os').hostname().toLowerCase().replace(/\.$/,'');return host.endsWith('.local')?[host]:[host,host+'.local'];},stateDirectory, callTool, uploadImage, uploadTimeoutMs = 30000, disposeOwner, getAddresses = lanAddresses, announce = createAnnouncer, now = Date.now, onChange = () => {}, sessionIdleMs = 30 * 60 * 1000, maxSessions = 256, maxSessionRequests = 8, maxRequests = 32}) {
   if(!Number.isInteger(preferredPort)||preferredPort<0||preferredPort>65535)throw new TypeError('Invalid preferred MCP port');
   const hostnames=[...new Set(getHostnames())].filter(host=>typeof host==='string'&&/^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.local)?$/i.test(host)).map(host=>host.toLowerCase());
   let identity, server, announcer, timer, startedAt, addresses = [], transition = Promise.resolve(), active = 0;
-  const sessions = new Map(), sockets = new Set();
+  const sessions = new Map(), sockets = new Set(), uploads = new Set();
   const limits = {sessions:maxSessions,requestsPerSession:maxSessionRequests,requests:maxRequests,tcpConnections:512};
   const timeouts = {sessionIdleMs,pressureIdleMs:60000,keepAliveMs:30000,headersMs:10000,requestUploadMs:15000};
   const notify = () => { try { onChange(); } catch {} };
@@ -67,33 +68,61 @@ function createDirectHttpService({preferredPort=3922,getHostnames=()=>{const hos
     if (error.details !== undefined) { try { failure.details = clean(error.details); if (Buffer.byteLength(JSON.stringify(failure.details) || '') > 16384) failure.details = '[truncated]'; } catch { failure.details = '[unavailable]'; } }
     return failure;
   }
-  async function rpc(body, session, signal) {
-    const result = value => ({jsonrpc:'2.0',id:body.id,result:value});
-    const error = (code, message) => ({jsonrpc:'2.0',id:body.id,error:{code,message}});
-    switch (body.method) {
-      case 'initialize': return result({protocolVersion:PROTOCOL_VERSION,capabilities:{tools:{listChanged:false},prompts:{listChanged:false},resources:{subscribe:false,listChanged:false}},serverInfo:{name:'PenEcho',version:'1.0.0'},instructions:INSTRUCTIONS});
-      case 'ping': return result({});
-      case 'tools/list': return result({tools:TOOLS});
-      case 'prompts/list': return result({prompts:PROMPTS});
-      case 'resources/list': return result({resources:RESOURCES});
-      case 'resources/templates/list': return result({resourceTemplates:[]});
-      case 'prompts/get': try { return result(promptResult(body.params?.name, body.params?.arguments || {})); } catch (e) { return error(-32602,e.message); }
-      case 'resources/read': try { return result(readResource(body.params?.uri,PROMPTS)); } catch (e) { return error(e.code || -32602,e.message); }
-      case 'tools/call': {
-        try {
-          const name = body.params?.name, args = body.params?.arguments ?? {};
-          if (typeof name !== 'string' || !args || typeof args !== 'object' || Array.isArray(args)) return error(-32602,'Invalid params');
-          const value = name === 'penecho_get_guidance' ? getAuthoringGuidance(validateToolArguments(name,args).id, args.detail) : await callTool(session.ownerId,name,args,{signal});
-          return result(value?.image ? captureToolResult(value) : normal(value));
-        } catch (e) { return result({...normal(toolFailure(e)),isError:true}); }
-      }
-      default: return error(-32601,'Method not found');
+  const rpc = require("./rpc.js").createMcpRpc({callTool,toolFailure});
+  async function imageUpload(req,res) {
+    if(req.method!=='POST') throw fault(405,'Use POST');
+    if(typeof uploadImage!=='function') throw fault(404,'Image upload is unavailable');
+    if(req.url.includes('#') || /%(?![0-9a-f]{2})/i.test(req.url)) throw fault(400,'Invalid upload URL');
+    const url=new URL(req.url,'https://localhost');
+    const fields={canvasId:128,documentId:256,requestId:128,name:200}, args={};
+    for(const key of url.searchParams.keys()) if(!Object.hasOwn(fields,key)) throw fault(400,'Unexpected upload parameter');
+    for(const [key,max] of Object.entries(fields)) {
+      const values=url.searchParams.getAll(key), value=values[0];
+      if(values.length!==1 || !value?.trim() || value.length>max || /[\x00-\x1f\x7f]/.test(value)) throw fault(400,'Invalid upload parameter: '+key);
+      args[key]=value;
+    }
+    if(!/^application\/octet-stream$/i.test(req.headers['content-type']||'')) throw fault(415,'Use application/octet-stream');
+    if(req.headers['content-encoding'] && req.headers['content-encoding']!=='identity') throw fault(415,'Content encoding is unsupported');
+    if(Number(req.headers['content-length'])>MAX_BYTES) throw fault(413,'Image exceeds 32 MiB');
+    if(active>=maxRequests || uploads.size>=2) throw fault(429,'Busy');
+    const controller=new AbortController(); uploads.add(controller); active++;
+    const abort=()=>controller.abort();
+    const timer=setTimeout(abort,uploadTimeoutMs); timer.unref();
+    req.once('aborted',abort);res.once('close',abort);
+    let cancel;
+    const cancelled=new Promise((_,reject)=>{cancel=()=>reject(Object.assign(fault(408,'Upload cancelled or timed out'),{code:'upload_cancelled'}));controller.signal.addEventListener('abort',cancel,{once:true});});
+    const operation=(async()=>{
+      const bytes=await new Promise((resolve,reject)=>{
+        const chunks=[];let size=0;
+        const clean=()=>{req.off('data',data);req.off('end',end);req.off('error',error);controller.signal.removeEventListener('abort',aborted);};
+        const error=e=>{clean();reject(e);};
+        const aborted=()=>error(fault(408,'Upload cancelled or timed out'));
+        const data=chunk=>{size+=chunk.length;if(size>MAX_BYTES){req.pause();error(fault(413,'Image exceeds 32 MiB'));}else chunks.push(chunk);};
+        const end=()=>{clean();resolve(Buffer.concat(chunks,size));};
+        req.on('data',data);req.once('end',end);req.once('error',error);controller.signal.addEventListener('abort',aborted,{once:true});
+      });
+      const prepared=await prepareUploadedImage(bytes,args.name,{signal:controller.signal});
+      controller.signal.throwIfAborted();
+      return uploadImage({...args,...prepared},{signal:controller.signal});
+    })();
+    try { send(res,200,await Promise.race([operation,cancelled])); }
+    catch(e) { const failure=toolFailure(e);send(res,e.status||500,{error:{code:failure.code,message:e.status||e.code?failure.message:'Image upload failed'}},{connection:'close'}); }
+    finally {
+      clearTimeout(timer);req.off('aborted',abort);res.off('close',abort);controller.signal.removeEventListener('abort',cancel);
+      // A callback ignoring cancellation must not create unlimited background work.
+      operation.catch(()=>{}).finally(()=>{uploads.delete(controller);active--;});
     }
   }
   async function handle(req, res) {
     let session, counted = false, pendingKey;
     try {
       refresh(); prune();
+      const seenHeaders=new Set();
+      for(let i=0;i<req.rawHeaders.length;i+=2) {
+        const key=req.rawHeaders[i].toLowerCase();
+        if(['host','authorization','origin','content-type','content-length','transfer-encoding','content-encoding'].includes(key) && seenHeaders.has(key)) throw fault(400,'Duplicate request header');
+        seenHeaders.add(key);
+      }
       const address = String(req.socket.remoteAddress || '').replace(/^::ffff:/,'');
       const port = server.address().port;
       const hosts = new Set(['localhost','127.0.0.1',...hostnames,...addresses].map(a => `${a}:${port}`));
@@ -105,6 +134,7 @@ function createDirectHttpService({preferredPort=3922,getHostnames=()=>{const hos
       const expected = Buffer.from(`Bearer ${identity.accessToken}`), supplied = Buffer.from(req.headers.authorization || '');
       if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied,expected)) throw fault(401,'Unauthorized');
       if (req.url === '/status' && req.method === 'GET') return send(res,200,{hostId:identity.hostId,startedAt,sessionCount:sessions.size,protocolVersion:PROTOCOL_VERSION,limits:{...limits},timeouts:{...timeouts}});
+      if (req.url === '/mcp/images' || req.url.startsWith('/mcp/images?')) return await imageUpload(req,res);
       if (req.url !== '/mcp') throw fault(404,'Not found');
       if (!['POST','DELETE'].includes(req.method)) return send(res,405,{error:'Method Not Allowed'},{allow:'POST, DELETE'});
       const sessionId = req.headers['mcp-session-id'];
@@ -151,7 +181,7 @@ function createDirectHttpService({preferredPort=3922,getHostnames=()=>{const hos
       const response = await Promise.race([operation,cancelled]);
       send(res,200,response,{'mcp-session-id':session.id});
       await operation;
-    } catch (e) { send(res,e.status || 500,{error:e.status ? e.message : 'MCP request failed'}); }
+    } catch (e) { if(req.url === '/mcp/images' || req.url.startsWith('/mcp/images?')) { const failure=toolFailure(e); send(res,e.status||500,{error:{code:e.code||'upload_request_failed',message:e.status?failure.message:'Image upload failed'}},{connection:'close'}); } else send(res,e.status || 500,{error:e.status ? e.message : 'MCP request failed'}); }
     finally {
       if (pendingKey && session) session.pending.delete(pendingKey);
       if (counted) { active--; if (session) { session.active--; session.lastSeen = now(); } }
@@ -162,6 +192,7 @@ function createDirectHttpService({preferredPort=3922,getHostnames=()=>{const hos
     const old = server; server = null; startedAt = null;
     try { await announcer?.close(); } catch {} announcer = null;
     for (const session of sessions.values()) remove(session);
+    for (const controller of uploads) controller.abort();
     for (const socket of sockets) socket.destroy(); sockets.clear();
     if (old) await new Promise(resolve => old.close(resolve));
     notify();

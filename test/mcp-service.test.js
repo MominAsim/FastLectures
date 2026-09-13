@@ -266,7 +266,7 @@ test("MCP service keeps discovery credentials private and binds a session to its
     if (await service.handleHttp(req, res, url)) return;
     res.writeHead(404).end();
   });
-  service = createMcpService({ server, authorizeBrowser:req => req.headers["x-test-browser"] === "allowed" ? null : "Forbidden", rootDirectory:process.cwd(), stateDirectory });
+  service = createMcpService({ autoStartHttp:true, server, authorizeBrowser:req => req.headers["x-test-browser"] === "allowed" ? null : "Forbidden", rootDirectory:process.cwd(), stateDirectory });
   const address = await listen(server), status = service.register(address);
   const directory = recordsDirectory(stateDirectory), records = readRecords(directory);
   assert.equal(records.length, 1);
@@ -281,7 +281,8 @@ test("MCP service keeps discovery credentials private and binds a session to its
   assert.equal(browserStatus.status, 200);
   assert.equal(browserStatus.value.enabled, true);
   assert.equal(JSON.stringify(browserStatus.value).includes(records[0].secret), false);
-  assert.equal(browserStatus.value.config, null);
+  assert.equal(browserStatus.value.config.type, "stdio");
+  assert.equal(browserStatus.value.config.args[2], browserStatus.value.http.hostId);
 
   const { ws, ready } = await openCanvas(address.port, calls);
   t.after(async()=>{ws.terminate();await service.close();if(server.listening)await closeServer(server);});
@@ -309,6 +310,12 @@ test("MCP service keeps discovery credentials private and binds a session to its
   assert.equal(started.value.result.boardObjectId, null);
   assert.equal(started.value.result.feedbackCursor, 0);
   assert.equal(started.value.result.documentId, "document-new");
+  const upload = started.value.result.imageUpload;
+  assert.match(upload.hostId,/^[a-f0-9]{64}$/);
+  assert.equal(upload.canvasId,"canvas-a");
+  assert.equal(upload.documentId,"document-new");
+  assert.deepEqual(upload.args,["--host-id",upload.hostId,"--upload-image","ABSOLUTE_IMAGE_PATH","--canvas-id","canvas-a","--document-id","document-new","--request-id","UNIQUE_UPLOAD_ID"]);
+  assert.equal(upload.accessToken,undefined);
   assert.equal(started.value.result.instructions, undefined);
   assert.equal(started.value.result.guidanceVersion,"2");
   const sessionId = started.value.result.sessionId;

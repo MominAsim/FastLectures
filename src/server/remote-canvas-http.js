@@ -11,10 +11,14 @@ const CANVAS_AGENT_ROOT_ID = "root-[0-9a-f]{24}";
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const LOCAL_CONNECTION_ID_PATTERN = new RegExp(`^${UUID}$`, "i");
 
+const LOCAL_AI_ROUTES = new Set(["/api/ai/command", "/api/plugins/improve"]);
+
 function remoteCanvasConnectionId(target, value) {
-  if (target !== "/api/community/metadata") return null;
+  if (!LOCAL_AI_ROUTES.has(target) && target !== "/api/community/metadata") return null;
   const connectionId = typeof value === "string" ? value.trim() : "";
-  return LOCAL_CONNECTION_ID_PATTERN.test(connectionId) ? connectionId : null;
+  const valid = LOCAL_CONNECTION_ID_PATTERN.test(connectionId) || LOCAL_AI_ROUTES.has(target) && connectionId === "default";
+  if (LOCAL_AI_ROUTES.has(target) && !valid) throw Object.assign(new Error("Select a valid linked-device AI connection."), { code:"remote_canvas_connection", status:400 });
+  return valid ? connectionId : null;
 }
 
 function validCanvasAgentEntriesQuery(searchParams) {
@@ -28,7 +32,7 @@ function validCanvasAgentEntriesQuery(searchParams) {
 }
 
 const ROUTES = [
-  { pattern:/^\/api\/settings$/, methods:new Set(["GET"]) },
+  { pattern:/^\/api\/settings$/, methods:new Set(["GET", "POST"]) },
   { pattern:/^\/api\/settings\/search\/test$/, methods:new Set(["POST"]) },
   { pattern:/^\/api\/settings\/connections$/, methods:new Set(["GET", "POST"]) },
   { pattern:/^\/api\/settings\/connections\/(?:test|inspect-cli|models)$/, methods:new Set(["POST"]) },
@@ -48,6 +52,8 @@ const ROUTES = [
   { pattern:new RegExp(`^/api/canvases/${CANVAS_ID}/project$`), methods:new Set(["PUT"]) },
   { pattern:/^\/api\/canvases$/, methods:new Set(["GET", "POST"]) },
   { pattern:new RegExp(`^/api/canvases/${CANVAS_ID}$`), methods:new Set(["GET", "PUT", "PATCH", "DELETE"]) },
+  { pattern:/^\/api\/ai\/command$/, methods:new Set(["POST"]) },
+  { pattern:/^\/api\/plugins\/improve$/, methods:new Set(["POST"]) },
   { pattern:/^\/api\/plugins$/, methods:new Set(["GET", "POST"]) },
   { pattern:/^\/api\/plugins\/[a-z0-9]+(?:-[a-z0-9]+)*$/, methods:new Set(["DELETE"]) },
   { pattern:/^\/plugins\/private\/[a-z0-9][a-z0-9-]{0,63}(?:\/(?:plugin\.md|styles\.css)|\.md)$/, methods:new Set(["GET"]) },

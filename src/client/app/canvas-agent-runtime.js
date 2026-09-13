@@ -93,7 +93,7 @@
     CANVAS_AGENT_CLIENT_KEY = "penecho-canvas-agent-client-v1",
     CANVAS_AGENT_POSITION_KEY = "penecho-canvas-agent-position-v1",
     CANVAS_AGENT_HEIGHT_KEY = "penecho-canvas-agent-height-v1",
-    CANVAS_AGENT_WIDTH_KEY = "penecho-canvas-agent-width-v1",
+    CANVAS_AGENT_WIDTH_KEY = "penecho-canvas-agent-width-v2",
     CANVAS_AGENT_HISTORY_KEY = "penecho-canvas-agent-history-v1",
     CANVAS_AGENT_SEARCH_ENABLED_KEY = "penecho-canvas-agent-search-enabled-v1",
     CANVAS_AGENT_PROJECT_KEY = "penecho-canvas-agent-project-v1",
@@ -2070,10 +2070,6 @@
       if (width>=CANVAS_AGENT_WIDTH_MIN) localStorage.setItem(CANVAS_AGENT_WIDTH_KEY,width>=maximumWidth-1?"full":String(width));
     } catch {}
     canvasAgentSyncResizeHandleValues();
-  }
-  function canvasAgentSchedulePanelSizeSave() {
-    cancelAnimationFrame(canvasAgent.panelResizeFrame);
-    canvasAgent.panelResizeFrame=requestAnimationFrame(canvasAgentSavePanelSize);
   }
   function canvasAgentResizeAnchor() {
     const panelRect=canvasElementLayoutRect(canvasAgentPanel);
@@ -4186,7 +4182,7 @@
         const pluginId=String(raw.pluginId || (widgetType === "diagram_source"?"flowchart":"general")),frameworkVersion=String(raw.frameworkVersion||"").trim();
         if(widgetType === "diagram_source"||pluginId === "flowchart"||frameworkVersion.startsWith("penecho-professional-diagrams"))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE","PenEcho Agent may edit an existing Professional Diagram, but it cannot create a new Professional Diagram.");
         if(!canvasAgentWidgetPluginAllowed(pluginId,widgetType))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE",`Plugin ${pluginId} is unavailable, disabled, or not available to PenEcho Agent.`);
-        const width=Math.max(300,Math.min(SIZE,Number(raw.width)||Math.max(600,Math.min(1200,visible.w*.7)))),height=Math.max(200,Math.min(SIZE,Number(raw.height)||Math.max(400,Math.min(800,visible.h*.7)))),placed=canvasAgentPlacementBox(width,height,raw.placement,reserved),
+        const width=Math.max(execution?.widgetContentViewport?1:300,Math.min(SIZE,Number(raw.width)||Math.max(600,Math.min(1200,visible.w*.7)))),height=Math.max(execution?.widgetContentViewport?1:200,Math.min(SIZE,Number(raw.height)||Math.max(400,Math.min(800,visible.h*.7)))),placed=canvasAgentPlacementBox(width,height,raw.placement,reserved),
           record=widgetRecord({tool:widgetType,widgetType,pluginId,x:placed.x,y:placed.y,w:width,h:height,contentW:execution?.widgetContentViewport?.width??width,contentH:execution?.widgetContentViewport?.height??height,title:String(raw.title||"Canvas widget"),refreshSeconds:Number.isFinite(Number(raw.refreshSeconds))?Number(raw.refreshSeconds):0,html:typeof raw.html === "string"?raw.html:"",source:typeof raw.source === "string"?raw.source:"",sourceFormat:raw.sourceFormat,diagramKind:raw.diagramKind,frameworkVersion:raw.frameworkVersion,copyText:raw.copyText,copyLabel:raw.copyLabel});
         if(!record)throw canvasAgentToolError("INVALID_WIDGET","Widget content or geometry was rejected. Read the plugin capability contract and retry.");
         reserved.push(canvasAgentBox({kind:"widget",item:record}));prepared.push({type,kind:"widget",record,placed});
@@ -4271,7 +4267,7 @@
       }else if(type === "move_object"){
         const box=canvasAgentBox(object),x=canvasAgentFinite(raw.x,"x"),y=canvasAgentFinite(raw.y,"y");if(x<0||y<0||x+box.w>SIZE||y+box.h>SIZE)throw canvasAgentToolError("INVALID_GEOMETRY","Moved object would leave the canvas.");prepared.push({type,kind:object.kind,object,x,y});
       }else if(type === "resize_widget"){
-        if(object.kind !== "widget")throw canvasAgentToolError("KIND_MISMATCH","resize_widget requires a widget.");const dimension=raw.dimension === "height"?"height":"width",value=canvasAgentFinite(raw.value,"value"),minimum=dimension === "width"?300:200,box=canvasAgentBox(object),contentRatio=dimension === "width"?object.item.contentW/object.item.w:object.item.contentH/object.item.h,contentMinimum=dimension === "width"?300:200;if(value<minimum||value*contentRatio<contentMinimum||(dimension === "width"?box.x+value:box.y+value)>SIZE)throw canvasAgentToolError("INVALID_GEOMETRY","Responsive widget size cannot preserve its current typography scale at this value.");prepared.push({type,kind:"widget",object,dimension,value});
+        if(object.kind !== "widget")throw canvasAgentToolError("KIND_MISMATCH","resize_widget requires a widget.");const dimension=raw.dimension === "height"?"height":"width",value=canvasAgentFinite(raw.value,"value"),minimum=1,box=canvasAgentBox(object),contentRatio=dimension === "width"?object.item.contentW/object.item.w:object.item.contentH/object.item.h,contentMinimum=dimension === "width"?300:200;if(value<minimum||value*contentRatio<contentMinimum||(dimension === "width"?box.x+value:box.y+value)>SIZE)throw canvasAgentToolError("INVALID_GEOMETRY","Responsive widget size cannot preserve its current typography scale at this value.");prepared.push({type,kind:"widget",object,dimension,value});
       }else if(type === "resize_image"){
         if(object.kind !== "image")throw canvasAgentToolError("KIND_MISMATCH","resize_image requires an image.");const box=canvasAgentBox(object),ratio=box.w/box.h;let w=Number(raw.width),h=Number(raw.height);if(!Number.isFinite(w)&&!Number.isFinite(h))throw canvasAgentToolError("INVALID_ARGUMENT","resize_image requires width or height.");if(raw.preserveAspect){if(Number.isFinite(w))h=w/ratio;else w=h*ratio;}else{if(!Number.isFinite(w))w=box.w;if(!Number.isFinite(h))h=box.h;}if(w<80||h<80||box.x+w>SIZE||box.y+h>SIZE)throw canvasAgentToolError("INVALID_GEOMETRY","Image size is invalid.");prepared.push({type,kind:"image",object,w,h});
       }else if(type === "delete_object")prepared.push({type,kind:object.kind,object});
@@ -4621,7 +4617,7 @@
   }
   function canvasAgentPrepareOpenState() {
     if(settings.connections.length)canvasAgentUpdateConnectionButton();
-    else void loadCanvasSettings();
+    if(!settings.connections.length || window.PENECHO_CONFIG?.browserCanvasEditing)void loadCanvasSettings();
     if(canvasAgentWorkbenchNeedsSync())syncStudioWorkbench();
   }
   function canvasAgentFinishDockedOpen(focus,connect) {
@@ -5107,7 +5103,7 @@
     else void canvasAgentDesktopClipboardFiles().then(desktopFiles=>desktopFiles.length?canvasAgentHandleFiles(desktopFiles):canvasAgentSetStatus(t("canvasAgentFileReadFailed"),"error")).catch(canvasAgentReportAsyncError);
   },true);
   if (typeof ResizeObserver==="function") {
-    new ResizeObserver(()=>{canvasAgentSchedulePanelSizeSave();canvasAgentResizeInput();}).observe(canvasAgentPanel);
+    new ResizeObserver(()=>{canvasAgentSyncResizeHandleValues();canvasAgentResizeInput();}).observe(canvasAgentPanel);
     new ResizeObserver(canvasAgentScheduleScrollToLatest).observe(canvasAgentTranscript);
     const toolbarLayoutObserver = new ResizeObserver(canvasAgentScheduleToolbarLayout);
     toolbarLayoutObserver.observe(canvasAgentToolbar);

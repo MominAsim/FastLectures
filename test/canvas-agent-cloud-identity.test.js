@@ -27,6 +27,21 @@ test('same Cloud owner and local socket do not lose sessions',()=>{
  let closes=0;const c=fixture();c.canvasAgent.socket={close(){closes++;}};c.canvasAgent.socketCloudCanvasId=B;c.canvasAgent.sessionId='keep';c.canvasAgentReconcileCloudCanvas();assert.equal(c.canvasAgent.sessionId,'keep');
  c.canvasAgent.socketCloudCanvasId='';c.state.currentSnapshotId=null;c.canvasAgentReconcileCloudCanvas();assert.equal(closes,0);
 });
+
+test('online device and hosted execution coexist and select distinct hosts on the same Cloud Canvas',()=>{
+ let selected=`hosted:${A}`;const c=fixture({selectedAiConnectionId:()=>selected});
+ Object.assign(c.window.PENECHO_CONFIG,{canvasAgent:true,linkedDeviceOnline:true});
+ assert.equal(c.canvasAgentExecutionAvailable(),true);
+ assert.match(c.canvasAgentSocketUrl(),new RegExp(`/hosted/canvases/${B}/agent$`));
+ selected=A;
+ assert.equal(c.canvasAgentExecutionAvailable(),true);
+ assert.match(c.canvasAgentSocketUrl(),/remote-canvas\/canvas-agent$/);
+ Object.assign(c.window.PENECHO_CONFIG,{canvasAgent:false,linkedDeviceOnline:false});
+ assert.equal(c.canvasAgentExecutionAvailable(),false);
+ selected=`hosted:${A}`;
+ assert.equal(c.canvasAgentExecutionAvailable(),true);
+ assert.match(c.canvasAgentSocketUrl(),new RegExp(`/hosted/canvases/${B}/agent$`));
+});
 test('Cloud ID changed during capabilities await cannot establish stale websocket',async()=>{
  let sockets=0;const c=fixture({canvasAgentEnsureProjects:async()=>{},canvasAgentSetStatus:()=>{},canvasAgentCurrentWidgetCapabilities:async()=>{c.state.currentSnapshotId=A;return{};},WebSocket:Object.assign(function(){sockets++;},{OPEN:1})});
  vm.runInContext(fn('canvasAgentConnect'),c);await assert.rejects(c.canvasAgentConnect(),e=>e.code==='SESSION_CHANGED');assert.equal(sockets,0);

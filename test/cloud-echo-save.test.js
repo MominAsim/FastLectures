@@ -66,8 +66,8 @@ test("saveEchoToCloud initializes the Cloud project list before creating a new s
   });
 });
 
-test("saveCurrentCanvas defaults browser editing to Cloud and creates a copy when the current Canvas is local", async () => {
-  const run = harness();
+test("saveCurrentCanvas defaults an unsaved browser Canvas to Cloud", async () => {
+  const run = harness({ state:{ currentSnapshotId:null, currentSnapshotLocation:null, snapshotLocation:"device" } });
   await run.saveCurrentCanvas();
   assert.deepEqual(run.events.map((event) => event.type), ["busy", "notice-key", "cloud-projects", "save", "notice-key", "busy"]);
   assert.deepEqual(plain(run.events[2]), { type:"cloud-projects" });
@@ -76,6 +76,22 @@ test("saveCurrentCanvas defaults browser editing to Cloud and creates a copy whe
     options:{ overwriteId:null, name:"Browser Canvas", location:"cloud" },
   });
   assert.deepEqual(plain(run.events[4]), { type:"notice-key", key:"snapshotSaved", tone:"success" });
+});
+
+test("browser editing saves back to the current Library source even when the linked device goes offline", async () => {
+  for (const location of ["server", "cloud", "device"]) {
+    for (const online of [true, false]) {
+      const run = harness({
+        window:{ PENECHO_CONFIG:{ runtime:"cloud", browserCanvasEditing:true, linkedDeviceOnline:online } },
+        state:{ currentSnapshotId:"saved-canvas", currentSnapshotLocation:location, snapshotLocation:"cloud" },
+      });
+      await run.saveCurrentCanvas();
+      assert.deepEqual(plain(run.events.find(event => event.type === "save").options), {
+        overwriteId:"saved-canvas", name:"Browser Canvas", location,
+      });
+      assert.equal(run.events.some(event => event.type === "cloud-projects"), false);
+    }
+  }
 });
 
 test("saveCurrentCanvas reports a Cloud save failure without showing a success notice", async () => {

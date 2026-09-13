@@ -2241,7 +2241,7 @@ test("live widgets use native canvas chrome, state-aware iframe gestures, and th
   assert.match(read("src/server/main.js"), /Keep user-facing text natively selectable and do not globally disable text selection/);
 });
 
-test("last-clicked images, TextBoxes, text inputs, and HTML Widgets share the front Canvas layer", () => {
+test("text stays above placed objects while selected Widgets temporarily cover it", () => {
   const app = read("public/app.js"),
     widgetHost = read("public/widget-host.js"),
     imageA = { id:"image-a" },
@@ -2292,11 +2292,11 @@ test("last-clicked images, TextBoxes, text inputs, and HTML Widgets share the fr
       drawTextBoxesToContext:() => placedDrawOrder.push("text-box"),
     });
   drawPlacedCanvasObjectsToContext({}, null, false);
-  assert.deepEqual(placedDrawOrder, ["image", "text-box"]);
+  assert.deepEqual(placedDrawOrder, ["image"]);
   placedDrawOrder.length = 0;
   placedState.frontPlacedCanvasObjectKind = "image";
   drawPlacedCanvasObjectsToContext({}, null, false);
-  assert.deepEqual(placedDrawOrder, ["text-box", "image"]);
+  assert.deepEqual(placedDrawOrder, ["image"]);
 
   const layerState = { frontCanvasObjectKind:"image", frontPlacedCanvasObjectKind:"image" },
     layerStyles = new Map(),
@@ -2319,7 +2319,7 @@ test("last-clicked images, TextBoxes, text inputs, and HTML Widgets share the fr
     layerStyles.get("image-material-layer-stack").zIndex,
     layerStyles.get("placed-content-layer-stack").zIndex,
     layerStyles.get("text-editor-layer-stack")["--text-editor-layer-z"],
-  ], ["1", "2", "2", "1"]);
+  ], ["1", "2", "2", "3"]);
   layerState.frontCanvasObjectKind = "widget";
   syncCanvasObjectLayerOrder();
   assert.deepEqual([
@@ -2327,7 +2327,7 @@ test("last-clicked images, TextBoxes, text inputs, and HTML Widgets share the fr
     layerStyles.get("image-material-layer-stack").zIndex,
     layerStyles.get("placed-content-layer-stack").zIndex,
     layerStyles.get("text-editor-layer-stack")["--text-editor-layer-z"],
-  ], ["2", "1", "1", "1"]);
+  ], ["2", "1", "1", "3"]);
   layerState.frontCanvasObjectKind = "text-box";
   layerState.frontPlacedCanvasObjectKind = "text-box";
   syncCanvasObjectLayerOrder();
@@ -2336,7 +2336,7 @@ test("last-clicked images, TextBoxes, text inputs, and HTML Widgets share the fr
     layerStyles.get("image-material-layer-stack").zIndex,
     layerStyles.get("placed-content-layer-stack").zIndex,
     layerStyles.get("text-editor-layer-stack")["--text-editor-layer-z"],
-  ], ["1", "2", "2", "6"]);
+  ], ["1", "2", "2", "3"]);
   selectedLayerMaterial.hidden = false;
   layerState.frontCanvasObjectKind = "image";
   layerState.frontPlacedCanvasObjectKind = "image";
@@ -2346,7 +2346,7 @@ test("last-clicked images, TextBoxes, text inputs, and HTML Widgets share the fr
     layerStyles.get("image-material-layer-stack").zIndex,
     layerStyles.get("placed-content-layer-stack").zIndex,
     layerStyles.get("text-editor-layer-stack")["--text-editor-layer-z"],
-  ], ["3", "2", "2", "1"]);
+  ], ["3", "2", "2", "2"]);
 
   const hitState = { frontCanvasObjectKind:"widget", frontPlacedCanvasObjectKind:"text-box" },
     hitImage = { id:"image" },
@@ -2360,12 +2360,17 @@ test("last-clicked images, TextBoxes, text inputs, and HTML Widgets share the fr
       widgetAtPoint:() => hitWidget,
       animationPointerHit:() => null,
     });
-  assert.equal(handObjectToolbarTargetAtPoint({ x:1, y:1 }).object.id, "widget");
+  assert.equal(handObjectToolbarTargetAtPoint({ x:1, y:1 }).object.id, "text-box");
   hitState.frontCanvasObjectKind = "image";
   hitState.frontPlacedCanvasObjectKind = "image";
-  assert.equal(handObjectToolbarTargetAtPoint({ x:1, y:1 }).object.id, "image");
+  assert.equal(handObjectToolbarTargetAtPoint({ x:1, y:1 }).object.id, "text-box");
   hitState.frontCanvasObjectKind = "text-box";
   hitState.frontPlacedCanvasObjectKind = "text-box";
+  assert.equal(handObjectToolbarTargetAtPoint({ x:1, y:1 }).object.id, "text-box");
+
+  hitState.selectedWidgetId = "widget";
+  assert.equal(handObjectToolbarTargetAtPoint({ x:1, y:1 }).object.id, "widget");
+  hitState.selectedWidgetId = null;
   assert.equal(handObjectToolbarTargetAtPoint({ x:1, y:1 }).object.id, "text-box");
 
   assert.match(functionSource(app, "setCanvasObjectFrontKind"), /\["image", "widget", "text-box"\][\s\S]*?frontPlacedCanvasObjectKind/);
@@ -2852,7 +2857,7 @@ test("Save canvas exposes non-blocking progress and completion feedback", () => 
   assert.match(html, /id="saveCanvasBtn"/);
   assert.match(html, /id="historySaveCurrent"[^>]*>Save<\/button>/);
   assert.match(html, /id="historySave"[^>]*>Save New<\/button>/);
-  assert.match(saveCurrent, /location = window\.PENECHO_CONFIG\?\.browserCanvasEditing \? "cloud" : state\.currentSnapshotLocation \|\| state\.snapshotLocation/);
+  assert.match(saveCurrent, /location = state\.currentSnapshotLocation \|\| \(window\.PENECHO_CONFIG\?\.browserCanvasEditing \? "cloud" : state\.snapshotLocation\)/);
   assert.match(saveCurrent, /currentSnapshotLocation === location \? state\.currentSnapshotId : null/);
   assert.match(saveCurrent, /requestedName = document\.querySelector\("#historyName"\)/);
   assert.match(saveCurrent, /saveSnapshot\(\{ overwriteId, name, location \}\)/);
@@ -3058,7 +3063,7 @@ test("canvas history clearly separates device, server, and private cross-device 
   assert.match(app, /function setSnapshotLocation\([\s\S]*?snapshotLoadInProgress[\s\S]*?state\.snapshotLoadGeneration\+\+[\s\S]*?snapshotLoadInProgress = false/);
   assert.match(functionSource(app, "updateHistoryReadControls"), /input\[name="historyStorageLocation"\][\s\S]*?control\.disabled = snapshotSaveInProgress/);
   assert.match(functionSource(app, "refreshSnapshots"), /snapshotItemsLocation !== location[\s\S]*?renderSnapshotListLoading\(location\)[\s\S]*?snapshotItemsLocation = location/);
-  assert.match(functionSource(app, "refreshSnapshots"), /showingCloudCache[\s\S]*?snapshotCloudCacheRefreshing[\s\S]*?cacheCloudHistory\(items\)[\s\S]*?clearCloudHistoryCache\(\)[\s\S]*?snapshotCloudCacheLoadFailed/);
+  assert.match(functionSource(app, "refreshSnapshots"), /showingCloudCache[\s\S]*?snapshotCloudCacheRefreshing[\s\S]*?cacheCloudHistory\(items\)[\s\S]*?clearCloudHistoryCache\(\)[\s\S]*?renderSnapshotListError\(location, retainItems\)/);
   assert.match(functionSource(app, "loadSnapshot"), /setHistoryActivity[\s\S]*?snapshotLoadRequesting[\s\S]*?snapshotLoadDownloading[\s\S]*?snapshotLoadDecoding[\s\S]*?snapshotLoadApplying/);
   assert.match(functionSource(app, "loadSnapshot"), /if \(!loadIsCurrent\(\)\) return;[\s\S]*?loadGeneration !== state\.snapshotLoadGeneration[\s\S]*?return false/);
   for (const id of ["serverProjectManager", "historyProjectSelect", "historyProjectCreate", "historyProjectDelete", "projectDialog", "projectForm", "projectName", "projectDialogCreate", "newCanvasProjectField", "newCanvasProjectSelect"]) assert.match(html, new RegExp(`id="${id}"`));
@@ -3199,7 +3204,7 @@ test("Cloud History distinguishes sign-in from failures and protects external Ca
   assert.doesNotMatch(functionSource(persistence, "cloudHistoryRequiresSignIn"), /status\) === 401|unauthorized/);
   assert.match(functionSource(persistence, "renderCloudHistorySignIn"), /history-cloud-auth[\s\S]*?closeHistoryPanel\(\)[\s\S]*?cloudAccountBtn[\s\S]*?\.click\(\)/);
   assert.match(functionSource(persistence, "renderSnapshotList"), /location === "cloud" && cloudHistorySignInRequired[\s\S]*?renderCloudHistorySignIn/);
-  assert.match(functionSource(persistence, "refreshSnapshots"), /authenticationRequired[\s\S]*?renderCloudHistorySignIn[\s\S]*?!authenticationRequired[\s\S]*?setHistoryActivity[\s\S]*?"error"/);
+  assert.match(functionSource(persistence, "refreshSnapshots"), /authenticationRequired[\s\S]*?renderCloudHistorySignIn[\s\S]*?renderSnapshotListError\(location, retainItems\)[\s\S]*?authenticationRequired \|\| loadFailed/);
   assert.match(functionSource(persistence, "updateHistoryReadControls"), /cloudBlocked[\s\S]*?historyProjectSelect[\s\S]*?historySaveCurrent[\s\S]*?saveCanvasBtn/);
   assert.match(functionSource(persistence, "updateNewCanvasDialog"), /cloudBlocked[\s\S]*?saveCopy\.disabled = cloudBlocked/);
   assert.match(functionSource(persistence, "confirmExternalCanvasOpen"), /!canvasHasUnsavedChanges\(\) \|\| window\.confirm\(cloudHistoryCopy\("confirmExternalOpen"\)\)/);
@@ -4550,7 +4555,7 @@ test("settled Canvas zoom upgrades only visible text raster caches within the sh
   assert.match(refresh, /textRasterRatioForBudget\(item, targetRatio, remainingPixels\)/);
   assert.match(refresh, /generation !== canvasTextQualityGeneration[\s\S]*?!state\.textBoxes\.includes\(item\)[\s\S]*?item\.image !== currentImage/);
   assert.match(refresh, /renderedRatio <= textImageRasterRatio\(currentImage\) \* 1\.05[\s\S]*?renderedPixels > MAX_SHARP_OVERLAY_ITEM_PIXELS[\s\S]*?additionalPixels > remainingPixels/);
-  assert.match(refresh, /item\.image = image[\s\S]*?remainingPixels -= additionalPixels[\s\S]*?renderPlacedContentLayer\(canvasRenderRegion\(\)\.visible\)/);
+  assert.match(refresh, /item\.image = image[\s\S]*?remainingPixels -= additionalPixels[\s\S]*?renderTextContentLayer\(canvasRenderRegion\(\)\.visible\)/);
   assert.doesNotMatch(refresh, /state\.userRevision|saveUserCanvasChange|requestRender\(|\brender\(/);
   assert.match(restore, /textImageRasterRatio\(item\.image\) >= pixelRatio \/ 1\.05[\s\S]*?renderedTextBoxRecord\(item, pixelRatio\)/);
   assert.match(restore, /pixelRatio = 1[\s\S]*?requestRender\(\)[\s\S]*?refreshVisibleTextBoxQuality\(\)/);

@@ -6,16 +6,9 @@ const fs = require("node:fs");
 const { createRemoteMcpChannels } = require("./remote.js");
 const net = require("node:net");
 const { isPrivateAddress, lanAddresses } = require("./network-addresses.js");
-const { createDirectHttpService } = require("./direct-http-service.js");
-const { conversationBindings } = require("./conversation-bindings.js");
-const { importCredentials } = require("./discovery-client.js");
-const { discoveryClientBundle } = require("./discovery-client-bundle.js");
-const { sessionClientBundle } = require("./session-client-bundle.js");
 const path = require("node:path");
 const { WebSocket, WebSocketServer } = require("ws");
-const { configureClient, inspectConfiguredClients: defaultInspectConfiguredClients } = require("./configure.js");
 const { GUIDANCE_VERSION } = require("./guidance.js");
-const { registryStateDirectory, recordsDirectory, removeRecord, writeRecord } = require("./records.js");
 const { createMcpRequestTracer } = require("./request-trace.js");
 const { MAX_EVENTS_PER_UPDATE, McpBridgeError, validateToolArguments } = require("./schema.js");
 
@@ -121,12 +114,14 @@ function createMcpService(options) {
   if (typeof heartbeatTimeoutMs !== "number" || !Number.isFinite(heartbeatTimeoutMs) || heartbeatTimeoutMs <= 0 || heartbeatTimeoutMs < heartbeatIntervalMs) throw new TypeError("heartbeatTimeoutMs must be positive and at least heartbeatIntervalMs.");
   const server = options.server, authorizeBrowser = options.authorizeBrowser, rootDirectory = path.resolve(options.rootDirectory || process.cwd());
   const isLocalBrowserAddress = options.isLocalBrowserAddress;
-  const inspectConfiguredClients = options.inspectConfiguredClients || defaultInspectConfiguredClients;
+  const localModules = options.cloudRuntime ? {} : { ...require("./records.js"), ...require("./configure.js"), ...require("./discovery-client.js"), ...require("./discovery-client-bundle.js"), ...require("./session-client-bundle.js") };
+  const {registryStateDirectory,recordsDirectory,removeRecord,writeRecord,configureClient,importCredentials,discoveryClientBundle,sessionClientBundle}=localModules;
+  const inspectConfiguredClients = options.inspectConfiguredClients || localModules.inspectConfiguredClients;
   const stateDirectory = options.stateDirectory ? path.resolve(options.stateDirectory) : undefined;
-  const requestedRegistryDirectory = options.registryStateDirectory ? path.resolve(options.registryStateDirectory) : registryStateDirectory();
-  fs.mkdirSync(requestedRegistryDirectory,{recursive:true,mode:0o700});
-  const registryDirectory = fs.realpathSync(requestedRegistryDirectory);
-  const directory = recordsDirectory(registryDirectory), instanceId = crypto.randomUUID(), secret = crypto.randomBytes(32).toString("hex");
+  const requestedRegistryDirectory = options.cloudRuntime ? rootDirectory : options.registryStateDirectory ? path.resolve(options.registryStateDirectory) : registryStateDirectory();
+  if (!options.cloudRuntime) fs.mkdirSync(requestedRegistryDirectory,{recursive:true,mode:0o700});
+  const registryDirectory = options.cloudRuntime ? requestedRegistryDirectory : fs.realpathSync(requestedRegistryDirectory);
+  const directory = options.cloudRuntime ? null : recordsDirectory(registryDirectory), instanceId = crypto.randomUUID(), secret = crypto.randomBytes(32).toString("hex");
   const logger = typeof options.logger === "function" ? options.logger : () => {};
   const requestTracer = options.requestTraceEnabled === true ? createMcpRequestTracer({
     requestTraceDirectory:options.requestTraceDirectory,
@@ -148,7 +143,8 @@ function createMcpService(options) {
   let record = null, closed = false, registrationSequence = 0;
   const businessNow = options.businessNow || Date.now;
   const businessOwnerLimit = options.businessOwnerLimit || MAX_OWNER_SESSIONS;
-  const bindings = conversationBindings(path.join(registryDirectory,"mcp","conversations"));
+  const businessSessionLimit = options.businessSessionLimit || MAX_DIRECT_SESSIONS;
+  const bindings = options.bindings || require("./conversation-bindings.js").conversationBindings(path.join(registryDirectory,"mcp","conversations"));
   function disposeOwner(ownerId) {
     for (const [id, session] of sessions) if (session.ownerId === ownerId) {
       clearTimeout(session.updateTimer);clearTimeout(session.lostTimer);
@@ -166,7 +162,7 @@ function createMcpService(options) {
   function retireBusinessSession(session) {
     notifySessionDisposed(session);
     retiredSessions.set(session.id,{ownerId:session.ownerId,at:businessNow(),sessionKey:session.sessionKey,documentId:session.documentId});
-    while (retiredSessions.size > MAX_DIRECT_SESSIONS) retiredSessions.delete(retiredSessions.keys().next().value);
+    while (retiredSessions.size > businessSessionLimit) retiredSessions.delete(retiredSessions.keys().next().value);
     clearTimeout(session.updateTimer); clearTimeout(session.lostTimer);
     sessions.delete(session.id);
     if (session.sessionKey) sessionKeys.delete(session.bindingKey);
@@ -189,13 +185,32 @@ function createMcpService(options) {
       try{connection.ws.send(JSON.stringify({type:"lan-status-changed"}));}catch{}
     }
   }
-  const direct = createDirectHttpService({
+  const direct = options.cloudRuntime ? {status:()=>({enabled:false}),close:async()=>{}} : require("./direct-http-service.js").createDirectHttpService({
     stateDirectory:path.join(registryDirectory,"mcp","server"),
     callTool:(ownerId,name,args,callOptions)=>callTool(ownerId,name,args,{...callOptions,direct:true}),
+    uploadImage:uploadRawImage,
     disposeOwner,onChange:notifyConnections,
     ...(options.lanAddresses?{getAddresses:options.lanAddresses}:{}),
     ...(options.directAnnounce?{announce:options.directAnnounce}:{}),
   });
+  // Raw uploads use the same authenticated host connection, without creating an
+  // AI conversation. Both connection and persistent document must still match.
+  async function uploadRawImage(args, callOptions = {}) {
+    const connection = canvases.get(args.canvasId);
+    if (!connection || connection.closed) throw bridgeError("canvas_not_found", "The selected Canvas is not connected or has not opted in.", 404);
+    const {result} = await canvasCall(connection, "mcp_upload_image_to_document", {
+      documentId:args.documentId, requestId:args.requestId, name:args.name,
+      source:args.source, inputSha256:args.inputSha256, originalName:args.originalName,
+    }, callOptions);
+    browserObject(result,"image upload result");
+    if (canvases.get(args.canvasId) !== connection || connection.closed) throw bridgeError("canvas_disconnected", "The upload connection changed. Retry the same request against the original document.",409);
+    const assetId = crypto.createHash("sha256").update(Buffer.from(args.source.slice(args.source.indexOf(",")+1),"base64")).digest("hex");
+    if (result.documentId !== args.documentId || result.source !== `penecho-asset:${assetId}` || result.assetId !== assetId) throw bridgeError("invalid_browser_result","The Canvas returned an image for a different document or content.",502);
+    const mediaType = args.source.slice(5,args.source.indexOf(";")), bytes = Buffer.from(args.source.slice(args.source.indexOf(",")+1),"base64").length;
+    if (result.mediaType !== mediaType || result.bytes !== bytes || !Number.isSafeInteger(result.width) || result.width < 1 || !Number.isSafeInteger(result.height) || result.height < 1) throw bridgeError("invalid_browser_result","The Canvas returned invalid image metadata.",502);
+    return {canvasId:args.canvasId,documentId:args.documentId,requestId:args.requestId,inputSha256:args.inputSha256,
+      source:result.source,assetId,name:safeString(result.name,200,"image name"),mediaType,bytes,width:result.width,height:result.height,revision:browserRevision(result.revision)};
+  }
   let directStart = null;
   function startDirect() {
     if(closed)return Promise.resolve();
@@ -247,12 +262,16 @@ function createMcpService(options) {
   const upgrade = async (req, socket, head) => {
     let pathname;
     try { pathname = new URL(req.url, "http://localhost").pathname; } catch { return; }
-    if (pathname !== "/api/mcp/canvas") return;
+    if (!["/api/mcp/canvas","/api/mcp/cloud-canvas"].includes(pathname)) return;
     if (closed) return rejectUpgrade(socket, bridgeError("service_closed", "The PenEcho MCP service is closed.", 503));
     if (await browserAuthorization(req)) return rejectUpgrade(socket);
+    if(pathname==='/api/mcp/cloud-canvas') {
+      if(!options.attachCloudBrowser)return rejectUpgrade(socket);
+      return wss.handleUpgrade(req,socket,head,ws=>{try{options.attachCloudBrowser(ws,req);}catch{ws.close(4401,'Enable Cloud MCP after signing in.');}});
+    }
     wss.handleUpgrade(req, socket, head, ws => wss.emit("connection", ws, req));
   };
-  server.on("upgrade", upgrade);
+  if (!options.cloudRuntime) server.on("upgrade", upgrade);
 
   function rejectPending(connection, error) {
     for (const pending of connection.pending.values()) {
@@ -528,7 +547,7 @@ function createMcpService(options) {
       if (callOptions.direct) pruneBusinessSessions();
       const bindingKey = callOptions.direct ? JSON.stringify([ownerId,args.client || "External AI",args.sessionKey]) : `${ownerId}\0${args.sessionKey}`;
       const current = args.sessionKey ? sessions.get(sessionKeys.get(bindingKey)) : null;
-      const remembered = callOptions.direct && args.sessionKey ? bindings.read(args.client,args.sessionKey) : null;
+      const remembered = callOptions.direct && args.sessionKey ? await bindings.read(args.client,args.sessionKey) : null;
       const bound = current || remembered;
       if (callOptions.direct && bound) {
         if (args.canvasId !== undefined && args.canvasId !== bound.canvasId || args.documentId !== undefined && args.documentId !== bound.documentId) throw bridgeError("session_key_conflict", "That conversation is bound to another canvas document. Use its existing binding or a distinct sessionKey.",409);
@@ -557,7 +576,7 @@ function createMcpService(options) {
                 if (result.sessionId !== existing.id) throw bridgeError("invalid_browser_result","The browser returned a mismatched session.",502);
                 const documentId = validateRestoredDocument(result,args);
                 const revision = browserRevision(result.revision);
-                bindings.write({...existing,documentId,client:args.client});
+                await bindings.write({...existing,documentId,client:args.client});
                 existing.documentId = documentId;
                 existing.render = {...existing.render,...timing,revision};
                 return {...sessionSnapshot(existing),guidanceVersion:GUIDANCE_VERSION,reused:true,...(result.recovery ? {recovery:safeJsonValue(result.recovery,"recovery")} : {})};
@@ -574,12 +593,12 @@ function createMcpService(options) {
       }
       if (callOptions.direct) {
         if ([...sessions.values()].filter(item => item.ownerId === ownerId).length >= businessOwnerLimit) pruneBusinessSessions(ownerId,true);
-        if ([...sessions.values()].filter(item => item.direct).length >= MAX_DIRECT_SESSIONS) pruneBusinessSessions(null,true);
+        if ([...sessions.values()].filter(item => item.direct).length >= businessSessionLimit) pruneBusinessSessions(null,true);
       }
       const pendingOwner = pendingBusinessStarts.get(ownerId) || 0;
       const pendingTotal = callOptions.direct ? [...pendingBusinessStarts.values()].reduce((sum,n) => sum+n,0) : 0;
       const sessionCount = [...sessions.values()].filter(item => Boolean(item.direct) === Boolean(callOptions.direct)).length + pendingTotal;
-      if (sessionCount >= (callOptions.direct ? MAX_DIRECT_SESSIONS : MAX_SESSIONS) || [...sessions.values()].filter(item => item.ownerId === ownerId).length + pendingOwner >= (callOptions.direct ? businessOwnerLimit : MAX_OWNER_SESSIONS)) throw bridgeError("session_limit", "Too many active PenEcho conversations. Close an unused session or retry after it is idle.",429);
+      if (sessionCount >= (callOptions.direct ? businessSessionLimit : MAX_SESSIONS) || [...sessions.values()].filter(item => item.ownerId === ownerId).length + pendingOwner >= (callOptions.direct ? businessOwnerLimit : MAX_OWNER_SESSIONS)) throw bridgeError("session_limit", "Too many active PenEcho conversations. Close an unused session or retry after it is idle.",429);
       if (callOptions.direct) pendingBusinessStarts.set(ownerId,pendingOwner+1);
       try {
       const sessionId = crypto.randomUUID(), slotIndex = connection.nextSlot++;
@@ -596,7 +615,7 @@ function createMcpService(options) {
         title:args.title, status:"working", summary:"", steps:[], events:[], ...progress, feedbackCursor, createdAt:now, updatedAt:now,
         render:{ state:"applied", applied:true, pixelVerified:false, ...timing, revision }, pendingUpdate:null, pendingUpdateTraces:[], pendingQueuedAt:0, pendingRenderSequence:0, renderSequence:0, updateChain:Promise.resolve(), updateTimer:null, lost:false, lostTimer:null, mutationRequests:new Map(),
       };
-      if(callOptions.direct)bindings.write({...session,client:args.client});
+      if(callOptions.direct)await bindings.write({...session,client:args.client});
       sessions.set(sessionId, session);
       if (args.sessionKey) sessionKeys.set(bindingKey, sessionId);
       return { ...sessionSnapshot(session), boardObjectId, revision, ...(result.recovery?{recovery:safeJsonValue(result.recovery,"recovery")}:{}), guidanceVersion:GUIDANCE_VERSION };
@@ -625,7 +644,19 @@ function createMcpService(options) {
     const tracked = sessions.get(input?.sessionId);
     const session = tracked?.ownerId === ownerId && tracked.direct ? tracked : null;
     if (session) session.activeCalls++;
-    try { return await untrackedCallTool(ownerId,name,input,callOptions); }
+    try {
+      const result = await untrackedCallTool(ownerId,name,input,callOptions);
+      if (name === "penecho_start_session" && result?.sessionId) {
+        const http = direct.status();
+        if (http.enabled && http.hostId) result.imageUpload = {
+          hostId:http.hostId, canvasId:result.canvasId, documentId:result.documentId,
+          clientPath:{windows:"%USERPROFILE%/.penecho/mcp/client.js",posix:"~/.penecho/mcp/client.js"},
+          args:["--host-id",http.hostId,"--upload-image","ABSOLUTE_IMAGE_PATH","--canvas-id",result.canvasId,"--document-id",result.documentId,"--request-id","UNIQUE_UPLOAD_ID"],
+          instructions:"Run the installed client.js on the agent computer with these arguments using its configured Node executable. Expand the fixed clientPath against the local user home. Replace only ABSOLUTE_IMAGE_PATH and UNIQUE_UPLOAD_ID. Use this returned hostId, never a Canvas/session ID. The client resolves the address/port and loads authentication automatically. Keep this document current/open. Reuse the returned source in Widget HTML/CSS or place_image."
+        };
+      }
+      return result;
+    }
     finally { if (session) { session.activeCalls--; session.lastUsed = businessNow(); } }
   }
   async function untrackedCallTool(ownerId, name, input, callOptions = {}) {
@@ -652,7 +683,7 @@ function createMcpService(options) {
 
   function statusPayload(canConfigureLocalClients = true, canCopyLanSetup = canConfigureLocalClients) {
     const http=direct.status();
-    http.businessLimits={sessions:MAX_DIRECT_SESSIONS,sessionsPerOwner:businessOwnerLimit,idleMs:1800000,pressureIdleMs:60000};
+    http.businessLimits={sessions:businessSessionLimit,sessionsPerOwner:businessOwnerLimit,idleMs:1800000,pressureIdleMs:60000};
     http.documentLimits={authority:"browser",openPerBrowser:64,serverEvictsDocuments:false};
     http.clientIdleMs=1800000;
     http.initialUrl=http.urls[0]||http.localUrl;
@@ -775,7 +806,7 @@ function createMcpService(options) {
     await new Promise(resolve => wss.close(resolve));
   }
 
-  return { callTool, close, startDirect, executeRemote:remoteChannels.execute, closeRemoteChannels:remoteChannels.disconnect, handleHttp, instanceId, listCanvases:() => [...canvases.values()].filter(item => item.canvasId && !item.closed).map(item => publicCanvas(item, instanceId)), register, status:statusPayload };
+  return { callTool, disposeOwner, attachBrowser:ws=>wss.emit("connection",ws), close, startDirect, executeRemote:remoteChannels.execute, closeRemoteChannels:remoteChannels.disconnect, handleHttp, instanceId, listCanvases:() => [...canvases.values()].filter(item => item.canvasId && !item.closed).map(item => publicCanvas(item, instanceId)), register, status:statusPayload };
 }
 
 module.exports = { BOUND_CANVAS_TOOL_NAMES, executeBoundCanvasTool, CALL_TIMEOUT_MS, MAX_CAPTURE_BYTES, MAX_HTTP_BODY_BYTES, createMcpService, isLoopback, normalizedAddress };

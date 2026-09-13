@@ -260,7 +260,7 @@
       if (hit) { beginPendingGesture(event, hit, result?.itemIndex ?? null); return true; }
     }
     const widget = canvasWidgetAtEvent(event);
-    const target = widget ? { kind:'widget', object:widget } : handObjectToolbarTargetAtPoint(point);
+    const target = handObjectToolbarTargetAtPoint(point) || (widget ? { kind:'widget', object:widget } : null);
     if (state.pendingWidget && !target) {
       const result = widgetPointerHit(point, event.pointerType, true);
       if (result?.pending) return beginWidgetGesture(event, point, result);
@@ -271,17 +271,17 @@
       if (state.imageEdit) acceptImageEdit();
       return false;
     }
+    if (target.kind === 'text-box') return editTextBox(target.object);
     showHandObjectToolbar(target.kind, target.object);
     if (target.kind === 'widget') {
-      const hit = state.selectedWidgetId === widget.id ? widgetResizeHit(widgetBox(widget), point, event.pointerType) : null;
-      return beginWidgetGesture(event, point, { widget, hit:hit || 'move', pending:false });
+      const hit = state.selectedWidgetId === target.object.id ? widgetResizeHit(widgetBox(target.object), point, event.pointerType) : null;
+      return beginWidgetGesture(event, point, { widget:target.object, hit:hit || 'move', pending:false });
     }
     if (target.kind === 'image') {
       const result = imagePointerHit(point, event.pointerType, true);
       return beginImageGesture(event, point, result || { image:target.object, hit:'move' });
     }
     if (target.kind === 'animation') return beginAnimationGesture(event, point, animationPointerHit(point, event.pointerType) || { animation:target.object, hit:'move' });
-    if (target.kind === 'text-box') return editTextBox(target.object);
     return false;
   }
   function canvasNavigationSurface(target) {
