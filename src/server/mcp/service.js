@@ -99,8 +99,25 @@ function safeErrorDetails(value) {
   } catch { return undefined; }
 }
 
-function publicCanvas(connection, instanceId) {
-  return { canvasId:connection.canvasId, instanceId, title:connection.title, connectedAt:connection.connectedAt };
+function canvasCatalog(value) {
+  if (!Array.isArray(value) || value.length > MAX_CANVASES) throw bridgeError("invalid_canvas_catalog", `Canvas catalog must contain at most ${MAX_CANVASES} documents.`);
+  const documents = [], ids = new Set();
+  let active = false;
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw bridgeError("invalid_canvas_catalog", "Canvas catalog entries must be objects.");
+    for (const key of Object.keys(entry)) if (!["documentId","title","active"].includes(key)) throw bridgeError("invalid_canvas_catalog", `Canvas catalog contains an unsupported field: ${key}.`);
+    const documentId = safeString(entry.documentId, 256, "documentId"), title = safeString(entry.title, 200, "title");
+    if (typeof entry.active !== "boolean" || ids.has(documentId) || entry.active && active) throw bridgeError("invalid_canvas_catalog", "Canvas catalog identities or active state are invalid.");
+    ids.add(documentId);active ||= entry.active;documents.push({documentId,title,active:entry.active});
+  }
+  return documents;
+}
+
+function publicCanvasDocuments(connection, instanceId) {
+  // 1.3.1 advertises a browser, without the newer document catalog. Missing
+  // capability is different from an explicit, authoritative empty catalog.
+  if(connection.documents===null)return [{canvasId:connection.canvasId,instanceId,title:connection.title,connectedAt:connection.connectedAt}];
+  return connection.documents.map(document => ({canvasId:connection.canvasId,instanceId,documentId:document.documentId,title:document.title,active:document.active,connectedAt:connection.connectedAt}));
 }
 
 function createMcpService(options) {
@@ -110,8 +127,10 @@ function createMcpService(options) {
   if (options.inspectConfiguredClients !== undefined && typeof options.inspectConfiguredClients !== "function") throw new TypeError("inspectConfiguredClients must be a function.");
   const heartbeatIntervalMs = options.heartbeatIntervalMs === undefined ? HEARTBEAT_INTERVAL_MS : options.heartbeatIntervalMs;
   const heartbeatTimeoutMs = options.heartbeatTimeoutMs === undefined ? HEARTBEAT_TIMEOUT_MS : options.heartbeatTimeoutMs;
+  const bindingTimeoutMs = options.bindingTimeoutMs === undefined ? 10_000 : options.bindingTimeoutMs;
   if (typeof heartbeatIntervalMs !== "number" || !Number.isFinite(heartbeatIntervalMs) || heartbeatIntervalMs <= 0) throw new TypeError("heartbeatIntervalMs must be positive.");
   if (typeof heartbeatTimeoutMs !== "number" || !Number.isFinite(heartbeatTimeoutMs) || heartbeatTimeoutMs <= 0 || heartbeatTimeoutMs < heartbeatIntervalMs) throw new TypeError("heartbeatTimeoutMs must be positive and at least heartbeatIntervalMs.");
+  if (typeof bindingTimeoutMs !== "number" || !Number.isFinite(bindingTimeoutMs) || bindingTimeoutMs <= 0) throw new TypeError("bindingTimeoutMs must be positive.");
   const server = options.server, authorizeBrowser = options.authorizeBrowser, rootDirectory = path.resolve(options.rootDirectory || process.cwd());
   const isLocalBrowserAddress = options.isLocalBrowserAddress;
   const localModules = options.cloudRuntime ? {} : { ...require("./records.js"), ...require("./configure.js"), ...require("./discovery-client.js"), ...require("./discovery-client-bundle.js"), ...require("./session-client-bundle.js") };
@@ -145,10 +164,29 @@ function createMcpService(options) {
   const businessOwnerLimit = options.businessOwnerLimit || MAX_OWNER_SESSIONS;
   const businessSessionLimit = options.businessSessionLimit || MAX_DIRECT_SESSIONS;
   const bindings = options.bindings || require("./conversation-bindings.js").conversationBindings(path.join(registryDirectory,"mcp","conversations"));
+  function bindingCall(operation, signal, timeoutMs = bindingTimeoutMs) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", abort);
+        error ? reject(error) : resolve(value);
+      };
+      const timer = setTimeout(() => finish(bridgeError("binding_timeout", "The MCP conversation binding store did not respond in time.", 504)), timeoutMs);
+      timer.unref?.();
+      const abort = () => finish(bridgeError("request_cancelled", "The MCP request was cancelled.", 499));
+      if (signal?.aborted) return abort();
+      signal?.addEventListener("abort", abort, {once:true});
+      Promise.resolve().then(operation).then(value => finish(null, value), finish);
+    });
+  }
   function disposeOwner(ownerId) {
     for (const [id, session] of sessions) if (session.ownerId === ownerId) {
       clearTimeout(session.updateTimer);clearTimeout(session.lostTimer);
       for (const trace of session.pendingUpdateTraces) requestTracer?.queuedUpdateOutcome(trace,"failed",{applied:false,error:"MCP connection closed."});
+      session.lost = true; session.pendingUpdate = null; session.pendingUpdateTraces = []; session.updateController?.abort();
       notifySessionDisposed(session);
       sessions.delete(id);
       if(session.sessionKey)sessionKeys.delete(session.bindingKey || `${ownerId}\0${session.sessionKey}`);
@@ -294,6 +332,7 @@ function createMcpService(options) {
       session.updateTimer = null;
       for (const trace of session.pendingUpdateTraces) requestTracer?.queuedUpdateOutcome(trace, "failed", { applied:false, error:"The selected PenEcho canvas disconnected." });
       session.pendingUpdateTraces = [];
+      session.pendingUpdate = null;
       session.lost = true;
       session.render = { state:"error", applied:false, pixelVerified:false, error:"The selected PenEcho canvas disconnected.", at:Date.now() };
       session.lostTimer = setTimeout(() => {
@@ -325,7 +364,7 @@ function createMcpService(options) {
 
   wss.on("connection", (ws, req) => {
     if (connections.size >= MAX_CANVASES) return ws.close(1013, "Too many canvases");
-    const connection = { ws, localHost:Boolean(req && browserAddressAllowed(req.socket.remoteAddress)), canCopyLanSetup:Boolean(req && browserCanCopyLanSetup(req.socket.remoteAddress)), canvasId:null, title:null, connectedAt:Date.now(), lastPong:Date.now(), closed:false, pending:new Map(), openRequests:new Map(), helloTimer:null, nextSlot:0 };
+    const connection = { ws, localHost:Boolean(req && browserAddressAllowed(req.socket.remoteAddress)), canCopyLanSetup:Boolean(req && browserCanCopyLanSetup(req.socket.remoteAddress)), canvasId:null, title:null, documents:null, connectedAt:Date.now(), lastPong:Date.now(), closed:false, pending:new Map(), openRequests:new Map(), helloTimer:null, nextSlot:0 };
     connections.add(connection);
     connection.helloTimer = setTimeout(() => ws.close(1008, "Canvas hello required"), HELLO_TIMEOUT_MS);
     connection.helloTimer.unref?.();
@@ -338,17 +377,24 @@ function createMcpService(options) {
         try {
           connection.canvasId = safeString(message.canvasId, 128, "canvasId");
           connection.title = safeString(message.title, 200, "title");
+          connection.documents = message.documents === undefined ? null : canvasCatalog(message.documents);
+          connection.documentRename = message.documentRename === true;
         } catch { return ws.close(1008, "Invalid canvas hello"); }
         clearTimeout(connection.helloTimer);
         connection.connectedAt = Date.now(); connection.registrationSequence = ++registrationSequence;
         const previous = canvases.get(connection.canvasId);
         canvases.set(connection.canvasId, connection);
         if (previous && previous !== connection) { markDisconnected(previous); previous.ws.close(4001, "Canvas connection replaced"); }
-        ws.send(JSON.stringify({ type:"ready", heartbeat:true, canvasId:connection.canvasId, instanceId }));
+        ws.send(JSON.stringify({ type:"ready", heartbeat:true, catalog:true, canvasId:connection.canvasId, instanceId }));
         return;
       }
       if (message.type === "ping") {
         if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:"pong" }));
+        return;
+      }
+      if (message.type === "catalog") {
+        try { connection.documents = canvasCatalog(message.documents); }
+        catch { return ws.close(1008, "Invalid canvas catalog"); }
         return;
       }
       if (message.type !== "result" || typeof message.requestId !== "string") return ws.close(1008, "Invalid result");
@@ -373,6 +419,8 @@ function createMcpService(options) {
 
   function canvasCall(connection, name, argumentsValue, optionsValue = {}) {
     const requestId = crypto.randomUUID(), requestedAt = Date.now();
+    const timeoutMs = Math.max(1, Math.min(optionsValue.timeoutMs || CALL_TIMEOUT_MS, (optionsValue.expiresAt || requestedAt + CALL_TIMEOUT_MS) - requestedAt));
+    const expiresAt = requestedAt + timeoutMs;
     const traces = requestTracer ? (Array.isArray(optionsValue.requestTraces) ? optionsValue.requestTraces : optionsValue.requestTrace ? [optionsValue.requestTrace] : []) : [];
     const interactions = traces.map(trace => requestTracer.browserStarted(trace, { requestId, name, arguments:argumentsValue, requestedAt }));
     const failed = error => {
@@ -391,7 +439,7 @@ function createMcpService(options) {
         cleanup();
         try { connection.ws.send(JSON.stringify({ type:"cancel", requestId })); } catch {}
         reject(bridgeError("canvas_timeout", "The PenEcho canvas did not respond in time.", 504));
-      }, optionsValue.timeoutMs || CALL_TIMEOUT_MS);
+      }, timeoutMs);
       timer.unref?.();
       const abort = () => {
         connection.pending.delete(requestId);
@@ -403,7 +451,7 @@ function createMcpService(options) {
       if (optionsValue.signal?.aborted) return abort();
       optionsValue.signal?.addEventListener("abort", abort, { once:true });
       connection.pending.set(requestId, { resolve:finish, reject, timer, cleanup });
-      try { connection.ws.send(JSON.stringify({ type:"call", requestId, name, arguments:argumentsValue })); }
+      try { connection.ws.send(JSON.stringify({ type:"call", requestId, name, arguments:argumentsValue, expiresAt, timeoutMs })); }
       catch (error) {
         connection.pending.delete(requestId);
         clearTimeout(timer);
@@ -433,22 +481,27 @@ function createMcpService(options) {
   function dispatchUpdate(session) {
     clearTimeout(session.updateTimer);
     session.updateTimer = null;
+    if (session.updateWork) return session.updateChain;
     const payload = session.pendingUpdate, renderSequence = session.pendingRenderSequence, queuedAt = session.pendingQueuedAt, requestTraces = session.pendingUpdateTraces;
     session.pendingUpdate = null;
     session.pendingUpdateTraces = [];
     if (!payload || session.lost) return session.updateChain;
     session.updateWork = (session.updateWork || 0) + 1;
+    session.updateController = new AbortController();
     const task = session.updateChain.then(async () => {
       if (session.lost) throw bridgeError("session_closed", "The MCP session is no longer active.", 409);
-      const { result, timing } = await canvasCall(session.connection, "mcp_update_session", { sessionId:session.id, ...payload }, { requestTraces });
+      const { result, timing } = await canvasCall(session.connection, "mcp_update_session", { sessionId:session.id, ...payload }, { requestTraces, signal:session.updateController.signal });
       browserObject(result, "session update result");
       const revision = browserRevision(result.revision), applied = result.applied === true, visible = result.visible === true;
       if (session.renderSequence === renderSequence) session.render = { state:applied ? "applied" : "accepted", applied, visible, pixelVerified:false, queuedAt, ...timing, revision };
       for (const trace of requestTraces) requestTracer?.queuedUpdateOutcome(trace, applied ? "applied" : "accepted", { applied, visible, revision, timing });
     });
-    session.updateChain = task.finally(() => { session.updateWork--; session.lastUsed = businessNow(); }).catch(error => {
+    session.updateChain = task.catch(error => {
       if (session.renderSequence === renderSequence) session.render = { state:"error", applied:false, pixelVerified:false, queuedAt, at:Date.now(), error:String(error?.message || "Progress application failed").slice(0, 500) };
       for (const trace of requestTraces) requestTracer?.queuedUpdateOutcome(trace, "failed", { applied:false, error });
+    }).finally(() => {
+      session.updateController = null; session.updateWork--; session.lastUsed = businessNow();
+      if (session.pendingUpdate && !session.lost) dispatchUpdate(session);
     });
     return session.updateChain;
   }
@@ -477,9 +530,11 @@ function createMcpService(options) {
     }
   }
 
-  async function flushUpdate(session) {
-    if (session.pendingUpdate) dispatchUpdate(session);
-    await session.updateChain;
+  async function flushUpdate(session, callOptions = {}) {
+    while (session.pendingUpdate || session.updateWork) {
+      if (!session.updateWork) dispatchUpdate(session);
+      await bindingCall(() => session.updateChain, callOptions.signal, Math.max(1,(callOptions.expiresAt || Date.now()+CALL_TIMEOUT_MS)-Date.now()));
+    }
   }
 
   function sessionSnapshot(session) {
@@ -504,31 +559,67 @@ function createMcpService(options) {
   async function executeCallTool(ownerId, name, input, callOptions = {}) {
     if (typeof ownerId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ownerId)) throw bridgeError("invalid_owner", "MCP owner id is invalid.");
     const args = validateToolArguments(name, input);
-    if (name === "penecho_list_canvases") return { instanceId, canvases:[...canvases.values()].filter(item => item.canvasId && !item.closed).sort((a,b)=>b.registrationSequence-a.registrationSequence).map(item => publicCanvas(item, instanceId)) };
-    if (name === "penecho_open_canvas" || name === "penecho_find_canvases") {
+    if (name === "penecho_list_canvases") return { instanceId, canvases:[...canvases.values()].filter(item => item.canvasId && !item.closed).sort((a,b)=>b.registrationSequence-a.registrationSequence).flatMap(item => publicCanvasDocuments(item, instanceId)) };
+    if (name === "penecho_open_canvas" || name === "penecho_find_canvases" || name === "penecho_rename_canvas") {
       if (args.instanceId !== instanceId) throw bridgeError("instance_mismatch", "The selected PenEcho instance is no longer active. List canvases again.", 409);
       const connection = canvases.get(args.canvasId);
       if (!connection || connection.closed) throw bridgeError("canvas_not_found", "The selected PenEcho canvas is not connected or has not opted in.", 404);
-      let openEntry, browserArgs = args;
-      if (name === "penecho_open_canvas") {
-        // The browser also caches open receipts before a session exists. Scope
-        // its request ID as well as our cache key to the calling MCP owner.
-        const requestKey = crypto.createHash("sha256").update(`${ownerId}\0${args.requestId}`).digest("hex");
+      if (name === "penecho_find_canvases") {
+        if(connection.documents===null) {
+          // Older browsers expose discovery as an RPC rather than catalog
+          // pushes. Keep that contract behind the same cancellation/deadline.
+          const {result,timing}=await canvasCall(connection,"mcp_find_canvases",args,callOptions);
+          browserObject(result,"canvas candidates result");
+          return {...safeJsonValue(result,"canvas candidates"),timing};
+        }
+        const requestedAt=Date.now();
+        const candidates = connection.documents.filter(document => !args.documentId || document.documentId === args.documentId).map(document => ({...document,open:true}));
+        const completedAt=Date.now();
+        return {canvases:candidates,candidates,providers:[{location:"workspace",status:"ok"}],timing:{requestedAt,completedAt,durationMs:completedAt-requestedAt}};
+      }
+      if (name === "penecho_rename_canvas") {
+        if (connection.documents !== null && !connection.documents.some(document => document.documentId === args.documentId)) throw bridgeError("document_not_found", "The selected document is not open. List canvases again and select an open document.", 404);
+        if (!connection.documentRename) throw bridgeError("unsupported_operation", "This PenEcho browser does not support document rename. Update PenEcho and refresh the browser connection, then retry.", 409);
+      }
+      let openEntry, requestKey, browserArgs = args;
+      if (name === "penecho_open_canvas" || name === "penecho_rename_canvas") {
+        // Keep legacy open keys stable across server upgrades: the browser may
+        // retain an open receipt. Only the additive rename operation is namespaced.
+        requestKey = crypto.createHash("sha256").update(name === "penecho_open_canvas" ? `${ownerId}\0${args.requestId}` : `${ownerId}\0${name}\0${args.requestId}`).digest("hex");
         browserArgs = {...args,requestId:requestKey};
-        const signature = mutationSignature(args), prior = connection.openRequests.get(requestKey);
-        if (prior && prior.signature !== signature) throw bridgeError("REQUEST_ID_CONFLICT", "requestId was already used with different open arguments. Use a new requestId.", 409);
+        const signature = mutationSignature(name === "penecho_open_canvas" ? args : {name,...args}), prior = connection.openRequests.get(requestKey);
+        if (prior && prior.signature !== signature) throw bridgeError("REQUEST_ID_CONFLICT", "requestId was already used with different control mutation arguments. Use a new requestId.", 409);
         if (prior?.response) return {...prior.response,reused:true};
         if (!prior && connection.openRequests.size >= MAX_MUTATION_REQUESTS) {
-          const completed = [...connection.openRequests].find(([, value]) => value.response);
+          const completed = [...connection.openRequests].find(([, value]) => !value.inFlight && (value.response || value.settled));
           if (completed) connection.openRequests.delete(completed[0]);
-          else throw bridgeError("request_limit", "Too many unresolved open request IDs are retained for this connection.", 429);
+          else throw bridgeError("request_limit", "Too many unresolved control mutation request IDs are retained for this connection.", 429);
         }
         openEntry = prior || {signature};
         connection.openRequests.set(requestKey, openEntry);
       }
-      const { result, timing } = await canvasCall(connection, name === "penecho_open_canvas" ? "mcp_open_canvas" : "mcp_find_canvases", browserArgs, callOptions);
-      browserObject(result, name === "penecho_open_canvas" ? "open canvas result" : "canvas candidates result");
-      if (name === "penecho_find_canvases") return { ...safeJsonValue(result, "canvas candidates"), timing };
+      if (name === "penecho_rename_canvas") {
+        openEntry.inFlight = (openEntry.inFlight || 0) + 1;
+        openEntry.settled = false;
+        try {
+          const { result, timing } = await canvasCall(connection, "mcp_rename_canvas", browserArgs, callOptions);
+          browserObject(result, "rename canvas result");
+          if (result.documentId !== args.documentId || result.title !== args.title || typeof result.active !== "boolean" || result.applied !== true || typeof result.saved !== "boolean") throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid rename receipt.", 502);
+          // Only browser catalog messages may add or refresh catalog documents.
+          const response = {documentId:result.documentId,title:result.title,active:result.active,applied:true,saved:result.saved,timing};
+          openEntry.response = response;
+          return response;
+        } finally {
+          // Preserve recent failed signatures for conflicts while allowing bounded
+          // eviction after every concurrent attempt using this key has settled.
+          if (connection.openRequests.get(requestKey) === openEntry) {
+            openEntry.inFlight -= 1;
+            openEntry.settled = openEntry.inFlight === 0;
+          }
+        }
+      }
+      const { result, timing } = await canvasCall(connection, "mcp_open_canvas", browserArgs, callOptions);
+      browserObject(result, "open canvas result");
       const documentId = safeString(result.documentId, 256, "documentId"), title = safeString(result.title, 200, "title");
       if (typeof result.active !== "boolean") throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid active state.", 502);
       let resultLocator;
@@ -547,7 +638,7 @@ function createMcpService(options) {
       if (callOptions.direct) pruneBusinessSessions();
       const bindingKey = callOptions.direct ? JSON.stringify([ownerId,args.client || "External AI",args.sessionKey]) : `${ownerId}\0${args.sessionKey}`;
       const current = args.sessionKey ? sessions.get(sessionKeys.get(bindingKey)) : null;
-      const remembered = callOptions.direct && args.sessionKey ? await bindings.read(args.client,args.sessionKey) : null;
+      const remembered = callOptions.direct && args.sessionKey ? await bindingCall(() => bindings.read(args.client,args.sessionKey), callOptions.signal) : null;
       const bound = current || remembered;
       if (callOptions.direct && bound) {
         if (args.canvasId !== undefined && args.canvasId !== bound.canvasId || args.documentId !== undefined && args.documentId !== bound.documentId) throw bridgeError("session_key_conflict", "That conversation is bound to another canvas document. Use its existing binding or a distinct sessionKey.",409);
@@ -555,6 +646,7 @@ function createMcpService(options) {
       }
       const requestedCanvasId = bound?.canvasId || args.canvasId;
       let connection = canvases.get(requestedCanvasId);
+      if ((!connection || connection.closed) && args.documentId && !args.canvasId) connection = [...canvases.values()].filter(item => !item.closed && item.documents?.some(document => document.documentId === args.documentId)).sort((a,b) => b.registrationSequence-a.registrationSequence)[0];
       if ((!connection || connection.closed) && callOptions.direct && !args.canvasId) connection = [...canvases.values()].filter(item => !item.closed).sort((a,b) => b.registrationSequence-a.registrationSequence)[0];
       if (!connection || connection.closed) throw bridgeError("canvas_not_found", "The selected PenEcho canvas is not connected or has not opted in.", 404);
       args.canvasId = connection.canvasId; args.instanceId = instanceId;
@@ -570,13 +662,13 @@ function createMcpService(options) {
             if (callOptions.direct) {
               existing.activeCalls = (existing.activeCalls || 0) + 1;
               try {
-                await flushUpdate(existing);
+                await flushUpdate(existing, callOptions);
                 const {result,timing} = await canvasCall(connection,"mcp_start_session",{sessionId:existing.id,slotIndex:existing.slotIndex,title:existing.title,documentId:existing.documentId,sessionKey:args.sessionKey,...(args.client ? {client:args.client} : {}),...(args.restore === undefined ? {} : {restore:args.restore}),...(args.show === undefined ? {} : {show:args.show})},callOptions);
                 browserObject(result,"session result");
                 if (result.sessionId !== existing.id) throw bridgeError("invalid_browser_result","The browser returned a mismatched session.",502);
                 const documentId = validateRestoredDocument(result,args);
                 const revision = browserRevision(result.revision);
-                await bindings.write({...existing,documentId,client:args.client});
+                await bindingCall(() => bindings.write({...existing,documentId,client:args.client}), callOptions.signal);
                 existing.documentId = documentId;
                 existing.render = {...existing.render,...timing,revision};
                 return {...sessionSnapshot(existing),guidanceVersion:GUIDANCE_VERSION,reused:true,...(result.recovery ? {recovery:safeJsonValue(result.recovery,"recovery")} : {})};
@@ -615,9 +707,12 @@ function createMcpService(options) {
         title:args.title, status:"working", summary:"", steps:[], events:[], ...progress, feedbackCursor, createdAt:now, updatedAt:now,
         render:{ state:"applied", applied:true, pixelVerified:false, ...timing, revision }, pendingUpdate:null, pendingUpdateTraces:[], pendingQueuedAt:0, pendingRenderSequence:0, renderSequence:0, updateChain:Promise.resolve(), updateTimer:null, lost:false, lostTimer:null, mutationRequests:new Map(),
       };
-      if(callOptions.direct)await bindings.write({...session,client:args.client});
       sessions.set(sessionId, session);
       if (args.sessionKey) sessionKeys.set(bindingKey, sessionId);
+      // Keep the browser-created session reachable if durable binding storage is
+      // temporarily unavailable. A retry can reuse it and persist the binding
+      // instead of creating an orphan browser session.
+      if(callOptions.direct)await bindingCall(() => bindings.write({...session,client:args.client}), callOptions.signal);
       return { ...sessionSnapshot(session), boardObjectId, revision, ...(result.recovery?{recovery:safeJsonValue(result.recovery,"recovery")}:{}), guidanceVersion:GUIDANCE_VERSION };
       } finally { if (callOptions.direct) { const count=(pendingBusinessStarts.get(ownerId) || 1)-1; if (count) pendingBusinessStarts.set(ownerId,count); else pendingBusinessStarts.delete(ownerId); } }
     }
@@ -629,9 +724,9 @@ function createMcpService(options) {
       enqueueUpdate(session, args, callOptions.requestTrace);
       return { accepted:true, applied:false, pixelVerified:false, queuedAt:session.updatedAt, sessionId:session.id };
     }
-    if (BOUND_CANVAS_TOOL_NAMES.includes(name)) return executeBoundCanvasTool({name,args:input,session,canvasCall,flushUpdate,sessionSnapshot,callOptions});
+    if (BOUND_CANVAS_TOOL_NAMES.includes(name)) return executeBoundCanvasTool({name,args:input,session,canvasCall,flushUpdate:target => flushUpdate(target,callOptions),sessionSnapshot,callOptions});
     if (name === "penecho_close_session") {
-      await flushUpdate(session);
+      await flushUpdate(session, callOptions);
       const { result, timing } = await canvasCall(session.connection, "mcp_close_session", args, callOptions);
       sessions.delete(session.id);
       if (session.sessionKey) sessionKeys.delete(session.bindingKey || `${ownerId}\0${session.sessionKey}`);
@@ -641,6 +736,16 @@ function createMcpService(options) {
   }
 
   async function callTool(ownerId,name,input,callOptions = {}) {
+    if (!callOptions.expiresAt) {
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      const timer = setTimeout(abort, CALL_TIMEOUT_MS); timer.unref?.();
+      callOptions.signal?.addEventListener("abort", abort, {once:true});
+      if (callOptions.signal?.aborted) abort();
+      try { return await callTool(ownerId,name,input,{...callOptions,signal:controller.signal,expiresAt:Date.now()+CALL_TIMEOUT_MS}); }
+      finally {clearTimeout(timer);callOptions.signal?.removeEventListener("abort",abort);}
+    }
+    if (callOptions.signal?.aborted) throw bridgeError("request_cancelled","The MCP request was cancelled.",499);
     const tracked = sessions.get(input?.sessionId);
     const session = tracked?.ownerId === ownerId && tracked.direct ? tracked : null;
     if (session) session.activeCalls++;
@@ -665,7 +770,8 @@ function createMcpService(options) {
       const previous = bindingOperations.get(key) || Promise.resolve();
       const operation = previous.catch(() => {}).then(() => callTool(ownerId,name,input,{...callOptions,bindingLocked:true}));
       bindingOperations.set(key,operation);
-      try { return await operation; } finally { if (bindingOperations.get(key) === operation) bindingOperations.delete(key); }
+      void operation.finally(() => { if (bindingOperations.get(key) === operation) bindingOperations.delete(key); }).catch(() => {});
+      return bindingCall(() => operation, callOptions.signal);
     }
     if (!requestTracer) return executeCallTool(ownerId, name, input, callOptions);
     const requestTrace = requestTracer.begin({ ownerId, name, arguments:input });
@@ -806,7 +912,7 @@ function createMcpService(options) {
     await new Promise(resolve => wss.close(resolve));
   }
 
-  return { callTool, disposeOwner, attachBrowser:ws=>wss.emit("connection",ws), close, startDirect, executeRemote:remoteChannels.execute, closeRemoteChannels:remoteChannels.disconnect, handleHttp, instanceId, listCanvases:() => [...canvases.values()].filter(item => item.canvasId && !item.closed).map(item => publicCanvas(item, instanceId)), register, status:statusPayload };
+  return { callTool, disposeOwner, attachBrowser:ws=>wss.emit("connection",ws), close, startDirect, executeRemote:remoteChannels.execute, closeRemoteChannels:remoteChannels.disconnect, handleHttp, instanceId, listCanvases:() => [...canvases.values()].filter(item => item.canvasId && !item.closed).flatMap(item => publicCanvasDocuments(item, instanceId)), register, status:statusPayload };
 }
 
 module.exports = { BOUND_CANVAS_TOOL_NAMES, executeBoundCanvasTool, CALL_TIMEOUT_MS, MAX_CAPTURE_BYTES, MAX_HTTP_BODY_BYTES, createMcpService, isLoopback, normalizedAddress };

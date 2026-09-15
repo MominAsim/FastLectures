@@ -1,5 +1,8 @@
 <h1 align="center">
-  <img src="../../public/penecho-readme-header.png" alt="PenEcho" width="760">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../../public/penecho-readme-header-dark.webp">
+    <img src="../../public/penecho-readme-header.webp" alt="PenEcho" width="280">
+  </picture>
 </h1>
 
 <p align="center">
@@ -17,7 +20,7 @@
 <h1 align="center">Пространство для работы<br>и размышлений с ИИ.</h1>
 <p align="center">Рисуйте, исследуйте и создавайте со встроенным Agent или своим ИИ-ассистентом с поддержкой MCP.</p>
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.1-087f83" alt="Версия 1.3.1">
+  <img src="https://img.shields.io/badge/version-1.3.2-087f83" alt="Версия 1.3.2">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="AGPL-3.0-only"></a>
 </p>
 <p align="center">
@@ -58,8 +61,8 @@
 | Работайте с привычным ИИ-агентом. | MCP-сервер PenEcho размещает схемы, документы и интерактивные прототипы на Canvas. | Пробуйте результат, добавляйте пометки, и агент прочитает их для следующей доработки. |
 
 <p align="center">
-  <a href="../assets/mcp-spatial-example.png">
-    <img src="../assets/mcp-spatial-example.png" alt="Обсуждение архитектуры с ИИ: рукописные комментарии рядом с предложенным решением на PenEcho Canvas" width="760">
+  <a href="../assets/mcp-spatial-example.webp">
+    <img src="../assets/mcp-spatial-example.webp" alt="Обсуждение архитектуры с ИИ: рукописные комментарии рядом с предложенным решением на PenEcho Canvas" width="760">
   </a>
 </p>
 <p align="center"><em>Обсуждение архитектуры с рукописными пометками на Canvas.</em></p>
@@ -75,7 +78,7 @@
 - **Подключайте своего агента.** Codex, Claude Code и другие MCP-совместимые клиенты могут читать и редактировать Canvas, для которого вы явно разрешили доступ.
 - **Сохраняйте и делитесь.** Объединяйте Canvas в проекты, сохраняйте версии в Cloud, синхронизируйте избранное и публикуйте через Echoes.
 
-## Новое в 1.3.0
+## Новое в 1.3.2
 
 | Обновление | Что добавлено |
 | --- | --- |

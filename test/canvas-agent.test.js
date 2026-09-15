@@ -645,6 +645,7 @@ test("PenEcho Agent sends Canvas-selected reasoning effort through Harness API r
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),connections=[
     {id:"deepseek",provider:"api",name:"DeepSeek",apiFormat:"openai",apiUrl:"https://api.deepseek.com/v1",apiModel:"deepseek-flash",apiKey:"test-only",effort:"high"},
+    {id:"glm",provider:"api",name:"GLM",apiFormat:"openai",apiUrl:"https://open.bigmodel.cn/api/paas/v4",apiModel:"glm-5.3-flash",apiKey:"test-only",effort:"medium"},
     {id:"qwen",provider:"api",name:"Qwen",apiFormat:"openai",apiUrl:"https://qwen.example.test/v1",apiModel:"qwen3.8",apiKey:"qwen-key",effort:"high"},
     {id:"kimi",provider:"api",name:"Kimi",apiFormat:"openai",apiPreset:"kimi-global-api",apiUrl:"https://api.moonshot.ai/v1",apiModel:"kimi-k3",apiKey:"kimi-key",effort:"medium"},
     {id:"kimi-coding",provider:"api",name:"Kimi Coding",apiFormat:"openai",apiPreset:"kimi-global-coding",apiUrl:"https://api.kimi.com/coding/v1",apiModel:"k3-256k",apiKey:"kimi-coding-key",effort:"medium"},
@@ -690,6 +691,10 @@ test("PenEcho Agent sends Canvas-selected reasoning effort through Harness API r
   assert.equal(deepseekRequest.body.max_tokens,64000);
   assert.equal(deepseekRequest.body.max_completion_tokens,undefined);
   assert.equal(deepseekRequest.body.reasoning_effort,"high");
+  const glmRequest=requests.find(request=>request.body.model==="glm-5.3-flash");
+  assert.equal(glmRequest.body.reasoning_effort,"high");
+  assert.equal(glmRequest.body.max_tokens,64000);
+  assert.equal(glmRequest.body.max_completion_tokens,undefined);
   assert.equal(requests.find(request=>request.body.model==="gpt-5.6-sol").body.max_completion_tokens,64000);
   assert.equal(qwenRequest.body.messages[0].role,"developer");
   assert.equal(kimiRequest.body.reasoning_effort,"high");
@@ -3362,12 +3367,12 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.match(css,/@media \(max-width: 700px\)[\s\S]*?\.canvas-agent-panel\s*\{[^}]*height: 66\.6667%;[^}]*min-height: 0/s);
 });
 
-test("PenEcho Agent focus and active turns suppress Auto AI while submitted turns cancel only automatic requests",()=>{
+test("PenEcho Agent open panel and active turns suppress Auto AI while submitted turns cancel only automatic requests",()=>{
   const agent=read("src/client/app/canvas-agent-runtime.js"),ai=read("src/client/app/ai-runtime.js"),core=read("src/client/app/core.js"),zh=read("public/locales/zh.js"),
     suppression=functionSource(agent,"canvasAgentSuppressesAutomaticAI"),beginRequest=functionSource(agent,"canvasAgentBeginRequest"),sendRequest=functionSource(agent,"canvasAgentSendRequest"),
     stopAutomatic=functionSource(ai,"stopActiveAutomaticAI"),requestAI=functionSource(ai,"requestAI");
   assert.match(functionSource(agent,"canvasAgentHasFocus"),/!canvasAgentPanel\.hidden[\s\S]*canvasAgentPanel\.contains\(document\.activeElement\)/);
-  assert.match(suppression,/canvasAgent\.requestPending \|\| canvasAgent\.running \|\| canvasAgentHasFocus\(\)/);
+  assert.match(suppression,/canvasAgent\.requestPending \|\| canvasAgent\.running \|\| canvasAgentIsOpen\(\)/);
   assert.match(functionSource(ai,"launchAutomaticAI"),/canvasAgentSuppressesAutomaticAI\(\)/);
   assert.match(functionSource(ai,"schedule"),/clearTimeout\(state\.timer\)[\s\S]*canvasAgentSuppressesAutomaticAI\(\)/);
   assert.match(stopAutomatic,/preparation\?\.action !== "auto" && active\?\.action !== "auto"[\s\S]*supersedeActiveAI\(reason\)/);
@@ -3376,7 +3381,7 @@ test("PenEcho Agent focus and active turns suppress Auto AI while submitted turn
   assert.match(sendRequest,/if \(!canvasAgent\.requestPending\) canvasAgentBeginRequest\(\)[\s\S]*canvasAgentSendEnvelope\(type,payload\)/);
   assert.match(sendRequest,/catch \(error\)[\s\S]*canvasAgentRequestDidNotSend\(\)/);
   assert.match(functionSource(agent,"canvasAgentSetRunning"),/if \(running\) canvasAgentPauseAutomaticAI\(\);[\s\S]*else canvasAgentResumeAutomaticAI\(\)/);
-  assert.match(functionSource(agent,"canvasAgentAutomaticAIStatusKey"),/if \(!state\.auto\) return null;[\s\S]*requestPending \|\| canvasAgent\.running[\s\S]*canvasAgentAutoAIRequestPaused[\s\S]*canvasAgentHasFocus\(\)[\s\S]*canvasAgentAutoAIFocusPaused/);
+  assert.match(functionSource(agent,"canvasAgentAutomaticAIStatusKey"),/if \(!state\.auto\) return null;[\s\S]*requestPending \|\| canvasAgent\.running[\s\S]*canvasAgentAutoAIRequestPaused[\s\S]*canvasAgentIsOpen\(\)[\s\S]*canvasAgentAutoAIFocusPaused/);
   assert.match(functionSource(agent,"canvasAgentSyncAutomaticAIStatus"),/automaticAIStatusRestore = \{ key:state\.statusKey, text:status\.textContent \}[\s\S]*setStatusKey\(nextKey\)[\s\S]*CANVAS_AGENT_AUTO_AI_STATUS_KEYS\.has\(state\.statusKey\)[\s\S]*setStatusKey\(previous\.key\)/);
   assert.match(functionSource(agent,"canvasAgentPauseAutomaticAI"),/canvasAgentSyncAutomaticAIStatus\(\)/);
   assert.match(functionSource(agent,"canvasAgentResumeAutomaticAI"),/canvasAgentSyncAutomaticAIStatus\(\)/);
@@ -3400,26 +3405,34 @@ test("PenEcho Agent focus and active turns suppress Auto AI while submitted turn
 
 test("PenEcho Agent explains each Auto AI pause reason and restores the prior top status",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),runtime=vm.runInNewContext(`(()=>{
+    let panelOpen=true;
     const CANVAS_AGENT_AUTO_AI_STATUS_KEYS=new Set(["canvasAgentAutoAIFocusPaused","canvasAgentAutoAIRequestPaused"]),
-      inside={},outside={},document={activeElement:outside},canvasAgentPanel={hidden:false,contains:target=>target===inside},
+      inside={},outside={},document={activeElement:outside,body:{classList:{contains:()=>panelOpen}}},canvasAgentPanel={hidden:false,contains:target=>target===inside},
       status={textContent:"Ready"},state={auto:true,statusKey:"ready"},canvasAgent={requestPending:false,running:false,automaticAIStatusRestore:null};
     const t=key=>key==="ready"?"Ready":key,setStatusKey=key=>{state.statusKey=key;status.textContent=t(key);},setStatus=(text,key=null)=>{state.statusKey=key;status.textContent=text;};
-    ${functionSource(source,"canvasAgentHasFocus")}
+    ${functionSource(source,"canvasAgentIsOpen")}
+    ${functionSource(source,"canvasAgentSuppressesAutomaticAI")}
     ${functionSource(source,"canvasAgentAutomaticAIStatusKey")}
     ${functionSource(source,"canvasAgentSyncAutomaticAIStatus")}
-    return{inside,outside,document,status,state,canvasAgent,sync:canvasAgentSyncAutomaticAIStatus};
+    return{inside,outside,document,status,state,canvasAgent,close:()=>{panelOpen=false;},suppresses:canvasAgentSuppressesAutomaticAI,sync:canvasAgentSyncAutomaticAIStatus};
   })()`);
-  runtime.document.activeElement=runtime.inside;
   runtime.sync();
+  assert.equal(runtime.suppresses(),true);
   assert.equal(runtime.state.statusKey,"canvasAgentAutoAIFocusPaused");
   runtime.canvasAgent.requestPending=true;
   runtime.sync();
   assert.equal(runtime.state.statusKey,"canvasAgentAutoAIRequestPaused");
   runtime.canvasAgent.requestPending=false;
   runtime.sync();
+  assert.equal(runtime.suppresses(),true);
   assert.equal(runtime.state.statusKey,"canvasAgentAutoAIFocusPaused");
   runtime.document.activeElement=runtime.outside;
   runtime.sync();
+  assert.equal(runtime.suppresses(),true);
+  assert.equal(runtime.state.statusKey,"canvasAgentAutoAIFocusPaused");
+  runtime.close();
+  runtime.sync();
+  assert.equal(runtime.suppresses(),false);
   assert.deepEqual({key:runtime.state.statusKey,text:runtime.status.textContent},{key:"ready",text:"Ready"});
   runtime.state.auto=false;
   runtime.document.activeElement=runtime.inside;

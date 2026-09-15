@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#eef0f3">
-  <link rel="icon" type="image/png" href="penecho-mark.png">
+  <link rel="icon" type="image/png" href="penecho-favicon.png">
   <title>PenEcho | Handwritten AI Canvas</title>
   <script src="/api/config.js"></script>
   <script src="page-scale.js"></script>
@@ -1088,6 +1088,10 @@
               <button id="mcpCloudTab" type="button" role="tab" aria-selected="true" aria-controls="mcpCloudPanel" data-pe-button="segment" data-pe-density="segment">Cloud MCP</button>
               <button id="mcpLocalTab" type="button" role="tab" aria-selected="false" aria-controls="mcpLocalPanel" tabindex="-1" data-pe-button="segment" data-pe-density="segment">Local MCP</button>
             </div>
+            <div class="settings-row" data-pe-list="settings">
+              <div data-pe-region="copy"><label for="mcpKeepAwake" data-mcp-label="keepAwake">Keep awake while MCP is connected</label><p class="mcp-hint" data-mcp-label="keepAwakeHelp">Optional. In a browser, keep this tab visible. Your device may still suspend.</p></div>
+              <input id="mcpKeepAwake" type="checkbox" data-pe-control="checkbox">
+            </div>
             <section id="mcpCloudPanel" role="tabpanel" aria-labelledby="mcpCloudTab"><div id="mcpCloudSettings"></div></section>
             <section id="mcpLocalPanel" role="tabpanel" aria-labelledby="mcpLocalTab" hidden>
             <div id="mcpLocalCloudHelp" class="cloud-mcp-panel" hidden><h2></h2><p class="cloud-mcp-help"></p><p class="cloud-mcp-help"></p></div>
@@ -1277,6 +1281,7 @@
               <label><span data-i18n="settingsApiRegion">Access region</span><select id="settingsApiRegion" name="apiRegion"><option value="global" data-i18n="settingsApiRegionGlobal">Global</option><option value="china" data-i18n="settingsApiRegionChina">Mainland China</option></select></label>
               <label><span data-i18n="settingsApiService">Service</span><select id="settingsApiService" name="apiService"><option value="api" data-i18n="settingsApiServiceApi">API</option><option value="coding" data-i18n="settingsApiServiceCoding">Coding Plan</option></select></label>
             </div>
+            <p id="settingsKimiSignup" class="settings-kimi-signup" role="note" hidden><span data-i18n="settingsKimiPartner">PenEcho is a Kimi 2026 Open Source Partner.</span><a id="settingsKimiSignupLink" href="https://platform.kimi.ai?aff=penecho" target="_blank" rel="noopener noreferrer" data-i18n="settingsKimiApiSignupGlobal">Get a Kimi API key for Global access</a></p>
             <label class="settings-field"><span data-i18n="settingsApiUrl">Base URL</span><input id="settingsApiUrl" name="apiUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://api.openai.com/v1" required></label>
             <label class="settings-field"><span data-i18n="settingsApiKey">API key</span><input id="settingsApiKey" name="apiKey" type="password" autocomplete="new-password" placeholder="Paste a new key or leave blank to keep the saved key"><small data-i18n="settingsApiKeyHelp">Stored only in the local PenEcho configuration file.</small></label>
             <div class="settings-field settings-model-field">

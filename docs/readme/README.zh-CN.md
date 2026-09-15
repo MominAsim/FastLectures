@@ -1,5 +1,8 @@
 <h1 align="center">
-  <img src="../../public/penecho-readme-header.png" alt="PenEcho" width="760">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../../public/penecho-readme-header-dark.webp">
+    <img src="../../public/penecho-readme-header.webp" alt="PenEcho" width="280">
+  </picture>
 </h1>
 
 <p align="center">
@@ -17,7 +20,7 @@
 <h1 align="center">与 AI 一起思考的<br>空间工作台。</h1>
 <p align="center">手写、探索、创作，让内置 Agent 或你自己的 MCP 助手加入同一块画布。</p>
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.1-087f83" alt="版本 1.3.1">
+  <img src="https://img.shields.io/badge/version-1.3.2-087f83" alt="版本 1.3.2">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="AGPL-3.0-only"></a>
 </p>
 <p align="center">
@@ -58,8 +61,8 @@
 | 使用你已有的 AI Agent 讨论问题、推进任务。 | 通过 PenEcho MCP 服务，把图解、文档和交互预览放到画布上。 | 试用结果、圈画批注，让 Agent 读取反馈并继续修改。 |
 
 <p align="center">
-  <a href="../assets/mcp-spatial-example.png">
-    <img src="../assets/mcp-spatial-example.png" alt="与 AI 讨论架构，在 PenEcho 画布上并排查看方案并用手写标注提出反馈" width="760">
+  <a href="../assets/mcp-spatial-example.webp">
+    <img src="../assets/mcp-spatial-example.webp" alt="与 AI 讨论架构，在 PenEcho 画布上并排查看方案并用手写标注提出反馈" width="760">
   </a>
 </p>
 <p align="center"><em>在画布上讨论架构，并用手写标注提出反馈。</em></p>
@@ -75,7 +78,7 @@
 - **接入自己的 Agent。** 通过 MCP，让 Codex、Claude Code 或其他兼容客户端读写你明确开放的 Canvas。
 - **保存与分享。** 用项目组织画布，保存云端版本、同步收藏，通过 Echoes 发布作品。
 
-## 1.3.0 新内容
+## 1.3.2 新内容
 
 | 更新 | 带来的能力 |
 | --- | --- |
