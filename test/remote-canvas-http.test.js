@@ -129,9 +129,14 @@ test("Remote Canvas executor keeps the local session private and returns bounded
   const connectionId = "123e4567-e89b-42d3-a456-426614174080", metadataBody = { kind:"canvas", preview:{ contentType:"image/webp", dataBase64:"AA==" } };
   await execute({ operation:"canvas.http", request:{ method:"POST", path:"/api/community/metadata", body:metadataBody, connectionId } }, 20_000);
   assert.equal(captured.url, "http://127.0.0.1:3888/api/community/metadata");
+<<<<<<< HEAD
   assert.equal(captured.options.headers["x-fastlectures-connection"], connectionId);
   await execute({ operation:"canvas.http", request:{ method:"POST", path:"/api/community/metadata", body:metadataBody, connectionId:"not-a-connection" } }, 20_000);
   assert.equal(captured.options.headers["x-fastlectures-connection"], undefined);
+=======
+  assert.equal(captured.options.headers["x-penecho-connection"], connectionId);
+  await assert.rejects(execute({ operation:"canvas.http", request:{ method:"POST", path:"/api/community/metadata", body:metadataBody, connectionId:"not-a-connection" } }, 20_000), { code:"remote_canvas_connection" });
+>>>>>>> 97ac987080073424039f82c866723e028d0bc78b
   await execute({ operation:"canvas.http", request:{ method:"POST", path:"/api/cloud/community/share", body:shareBody, connectionId } }, 20_000);
   assert.equal(captured.options.headers["x-fastlectures-connection"], undefined);
 
@@ -158,7 +163,7 @@ test("linked AI HTTP execution forwards an explicit connection and preserves fin
     calls.push({ url, options });
     return new Response(JSON.stringify(result), { status, headers:{ "content-type":"application/json" } });
   } });
-  for (const path of ["/api/ai/command", "/api/plugins/improve"]) {
+  for (const path of ["/api/ai/command", "/api/plugins/improve", "/api/community/metadata"]) {
     for (const connectionId of [undefined, "", "invalid", "hosted:123e4567-e89b-42d3-a456-426614174000"]) {
       await assert.rejects(execute({ operation:"canvas.http", request:{ method:"POST", path, connectionId, body:{} } }), { code:"remote_canvas_connection" });
     }
@@ -175,8 +180,13 @@ test("linked AI HTTP execution forwards an explicit connection and preserves fin
       status = 409;
     }
   }
+<<<<<<< HEAD
   assert.equal(calls.length, 4);
   const settings = { FASTLECTURES_SETTINGS_SCOPE:"search", DEEPSEEK_SEARCH_PROVIDER:"tavily" };
+=======
+  assert.equal(calls.length, 6);
+  const settings = { PENECHO_SETTINGS_SCOPE:"search", DEEPSEEK_SEARCH_PROVIDER:"tavily" };
+>>>>>>> 97ac987080073424039f82c866723e028d0bc78b
   await execute({ operation:"canvas.http", request:{ method:"POST", path:"/api/settings", body:settings } });
   assert.deepEqual(JSON.parse(calls.at(-1).options.body), settings);
 });

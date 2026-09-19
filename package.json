@@ -1,9 +1,14 @@
 {
+<<<<<<< HEAD
   "name": "fastlectures",
   "version": "1.3.1",
+=======
+  "name": "penecho",
+  "version": "1.3.2",
+>>>>>>> 97ac987080073424039f82c866723e028d0bc78b
   "config": {
     "forge": "./forge.config.js",
-    "desktopVersion": "1.3.1"
+    "desktopVersion": "1.3.2"
   },
   "description": "Turn research, files, and canvas context into editable visual work with AI",
   "author": "FastLectures contributors",
@@ -58,9 +63,17 @@
     "public/style.css",
     "public/mathjax-config.js",
     "public/page-scale.js",
+<<<<<<< HEAD
     "public/fastlectures-mark.png",
     "public/fastlectures-readme-header.png",
     "public/fastlectures-architecture.webp",
+=======
+    "public/penecho-mark.png",
+    "public/penecho-favicon.png",
+    "public/penecho-readme-header.webp",
+    "public/penecho-readme-header-dark.webp",
+    "public/penecho-architecture.webp",
+>>>>>>> 97ac987080073424039f82c866723e028d0bc78b
     "public/locales/",
     "public/plugins/**/*.md",
     "public/plugins/**/*.css",

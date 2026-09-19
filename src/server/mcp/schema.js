@@ -353,7 +353,19 @@ const validators = {
     if (output.create !== true && output.title !== undefined) invalid("title is valid only with create:true.");
     return output;
   },
+<<<<<<< HEAD
   fastlectures_find_canvases(input) {
+=======
+  penecho_rename_canvas(input) {
+    object(input, "arguments");
+    exactKeys(input, new Set(["instanceId", "canvasId", "documentId", "title", "requestId"]), "arguments");
+    // Reject controls before trimming so a trailing newline cannot disappear.
+    const title = string(input.title, "title", {max:48}).trim();
+    if (!title) invalid("title must not be blank.");
+    return {instanceId:string(input.instanceId,"instanceId"),canvasId:string(input.canvasId,"canvasId"),documentId:string(input.documentId,"documentId",{max:256}),title,requestId:string(input.requestId,"requestId")};
+  },
+  penecho_find_canvases(input) {
+>>>>>>> 97ac987080073424039f82c866723e028d0bc78b
     object(input, "arguments");
     exactKeys(input, new Set(["instanceId", "canvasId", "documentId"]), "arguments");
     return {
@@ -609,11 +621,17 @@ const TOOLS = [
   {
     name:"fastlectures_list_canvases",
     annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},
-    description:"List opted-in connections and unavailable instances. Choose exact instanceId/canvasId; never guess across hosts.",
+    description:"List every open document published by opted-in, MCP-enabled browser connections. Entries match the browser MCP list; closed documents are excluded. Use exact instanceId/canvasId/documentId values.",
     inputSchema:{ type:"object", additionalProperties:false, properties:{} },
   },
+<<<<<<< HEAD
   { name:"fastlectures_open_canvas", description:"Open an exact saved document or create one. show:true changes the view only on user request. requestId is idempotent.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId","requestId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256},locator:{type:"object",additionalProperties:false,required:["location","id"],properties:{location:{type:"string",enum:[...STORAGE_LOCATIONS]},id:{type:"string",minLength:1,maxLength:512}}},create:{type:"boolean",default:false},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},requestId:{type:"string",minLength:1,maxLength:128},show:{type:"boolean",default:false}},allOf:[{if:{properties:{create:{const:true}},required:["create"]},then:{properties:{documentId:false,locator:false}},else:{anyOf:[{required:["documentId"]},{required:["locator"]}],properties:{title:false}}}]} },
   { name:"fastlectures_find_canvases", description:"Find authorized saved documents through one exact browser; return per-provider availability.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256}}} },
+=======
+  { name:"penecho_open_canvas", description:"Open an exact saved document or create one. show:true changes the view only on user request. requestId is idempotent.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId","requestId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256},locator:{type:"object",additionalProperties:false,required:["location","id"],properties:{location:{type:"string",enum:[...STORAGE_LOCATIONS]},id:{type:"string",minLength:1,maxLength:512}}},create:{type:"boolean",default:false},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},requestId:{type:"string",minLength:1,maxLength:128},show:{type:"boolean",default:false}},allOf:[{if:{properties:{create:{const:true}},required:["create"]},then:{properties:{documentId:false,locator:false}},else:{anyOf:[{required:["documentId"]},{required:["locator"]}],properties:{title:false}}}]} },
+  { name:"penecho_rename_canvas", description:"Rename an already open document by exact instanceId, canvasId and documentId. No session is created. title is trimmed and limited to 48 characters. requestId is idempotent; saved reports whether existing saved metadata was renamed (false means workspace-only).", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId","documentId","title","requestId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256},title:{type:"string",minLength:1,maxLength:48,pattern:"^(?!.*[\\u0000-\\u001f\\u007f])(?=.*\\S).*$"},requestId:{type:"string",minLength:1,maxLength:128}}} },
+  { name:"penecho_find_canvases", description:"Query the open documents in one exact browser MCP list, optionally by documentId. Closed documents are excluded.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256}}} },
+>>>>>>> 97ac987080073424039f82c866723e028d0bc78b
   {
     name:"fastlectures_start_session",
     description:"Use unique stable sessionKey/client; retain sessionId/documentId. New sessions get a background Canvas on the latest opted-in browser; target:current binds the visible document. documentId restores an exact document; existing bindings stay. Only confirmed missing documents permit replacement; restore:false forbids it. show:true changes view.",

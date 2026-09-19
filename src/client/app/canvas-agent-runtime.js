@@ -371,14 +371,17 @@
   function canvasAgentHasFocus() {
     return !canvasAgentPanel.hidden && canvasAgentPanel.contains(document.activeElement);
   }
+  function canvasAgentIsOpen() {
+    return !canvasAgentPanel.hidden && document.body.classList.contains("canvas-agent-open");
+  }
   function canvasAgentSuppressesAutomaticAI() {
-    return (typeof canvasDocumentsExternal==="function"&&canvasDocumentsExternal()) || canvasAgent.requestPending || canvasAgent.running || canvasAgentHasFocus();
+    return (typeof canvasDocumentsExternal==="function"&&canvasDocumentsExternal()) || canvasAgent.requestPending || canvasAgent.running || canvasAgentIsOpen();
   }
   function canvasAgentAutomaticAIStatusKey() {
     if (!state.auto) return null;
     if(typeof canvasDocumentsExternal==="function"&&canvasDocumentsExternal())return "canvasAgentExternalAIPaused";
     if (canvasAgent.requestPending || canvasAgent.running) return "canvasAgentAutoAIRequestPaused";
-    return canvasAgentHasFocus() ? "canvasAgentAutoAIFocusPaused" : null;
+    return canvasAgentIsOpen() ? "canvasAgentAutoAIFocusPaused" : null;
   }
   function canvasAgentSyncAutomaticAIStatus() {
     const nextKey = canvasAgentAutomaticAIStatusKey();
@@ -1696,7 +1699,12 @@
       && !execution.controller.signal.aborted;
   }
   function canvasAgentAssertToolExecution(execution) {
+<<<<<<< HEAD
     if (!canvasAgentToolExecutionCurrent(execution)) throw canvasAgentToolError("SESSION_EXPIRED","The FastLectures Agent session changed before this tool could finish.");
+=======
+    if(execution?.kind==="mcp"&&execution.controller.signal.aborted)throw mcpExecutionAbortError(execution.controller.signal);
+    if (!canvasAgentToolExecutionCurrent(execution)) throw canvasAgentToolError("SESSION_EXPIRED","The PenEcho Agent session changed before this tool could finish.");
+>>>>>>> 97ac987080073424039f82c866723e028d0bc78b
   }
   function canvasAgentCanvasIdentity({id,location}={}) {
     return id&&location?`${location}:${id}`:`draft:${canvasClientId()}`;
@@ -2230,24 +2238,61 @@
     if (canvasAgentHead.hasPointerCapture?.(event.pointerId)) canvasAgentHead.releasePointerCapture(event.pointerId);
     canvasAgentSavePanelPosition();
   }
-  function canvasAgentReadDataUrl(blob) {
+  function canvasAgentReadDataUrl(blob, execution = null) {
+    if(execution?.kind!=="mcp") {
     return new Promise((resolve,reject)=>{
       const reader = new FileReader();
       reader.onload = ()=>resolve(String(reader.result || ""));
       reader.onerror = ()=>reject(reader.error || Error("Could not read the image."));
       reader.readAsDataURL(blob);
     });
+      }
+
+    return new Promise((resolve,reject)=>{
+      const reader = new FileReader();let settled=false;
+      const finish=(error,value)=>{if(settled)return;settled=true;clearTimeout(timer);reader.onload=reader.onerror=reader.onabort=null;error?reject(error):resolve(value);};
+      const timer=setTimeout(()=>{finish(Error("Image reading timed out."));try{reader.abort();}catch{}},15_000);
+      reader.onload = ()=>finish(null,String(reader.result || ""));
+      reader.onerror = ()=>finish(reader.error || Error("Could not read the image."));
+      reader.onabort = ()=>finish(Error("Image reading was cancelled."));
+      reader.readAsDataURL(blob);
+    });
   }
-  function canvasAgentDecodeImage(blob) {
+  function canvasAgentDecodeImage(blob, execution = null) {
+    if(execution?.kind!=="mcp") {
     return new Promise((resolve,reject)=>{
       const url = URL.createObjectURL(blob), image = new Image();
       image.onload = ()=>{ URL.revokeObjectURL(url); resolve(image); };
       image.onerror = ()=>{ URL.revokeObjectURL(url); reject(Error("Could not decode the image.")); };
       image.src = url;
     });
+      }
+
+    return new Promise((resolve,reject)=>{
+      const url = URL.createObjectURL(blob), image = new Image();let settled=false;
+      const finish=error=>{if(settled)return;settled=true;clearTimeout(timer);image.onload=image.onerror=null;URL.revokeObjectURL(url);error?reject(error):resolve(image);};
+      const timer=setTimeout(()=>{image.src="";finish(Error("Image decoding timed out."));},15_000);
+      image.onload = ()=>finish();
+      image.onerror = ()=>finish(Error("Could not decode the image."));
+      image.src = url;
+    });
   }
-  function canvasAgentCanvasBlob(canvas,type,quality) {
+  function canvasAgentCanvasBlob(canvas,type,quality,execution = null) {
+    if(execution?.kind!=="mcp") {
     return new Promise(resolve=>canvas.toBlob(resolve,type,quality));
+      }
+
+    const pending=canvasAgentCanvasBlob.pending||(canvasAgentCanvasBlob.pending=new Set());
+    if(pending.size>=128)return Promise.reject(Object.assign(Error("Canvas image encoders are still finishing."),{code:"CANVAS_BUSY"}));
+    const resource={};pending.add(resource);
+
+    return new Promise((resolve,reject)=>{
+      let settled=false;
+      const finish=(error,blob)=>{if(settled)return;settled=true;clearTimeout(timer);error?reject(error):resolve(blob);};
+      const timer=setTimeout(()=>finish(Error("Image encoding timed out.")),15_000);
+      try{canvas.toBlob(blob=>{pending.delete(resource);finish(null,blob);},type,quality);}
+      catch(error){pending.delete(resource);finish(error);}
+    });
   }
   async function canvasAgentWireImage(file,image) {
     const sourceType = String(file.type || "").toLowerCase(), sourceLongEdge=Math.max(image.naturalWidth,image.naturalHeight);
@@ -3926,13 +3971,13 @@
     context.restore();
     return step;
   }
-  async function canvasAgentCompressedCanvas(source,policy) {
+  async function canvasAgentCompressedCanvas(source,policy,execution = null) {
     let canvas=source, encodeQuality=policy.quality, mediaType="image/webp";
     for (let attempt=0;attempt<10;attempt++) {
-      let blob=await canvasAgentCanvasBlob(canvas,mediaType,mediaType === "image/webp" ? encodeQuality : undefined);
+      let blob=await canvasAgentCanvasBlob(canvas,mediaType,mediaType === "image/webp" ? encodeQuality : undefined,execution);
       if (!blob && mediaType === "image/webp") {
         mediaType="image/png";
-        blob=await canvasAgentCanvasBlob(canvas,mediaType);
+        blob=await canvasAgentCanvasBlob(canvas,mediaType,undefined,execution);
       }
       if (!blob) throw canvasAgentToolError("CAPTURE_ENCODING_FAILED","Canvas capture could not be encoded.");
       if (blob.type) mediaType=blob.type;
@@ -3949,7 +3994,7 @@
     throw canvasAgentToolError("CAPTURE_TOO_LARGE","Canvas capture could not be compressed below the hard encoded-byte limit.",{maxBytes:policy.maxBytes});
   }
   async function canvasAgentCapture(args,options) {
-    const {signal=null,assertCurrent=null}=options||{};
+    const {signal=null,assertCurrent=null,execution=null}=options||{};
     assertCurrent?.();
     const quality=args.quality === "detail" ? "detail" : "basic";
     if(quality === "detail"){
@@ -3989,9 +4034,9 @@
     drawSharpOverlays(context,region);
     context.restore();
     const coordinates=["metadata","none"].includes(args.coordinates) ? args.coordinates : "grid", gridStep=coordinates === "grid" ? canvasAgentDrawCoordinateGrid(context,region,width,height) : canvasAgentGridStep(Math.max(region.w,region.h)),
-      encoded=await canvasAgentCompressedCanvas(canvas,policy);
+      encoded=await canvasAgentCompressedCanvas(canvas,policy,execution);
     assertCurrent?.();
-    const dataUrl=await canvasAgentReadDataUrl(encoded.blob);
+    const dataUrl=await canvasAgentReadDataUrl(encoded.blob,execution);
     assertCurrent?.();
     const finalWidth=encoded.canvas.width, finalHeight=encoded.canvas.height,
       scaleX=finalWidth/region.w, scaleY=finalHeight/region.h, viewFacts=canvasAgentViewFacts();
@@ -4743,7 +4788,12 @@
     // inspector keeps its persisted width class while closed, so the slide can
     // begin on the click frame instead of waiting for layout reads below.
     document.body.classList.add("canvas-agent-open");
+<<<<<<< HEAD
     window.FastLecturesStudioNavigator?.agentWillOpen?.();
+=======
+    canvasAgentPauseAutomaticAI();
+    window.PenEchoStudioNavigator?.agentWillOpen?.();
+>>>>>>> 97ac987080073424039f82c866723e028d0bc78b
     if(animate&&docked){
       canvasAgentScheduleDockedOpenWork(focus,connect);
       return;
@@ -4804,6 +4854,7 @@
       }
       canvasAgentToggle.setAttribute("aria-expanded","false");
       document.body.classList.remove("canvas-agent-open");
+      canvasAgentResumeAutomaticAI();
       if(focus)canvasAgentToggle.focus();
       else if(canvasAgentPanel.contains(document.activeElement))document.activeElement.blur();
       if(animate){canvasAgentScheduleDockedCloseWork();return;}
@@ -4813,6 +4864,7 @@
     const panelRect=canvasAgentPanel.hidden?null:pageLayoutRect(canvasAgentPanel);
     canvasAgentToggle.setAttribute("aria-expanded","false");
     document.body.classList.remove("canvas-agent-open");
+    canvasAgentResumeAutomaticAI();
     if(focus)canvasAgentToggle.focus();
     else if(canvasAgentPanel.contains(document.activeElement))document.activeElement.blur();
     if(animate){

@@ -1,5 +1,12 @@
 <h1 align="center">
+<<<<<<< HEAD
   <img src="../../public/fastlectures-readme-header.png" alt="FastLectures" width="760">
+=======
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../../public/penecho-readme-header-dark.webp">
+    <img src="../../public/penecho-readme-header.webp" alt="PenEcho" width="280">
+  </picture>
+>>>>>>> 97ac987080073424039f82c866723e028d0bc78b
 </h1>
 
 <p align="center">
@@ -17,7 +24,7 @@
 <h1 align="center">AI と考えるための<br>空間ワークスペース。</h1>
 <p align="center">内蔵 Agent や MCP 対応の AI アシスタントで、描き、探究し、形にしましょう。</p>
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.1-087f83" alt="バージョン 1.3.1">
+  <img src="https://img.shields.io/badge/version-1.3.2-087f83" alt="バージョン 1.3.2">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="AGPL-3.0-only"></a>
 </p>
 <p align="center">
@@ -58,8 +65,8 @@ MCP を通じて、AI は説明を図に、アイデアをインタラクティ�
 | 使い慣れた AI エージェントで作業できます。 | FastLectures の MCP サーバーが図、ドキュメント、インタラクティブなプレビューを Canvas に配置します。 | 成果を試して注釈を加え、エージェントに読み取らせて次の修正につなげます。 |
 
 <p align="center">
-  <a href="../assets/mcp-spatial-example.png">
-    <img src="../assets/mcp-spatial-example.png" alt="AI とのアーキテクチャ検討。Canvas 上の設計案に手書きでフィードバックを追加。" width="760">
+  <a href="../assets/mcp-spatial-example.webp">
+    <img src="../assets/mcp-spatial-example.webp" alt="AI とのアーキテクチャ検討。Canvas 上の設計案に手書きでフィードバックを追加。" width="760">
   </a>
 </p>
 <p align="center"><em>Canvas に手書きで注釈を加えたアーキテクチャの検討。</em></p>
@@ -75,7 +82,7 @@ MCP を通じて、AI は説明を図に、アイデアをインタラクティ�
 - **自分のエージェントを接続。** Codex、Claude Code などの MCP 対応クライアントで、明示的に有効化した Canvas を読み取り、編集できます。
 - **成果を保存・共有。** Canvas をプロジェクトに整理し、Cloud のリビジョンを保存、お気に入りを同期し、Echoes で公開できます。
 
-## 1.3.0 の新機能
+## 1.3.2 の新機能
 
 | 更新 | 追加された機能 |
 | --- | --- |

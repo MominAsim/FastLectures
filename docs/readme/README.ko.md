@@ -1,5 +1,12 @@
 <h1 align="center">
+<<<<<<< HEAD
   <img src="../../public/fastlectures-readme-header.png" alt="FastLectures" width="760">
+=======
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../../public/penecho-readme-header-dark.webp">
+    <img src="../../public/penecho-readme-header.webp" alt="PenEcho" width="280">
+  </picture>
+>>>>>>> 97ac987080073424039f82c866723e028d0bc78b
 </h1>
 
 <p align="center">
@@ -17,7 +24,7 @@
 <h1 align="center">AI와 함께 생각하는<br>공간형 작업 환경.</h1>
 <p align="center">내장 Agent 또는 MCP 호환 AI 어시스턴트로 그리고, 탐색하고, 만들어 보세요.</p>
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.1-087f83" alt="버전 1.3.1">
+  <img src="https://img.shields.io/badge/version-1.3.2-087f83" alt="버전 1.3.2">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="AGPL-3.0-only"></a>
 </p>
 <p align="center">
@@ -58,8 +65,13 @@ MCP를 통해 AI는 설명을 다이어그램으로, 아이디어를 대화형 �
 | 평소 사용하던 AI 에이전트로 작업합니다. | FastLectures의 MCP 서버가 다이어그램, 문서, 대화형 미리보기를 Canvas에 배치합니다. | 결과를 사용해 보고 주석을 달면 에이전트가 피드백을 읽고 다음 수정에 반영합니다. |
 
 <p align="center">
+<<<<<<< HEAD
   <a href="../assets/mcp-spatial-example.png">
     <img src="../assets/mcp-spatial-example.png" alt="FastLectures Canvas의 설계안 옆에 손글씨 피드백을 남긴 AI 아키텍처 논의" width="760">
+=======
+  <a href="../assets/mcp-spatial-example.webp">
+    <img src="../assets/mcp-spatial-example.webp" alt="PenEcho Canvas의 설계안 옆에 손글씨 피드백을 남긴 AI 아키텍처 논의" width="760">
+>>>>>>> 97ac987080073424039f82c866723e028d0bc78b
   </a>
 </p>
 <p align="center"><em>Canvas에 손글씨 주석을 더한 아키텍처 논의.</em></p>
@@ -75,7 +87,7 @@ MCP를 통해 AI는 설명을 다이어그램으로, 아이디어를 대화형 �
 - **자신의 에이전트를 연결하세요.** Codex, Claude Code 등 MCP 호환 클라이언트를 연결해 명시적으로 활성화한 Canvas를 읽고 편집합니다.
 - **작업을 보관하고 공유하세요.** Canvas를 프로젝트로 정리하고, Cloud 버전을 저장하고, 즐겨찾기를 동기화하고, Echoes로 게시합니다.
 
-## 1.3.0의 새로운 기능
+## 1.3.2의 새로운 기능
 
 | 업데이트 | 추가된 기능 |
 | --- | --- |

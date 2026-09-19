@@ -43,7 +43,11 @@ test("npm latest-version lookup uses the registry latest endpoint and validates 
   assert.equal(latest, "0.6.0");
   assert.equal(calls[0].url, "https://registry.npmjs.org/fastlectures/latest");
   assert.equal(calls[0].options.redirect, "error");
+<<<<<<< HEAD
   assert.equal(calls[0].options.headers["User-Agent"], "fastlectures/1.3.1");
+=======
+  assert.equal(calls[0].options.headers["User-Agent"], "penecho/1.3.2");
+>>>>>>> 97ac987080073424039f82c866723e028d0bc78b
   await assert.rejects(
     fetchLatestNpmVersion("fastlectures", { timeoutMs:1000, attempts:1, fetchImpl:async () => ({ ok:true, status:200, json:async () => ({ version:"invalid" }) }) }),
     /invalid FastLectures version/,

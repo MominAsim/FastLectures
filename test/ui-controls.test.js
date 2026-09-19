@@ -238,6 +238,8 @@ test("canvas connection editor uses editable Kimi and MiniMax presets without co
   assert.match(html, /id="settingsApiPresetFields"[^>]*hidden/);
   assert.match(html, /id="settingsApiRegion"/);
   assert.match(html, /id="settingsApiService"/);
+  assert.match(html, /id="settingsKimiSignup"[^>]*role="note"[^>]*hidden/);
+  assert.match(html, /id="settingsKimiSignupLink"[^>]*https:\/\/platform\.kimi\.ai\?aff=penecho/);
   assert.match(html, /id="settingsApiModel"[^>]*list="settingsApiModelPresets"/);
   const effortInput = html.match(/<input id="settingsEffort"[^>]*>/)?.[0] || "",
     effortOptions = html.match(/<div id="settingsEffortOptions"[\s\S]*?<\/div>/)?.[0] || "";
@@ -264,6 +266,10 @@ test("canvas connection editor uses editable Kimi and MiniMax presets without co
     "https://api.moonshot.ai/v1", "https://api.moonshot.cn/v1", "https://api.kimi.com/coding/v1",
     "https://api.minimax.io/v1", "https://api.minimax.io/anthropic", "https://api.minimaxi.com/v1", "https://api.minimaxi.com/anthropic",
   ]) assert.match(app, new RegExp(endpoint.replaceAll(".", "\\.")));
+  for (const signup of ["https://platform.kimi.ai?aff=penecho", "https://platform.kimi.com?aff=penecho", "https://www.kimi.com/code?aff=penecho"]) assert.match(app, new RegExp(signup.replaceAll(".", "\\.").replace("?", "\\?")));
+  assert.match(functionSource(app, "updateKimiSignup"), /settingsApiFormat\?\.value === "kimi"[\s\S]*?settingsApiService\?\.value === "coding"[\s\S]*?settingsApiRegion\?\.value === "china"[\s\S]*?destination\.url/);
+  assert.match(functionSource(app, "updateApiPresetFields"), /updateKimiSignup\(\)/);
+  assert.match(css, /\.settings-kimi-signup\[hidden\]\s*\{\s*display:\s*none/);
   for (const model of ["k3", "kimi-k3", "MiniMax-M3", "MiniMax-M2.7"]) assert.match(app, new RegExp(`"${model.replaceAll(".", "\\.")}"`));
   assert.match(app, /function connectionTitle\(connection\)/);
   assert.match(app, /const title = connection\.provider === "api" \? connection\.apiModel \|\| "API" : connection\.cliModel/);
@@ -306,6 +312,10 @@ test("canvas connection editor uses editable Kimi and MiniMax presets without co
   assert.match(app, /if \(window\.fastlecturesDesktop\) document\.querySelector\("\.settings-links"\)\?\.remove\(\)/);
   assert.doesNotMatch(css, /body\[data-theme="(?:studio|research|arcane|scifi)"\] \.settings-panel/);
   for (const key of ["settingsApiRegion", "settingsApiService", "settingsApiServiceCoding"]) {
+    assert.match(app, new RegExp(`${key}:`));
+    assert.match(zh, new RegExp(`${key}:`));
+  }
+  for (const key of ["settingsKimiPartner", "settingsKimiApiSignupGlobal", "settingsKimiApiSignupChina", "settingsKimiCodingSignup"]) {
     assert.match(app, new RegExp(`${key}:`));
     assert.match(zh, new RegExp(`${key}:`));
   }
@@ -1328,7 +1338,7 @@ test("declarative scenes and widgets render below the dedicated ink and interact
   assert.match(app, /SNAPSHOT_TILE_DECODE_BATCH_SIZE = 8/);
   const decodeTiles = functionSource(app, "decodeSnapshotTilesInBatches"),
     loadSnapshot = functionSource(app, "loadSnapshot");
-  assert.match(decodeTiles, /Promise\.all\(tileEntries\.slice\(start, end\)[\s\S]*?context\.drawImage\(image, 0, 0\)[\s\S]*?batch\.length = 0[\s\S]*?waitForSnapshotTileFrame\(\)/);
+  assert.match(decodeTiles, /Promise\.all\(tileEntries\.slice\(start, end\)[\s\S]*?context\.drawImage\(image, 0, 0\)[\s\S]*?batch\.length = 0[\s\S]*?waitForSnapshotTileFrame\(execution\?\.kind==="mcp" \? execution\.controller\.signal : null\)/);
   assert.match(loadSnapshot, /decodeSnapshotTilesInBatches\(tileEntries, loadIsCurrent,[\s\S]*?for \(const \[k, canvas\] of decodedTiles\) tiles\.set\(k, canvas\);[\s\S]*?restoreWidgets\(item\.widgets\)/);
   assert.doesNotMatch(loadSnapshot, /Promise\.all\(tileEntries\.map/);
 
@@ -3672,8 +3682,13 @@ test("Studio navigator groups recent Agent sessions by canvas and opens the boun
   assert.match(html, /id="studioNavigatorSearch"[^>]*type="search"/);
   assert.match(build, /src\/client\/app\/studio-navigator\.js/);
   assert.match(navigator, /let studioNavigatorOpenPreference = false/);
+<<<<<<< HEAD
   assert.doesNotMatch(navigator, /STUDIO_NAVIGATOR_OPEN_KEY|fastlectures-studio-navigator-open/);
   assert.match(functionSource(navigator, "studioNavigatorWorkGroups"), /canvasAgentStoredHistoryGroups\(\)[\s\S]*?studioNavigatorSnapshots\(\)[\s\S]*?sort\(\(a,b\)=>Number\(b\.current\)-Number\(a\.current\)\|\|studioCanvasOpenedAt\(b\.canvasKey\)-studioCanvasOpenedAt\(a\.canvasKey\)\|\|Number\(Boolean\(b\.documentId\)\)-Number\(Boolean\(a\.documentId\)\)\|\|b\.updatedAt-a\.updatedAt\)/);
+=======
+  assert.doesNotMatch(navigator, /STUDIO_NAVIGATOR_OPEN_KEY|penecho-studio-navigator-open/);
+  assert.match(functionSource(navigator, "studioNavigatorWorkGroups"), /sort\(\(a,b\)=>\(b\.savedAt\|\|b\.firstSeenAt\|\|0\)-\(a\.savedAt\|\|a\.firstSeenAt\|\|0\)/);
+>>>>>>> 97ac987080073424039f82c866723e028d0bc78b
   assert.match(navigator, /className="studio-navigator-group"[\s\S]*?className="studio-navigator-group-conversations"/);
   assert.match(functionSource(navigator, "studioNavigatorCanvasGroupSnapshot"), /snapshotItemsLocation===identity\.location[\s\S]*?snapshotItems\.find\(candidate=>candidate\.id===identity\.id\)[\s\S]*?studioNavigatorCanvasGroupSnapshots\.set\(key,item\)/);
   assert.match(functionSource(navigator, "studioNavigatorLoadDraftSnapshot"), /await snapshotPreviewBlob\(\)[\s\S]*?request\.canvasKey===state\.canvasAgentCanvasKey[\s\S]*?studioNavigatorDraftSnapshot\.item=\{id:request\.canvasKey,preview\}/);
@@ -3686,12 +3701,13 @@ test("Studio navigator groups recent Agent sessions by canvas and opens the boun
   const renderCanvasHistory=functionSource(navigator,"renderStudioCanvasHistory");
   assert.match(navigator, /meta\.textContent = \[current \? t\("studioNavigatorCurrent"\) : "", location \? snapshotLocationLabel\(location\) : "", studioNavigatorMetaTime\(updatedAt\)\]/);
   assert.doesNotMatch(navigator, /studioNavigatorCurrentStateLabel|meta\.textContent=\[[^\n]*studioNavigatorSessionCount/);
-  assert.match(renderCanvasHistory, /studioNavigatorRenderCanvasMeta\(meta,current,Boolean\(workspaceDoc\),item\.location,item\.updatedAt \|\| item\.createdAt\)/);
+  assert.match(renderCanvasHistory, /studioNavigatorGroupSection\(group,\{includeConversations:false,previewUrls:studioNavigatorCanvasPreviewUrls\}\)/);
   assert.doesNotMatch(renderCanvasHistory, /canvasAgentHistoryCurrent/);
   const renderAgentHistory=functionSource(navigator, "renderStudioAgentHistory"), renderWorkHistory=functionSource(navigator,"renderStudioWorkHistory");
   assert.match(renderAgentHistory, /studioNavigatorWorkGroups\(\)[\s\S]*?conversations:query\?group\.conversations\.filter/);
   assert.match(renderAgentHistory, /releaseStudioNavigatorPreviewUrls\(studioNavigatorAgentPreviewUrls\)[\s\S]*?studioNavigatorQueueCanvasGroupSnapshots\(groups\)[\s\S]*?studioNavigatorGroupSection\(group,\{previewUrls:studioNavigatorAgentPreviewUrls\}\)/);
-  assert.match(renderWorkHistory, /studioNavigatorWorkGroups\(\)[\s\S]*?studioNavigatorSectionLabel\("studioNavigatorCurrent"\)[\s\S]*?studioNavigatorSectionLabel\("studioNavigatorRecent"\)/);
+  assert.match(renderWorkHistory, /for\(const group of groups\)studioWorkRecentList\.append\(studioNavigatorGroupSection\(group\)\)/);
+  assert.doesNotMatch(renderWorkHistory, /studioNavigatorSectionLabel/);
   const navigatorCanvasPreview=functionSource(navigator, "studioNavigatorCanvasPreview");
   assert.match(navigatorCanvasPreview, /item\?\.preview instanceof Blob[\s\S]*?urls\.set\(url, image\)[\s\S]*?image\.onerror[\s\S]*?urls\.delete\(url\)/);
   assert.doesNotMatch(navigatorCanvasPreview, /image\.onload\s*=/);
@@ -3711,7 +3727,8 @@ test("Studio navigator groups recent Agent sessions by canvas and opens the boun
   assert.match(navigator, /document\.addEventListener\("focusin", collapseStudioNavigatorForWorkspaceFocus\)/);
   assert.doesNotMatch(navigator, /(?:view|canvasAgentPanel)\.addEventListener\("(?:pointerdown|focusin)", collapseStudioNavigatorForWorkspaceFocus/);
   assert.match(functionSource(navigator, "studioNavigatorCanvasDidLoad"), /openStudioConversationOnCurrentCanvas\(studioNavigatorPendingConversation\)/);
-  assert.match(functionSource(navigator,"renderStudioCanvasHistory"), /studioNavigatorSnapshots\(\)[\s\S]*?requestLoadSnapshot\(item\.id, item\.location\)/);
+  assert.match(functionSource(navigator,"renderStudioCanvasHistory"), /studioNavigatorWorkGroups\(\)/);
+  assert.match(navigator, /requestLoadSnapshot\(identity\.id,identity\.location\)/);
   assert.match(navigator, /openHistoryPanel\(\)/);
   assert.match(functionSource(navigator, "updateStudioNavigatorSurfaceInert"), /studioNavigatorIsCompact\(\)[\s\S]*?view\.inert = true[\s\S]*?dataset\.studioNavigatorInert[\s\S]*?view\.inert = false/);
   assert.match(functionSource(navigator,"handleStudioNavigatorCompactChange"), /studioNavigatorIsOpen\(\)[\s\S]*?studioNavigatorIsCompact\(\)\)suspendStudioAgentForNavigator\(\)[\s\S]*?restoreStudioAgentAfterNavigator\(\)/);
@@ -4151,7 +4168,7 @@ test("text tool toggles a real MD+TeX preview and confirms the unchanged source"
   assert.match(app, /header\.className = "text-editor-header object-toolbar-shell"/);
   assert.match(app, /header\.append\(cancelButton, title, helpButton, mixedModeButton, acceptButton\)/);
   assert.match(app, /openTextHelp\(editor, helpButton\)/);
-  assert.match(app, /function fittedTextBoxContent\(text, fontSize, color, maxWidth, fontFamily = TEXT_EDITOR_FONT_FAMILY, pixelRatio = desiredCanvasTextRasterRatio\(\)\)/);
+  assert.match(app, /function fittedTextBoxContent\(text, fontSize, color, maxWidth, fontFamily = TEXT_EDITOR_FONT_FAMILY, pixelRatio = desiredCanvasTextRasterRatio\(\), execution = null\)/);
   assert.match(app, /function textEditorContentMetrics\(editor\)/);
   assert.match(app, /function textImageContentInset\(image\)/);
   assert.match(app, /function textBoxOriginFromEditor\(editor, contentMetrics, contentInset, scale\)/);
@@ -4614,7 +4631,7 @@ test("AI text defaults to the cross-platform handwritten font and remembers expl
   assert.match(ai, /fontFamily = family \|\| AI_FONT_HANDWRITTEN/);
   assert.match(ai, /resolvedFamily = family \|\| AI_FONT_HANDWRITTEN/);
   assert.match(fitTextBox, /fontFamily = normalizeTextBoxFontFamily\(fontFamily\)/);
-  assert.match(renderTextBox, /fittedTextBoxContent\(item\.text, fontSize, color, maxWidth, item\.fontFamily, pixelRatio\)/);
+  assert.match(renderTextBox, /fittedTextBoxContent\(item\.text, fontSize, color, maxWidth, item\.fontFamily, pixelRatio, execution\)/);
   assert.match(renderTextBox, /fontFamily:fitted\.fontFamily/);
   assert.match(prepareAgentItems, /fontFamily:state\.aiFont/);
   assert.match(app, /AI_FONT_HANDWRITTEN = "Bradley Hand, Segoe Print, Comic Sans MS, cursive"/);
@@ -5090,7 +5107,7 @@ test("Widget right-click lists the toolbar without decisions and interaction sho
     chromeSpecs = functionSource(app, "objectChromeSpecs"),
     widgetBranch = chromeSpecs.slice(chromeSpecs.indexOf("prefix:`widget:${handTarget.id}`"), chromeSpecs.indexOf("pendingChromeSpecs(specs, state.pending)"));
 
-  assert.match(app, /view\.addEventListener\('dblclick'[\s\S]*?handObjectToolbarTargetAtPoint\(clientPoint\(event\)\)[\s\S]*?showImagePresentation\(target\.object\)[\s\S]*?enterWidgetInteraction\(target\.object\)/);
+  assert.match(app, /view\.addEventListener\('dblclick'[\s\S]*?handObjectToolbarTargetAtPoint\(point\)[\s\S]*?showImagePresentation\(target\.object\)[\s\S]*?enterWidgetInteraction\(target\.object\)/);
   assert.match(app, /view\.addEventListener\('contextmenu', \(event\) => \{ showWidgetContextToolbar\(event\); \}\)/);
   assert.doesNotMatch(app, /screen\.addEventListener\("contextmenu"/);
   assert.match(functionSource(app, "showWidgetContextToolbar"), /event\.preventDefault\(\)[\s\S]*?state\.viewMode \|\| state\.spacePan \|\| state\.interactingWidgetId[\s\S]*?\["pen", "hand", "select"\]\.includes\(state\.mode\)[\s\S]*?canvasWidgetAtEvent\(event\)[\s\S]*?showHandObjectToolbar\("widget", widget\)/);
