@@ -83,7 +83,7 @@ test("Canvas rename updates only validated server metadata", () => {
   assert.match(serverSource, /req\.method==="PATCH"&&sharedCanvasMatch[\s\S]*?renameSharedCanvas\(sharedCanvasMatch\[1\],input\?\.name\)/);
 });
 
-test("Remote Canvas client pins bridged HTTP and PenEcho Agent WebSocket traffic to the status device", () => {
+test("Remote Canvas client pins bridged HTTP and FastLectures Agent WebSocket traffic to the status device", () => {
   assert.match(remoteCanvasClientSource, /deviceIdPattern/);
   assert.match(remoteCanvasClientSource, /const candidate\s*=\s*deviceIdPattern\.test/);
   assert.match(remoteCanvasClientSource, /if \(!bridgeDeviceId && candidate\) bridgeDeviceId = candidate/);
@@ -97,7 +97,7 @@ test("Remote Canvas executor keeps the local session private and returns bounded
   let captured;
   const execute = createRemoteCanvasHttpExecutor({
     origin:"http://127.0.0.1:3888",
-    sessionCookie:"penecho_session=local-secret",
+    sessionCookie:"fastlectures_session=local-secret",
     fetchImpl:async (url, options) => {
       captured = { url, options };
       if (url.endsWith("/plugins/private/air-quality/plugin.md")) return new Response("# Air quality", {
@@ -106,16 +106,16 @@ test("Remote Canvas executor keeps the local session private and returns bounded
       });
       return new Response(JSON.stringify({ canvases:[{ id:"demo" }] }), {
         status:200,
-        headers:{ "content-type":"application/json; charset=utf-8", "x-penecho-upstream-status":"206", "set-cookie":"do-not-forward=1" },
+        headers:{ "content-type":"application/json; charset=utf-8", "x-fastlectures-upstream-status":"206", "set-cookie":"do-not-forward=1" },
       });
     },
   });
   const result = await execute({ operation:"canvas.http", request:{ method:"GET", path:"/api/canvases" } }, 20_000);
   assert.equal(captured.url, "http://127.0.0.1:3888/api/canvases");
-  assert.equal(captured.options.headers.cookie, "penecho_session=local-secret");
+  assert.equal(captured.options.headers.cookie, "fastlectures_session=local-secret");
   assert.equal(captured.options.headers.origin, "http://127.0.0.1:3888");
   assert.deepEqual(result.body, { canvases:[{ id:"demo" }] });
-  assert.equal(result.headers["x-penecho-upstream-status"], "206");
+  assert.equal(result.headers["x-fastlectures-upstream-status"], "206");
   assert.equal(result.headers["set-cookie"], undefined);
   assert.equal(JSON.stringify(result).includes("local-secret"), false);
 
@@ -129,11 +129,11 @@ test("Remote Canvas executor keeps the local session private and returns bounded
   const connectionId = "123e4567-e89b-42d3-a456-426614174080", metadataBody = { kind:"canvas", preview:{ contentType:"image/webp", dataBase64:"AA==" } };
   await execute({ operation:"canvas.http", request:{ method:"POST", path:"/api/community/metadata", body:metadataBody, connectionId } }, 20_000);
   assert.equal(captured.url, "http://127.0.0.1:3888/api/community/metadata");
-  assert.equal(captured.options.headers["x-penecho-connection"], connectionId);
+  assert.equal(captured.options.headers["x-fastlectures-connection"], connectionId);
   await execute({ operation:"canvas.http", request:{ method:"POST", path:"/api/community/metadata", body:metadataBody, connectionId:"not-a-connection" } }, 20_000);
-  assert.equal(captured.options.headers["x-penecho-connection"], undefined);
+  assert.equal(captured.options.headers["x-fastlectures-connection"], undefined);
   await execute({ operation:"canvas.http", request:{ method:"POST", path:"/api/cloud/community/share", body:shareBody, connectionId } }, 20_000);
-  assert.equal(captured.options.headers["x-penecho-connection"], undefined);
+  assert.equal(captured.options.headers["x-fastlectures-connection"], undefined);
 
   const connectionBody = { action:"save", connection:{ provider:"codex-cli", cliPath:"codex", effort:"medium" } };
   await execute({ operation:"canvas.http", request:{ method:"POST", path:"/api/settings/connections", body:connectionBody } }, 20_000);
@@ -167,7 +167,7 @@ test("linked AI HTTP execution forwards an explicit connection and preserves fin
       const response = await execute({ operation:"canvas.http", request:{ method:"POST", path, connectionId, body } });
       assert.deepEqual(response.body, result);
       assert.equal(response.status, status);
-      assert.equal(calls.at(-1).options.headers["x-penecho-connection"], connectionId);
+      assert.equal(calls.at(-1).options.headers["x-fastlectures-connection"], connectionId);
       assert.equal(calls.at(-1).options.headers.cookie, "session=secret");
       assert.equal(calls.at(-1).options.headers.origin, "http://127.0.0.1:3888");
       assert.doesNotMatch(calls.at(-1).options.headers.accept, /ndjson/);
@@ -176,7 +176,7 @@ test("linked AI HTTP execution forwards an explicit connection and preserves fin
     }
   }
   assert.equal(calls.length, 4);
-  const settings = { PENECHO_SETTINGS_SCOPE:"search", DEEPSEEK_SEARCH_PROVIDER:"tavily" };
+  const settings = { FASTLECTURES_SETTINGS_SCOPE:"search", DEEPSEEK_SEARCH_PROVIDER:"tavily" };
   await execute({ operation:"canvas.http", request:{ method:"POST", path:"/api/settings", body:settings } });
   assert.deepEqual(JSON.parse(calls.at(-1).options.body), settings);
 });

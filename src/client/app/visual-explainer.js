@@ -1,6 +1,6 @@
 // Deterministic Visual Explainer validation and single-Widget compilation.
-  const VISUAL_EXPLAINER_SOURCE_FORMAT = "penecho-visual-explainer-plan+json",
-    VISUAL_EXPLAINER_FRAMEWORK_VERSION = "penecho-visual-explainer/3 antv-infographic/0.2.20",
+  const VISUAL_EXPLAINER_SOURCE_FORMAT = "fastlectures-visual-explainer-plan+json",
+    VISUAL_EXPLAINER_FRAMEWORK_VERSION = "fastlectures-visual-explainer/3 antv-infographic/0.2.20",
     VISUAL_EXPLAINER_SECTION_KINDS = new Set(["flow","timeline","hierarchy","relationship","comparison","cards","metrics","schedule","table","map","notes","matrix"]),
     VISUAL_EXPLAINER_INTENTS = new Set(["explain","organize","plan"]),
     VISUAL_EXPLAINER_IMPORTANCE = new Set(["primary","standard","supporting"]),
@@ -117,11 +117,11 @@
 <head>
   <meta charset="utf-8">
   <title>${visualExplainerEscapeHtml(normalized.title)}</title>
-  <style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}.penecho-visual-loading{box-sizing:border-box;width:100%;height:100%;display:grid;place-content:center;padding:48px;color:#334155;text-align:center}.penecho-visual-loading h1{margin:0 0 12px;font-size:clamp(30px,4vw,56px)}.penecho-visual-loading p{margin:0;color:#64748b}</style>
+  <style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}.fastlectures-visual-loading{box-sizing:border-box;width:100%;height:100%;display:grid;place-content:center;padding:48px;color:#334155;text-align:center}.fastlectures-visual-loading h1{margin:0 0 12px;font-size:clamp(30px,4vw,56px)}.fastlectures-visual-loading p{margin:0;color:#64748b}</style>
 </head>
 <body>
-  <main id="penecho-visual-explainer" class="penecho-visual-loading" aria-live="polite"><h1>${visualExplainerEscapeHtml(normalized.title)}</h1><p>${visualExplainerEscapeHtml(normalized.subtitle||"Preparing visual explanation…")}</p></main>
-  <script type="application/json" data-penecho-visual-explainer>${json}</script>
+  <main id="fastlectures-visual-explainer" class="fastlectures-visual-loading" aria-live="polite"><h1>${visualExplainerEscapeHtml(normalized.title)}</h1><p>${visualExplainerEscapeHtml(normalized.subtitle||"Preparing visual explanation…")}</p></main>
+  <script type="application/json" data-fastlectures-visual-explainer>${json}</script>
 </body>
 </html>`;
   }

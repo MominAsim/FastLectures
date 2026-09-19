@@ -44,7 +44,7 @@ test("anonymous logo request is deferred until idle and carries only bounded cli
     setTimeout:() => 1,
     clearTimeout() {},
     window:{
-      PENECHO_CONFIG:{ desktopApp:true, clientPlatform:"darwin", clientVersion:"0.9.5", cloudOrigin:"https://penecho.ai" },
+      FASTLECTURES_CONFIG:{ desktopApp:true, clientPlatform:"darwin", clientVersion:"0.9.5", cloudOrigin:"https://fastlectures.ai" },
       addEventListener() {},
     },
   };
@@ -54,7 +54,7 @@ test("anonymous logo request is deferred until idle and carries only bounded cli
   idleCallback();
   assert.equal(appended.length, 1);
   const target = new URL(appended[0].src);
-  assert.equal(target.origin, "https://penecho.ai");
+  assert.equal(target.origin, "https://fastlectures.ai");
   assert.equal(target.pathname, "/a/p.png");
   assert.deepEqual(Object.fromEntries(target.searchParams), {
     c:"desktop",
@@ -75,13 +75,13 @@ test("activity scheduling swallows hostile browser storage and visibility failur
     Date,
     Math,
     navigator:{ userAgent:"", platform:"" },
-    location:{ origin:"https://penecho.ai" },
+    location:{ origin:"https://fastlectures.ai" },
     document:{ get visibilityState() { throw new Error("unavailable"); } },
     localStorage:{ getItem() { throw new Error("denied"); }, setItem() { throw new Error("denied"); } },
     crypto:{ randomUUID() { throw new Error("unavailable"); } },
     setTimeout() { throw new Error("unavailable"); },
     clearTimeout() {},
-    window:{ PENECHO_CONFIG:{ runtime:"cloud" }, addEventListener() { throw new Error("unavailable"); } },
+    window:{ FASTLECTURES_CONFIG:{ runtime:"cloud" }, addEventListener() { throw new Error("unavailable"); } },
   };
   assert.doesNotThrow(() => vm.runInNewContext(source, context));
 });

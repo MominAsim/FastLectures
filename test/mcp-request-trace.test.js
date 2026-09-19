@@ -15,7 +15,7 @@ const temporaryDirectories = [];
 after(() => { for (const directory of temporaryDirectories) fs.rmSync(directory, { recursive:true, force:true }); });
 
 function tempDirectory() {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-mcp-trace-test-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-mcp-trace-test-"));
   temporaryDirectories.push(directory);
   return directory;
 }
@@ -76,11 +76,11 @@ test("disabled MCP request tracing creates no directory or serialized payload", 
   let payloadReads = 0;
   const untouchedInput = {};
   Object.defineProperty(untouchedInput, "secret", { enumerable:true, get:() => { payloadReads += 1; return "must-not-be-read"; } });
-  await assert.rejects(service.callTool("invalid-owner", "penecho_list_canvases", untouchedInput), error => error.code === "invalid_owner");
+  await assert.rejects(service.callTool("invalid-owner", "fastlectures_list_canvases", untouchedInput), error => error.code === "invalid_owner");
   assert.equal(payloadReads, 0);
   const input = {};
   Object.defineProperty(input, "toJSON", { enumerable:false, value:() => { throw new Error("disabled tracing serialized the payload"); } });
-  await service.callTool(crypto.randomUUID(), "penecho_list_canvases", input);
+  await service.callTool(crypto.randomUUID(), "fastlectures_list_canvases", input);
   assert.equal(fs.existsSync(traceDirectory), false);
   await service.close();
 });
@@ -113,7 +113,7 @@ test("MCP trace filesystem and logger failures never change tool behavior", asyn
     requestTraceLimit:1,
     logger:() => { throw new Error("logger unavailable"); },
   });
-  const result = await service.callTool(crypto.randomUUID(), "penecho_list_canvases", {});
+  const result = await service.callTool(crypto.randomUUID(), "fastlectures_list_canvases", {});
   assert.deepEqual(result.canvases, []);
   assert.equal(fs.readFileSync(traceDirectory, "utf8"), "blocks trace directory creation");
   await service.close();
@@ -137,11 +137,11 @@ test("enabled MCP request tracing records browser RPC timing, queued application
     return { ok:false, error:"unexpected browser call" };
   });
   const ownerId = crypto.randomUUID();
-  const started = await service.callTool(ownerId, "penecho_start_session", { canvasId:"canvas-a", instanceId:service.instanceId, title:"authorization=client-secret-value" });
-  const queued = await service.callTool(ownerId, "penecho_update_session", { sessionId:started.sessionId, summary:"Bearer update-secret-token" });
+  const started = await service.callTool(ownerId, "fastlectures_start_session", { canvasId:"canvas-a", instanceId:service.instanceId, title:"authorization=client-secret-value" });
+  const queued = await service.callTool(ownerId, "fastlectures_update_session", { sessionId:started.sessionId, summary:"Bearer update-secret-token" });
   assert.equal(queued.applied, false);
   assert.equal(queued.accepted, true);
-  const updateTrace = await waitFor(() => traces(traceDirectory).find(trace => trace.request.tool === "penecho_update_session" && trace.queuedUpdate?.state === "applied"));
+  const updateTrace = await waitFor(() => traces(traceDirectory).find(trace => trace.request.tool === "fastlectures_update_session" && trace.queuedUpdate?.state === "applied"));
   assert.equal(updateTrace.outcome.applied, false);
   assert.equal(updateTrace.queuedUpdate.applied, true);
   assert.equal(updateTrace.queuedUpdate.visible, false);
@@ -150,8 +150,8 @@ test("enabled MCP request tracing records browser RPC timing, queued application
   assert.equal(typeof updateTrace.browserInteractions[0].durationMs, "number");
   assert.equal(typeof updateTrace.durationMs, "number");
 
-  await service.callTool(ownerId, "penecho_capture_canvas", { sessionId:started.sessionId,target:"artifact", artifactId:"artifact-a" });
-  const captureTrace = traces(traceDirectory).find(trace => trace.request.tool === "penecho_capture_canvas");
+  await service.callTool(ownerId, "fastlectures_capture_canvas", { sessionId:started.sessionId,target:"artifact", artifactId:"artifact-a" });
+  const captureTrace = traces(traceDirectory).find(trace => trace.request.tool === "fastlectures_capture_canvas");
   assert.equal(captureTrace.status, "completed");
   assert.equal(captureTrace.browserInteractions[0].result.dataUrl, "<encoded image omitted>");
   assert.equal(captureTrace.outcome.image.data, "<encoded image omitted>");
@@ -182,10 +182,10 @@ test("closing the MCP service finalizes a still-queued update trace as failed", 
     if (message.name === "mcp_start_session") return { ok:true, result:{ sessionId:message.arguments.sessionId, boardObjectId:"board-object", revision:1 } };
     return { ok:true, result:{ applied:true, visible:true, revision:2 } };
   });
-  const ownerId = crypto.randomUUID(), started = await service.callTool(ownerId, "penecho_start_session", { canvasId:"canvas-a", instanceId:service.instanceId, title:"Closing trace" });
-  await service.callTool(ownerId, "penecho_update_session", { sessionId:started.sessionId, summary:"Still queued" });
+  const ownerId = crypto.randomUUID(), started = await service.callTool(ownerId, "fastlectures_start_session", { canvasId:"canvas-a", instanceId:service.instanceId, title:"Closing trace" });
+  await service.callTool(ownerId, "fastlectures_update_session", { sessionId:started.sessionId, summary:"Still queued" });
   await service.close();
-  const updateTrace = traces(traceDirectory).find(trace => trace.request.tool === "penecho_update_session");
+  const updateTrace = traces(traceDirectory).find(trace => trace.request.tool === "fastlectures_update_session");
   assert.equal(updateTrace.status, "completed");
   assert.equal(updateTrace.outcome.applied, false);
   assert.equal(updateTrace.queuedUpdate.state, "failed");
@@ -209,26 +209,26 @@ test("MCP request tracing records failures without changing errors and prunes on
     if (message.name === "mcp_present_widget") return { ok:false, error:"apiKey=browser-failure-secret" };
     return { ok:true, result:{ applied:true, visible:true, revision:2 } };
   });
-  const ownerId = crypto.randomUUID(), started = await service.callTool(ownerId, "penecho_start_session", { canvasId:"canvas-a", instanceId:service.instanceId, title:"Failure trace" });
-  await service.callTool(ownerId, "penecho_update_session", { sessionId:started.sessionId, summary:"Queued failure" });
-  const queuedFailure = await waitFor(() => traces(traceDirectory).find(trace => trace.request.tool === "penecho_update_session" && trace.queuedUpdate?.state === "failed"));
+  const ownerId = crypto.randomUUID(), started = await service.callTool(ownerId, "fastlectures_start_session", { canvasId:"canvas-a", instanceId:service.instanceId, title:"Failure trace" });
+  await service.callTool(ownerId, "fastlectures_update_session", { sessionId:started.sessionId, summary:"Queued failure" });
+  const queuedFailure = await waitFor(() => traces(traceDirectory).find(trace => trace.request.tool === "fastlectures_update_session" && trace.queuedUpdate?.state === "failed"));
   assert.equal(queuedFailure.outcome.applied, false);
   assert.equal(queuedFailure.queuedUpdate.applied, false);
   assert.equal(JSON.stringify(queuedFailure).includes("queued-update-secret"), false);
   await assert.rejects(
-    service.callTool(ownerId, "penecho_present_widget", { sessionId:started.sessionId,requestId:"failure-1", artifactId:"artifact-a", title:"Failure", html:`<img src="data:image/png;base64,${"A".repeat(600)}">` }),
+    service.callTool(ownerId, "fastlectures_present_widget", { sessionId:started.sessionId,requestId:"failure-1", artifactId:"artifact-a", title:"Failure", html:`<img src="data:image/png;base64,${"A".repeat(600)}">` }),
     error => error.code === "canvas_call_failed" && error.message.includes("browser-failure-secret"),
   );
-  const failedTrace = traces(traceDirectory).find(trace => trace.request.tool === "penecho_present_widget");
+  const failedTrace = traces(traceDirectory).find(trace => trace.request.tool === "fastlectures_present_widget");
   assert.equal(failedTrace.status, "failed");
   assert.equal(failedTrace.browserInteractions[0].status, "failed");
   assert.equal(JSON.stringify(failedTrace).includes("browser-failure-secret"), false);
   assert.equal(JSON.stringify(failedTrace).includes("A".repeat(100)), false);
 
   await new Promise(resolve => setTimeout(resolve, 2));
-  await service.callTool(ownerId, "penecho_list_canvases", {});
+  await service.callTool(ownerId, "fastlectures_list_canvases", {});
   await new Promise(resolve => setTimeout(resolve, 2));
-  await service.callTool(ownerId, "penecho_list_canvases", {});
+  await service.callTool(ownerId, "fastlectures_list_canvases", {});
   const retained = traces(traceDirectory);
   assert.equal(fs.readdirSync(traceDirectory).length, 2);
   assert.equal(retained.length, 5);
@@ -243,11 +243,11 @@ test("MCP request tracing records failures without changing errors and prunes on
 test("full session payloads preserve large text, source, images and owner isolation", () => {
   const directory = tempDirectory(), tracer = createMcpRequestTracer({requestTraceDirectory:directory});
   const html = `<p>${"full content ".repeat(3000)}</p><img src="data:image/png;base64,AQID">`;
-  const first = tracer.begin({ownerId:"owner-a", name:"penecho_start_session", arguments:{sessionKey:"../../unsafe", html, password:"hidden"}});
+  const first = tracer.begin({ownerId:"owner-a", name:"fastlectures_start_session", arguments:{sessionKey:"../../unsafe", html, password:"hidden"}});
   tracer.complete(first, {sessionId:"session-a", text:html});
   const second = tracer.begin({ownerId:"owner-a", name:"read", arguments:{sessionId:"session-a"}});
   tracer.complete(second, {image:{mimeType:"image/png", data:"AQID"}, text:"x".repeat(20000)});
-  const reconnect = tracer.begin({ownerId:"owner-a", name:"penecho_start_session", arguments:{sessionKey:"../../unsafe"}});
+  const reconnect = tracer.begin({ownerId:"owner-a", name:"fastlectures_start_session", arguments:{sessionKey:"../../unsafe"}});
   tracer.complete(reconnect, {sessionId:"session-b"});
   const other = tracer.begin({ownerId:"owner-b", name:"read", arguments:{sessionId:"session-a"}});
   tracer.complete(other, {});

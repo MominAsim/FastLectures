@@ -1,6 +1,6 @@
 # MCP 自动验收 · 2026-09-10
 
-本次已通过 SSH 自动执行 Windows 验收，无需手工开启 40 个聊天或修改日常配置。Windows 为 `DESKTOP-L25PJSB`、Node 22.15.1、实际 Codex CLI 0.149.0；PenEcho 主机为 macOS `192.168.3.158`，真实 Edge 测试页面为 `http://192.168.3.158:3921/`。
+本次已通过 SSH 自动执行 Windows 验收，无需手工开启 40 个聊天或修改日常配置。Windows 为 `DESKTOP-L25PJSB`、Node 22.15.1、实际 Codex CLI 0.149.0；FastLectures 主机为 macOS `192.168.3.158`，真实 Edge 测试页面为 `http://192.168.3.158:3921/`。
 
 ## 已验证结果
 
@@ -18,7 +18,7 @@
 | 工作区恢复容量 | 64 上限及超过 32 个文档恢复通过 | 修复遗留 `.slice(-31)`；42 项画布测试通过 |
 | CLI / 发现回归 | 29/29 | 含更新缓存、真实 HTTPS 换端口、状态读取权限、超时、取消、EOF、主机身份与证书拒绝 |
 
-发现测试使用 Windows 上的真实 UDP DNS-SD 与主机 HTTPS，临时复制现有信任到隔离目录，不改真实凭据或 AI 配置。不可读缓存用精确的 EACCES 故障注入；无广播停机用显式空结果模拟，不声称断掉了用户真实网络。换端口测试则真实重启隔离 HTTPS 服务，使用独立证书与模拟文档，不重启 PenEcho 应用。
+发现测试使用 Windows 上的真实 UDP DNS-SD 与主机 HTTPS，临时复制现有信任到隔离目录，不改真实凭据或 AI 配置。不可读缓存用精确的 EACCES 故障注入；无广播停机用显式空结果模拟，不声称断掉了用户真实网络。换端口测试则真实重启隔离 HTTPS 服务，使用独立证书与模拟文档，不重启 FastLectures 应用。
 
 本轮 10 项矩阵中，TLS 无响应在约 506–512ms 后回退；真实发现阶段约 317–1504ms。此前首轮完整准备/发现总耗时曾到 6.27 秒，因此不能承诺所有网络环境都在 1 秒内完成。换端口后的整次工具恢复分别为 859ms（缓存）和 3048ms（真实发现），包含重新初始化与绑定恢复。
 
@@ -33,12 +33,12 @@
 
 日常配置保留默认 30 分钟 HTTP 空闲释放。以下 60 秒参数仅写入验收的临时 CODEX_HOME，不应写进日常配置；不要使用 `--idle-exit-ms`。
 
-Windows 上已有验收文件目录：`C:\Users\msi\.penecho\mcp\acceptance-current`。其中 `client.js` 是当前源码生成的完整轻量 CLI，`lib` 是发现测试所需的四个独立模块。导入的正式信任仍在 `%USERPROFILE%\.penecho\mcp`。
+Windows 上已有验收文件目录：`C:\Users\msi\.fastlectures\mcp\acceptance-current`。其中 `client.js` 是当前源码生成的完整轻量 CLI，`lib` 是发现测试所需的四个独立模块。导入的正式信任仍在 `%USERPROFILE%\.fastlectures\mcp`。
 
 ```powershell
-node C:/Users/msi/.penecho/mcp/acceptance-current/lifecycle.cjs --codex C:/Users/msi/AppData/Roaming/PenEcho/tools/codex/bin/codex.exe --client C:/Users/msi/.penecho/mcp/acceptance-current/client.js --host-id <hostId> --canvas-id <当前已启用的浏览器ID> --count 40 --concurrency 8 --idle-timeout-ms 60000 --output lifecycle.json
+node C:/Users/msi/.fastlectures/mcp/acceptance-current/lifecycle.cjs --codex C:/Users/msi/AppData/Roaming/FastLectures/tools/codex/bin/codex.exe --client C:/Users/msi/.fastlectures/mcp/acceptance-current/client.js --host-id <hostId> --canvas-id <当前已启用的浏览器ID> --count 40 --concurrency 8 --idle-timeout-ms 60000 --output lifecycle.json
 
-node C:/Users/msi/.penecho/mcp/acceptance-current/discovery.cjs --module-dir C:/Users/msi/.penecho/mcp/acceptance-current/lib --host-id <hostId> --state-directory C:/Users/msi/.penecho/mcp --endpoint <当前有效HTTPS地址> --output discovery.json
+node C:/Users/msi/.fastlectures/mcp/acceptance-current/discovery.cjs --module-dir C:/Users/msi/.fastlectures/mcp/acceptance-current/lib --host-id <hostId> --state-directory C:/Users/msi/.fastlectures/mcp --endpoint <当前有效HTTPS地址> --output discovery.json
 ```
 
 并发冷启动测试入口是 `scripts/mcp-discovery-concurrency.cjs`（Windows 对应 `acceptance-current/discovery-concurrency.cjs`），使用与发现矩阵相同的 `--module-dir`、`--host-id`、`--state-directory`，加 `--count 40 --output discovery-concurrency.json`。
@@ -52,8 +52,8 @@ node scripts/mcp-capacity-acceptance.cjs --output capacity.json
 node scripts/mcp-lan-recovery-acceptance.cjs --address 192.168.3.158 --output lan-recovery.json
 ```
 
-第二条命令通过已有的 `penecho-windows` SSH 别名驱动 Windows peer，peer 路径可用 `--peer` 覆盖。信任仅通过加密 SSH stdin 传递；结果不包含 token 或证书。
+第二条命令通过已有的 `fastlectures-windows` SSH 别名驱动 Windows peer，peer 路径可用 `--peer` 覆盖。信任仅通过加密 SSH stdin 传递；结果不包含 token 或证书。
 
-Windows 通过报告：`acceptance-current/lifecycle-40-verified.json`、`acceptance-current/discovery-full.json`、`acceptance-current/discovery-concurrency.json`。主机本轮结果目录：`/tmp/penecho-win-acceptance.p1vimg/`，包含上述报告副本、`capacity.json`、`lan-idle-recovery.json`。报告均以 `passed` 和各检查项判定，失败退出码非零；手动 reload 不计入自动恢复成功。
+Windows 通过报告：`acceptance-current/lifecycle-40-verified.json`、`acceptance-current/discovery-full.json`、`acceptance-current/discovery-concurrency.json`。主机本轮结果目录：`/tmp/fastlectures-win-acceptance.p1vimg/`，包含上述报告副本、`capacity.json`、`lan-idle-recovery.json`。报告均以 `passed` 和各检查项判定，失败退出码非零；手动 reload 不计入自动恢复成功。
 
 主任务负责 Windows/Edge 执行、集成修复和结果核查；发现、限额、LAN 恢复脚本由请求的 Astra / low 子任务实现，主任务逐一审查并真实运行。模型说明依据委派参数，未另行核实提供商运行时模型身份。

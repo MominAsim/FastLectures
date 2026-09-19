@@ -19,7 +19,7 @@ async function eventually(predicate, message, timeoutMs = 2000) {
 }
 
 test("account status drops expired or invalid membership without exposing billing fields", () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-membership-status-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-membership-status-"));
   try {
     const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}) });
     for (const membership of [undefined, { tier:"pro", expiresAt:Date.now()-1 }, { tier:"vip", expiresAt:2200000000000 }, { tier:"pro", expiresAt:"2200000000000" }]) {
@@ -32,18 +32,18 @@ test("account status drops expired or invalid membership without exposing billin
 });
 
 test("cloud origin requires HTTPS except for loopback development", () => {
-  assert.equal(normalizedOrigin("https://penecho.ai"), "https://penecho.ai");
+  assert.equal(normalizedOrigin("https://fastlectures.ai"), "https://fastlectures.ai");
   assert.equal(normalizedOrigin("http://127.0.0.1:8080"), "http://127.0.0.1:8080");
   assert.throws(() => normalizedOrigin("http://example.com"), /HTTPS/);
-  assert.throws(() => normalizedOrigin("https://penecho.ai/path"), /without a path/);
+  assert.throws(() => normalizedOrigin("https://fastlectures.ai/path"), /without a path/);
 });
 
 test("temporary Cloud failures explain that the local Canvas remains safe", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-unavailable-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-unavailable-test-"));
   const originalFetch = global.fetch;
   try {
-    const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}), defaultOrigin:"https://internaltest.penecho.ai" });
-    connector.writeConfiguration({ version:2, origin:"https://internaltest.penecho.ai", accountToken:"uat-account-token" });
+    const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}), defaultOrigin:"https://internaltest.fastlectures.ai" });
+    connector.writeConfiguration({ version:2, origin:"https://internaltest.fastlectures.ai", accountToken:"uat-account-token" });
     global.fetch = async () => { throw Object.assign(new Error("connect timed out"), { code:"ETIMEDOUT" }); };
     await assert.rejects(
       () => connector.createCloudProject({ name:"Safe local Canvas" }),
@@ -56,17 +56,17 @@ test("temporary Cloud failures explain that the local Canvas remains safe", asyn
 });
 
 test("personal Widget favorites send one JSON object through the local Cloud account session", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-favorite-body-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-favorite-body-test-"));
   const originalFetch = global.fetch;
   try {
-    const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}), defaultOrigin:"https://internaltest.penecho.ai" });
-    connector.writeConfiguration({ version:2, origin:"https://internaltest.penecho.ai", accountToken:"local-account-session" });
+    const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}), defaultOrigin:"https://internaltest.fastlectures.ai" });
+    connector.writeConfiguration({ version:2, origin:"https://internaltest.fastlectures.ai", accountToken:"local-account-session" });
     global.fetch = async (url, options) => {
-      assert.equal(url, "https://internaltest.penecho.ai/api/v1/favorites");
+      assert.equal(url, "https://internaltest.fastlectures.ai/api/v1/favorites");
       assert.equal(options.headers.authorization, "Bearer local-account-session");
       assert.deepEqual(JSON.parse(options.body), {
         name:"Timer",
-        artifact:{ format:"penecho-widget", formatVersion:1, widget:{ title:"Timer" } },
+        artifact:{ format:"fastlectures-widget", formatVersion:1, widget:{ title:"Timer" } },
         thumbnail:"AA==",
         sourceItemId:null,
         sourceWidgetId:"11111111-1111-4111-8111-111111111111",
@@ -75,7 +75,7 @@ test("personal Widget favorites send one JSON object through the local Cloud acc
     };
     assert.equal((await connector.saveWidgetFavorite({
       name:"Timer",
-      artifact:{ format:"penecho-widget", formatVersion:1, widget:{ title:"Timer" } },
+      artifact:{ format:"fastlectures-widget", formatVersion:1, widget:{ title:"Timer" } },
       thumbnail:"AA==",
       sourceWidgetId:"11111111-1111-4111-8111-111111111111",
     })).id, "favorite-1");
@@ -86,13 +86,13 @@ test("personal Widget favorites send one JSON object through the local Cloud acc
 });
 
 test("favorite feed forwards kind, page size, and opaque cursor through the local account session", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-favorite-feed-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-favorite-feed-test-"));
   const originalFetch = global.fetch;
   try {
-    const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}), defaultOrigin:"https://internaltest.penecho.ai" });
-    connector.writeConfiguration({ version:2, origin:"https://internaltest.penecho.ai", accountToken:"local-account-session" });
+    const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}), defaultOrigin:"https://internaltest.fastlectures.ai" });
+    connector.writeConfiguration({ version:2, origin:"https://internaltest.fastlectures.ai", accountToken:"local-account-session" });
     global.fetch = async (url, options) => {
-      assert.equal(url, "https://internaltest.penecho.ai/api/v1/favorites/feed?kind=canvas&limit=20&cursor=opaque-next");
+      assert.equal(url, "https://internaltest.fastlectures.ai/api/v1/favorites/feed?kind=canvas&limit=20&cursor=opaque-next");
       assert.equal(options.headers.authorization, "Bearer local-account-session");
       return new Response(JSON.stringify({ items:[], pagination:{ limit:20, hasMore:false, nextCursor:null } }), { status:200, headers:{ "content-type":"application/json" } });
     };
@@ -115,14 +115,14 @@ test("cloud relay reconnect delays step from ten seconds to one minute and then 
 });
 
 test("public Cloud messages are bounded and reject unsafe links", async () => {
-  assert.deepEqual(publicCanvasMessage({ title:{ en:"Offer", zh:"推介" }, body:{ en:"Free sync", zh:"免费同步" }, actionLabel:{ en:"Open", zh:"打开" }, actionUrl:"https://penecho.ai/offer", updatedAt:123 }), {
-    title:{ en:"Offer", zh:"推介" }, body:{ en:"Free sync", zh:"免费同步" }, actionLabel:{ en:"Open", zh:"打开" }, actionUrl:"https://penecho.ai/offer", updatedAt:123,
+  assert.deepEqual(publicCanvasMessage({ title:{ en:"Offer", zh:"推介" }, body:{ en:"Free sync", zh:"免费同步" }, actionLabel:{ en:"Open", zh:"打开" }, actionUrl:"https://fastlectures.ai/offer", updatedAt:123 }), {
+    title:{ en:"Offer", zh:"推介" }, body:{ en:"Free sync", zh:"免费同步" }, actionLabel:{ en:"Open", zh:"打开" }, actionUrl:"https://fastlectures.ai/offer", updatedAt:123,
   });
   assert.equal(publicCanvasMessage(null), null);
   assert.equal(publicCanvasMessage({ body:{ en:"", zh:"" } }), null);
   assert.throws(() => publicCanvasMessage({ body:{ en:"Message" }, actionUrl:"javascript:alert(1)" }), /unsafe link/);
 
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-message-test-")), originalFetch = global.fetch;
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-message-test-")), originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}) });
     global.fetch = async (url, options) => {
@@ -138,7 +138,7 @@ test("public Cloud messages are bounded and reject unsafe links", async () => {
 });
 
 test("signed-out users browse public community metadata and thumbnails without an account token", async () => {
-  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-public-community-test-")),originalFetch=global.fetch;
+  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-public-community-test-")),originalFetch=global.fetch;
   try {
     const connector=new CloudConnector({stateDir,executeRequest:async()=>({}),defaultOrigin:"http://127.0.0.1:18082"}),requests=[];
     global.fetch=async(url,options)=>{
@@ -158,12 +158,12 @@ test("signed-out users browse public community metadata and thumbnails without a
 });
 
 test("device credentials are stored separately and never returned by status", () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-test-"));
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version: 1,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       token: "device-secret-token",
       deviceId: "device-id",
       deviceName: "Test device",
@@ -186,11 +186,11 @@ test("device credentials are stored separately and never returned by status", ()
 });
 
 test("legacy device files migrate without exposing the credential", () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-migration-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-migration-test-"));
   try {
     fs.writeFileSync(path.join(stateDir, "cloud-device.json"), JSON.stringify({
       version: 1,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       token: "legacy-device-secret",
       deviceId: "legacy-device",
       enabled: false,
@@ -208,12 +208,12 @@ test("legacy device files migrate without exposing the credential", () => {
 });
 
 test("expired local account sessions fail closed without revoking the paired device", () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-expired-session-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-expired-session-test-"));
   const file = path.join(stateDir, "cloud-device.json");
   try {
     fs.writeFileSync(file, JSON.stringify({
       version: 2,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       accountToken: "expired-account-token",
       accountExpiresAt: "2099-01-01T00:00:00.000Z",
       account: { id: "account-id", name: "Ada", credits: 1000 },
@@ -235,7 +235,7 @@ test("expired local account sessions fail closed without revoking the paired dev
     assert.equal(status.account, null);
     assert.equal(status.device.configured, true);
     assert.throws(() => connector.requireCloudAccount(), (error) => {
-      assert.match(error.message, /Connect your PenEcho Cloud account/);
+      assert.match(error.message, /Connect your FastLectures Cloud account/);
       assert.equal(error.status, 401);
       assert.equal(error.code, "cloud_sign_in_required");
       return true;
@@ -250,20 +250,20 @@ test("expired local account sessions fail closed without revoking the paired dev
 });
 
 test("missing local account sessions require Cloud sign-in without revoking the paired device", () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-missing-session-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-missing-session-test-"));
   const file = path.join(stateDir, "cloud-device.json");
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version: 2,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       deviceToken: "still-paired-device-token",
       deviceId: "device-id",
       enabled: false,
     });
 
     assert.throws(() => connector.requireCloudAccount(), (error) => {
-      assert.match(error.message, /Connect your PenEcho Cloud account/);
+      assert.match(error.message, /Connect your FastLectures Cloud account/);
       assert.equal(error.status, 401);
       assert.equal(error.code, "cloud_sign_in_required");
       return true;
@@ -277,14 +277,14 @@ test("missing local account sessions require Cloud sign-in without revoking the 
 });
 
 test("an endpoint 401 clears the account only after the authoritative session check confirms revocation", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-upstream-unauthorized-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-upstream-unauthorized-test-"));
   const file = path.join(stateDir, "cloud-device.json");
   const originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version: 2,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       accountToken: "expired-upstream-account-token",
       accountExpiresAt: "2099-01-01T00:00:00.000Z",
       account: { id:"account-id", name:"Ada", credits:1000 },
@@ -318,13 +318,13 @@ test("an endpoint 401 clears the account only after the authoritative session ch
 });
 
 test("an untrusted 401 from the session-check path never clears account or device credentials", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-untrusted-session-401-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-untrusted-session-401-test-"));
   const originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version:2,
-      origin:"https://penecho.ai",
+      origin:"https://fastlectures.ai",
       accountToken:"durable-account-token",
       accountExpiresAt:"2030-01-01T00:00:00.000Z",
       account:{ id:"account-id", name:"Ada", credits:1000 },
@@ -357,14 +357,14 @@ test("an untrusted 401 from the session-check path never clears account or devic
 });
 
 test("endpoint 401 responses never clear a valid current account or its linked device", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-unconfirmed-401-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-unconfirmed-401-test-"));
   const originalFetch = global.fetch;
   let sessionChecks = 0;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version: 2,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       accountToken: "valid-current-account-token",
       accountExpiresAt: "2030-01-01T00:00:00.000Z",
       account: { id:"account-id", name:"Ada", credits:1000 },
@@ -413,13 +413,13 @@ test("endpoint 401 responses never clear a valid current account or its linked d
 });
 
 test("background account refresh failures preserve the signed-in account and linked device", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-refresh-failure-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-refresh-failure-test-"));
   const originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version:2,
-      origin:"https://penecho.ai",
+      origin:"https://fastlectures.ai",
       accountToken:"durable-account-token",
       accountExpiresAt:"2030-01-01T00:00:00.000Z",
       account:{ id:"account-id", name:"Ada", credits:1000 },
@@ -453,14 +453,14 @@ test("background account refresh failures preserve the signed-in account and lin
 });
 
 test("an old Favorites 401 cannot clear a newer browser sign-in or its linked device", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-stale-favorites-401-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-stale-favorites-401-test-"));
   const originalFetch = global.fetch;
   let resolveOldRequest;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version: 2,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       accountToken: "old-account-token",
       accountExpiresAt: "2030-01-01T00:00:00.000Z",
       account: { id:"old-account", name:"Old account", credits:1000 },
@@ -504,14 +504,14 @@ test("an old Favorites 401 cannot clear a newer browser sign-in or its linked de
 });
 
 test("an old background account refresh cannot clear or overwrite a newer sign-in", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-stale-account-refresh-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-stale-account-refresh-test-"));
   const originalFetch = global.fetch;
   let resolveOldRequest;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version: 2,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       accountToken: "old-refresh-token",
       accountExpiresAt: "2030-01-01T00:00:00.000Z",
       account: { id:"old-account", name:"Old account", credits:1000 },
@@ -555,14 +555,14 @@ test("an old background account refresh cannot clear or overwrite a newer sign-i
 });
 
 test("an old successful account refresh cannot overwrite a newer browser sign-in", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-stale-account-success-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-stale-account-success-test-"));
   const originalFetch = global.fetch;
   let resolveOldRequest;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version:2,
-      origin:"https://penecho.ai",
+      origin:"https://fastlectures.ai",
       accountToken:"old-refresh-token",
       accountExpiresAt:"2030-01-01T00:00:00.000Z",
       account:{ id:"old-account", name:"Old account", credits:1000 },
@@ -610,14 +610,14 @@ test("local account expiry validation rejects elapsed or malformed timestamps", 
 });
 
 test("local account sign-in and sign-out are independent from the paired device", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-account-session-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-account-session-test-"));
   const originalFetch = global.fetch;
   const calls = [];
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version: 2,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       deviceToken: "paired-device-token",
       deviceId: "paired-device",
       deviceName: "Paired device",
@@ -636,7 +636,7 @@ test("local account sign-in and sign-out are independent from the paired device"
       throw new Error(`Unexpected request: ${options.method} ${url}`);
     };
 
-    const signedIn = await connector.signIn({ origin: "https://penecho.ai", code: "local-authorization-code-with-enough-entropy" });
+    const signedIn = await connector.signIn({ origin: "https://fastlectures.ai", code: "local-authorization-code-with-enough-entropy" });
     assert.equal(signedIn.accountSession.signedIn, true);
     assert.equal(signedIn.account.name, "Ada");
     assert.equal(signedIn.account.email, undefined);
@@ -662,16 +662,16 @@ test("local account sign-in and sign-out are independent from the paired device"
 });
 
 test("browser account sign-in preserves the current LAN callback before storing the global local token", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-browser-signin-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-browser-signin-test-"));
   const originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     const started = connector.beginBrowserSignIn({
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       callbackUrl: "http://192.168.1.20:3888/api/cloud/sign-in/callback",
     });
     const authorizationUrl = new URL(started.authorizationUrl);
-    assert.equal(authorizationUrl.origin, "https://penecho.ai");
+    assert.equal(authorizationUrl.origin, "https://fastlectures.ai");
     assert.equal(authorizationUrl.pathname, "/dashboard.html");
     assert.equal(authorizationUrl.hash, "#devices");
     const callbackUrl = new URL(authorizationUrl.searchParams.get("local_callback"));
@@ -682,7 +682,7 @@ test("browser account sign-in preserves the current LAN callback before storing 
     assert.equal("state" in connector.status().browserSignIn, false);
 
     global.fetch = async (url, options = {}) => {
-      assert.equal(url, "https://penecho.ai/api/v1/local-access/session");
+      assert.equal(url, "https://fastlectures.ai/api/v1/local-access/session");
       assert.equal(options.method, "POST");
       const exchange = JSON.parse(options.body);
       assert.equal(exchange.callback, callbackUrl.toString());
@@ -711,15 +711,15 @@ test("browser account sign-in preserves the current LAN callback before storing 
 });
 
 test("browser account sign-in rejects public callbacks, mismatched state, and a changed return origin", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-browser-state-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-browser-state-test-"));
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     assert.throws(() => connector.beginBrowserSignIn({
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       callbackUrl: "https://attacker.example/api/cloud/sign-in/callback",
-    }), /local PenEcho server/);
+    }), /local FastLectures server/);
     const started=connector.beginBrowserSignIn({
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       callbackUrl: "http://localhost:3888/api/cloud/sign-in/callback",
     });
     const callbackUrl=new URL(new URL(started.authorizationUrl).searchParams.get("local_callback"));
@@ -740,13 +740,13 @@ test("browser account sign-in rejects public callbacks, mismatched state, and a 
 });
 
 test("failed remote sign-out still clears the local account session and preserves device pairing", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-signout-retry-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-signout-retry-test-"));
   const originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version: 2,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       accountToken: "retryable-account-token",
       account: { id: "account-id", name: "Ada", credits: 1000 },
       deviceToken: "paired-device-token",
@@ -773,13 +773,13 @@ test("failed remote sign-out still clears the local account session and preserve
 });
 
 test("disconnect and device revocation preserve an independent local account session", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-device-lifecycle-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-device-lifecycle-test-"));
   const originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version: 2,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       accountToken: "account-session-token",
       account: { id: "account-id", name: "Ada", credits: 1000 },
       deviceToken: "device-revoke-token",
@@ -792,7 +792,7 @@ test("disconnect and device revocation preserve an independent local account ses
     assert.equal(disconnected.device.configured, true);
 
     global.fetch = async (url, options = {}) => {
-      assert.equal(url, "https://penecho.ai/api/v1/device-sync/device");
+      assert.equal(url, "https://fastlectures.ai/api/v1/device-sync/device");
       assert.equal(options.method, "DELETE");
       assert.equal(options.headers.authorization, "Bearer device-revoke-token");
       return new Response(null, { status: 204 });
@@ -810,7 +810,7 @@ test("disconnect and device revocation preserve an independent local account ses
 });
 
 test("an old device revocation cannot remove a newly replaced linked device", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-stale-device-revoke-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-stale-device-revoke-test-"));
   const originalFetch = global.fetch;
   let resolveOldRevoke;
   try {
@@ -818,7 +818,7 @@ test("an old device revocation cannot remove a newly replaced linked device", as
     connector.connect = () => {};
     connector.writeConfiguration({
       version: 2,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       accountToken: "current-account-token",
       accountExpiresAt: "2030-01-01T00:00:00.000Z",
       account: { id:"account-id", name:"Ada", credits:1000 },
@@ -840,7 +840,7 @@ test("an old device revocation cannot remove a newly replaced linked device", as
     };
 
     const oldRevoke = connector.revokeDevice();
-    const paired = await connector.pair({ origin:"https://penecho.ai", code:"new-pairing-key", name:"New device", platform:"test" });
+    const paired = await connector.pair({ origin:"https://fastlectures.ai", code:"new-pairing-key", name:"New device", platform:"test" });
     assert.equal(paired.device.id, "new-device");
     resolveOldRevoke(new Response(null, { status:204 }));
     const afterOldRevoke = await oldRevoke;
@@ -859,20 +859,20 @@ test("an old device revocation cannot remove a newly replaced linked device", as
 });
 
 test("legacy account library requests keep credentials on the local server and omit email from browser status", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-library-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-library-test-"));
   const originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version: 1,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       token: "device-account-token",
       deviceId: "device-id",
       deviceName: "Test device",
       enabled: false,
     });
     global.fetch = async (url, options) => {
-      assert.equal(url, "https://penecho.ai/api/v1/device-sync/library");
+      assert.equal(url, "https://fastlectures.ai/api/v1/device-sync/library");
       assert.equal(options.headers.authorization, "Bearer device-account-token");
       return new Response(JSON.stringify({
         account: { id: "account-id", name: "Ada", email: "ada@example.com", credits: 1000 },
@@ -900,17 +900,17 @@ test("legacy account library requests keep credentials on the local server and o
 });
 
 test("Cloud Canvas deletion uses the recoverable device-sync trash endpoint", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-delete-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-delete-test-"));
   const originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version: 2,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       accountToken: "account-delete-token",
     });
     global.fetch = async (url, options) => {
-      assert.equal(url, "https://penecho.ai/api/v1/device-sync/canvases/11111111-1111-4111-8111-111111111111");
+      assert.equal(url, "https://fastlectures.ai/api/v1/device-sync/canvases/11111111-1111-4111-8111-111111111111");
       assert.equal(options.method, "DELETE");
       assert.equal(options.headers.authorization, "Bearer account-delete-token");
       return new Response(null, { status: 204 });
@@ -923,13 +923,13 @@ test("Cloud Canvas deletion uses the recoverable device-sync trash endpoint", as
 });
 
 test("Cloud Canvas thumbnails stay behind the local account proxy and enforce compact WebP", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-thumbnail-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-thumbnail-test-"));
   const originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
-    connector.writeConfiguration({ version: 2, origin: "https://penecho.ai", accountToken: "thumbnail-account-token" });
+    connector.writeConfiguration({ version: 2, origin: "https://fastlectures.ai", accountToken: "thumbnail-account-token" });
     global.fetch = async (url, options) => {
-      assert.equal(url, "https://penecho.ai/api/v1/device-sync/canvases/11111111-1111-4111-8111-111111111111/thumbnail");
+      assert.equal(url, "https://fastlectures.ai/api/v1/device-sync/canvases/11111111-1111-4111-8111-111111111111/thumbnail");
       assert.equal(options.headers.authorization, "Bearer thumbnail-account-token");
       return new Response(Buffer.from("small-webp"), { status: 200, headers: { "content-type": "image/webp" } });
     };
@@ -943,15 +943,15 @@ test("Cloud Canvas thumbnails stay behind the local account proxy and enforce co
 });
 
 test("device pairing requires a local Cloud account session", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-pair-account-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-pair-account-test-"));
   const originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     let requested = false;
     global.fetch = async () => { requested = true; throw new Error("unexpected request"); };
     await assert.rejects(
-      connector.pair({ origin: "https://penecho.ai", code: "PEN-ABCD-2345" }),
-      /Connect your PenEcho Cloud account/,
+      connector.pair({ origin: "https://fastlectures.ai", code: "PEN-ABCD-2345" }),
+      /Connect your FastLectures Cloud account/,
     );
     assert.equal(requested, false);
   } finally {
@@ -961,7 +961,7 @@ test("device pairing requires a local Cloud account session", async () => {
 });
 
 test("re-pairing replaces an existing relay before connecting the new credential", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-repair-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-repair-test-"));
   const originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
@@ -1008,12 +1008,12 @@ test("re-pairing replaces an existing relay before connecting the new credential
 });
 
 test("an offline cloud relay keeps credentials and schedules a reconnect without blocking local work", () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-offline-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-offline-test-"));
   try {
     const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
     connector.writeConfiguration({
       version: 1,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       token: "offline-device-token",
       deviceId: "offline-device",
       deviceName: "Offline test device",
@@ -1035,7 +1035,7 @@ test("an offline cloud relay keeps credentials and schedules a reconnect without
 });
 
 test("relay reports connected only after the Cloud authentication hello", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-hello-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-hello-test-"));
   const server = new WebSocketServer({ host:"127.0.0.1", port:0 });
   await new Promise((resolve) => server.once("listening", resolve));
   let remoteSocket;
@@ -1070,7 +1070,7 @@ test("relay reports connected only after the Cloud authentication hello", async 
 });
 
 test("a legacy Cloud hello without acknowledgement support keeps the relay connected", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-legacy-heartbeat-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-legacy-heartbeat-test-"));
   const server = new WebSocketServer({ host:"127.0.0.1", port:0 });
   await new Promise((resolve) => server.once("listening", resolve));
   let connector;
@@ -1100,7 +1100,7 @@ test("a legacy Cloud hello without acknowledgement support keeps the relay conne
 });
 
 test("relay heartbeat acknowledgements refresh the silence watchdog and missing acknowledgements reconnect", async t => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-heartbeat-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-heartbeat-test-"));
   const server = new WebSocketServer({ host:"127.0.0.1", port:0 });
   await new Promise((resolve) => server.once("listening", resolve));
   const events = [];
@@ -1155,7 +1155,7 @@ test("relay heartbeat acknowledgements refresh the silence watchdog and missing 
 });
 
 test("relay reports only a bounded non-sensitive model capability after authentication", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-capabilities-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-capabilities-test-"));
   const server = new WebSocketServer({ host:"127.0.0.1", port:0 });
   let connector;
   try {
@@ -1179,12 +1179,12 @@ test("relay reports only a bounded non-sensitive model capability after authenti
   }
 });
 
-test("cloud relay routes PenEcho Agent channel operations to the dedicated local executor", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-canvas-agent-relay-test-"));
+test("cloud relay routes FastLectures Agent channel operations to the dedicated local executor", async () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-canvas-agent-relay-test-"));
   try {
     const calls=[], connector = new CloudConnector({
       stateDir,
-      executeRequest:async () => { throw new Error("legacy AI executor must not receive PenEcho Agent traffic"); },
+      executeRequest:async () => { throw new Error("legacy AI executor must not receive FastLectures Agent traffic"); },
       executeCanvasAgentRequest:async (payload, timeoutMs) => { calls.push({ payload, timeoutMs }); return { accepted:true }; },
     });
     let sent=null;
@@ -1198,7 +1198,7 @@ test("cloud relay routes PenEcho Agent channel operations to the dedicated local
 });
 
 test("a revoked relay (4003) becomes invalid and cannot automatically reclaim ownership", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-revoked-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-revoked-test-"));
   const server = new WebSocketServer({ host:"127.0.0.1", port:0 });
   await new Promise((resolve) => server.once("listening", resolve));
   server.once("connection", (socket) => socket.close(4003, "device revoked"));
@@ -1227,7 +1227,7 @@ test("a revoked relay (4003) becomes invalid and cannot automatically reclaim ow
 });
 
 test("socket replacement (4001) preserves device credentials and reconnects", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-replaced-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-replaced-test-"));
   const server = new WebSocketServer({ host:"127.0.0.1", port:0 });
   await new Promise((resolve) => server.once("listening", resolve));
   let connections = 0;
@@ -1256,7 +1256,7 @@ test("socket replacement (4001) preserves device credentials and reconnects", as
 });
 
 test("cloud relay requests execute through the local model callback without exposing device credentials", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-relay-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-relay-test-"));
   try {
     let receivedPayload = null;
     const connector = new CloudConnector({
@@ -1268,7 +1268,7 @@ test("cloud relay requests execute through the local model callback without expo
     });
     connector.writeConfiguration({
       version: 1,
-      origin: "https://penecho.ai",
+      origin: "https://fastlectures.ai",
       token: "relay-device-token",
       deviceId: "relay-device",
       deviceName: "Relay test device",
@@ -1287,7 +1287,7 @@ test("cloud relay requests execute through the local model callback without expo
 });
 
 test("cloud Canvas model selection reaches the local callback without leaking relay metadata", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-model-selection-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-model-selection-test-"));
   try {
     const connectionId = "123e4567-e89b-42d3-a456-426614174080";
     let receivedArguments = null;
@@ -1304,10 +1304,10 @@ test("cloud Canvas model selection reaches the local callback without leaking re
       type:"request",
       requestId:"selected-model",
       timeoutMs:12_345,
-      payload:{ userAction:"answer", __penechoCloudAi:{ version:1, connectionId } },
+      payload:{ userAction:"answer", __fastlecturesCloudAi:{ version:1, connectionId } },
     });
     assert.deepEqual(receivedArguments, [{ userAction:"answer" }, 12_345, { connectionId }]);
-    assert.equal(JSON.stringify(receivedArguments).includes("__penechoCloudAi"), false);
+    assert.equal(JSON.stringify(receivedArguments).includes("__fastlecturesCloudAi"), false);
     assert.equal(sent.ok, true);
   } finally {
     fs.rmSync(stateDir, { recursive:true, force:true });
@@ -1315,7 +1315,7 @@ test("cloud Canvas model selection reaches the local callback without leaking re
 });
 
 test("invalid Cloud model context is removed and falls back to the default local connection", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-model-fallback-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-model-fallback-test-"));
   try {
     let receivedArguments = null;
     const connector = new CloudConnector({ stateDir, executeRequest:async (...args) => { receivedArguments = args; return {}; } });
@@ -1324,13 +1324,13 @@ test("invalid Cloud model context is removed and falls back to the default local
       type:"request",
       requestId:"invalid-model",
       timeoutMs:12_345,
-      payload:{ userAction:"answer", __penechoCloudAi:{ version:2, connectionId:"not-a-uuid" } },
+      payload:{ userAction:"answer", __fastlecturesCloudAi:{ version:2, connectionId:"not-a-uuid" } },
     });
     assert.deepEqual(receivedArguments, [{ userAction:"answer" }, 12_345]);
     assert.deepEqual(cloudAiConnectionHeaders(), {});
     assert.deepEqual(cloudAiConnectionHeaders({ connectionId:"not-a-uuid" }), {});
     assert.deepEqual(cloudAiConnectionHeaders({ connectionId:"123e4567-e89b-42d3-a456-426614174080" }), {
-      "x-penecho-connection":"123e4567-e89b-42d3-a456-426614174080",
+      "x-fastlectures-connection":"123e4567-e89b-42d3-a456-426614174080",
     });
     assert.deepEqual(cloudAiRelayRequest({ userAction:"answer" }), { payload:{ userAction:"answer" }, connectionId:null });
   } finally {
@@ -1346,7 +1346,7 @@ test("Cloud model context is applied only at the local AI loopback boundary", ()
 });
 
 test("Remote Canvas relay operations use the isolated HTTP callback", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-remote-canvas-relay-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-remote-canvas-relay-test-"));
   try {
     const calls = [];
     const connector = new CloudConnector({
@@ -1367,7 +1367,7 @@ test("Remote Canvas relay operations use the isolated HTTP callback", async () =
 });
 
 test("community sharing rejects blank titles and descriptions before contacting Cloud", async () => {
-  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(), "penecho-community-required-fields-"));
+  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-community-required-fields-"));
   try {
     const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}) });
     const artifact={ formatVersion:1, communityPreview:{ dataBase64:"AA==" } };
@@ -1383,7 +1383,7 @@ test("community sharing rejects blank titles and descriptions before contacting 
 });
 
 test("community sharing derives lineage from the artifact and keeps contribution optional", async () => {
-  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-community-lineage-")),originalFetch=global.fetch;
+  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-community-lineage-")),originalFetch=global.fetch;
   try {
     const origin="http://127.0.0.1:8080",parentItemId="123e4567-e89b-42d3-a456-426614174080",itemId="123e4567-e89b-42d3-a456-426614174081",requests=[];
     const connector=new CloudConnector({stateDir,executeRequest:async()=>({})});
@@ -1405,7 +1405,7 @@ test("community sharing derives lineage from the artifact and keeps contribution
 });
 
 test("community sharing lets Cloud atomically publish a missing parent as a new root", async () => {
-  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-community-missing-parent-")),originalFetch=global.fetch;
+  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-community-missing-parent-")),originalFetch=global.fetch;
   try {
     const origin="http://127.0.0.1:8080",parentItemId="123e4567-e89b-42d3-a456-426614174083",itemId="123e4567-e89b-42d3-a456-426614174084",reservations=[];
     const connector=new CloudConnector({stateDir,executeRequest:async()=>({})});
@@ -1420,18 +1420,18 @@ test("community sharing lets Cloud atomically publish a missing parent as a new 
       if(String(url)===`${origin}/api/v1/community/items/${itemId}/complete`)return new Response(JSON.stringify({item:{id:itemId,parentItemId:null,generation:0}}),{status:200,headers:{"content-type":"application/json"}});
       throw new Error(`Unexpected request: ${url}`);
     };
-    const artifact={formatVersion:1,extensions:{penechoCommunity:{originItemId:parentItemId,rootItemId:parentItemId,originName:"Missing parent",originGeneration:0}},communityPreview:{dataBase64:"AA=="}};
+    const artifact={formatVersion:1,extensions:{fastlecturesCommunity:{originItemId:parentItemId,rootItemId:parentItemId,originName:"Missing parent",originGeneration:0}},communityPreview:{dataBase64:"AA=="}};
     const result=await connector.shareCommunityItem({kind:"canvas",name:"New root",description:"Cloud resolves the missing parent in the reservation transaction.",category:"productivity",artifact});
     assert.equal(reservations.length,1);
     assert.equal(reservations[0].parentItemId,parentItemId);
-    assert.equal(uploadedArtifact.extensions?.penechoCommunity?.originItemId,parentItemId,"the client must not rewrite lineage before Cloud decides");
+    assert.equal(uploadedArtifact.extensions?.fastlecturesCommunity?.originItemId,parentItemId,"the client must not rewrite lineage before Cloud decides");
     assert.equal(result.item.parentItemId,null);
     assert.equal(result.item.generation,0);
   } finally {global.fetch=originalFetch;fs.rmSync(stateDir,{recursive:true,force:true});}
 });
 
 test("community sharing never retries an HTTP error as a missing parent", async () => {
-  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-community-no-fallback-")),originalFetch=global.fetch;
+  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-community-no-fallback-")),originalFetch=global.fetch;
   try {
     const origin="http://127.0.0.1:8080",parentItemId="123e4567-e89b-42d3-a456-426614174085",connector=new CloudConnector({stateDir,executeRequest:async()=>({})}),artifact={formatVersion:1,widget:{communityOriginItemId:parentItemId},communityPreview:{dataBase64:"AA=="}};
     connector.configuration={origin,accountToken:"account-token"};
@@ -1448,7 +1448,7 @@ test("community sharing never retries an HTTP error as a missing parent", async 
 });
 
 test("cloud Canvas save and load preserve animation manifests and widget assets", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-canvas-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-canvas-test-"));
   const originalFetch = global.fetch;
   try {
     const origin = "http://127.0.0.1:8080";
@@ -1511,7 +1511,7 @@ test("cloud Canvas save and load preserve animation manifests and widget assets"
       bundleVersion: 2,
       mode: "snapshot",
       formatVersion: 1,
-      manifest: { format: "penecho-raster-tiles", formatVersion: 1, animations },
+      manifest: { format: "fastlectures-raster-tiles", formatVersion: 1, animations },
       assets: [
         { kind: "tile", contentType: "image/png", metadata: { tileKey: "1,2" }, dataBase64: Buffer.from("tile-bytes").toString("base64") },
         { kind: "widget", contentType: "application/json", metadata: { widgetId: widget.id, pluginId: widget.pluginId }, dataBase64: Buffer.from(JSON.stringify(widget)).toString("base64") },
@@ -1539,7 +1539,7 @@ test("cloud Canvas save and load preserve animation manifests and widget assets"
 });
 
 test("cloud Canvas save reconciles latest when both completion responses are lost", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-canvas-reconcile-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-canvas-reconcile-test-"));
   const canvasId = "33333333-3333-4333-8333-333333333333";
   const revisionId = "44444444-4444-4444-8444-444444444444";
   const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
@@ -1564,7 +1564,7 @@ test("cloud Canvas save reconciles latest when both completion responses are los
 });
 
 test("a failed first Cloud Canvas save is moved to recoverable Trash", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-create-save-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-create-save-test-"));
   const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}) });
   const canvasId = "55555555-5555-4555-8555-555555555555";
   let trashed = null;
@@ -1589,9 +1589,9 @@ test("a failed first Cloud Canvas save is moved to recoverable Trash", async () 
 });
 
 test("Cloud Canvas loading downloads one verified bundle and preserves asset order", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cloud-parallel-load-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cloud-parallel-load-test-"));
   const originalFetch = global.fetch;
-  const origin = "https://penecho.ai";
+  const origin = "https://fastlectures.ai";
   const connector = new CloudConnector({ stateDir, executeRequest: async () => ({}) });
   connector.writeConfiguration({ version: 2, origin, accountToken: "parallel-load-account-token" });
   const assetCount = 12;
@@ -1599,7 +1599,7 @@ test("Cloud Canvas loading downloads one verified bundle and preserves asset ord
     bundleVersion: 2,
     mode: "snapshot",
     formatVersion: 1,
-    manifest: { format: "penecho-raster-tiles", formatVersion: 1 },
+    manifest: { format: "fastlectures-raster-tiles", formatVersion: 1 },
     assets: Array.from({ length: assetCount }, (_, index) => ({
       kind: "tile",
       contentType: "image/webp",
@@ -1644,7 +1644,7 @@ test("Cloud Canvas loading downloads one verified bundle and preserves asset ord
 });
 
 test("cloud relay advertises and isolates MCP channel operations", async () => {
-  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-cloud-mcp-test-"));
+  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-cloud-mcp-test-"));
   try {
     const calls=[], connector=new CloudConnector({stateDir,executeRequest:async()=>assert.fail("MCP reached AI executor"),executeHttpRequest:async()=>assert.fail("MCP reached HTTP executor"),executeMcpRequest:async payload=>{calls.push(payload);return {channelId:"test-channel"};}});
     assert.equal(connector.capabilities.mcp,true);
@@ -1660,11 +1660,11 @@ test("cloud relay advertises and isolates MCP channel operations", async () => {
 });
 
 test('Cloud MCP auto-links a signed-in host once and never returns device credentials to the browser',async t=>{
-  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),'penecho-one-click-'));
+  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),'fastlectures-one-click-'));
   const connector=new CloudConnector({stateDir,executeRequest:async()=>({})});
   t.after(()=>{connector.close();fs.rmSync(stateDir,{recursive:true,force:true});});
   await assert.rejects(connector.enableLinkedDevice(),error=>error.code==='cloud_sign_in_required');
-  connector.writeConfiguration({origin:'https://penecho.test',accountToken:'account-test',accountExpiresAt:new Date(Date.now()+3600000).toISOString()});
+  connector.writeConfiguration({origin:'https://fastlectures.test',accountToken:'account-test',accountExpiresAt:new Date(Date.now()+3600000).toISOString()});
   connector.connect=()=>{connector.connectionState='connected';};connector.refreshAccount=async()=>connector.status();
   const requests=[];
   t.mock.method(global,'fetch',async(url,options)=>{
@@ -1672,7 +1672,7 @@ test('Cloud MCP auto-links a signed-in host once and never returns device creden
     return new Response(JSON.stringify({token:'private-device-token',device:{id:'device-id',name:'This host',platform:'test'}}),{status:201});
   });
   await Promise.all([connector.enableLinkedDevice(),connector.enableLinkedDevice()]);
-  assert.equal(requests.length,1);assert.equal(requests[0].url,'https://penecho.test/api/v1/device/link');assert.equal(requests[0].body.code,undefined);
+  assert.equal(requests.length,1);assert.equal(requests[0].url,'https://fastlectures.test/api/v1/device/link');assert.equal(requests[0].body.code,undefined);
   assert.equal(connector.status().cloudMcpEnabled,true,'Enable link includes Cloud MCP without a second settings action');
   assert.equal(requests[0].authorization,'Bearer account-test');assert.equal(requests[0].body.deviceToken,undefined);
   await connector.setCloudMcpAccess(true);assert.equal(requests.length,1);assert.equal(connector.status().cloudMcpEnabled,true);
@@ -1687,10 +1687,10 @@ test('Cloud MCP auto-links a signed-in host once and never returns device creden
 });
 
 test('explicit Linked Device enable repairs a disabled Cloud MCP route, but a later MCP disable wins',async t=>{
-  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),'penecho-link-mcp-'));
+  const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),'fastlectures-link-mcp-'));
   const connector=new CloudConnector({stateDir,executeRequest:async()=>({})});
   t.after(()=>{connector.close();fs.rmSync(stateDir,{recursive:true,force:true});});
-  connector.writeConfiguration({origin:'https://penecho.test',accountToken:'account-test',accountExpiresAt:new Date(Date.now()+3600000).toISOString(),enabled:true,deviceToken:'saved-device',deviceId:'saved-id',cloudMcpEnabled:false});
+  connector.writeConfiguration({origin:'https://fastlectures.test',accountToken:'account-test',accountExpiresAt:new Date(Date.now()+3600000).toISOString(),enabled:true,deviceToken:'saved-device',deviceId:'saved-id',cloudMcpEnabled:false});
   connector.connect=()=>{connector.connectionState='connected';};connector.refreshAccount=async()=>connector.status();
   let release,entered;
   const gate=new Promise(resolve=>release=resolve),started=new Promise(resolve=>entered=resolve);

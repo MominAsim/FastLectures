@@ -41,7 +41,7 @@
     },
     "toolCalls": [
       {
-        "name": "penecho_draw",
+        "name": "fastlectures_draw",
         "arguments": {
           "artifactId": "hello-box",
           "items": [
@@ -73,7 +73,7 @@
         }
       },
       {
-        "name": "penecho_edit_canvas",
+        "name": "fastlectures_edit_canvas",
         "arguments": {
           "action": "move",
           "baseRevision": 1,

@@ -20,7 +20,7 @@ async function prepareUploadedImage(bytes,name,{signal}={}) {
   signal?.throwIfAborted();
   const type=rasterType(bytes);
   let sharp;
-  try { sharp=require('sharp'); } catch { throw fail('image_encoder_unavailable','Server image encoder is unavailable; reinstall PenEcho to restore its image dependencies',503); }
+  try { sharp=require('sharp'); } catch { throw fail('image_encoder_unavailable','Server image encoder is unavailable; reinstall FastLectures to restore its image dependencies',503); }
   const inputSha256=crypto.createHash('sha256').update(bytes).digest('hex');
   const run=async fn=>{
     signal?.throwIfAborted();

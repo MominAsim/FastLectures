@@ -73,7 +73,7 @@ function attachCanvasAgent({ server, authorize, resolveConnection, prepareConnec
   async function executeRemote(input) {
     const operation = String(input?.operation || "");
     if (operation === "canvas.agent.open") {
-      if (remoteChannels.size >= MAX_REMOTE_AGENT_CHANNELS) throw Object.assign(new Error("Too many remote PenEcho Agent sessions are open."), { code:"canvas_agent_limit" });
+      if (remoteChannels.size >= MAX_REMOTE_AGENT_CHANNELS) throw Object.assign(new Error("Too many remote FastLectures Agent sessions are open."), { code:"canvas_agent_limit" });
       const id = randomUUID(), channel = { id, frames:[], waiter:null, expiryTimer:null, closed:false, peer:null };
       channel.peer = await createPeer({
         sendFrame:frame => { if (!channel.closed) { channel.frames.push(frame); touchRemoteChannel(channel); wakeRemoteChannel(channel); } },
@@ -84,17 +84,17 @@ function attachCanvasAgent({ server, authorize, resolveConnection, prepareConnec
       return { channelId:id };
     }
     const channel = remoteChannels.get(String(input?.channelId || ""));
-    if (!channel) throw Object.assign(new Error("Remote PenEcho Agent session was not found."), { code:"canvas_agent_session" });
+    if (!channel) throw Object.assign(new Error("Remote FastLectures Agent session was not found."), { code:"canvas_agent_session" });
     touchRemoteChannel(channel);
     if (operation === "canvas.agent.frame") {
       const frame = String(input?.frame || "");
-      if (!frame || Buffer.byteLength(frame) > MAX_AGENT_FRAME_BYTES) throw Object.assign(new Error("Remote PenEcho Agent frame is invalid."), { code:"canvas_agent_frame" });
+      if (!frame || Buffer.byteLength(frame) > MAX_AGENT_FRAME_BYTES) throw Object.assign(new Error("Remote FastLectures Agent frame is invalid."), { code:"canvas_agent_frame" });
       await channel.peer.receive(frame);
       return { accepted:true };
     }
     if (operation === "canvas.agent.pull") {
       if (channel.frames.length || channel.closed) return drainRemoteChannel(channel);
-      if (channel.waiter) throw Object.assign(new Error("A Remote PenEcho Agent poll is already pending."), { code:"canvas_agent_poll_conflict" });
+      if (channel.waiter) throw Object.assign(new Error("A Remote FastLectures Agent poll is already pending."), { code:"canvas_agent_poll_conflict" });
       return new Promise(resolve => {
         const timer = setTimeout(() => { if (channel.waiter?.timer !== timer) return; channel.waiter = null; resolve({ frames:[], closed:false }); }, REMOTE_AGENT_POLL_MS);
         timer.unref?.();
@@ -102,7 +102,7 @@ function attachCanvasAgent({ server, authorize, resolveConnection, prepareConnec
       });
     }
     if (operation === "canvas.agent.close") return { closed:await closeRemoteChannel(channel.id) };
-    throw Object.assign(new Error("Remote PenEcho Agent operation is invalid."), { code:"canvas_agent_operation" });
+    throw Object.assign(new Error("Remote FastLectures Agent operation is invalid."), { code:"canvas_agent_operation" });
   }
 
   const upgrade = (req, socket, head) => {
@@ -125,14 +125,14 @@ function attachCanvasAgent({ server, authorize, resolveConnection, prepareConnec
     const peerPromise = createPeer({ sendFrame:frame => { if (ws.readyState === WebSocket.OPEN) ws.send(frame); }, closeTransport:(code, reason) => ws.close(code, reason) });
     let delivery = Promise.resolve();
     ws.on("message", raw => {
-      if (pending.length >= 64) return ws.close(1009, "Too many pending PenEcho Agent frames");
+      if (pending.length >= 64) return ws.close(1009, "Too many pending FastLectures Agent frames");
       pending.push(raw);
       delivery = delivery.then(async () => {
         const peer = await peerPromise;
         while (pending.length && !closed) await peer.receive(pending.shift());
       }).catch(error => {
         logger({ type:"canvas-agent-peer-error", error:String(error?.message || error) });
-        if (ws.readyState === WebSocket.OPEN) ws.close(1011, "PenEcho Agent unavailable");
+        if (ws.readyState === WebSocket.OPEN) ws.close(1011, "FastLectures Agent unavailable");
       });
     });
     ws.on("close", () => { closed = true; void peerPromise.then(peer => peer.disconnect()).catch(() => {}); });
@@ -147,7 +147,7 @@ function attachCanvasAgent({ server, authorize, resolveConnection, prepareConnec
     },
     async close() {
       server.off("upgrade", upgrade);
-      for (const client of wss.clients) client.close(1001, "PenEcho server closing");
+      for (const client of wss.clients) client.close(1001, "FastLectures server closing");
       for (const channelId of [...remoteChannels.keys()]) await closeRemoteChannel(channelId);
       for (const peer of [...peers]) await peer.disconnect();
       await new Promise(resolve => wss.close(resolve));

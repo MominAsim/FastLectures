@@ -10,7 +10,7 @@ test("Agent create schemas distinguish ordinary HTML, Visual Explorer, and priva
   const valid = value => assert.deepEqual(validateJsonSchemaValue(schema, value), []);
   const invalid = value => assert.notEqual(validateJsonSchemaValue(schema, value).length, 0);
   const plain = { type:"widget", pluginId:"general", widgetType:"html_widget", title:"Tool", html:"<!doctype html><p>Hello</p>" };
-  const explorer = { ...plain, sourceFormat:"penecho-visual-explorer+html", frameworkVersion:"penecho-visual-explorer/1", refreshSeconds:0, width:640, height:480, placement:{mode:"auto"} };
+  const explorer = { ...plain, sourceFormat:"fastlectures-visual-explorer+html", frameworkVersion:"fastlectures-visual-explorer/1", refreshSeconds:0, width:640, height:480, placement:{mode:"auto"} };
   const privateWidget = { ...plain, pluginId:"private-tool", sourceFormat:"custom-format", frameworkVersion:"custom/1" };
   for (const value of [plain, explorer, privateWidget, {...explorer,placement:{mode:"absolute",x:12,y:34}}, {type:"text",text:"Text"}, {type:"formula",latex:"x"}, {type:"plot",expression:"x"}, {type:"image",attachmentId:"owned-image"}]) {
     valid(value);

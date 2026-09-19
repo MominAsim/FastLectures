@@ -273,7 +273,7 @@ test("canvas connection editor uses editable Kimi and MiniMax presets without co
   assert.match(functionSource(app, "defaultConnectionEffort"), /return "medium"/);
   assert.match(functionSource(app, "fillConnectionEditor"), /connection\?\.effort \|\| defaultConnectionEffort\(provider\)/);
   assert.match(functionSource(app, "testCanvasConnection"), /\/api\/settings\/connections\/test[\s\S]*?settings\.editingConnectionId[\s\S]*?body\?\.installable/);
-  assert.match(functionSource(app, "installCanvasCli"), /penechoDesktop\.installCli\(provider\)[\s\S]*?settingsCliPath\.value = result\.executable[\s\S]*?testCanvasConnection\(\)/);
+  assert.match(functionSource(app, "installCanvasCli"), /fastlecturesDesktop\.installCli\(provider\)[\s\S]*?settingsCliPath\.value = result\.executable[\s\S]*?testCanvasConnection\(\)/);
   assert.match(functionSource(app, "updateSettingsProviderFields"), /inspectCanvasCli\(provider\)/);
   assert.match(functionSource(app, "inspectCanvasCli"), /\/api\/settings\/connections\/inspect-cli[\s\S]*?renderCanvasCliStatus\(body\.status\)/);
   assert.match(functionSource(app, "renderCanvasCliStatus"), /status\.state === "missing"[\s\S]*?showCliCommand\(status\.installCommand\)[\s\S]*?showCliInstaller\(status\.provider, true\)/);
@@ -303,7 +303,7 @@ test("canvas connection editor uses editable Kimi and MiniMax presets without co
   assert.match(html, /id="summonToggleLabel"[^>]*data-i18n="settingsSummonSection"/);
   assert.doesNotMatch(html, /settingsSummonEnabled|settingsSummonDescription/);
   assert.equal((html.match(/class="settings-links"/g) || []).length, 1, "web Settings keeps the download and GitHub links");
-  assert.match(app, /if \(window\.penechoDesktop\) document\.querySelector\("\.settings-links"\)\?\.remove\(\)/);
+  assert.match(app, /if \(window\.fastlecturesDesktop\) document\.querySelector\("\.settings-links"\)\?\.remove\(\)/);
   assert.doesNotMatch(css, /body\[data-theme="(?:studio|research|arcane|scifi)"\] \.settings-panel/);
   for (const key of ["settingsApiRegion", "settingsApiService", "settingsApiServiceCoding"]) {
     assert.match(app, new RegExp(`${key}:`));
@@ -569,11 +569,11 @@ test("Select exposes one focused object toolbar, drags from its surface, and exp
   assert.match(refineClickPulse, /WIDGET_REFINE_CLICK_PULSE_MS[\s\S]*?Math\.sin\(progress \* Math\.PI \* 2\) \*\* 2[\s\S]*?strokeWidgetRefineOutline[\s\S]*?requestInteractionLayerRender\(\)/);
   assert.match(functionSource(app, "renderInteractionLayer"), /drawWidgetRefineButtonHoverOutline\(interactionCtx\)[\s\S]*?drawWidgetRefineClickPulse\(interactionCtx\)/);
   assert.doesNotMatch(functionSource(app, "renderInteractionLayer"), /drawHandModeOutlines/);
-  assert.match(createChromeButton, /kind === "refine"\) triggerWidgetRefineClickPulse\(button\.penechoSpec\?\.refineCandidate\?\.widgetId\)[\s\S]*?button\.penechoSpec\?\.activate/);
+  assert.match(createChromeButton, /kind === "refine"\) triggerWidgetRefineClickPulse\(button\.fastlecturesSpec\?\.refineCandidate\?\.widgetId\)[\s\S]*?button\.fastlecturesSpec\?\.activate/);
   assert.match(createChromeButton, /pointerdown[\s\S]*?preventDefault\(\)[\s\S]*?stopPropagation\(\)[\s\S]*?setPointerCapture/);
   assert.match(createChromeButton, /pointerenter[\s\S]*?state\.widgetRefineButtonHoverId = candidate\.widgetId[\s\S]*?requestInteractionLayerRender\(\)/);
   assert.match(createChromeButton, /pointerleave[\s\S]*?state\.widgetRefineButtonHoverId = null[\s\S]*?requestInteractionLayerRender\(\)/);
-  assert.match(syncChrome, /button\.penechoSpec\?\.kind === "refine"[\s\S]*?state\.widgetRefineButtonHoverId = null[\s\S]*?removedHoveredRefineButton[\s\S]*?requestInteractionLayerRender\(\)/);
+  assert.match(syncChrome, /button\.fastlecturesSpec\?\.kind === "refine"[\s\S]*?state\.widgetRefineButtonHoverId = null[\s\S]*?removedHoveredRefineButton[\s\S]*?requestInteractionLayerRender\(\)/);
   assert.match(app, /overChromeControl = event\.target\?\.closest\?\.\("\.object-chrome-button, \.widget-refine-confirmation"\)[\s\S]*?!overChromeControl\) updateWidgetRefinePointer/);
   assert.match(html, /id="objectChromeLayer" class="object-chrome-layer"/);
   assert.match(css, /\.canvas-widget-frame\s*\{[^}]*pointer-events:\s*none/);
@@ -637,10 +637,10 @@ test("switching from Pen to Eraser finalizes a pending widget regardless of revi
     storedEraserMode = null;
   vm.runInNewContext(`(${setCanvasMode})("area-eraser")`, {
     state,
-    ERASER_MODE_STORAGE_KEY:"penecho-eraser-mode",
+    ERASER_MODE_STORAGE_KEY:"fastlectures-eraser-mode",
     localStorage:{
       setItem:(key, value) => {
-        assert.equal(key, "penecho-eraser-mode");
+        assert.equal(key, "fastlectures-eraser-mode");
         storedEraserMode = value;
       },
     },
@@ -700,7 +700,7 @@ test("contextual Canvas hints share one quiet application-footer line by priorit
   assert.match(css, /\.text-input-hint kbd\s*\{[^}]*padding:\s*0;[^}]*color:\s*inherit;[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*font:\s*inherit/);
   assert.match(css, /\.canvas-hint\s*\{[^}]*max-width:\s*min\(440px, 50vw\)[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/);
   assert.match(css, /main:has\(#viewport:is\(\.is-navigating, \.navigation-locked\)\) \.canvas-hint,[\s\S]*?main:has\(\.text-input-hint:not\(\[hidden\]\)\) #pageHintSlot :is\(#tip, \.canvas-navigation-lock-hint, \.canvas-hint\)\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0/);
-  assert.match(css, /main > footer\.penecho-desktop-update-visible \.page-hint-slot\s*\{\s*display:\s*none/);
+  assert.match(css, /main > footer\.fastlectures-desktop-update-visible \.page-hint-slot\s*\{\s*display:\s*none/);
   assert.doesNotMatch(css, /canvasHintSettle|\.canvas-hint\.is-new\s*\{[^}]*animation|\.page-hint-slot[^}]*text-shadow|\.canvas-hint\.two-line/);
   assert.doesNotMatch(app, /fitCanvasHint|canvasHintResizeScheduled|classList\.(?:add|remove)\("two-line"\)/);
   assert.doesNotMatch(css, /studio-agent-launcher-floating [^{]*(?:\.canvas-hint|#tip|\.canvas-navigation-lock-hint|\.text-input-hint)/);
@@ -742,15 +742,15 @@ test("widget shadows are an optional device display preference", () => {
     mergeImage = functionSource(app, "mergeImage");
   assert.match(html, /id="settingsWidgetShadowToggle" class="settings-switch"[^>]*aria-checked="false"/);
   assert.doesNotMatch(html, /id="settingsWidgetShadowToggle" class="settings-switch on"/);
-  assert.match(app, /storedWidgetShadowEnabled = localStorage\.getItem\("penecho-widget-shadow"\)[\s\S]*?initialWidgetShadowEnabled = storedWidgetShadowEnabled === "true"/);
-  assert.match(setter, /localStorage\.setItem\("penecho-widget-shadow"[\s\S]*?view\.classList\.toggle\("widget-shadows"[\s\S]*?requestRender\(\)/);
+  assert.match(app, /storedWidgetShadowEnabled = localStorage\.getItem\("fastlectures-widget-shadow"\)[\s\S]*?initialWidgetShadowEnabled = storedWidgetShadowEnabled === "true"/);
+  assert.match(setter, /localStorage\.setItem\("fastlectures-widget-shadow"[\s\S]*?view\.classList\.toggle\("widget-shadows"[\s\S]*?requestRender\(\)/);
   assert.match(css, /#viewport\.widget-shadows \.canvas-widget\s*\{[^}]*box-shadow:[^}]*0 1px 2px[^}]*0 7px 16px[^}]*0 22px 46px/);
   assert.match(drawImages, /withShadow = false[\s\S]*?shadowColor = "rgba\(15, 23, 42, \.24\)"[\s\S]*?shadowBlur = 18[\s\S]*?shadowOffsetY = 7[\s\S]*?drawImage[\s\S]*?restore/);
   assert.match(functionSource(app, "renderPlacedContentLayer"), /drawPlacedCanvasObjectsToContext\(placedContentCtx, visible, state\.widgetShadowEnabled\)/);
   assert.doesNotMatch(mergeImage, /shadow(?:Color|Blur|Offset)|widgetShadowEnabled/);
 });
 
-test("PenEcho Agent auto-open is a default-on canvas preference", () => {
+test("FastLectures Agent auto-open is a default-on canvas preference", () => {
   const app = read("public/app.js"),
     html = read("public/index.html"),
     zh = read("public/locales/zh.js"),
@@ -758,14 +758,14 @@ test("PenEcho Agent auto-open is a default-on canvas preference", () => {
     setter = functionSource(app, "setCanvasAgentAutoOpen");
   assert.match(html, /id="settingsCanvasAgentAutoOpenToggle" class="settings-switch on"[^>]*aria-checked="true"/);
   assert.match(html, /id="settingsCanvasAgentAutoOpenLabel"[^>]*data-i18n="settingsCanvasAgentAutoOpen"/);
-  assert.match(app, /storedCanvasAgentAutoOpen = localStorage\.getItem\("penecho-canvas-agent-auto-open"\)/);
+  assert.match(app, /storedCanvasAgentAutoOpen = localStorage\.getItem\("fastlectures-canvas-agent-auto-open"\)/);
   assert.match(app, /storedCanvasAgentAutoOpen === null \? configuredCanvasAgentAutoOpen !== false : storedCanvasAgentAutoOpen === "true"/);
-  assert.match(setter, /localStorage\.setItem\("penecho-canvas-agent-auto-open"[\s\S]*?aria-checked/);
-  assert.match(app, /settingsCanvasAgentAutoOpen: "Open PenEcho Agent with each canvas"/);
-  assert.match(zh, /settingsCanvasAgentAutoOpen: "打开画布时自动打开 PenEcho Agent"/);
+  assert.match(setter, /localStorage\.setItem\("fastlectures-canvas-agent-auto-open"[\s\S]*?aria-checked/);
+  assert.match(app, /settingsCanvasAgentAutoOpen: "Open FastLectures Agent with each canvas"/);
+  assert.match(zh, /settingsCanvasAgentAutoOpen: "打开画布时自动打开 FastLectures Agent"/);
   let openCount = 0, shellOpen = false, mcpDocked = false;
   const context = {
-    window:{PenEchoStudioNavigator:{isMcpDocked:()=>mcpDocked}},
+    window:{FastLecturesStudioNavigator:{isMcpDocked:()=>mcpDocked}},
     canvasAgent:{ socket:null, connectPromise:null }, state:{ canvasAgentAutoOpen:false }, canvasAgentPanel:{ hidden:true }, WebSocket:{ OPEN:1 },
     mcpDisconnect:()=>{},
     document:{ body:{ classList:{ contains:() => shellOpen } } },
@@ -840,7 +840,7 @@ test("stylus eraser ends and Apple Pencil bridge actions preserve Canvas tool se
   assert.match(beginPointer, /const erasing = forceEraser \|\| state\.mode === "eraser"/);
   assert.ok(pointerDown.indexOf("canvasPenEraserActive(e)") < pointerDown.indexOf('if (state.mode === "select"'));
   assert.match(pointerDown, /const input = captureDrawingInput\(e\)[\s\S]*?beginCanvasPointerAction\(e, input\.point, \{ forceEraser:true, inputTransform:input\.inputTransform \}\)/);
-  assert.match(app, /window\.addEventListener\("penecho:pencil-action"[\s\S]*?performCanvasPencilAction\(event\.detail\?\.action\)/);
+  assert.match(app, /window\.addEventListener\("fastlectures:pencil-action"[\s\S]*?performCanvasPencilAction\(event\.detail\?\.action\)/);
   const beginTemporaryEraser = vm.runInNewContext(`(${beginPointer})`, {
     state:pointerState,
     view:{ classList:{ add() {} } },
@@ -917,7 +917,7 @@ test("clicking eraser switches its current mode and shows two auto-closing choic
   assert.match(css, /data-active-eraser="eraser"\][^\{]*data-eraser-icon="freehand"[\s\S]*?data-active-eraser="area-eraser"\][^\{]*data-eraser-icon="area"[^\{]*\{\s*display:\s*block/);
   assert.match(functionSource(app, "updateEraserToolUI"), /dataset\.activeEraser = state\.eraserMode/);
   assert.doesNotMatch(functionSource(app, "updateEraserToolUI"), /toggleAttribute\("hidden"/);
-  assert.match(app, /ERASER_MODE_STORAGE_KEY = "penecho-eraser-mode"[\s\S]*?storedEraserMode = localStorage\.getItem\(ERASER_MODE_STORAGE_KEY\)/);
+  assert.match(app, /ERASER_MODE_STORAGE_KEY = "fastlectures-eraser-mode"[\s\S]*?storedEraserMode = localStorage\.getItem\(ERASER_MODE_STORAGE_KEY\)/);
   assert.match(app, /initialEraserMode = \["eraser", "area-eraser"\]\.includes\(storedEraserMode\) \? storedEraserMode : "eraser"[\s\S]*?eraserMode: initialEraserMode/);
   assert.match(functionSource(app, "setCanvasMode"), /state\.eraserMode = mode;[\s\S]*?localStorage\.setItem\(ERASER_MODE_STORAGE_KEY, mode\)/);
   assert.doesNotMatch(startBlankCanvas, /eraserMode|ERASER_MODE_STORAGE_KEY/);
@@ -1173,7 +1173,7 @@ test("Canvas chrome uses one drawing and navigation cooldown before restoring st
       performance:{ now:() => navigationNow }, navigationState,
       state:navigationState,
       noteCanvasChromeInteraction() {},
-      window:{PenEchoStudioNavigator:{flushMcpFollow(){followFlushes++;}}},
+      window:{FastLecturesStudioNavigator:{flushMcpFollow(){followFlushes++;}}},
       view:{ classList:{
         add(value) { navigationClasses.add(value); },
         remove(value) { navigationClasses.delete(value); },
@@ -1243,7 +1243,7 @@ test("canvas navigation lock freezes only the outer view and leaves locked widge
   assert.doesNotMatch(pinch, /requestRender\(/);
   assert.doesNotMatch(pinch, /\brender\(\)/);
   assert.match(hostState, /navigationLocked:state\.navigationLocked/);
-  assert.doesNotMatch(host, /addEventListener\("wheel"|penecho-widget-wheel|penecho-widget-pan-(?:start|move|end)/);
+  assert.doesNotMatch(host, /addEventListener\("wheel"|fastlectures-widget-wheel|fastlectures-widget-pan-(?:start|move|end)/);
   assert.match(host, /press\.pointerType === "touch"\) pointerMessage\(TOUCH_END/);
   assert.match(host, /press\.pointerType === "touch"\) \{[\s\S]*?pointerMessage\(TOUCH_START/);
   assert.doesNotMatch(host, /press\.pointerType === "touch" && !widgetState\.navigationLocked/);
@@ -1376,7 +1376,7 @@ test("plugin manager is a centered dynamic catalog with General HTML and bundled
   assert.match(app, /BUILTIN_PLUGIN_DEFINITIONS\s*=\s*Object\.freeze\(\[\]\)/);
   assert.doesNotMatch(app, /documentPath:\s*"plugins\/weather\.md"/);
   const loadPluginDocuments = functionSource(app, "loadPluginDocuments");
-  assert.match(loadPluginDocuments, /nativeCloudCanvasReadsEnabled = window\.PENECHO_CONFIG\?\.runtime === "cloud" && window\.PENECHO_CONFIG\?\.remoteCanvasNativeReads === true[\s\S]*?catalogRequests = nativeCloudCanvasReadsEnabled[\s\S]*?path:"\/api\/plugins", cache:"default"[\s\S]*?path:"\/api\/plugins\?scope=private", cache:"no-store"[\s\S]*?optional:true[\s\S]*?: \[\{ path:"\/api\/plugins", cache:"no-store", accept:\(\) => true \}\][\s\S]*?if \(!request\.optional\) throw error[\s\S]*?catalog:\{ plugins:\[\] \}[\s\S]*?defaultEnabled:\["general", "flowchart"\]\.includes\(item\.manifest\.id\)[\s\S]*?professionalDefinitions = definitions\.filter\(\(definition\) => definition\.id === "flowchart"\)[\s\S]*?promotedDefinitions = \["image-search", "weather"\][\s\S]*?PLUGIN_DEFINITIONS\.splice\(0, PLUGIN_DEFINITIONS\.length, \.\.\.generalDefinitions, \.\.\.professionalDefinitions, \.\.\.BUILTIN_PLUGIN_DEFINITIONS, \.\.\.promotedDefinitions, \.\.\.remainingDefinitions\)/);
+  assert.match(loadPluginDocuments, /nativeCloudCanvasReadsEnabled = window\.FASTLECTURES_CONFIG\?\.runtime === "cloud" && window\.FASTLECTURES_CONFIG\?\.remoteCanvasNativeReads === true[\s\S]*?catalogRequests = nativeCloudCanvasReadsEnabled[\s\S]*?path:"\/api\/plugins", cache:"default"[\s\S]*?path:"\/api\/plugins\?scope=private", cache:"no-store"[\s\S]*?optional:true[\s\S]*?: \[\{ path:"\/api\/plugins", cache:"no-store", accept:\(\) => true \}\][\s\S]*?if \(!request\.optional\) throw error[\s\S]*?catalog:\{ plugins:\[\] \}[\s\S]*?defaultEnabled:\["general", "flowchart"\]\.includes\(item\.manifest\.id\)[\s\S]*?professionalDefinitions = definitions\.filter\(\(definition\) => definition\.id === "flowchart"\)[\s\S]*?promotedDefinitions = \["image-search", "weather"\][\s\S]*?PLUGIN_DEFINITIONS\.splice\(0, PLUGIN_DEFINITIONS\.length, \.\.\.generalDefinitions, \.\.\.professionalDefinitions, \.\.\.BUILTIN_PLUGIN_DEFINITIONS, \.\.\.promotedDefinitions, \.\.\.remainingDefinitions\)/);
   const enabledPluginDescriptors = functionSource(app, "enabledPluginDescriptors");
   assert.match(enabledPluginDescriptors, /id === "general" \? 0 : id === "flowchart" \? 1 : 2/);
   assert.doesNotMatch(enabledPluginDescriptors, /styles/);
@@ -1385,12 +1385,12 @@ test("plugin manager is a centered dynamic catalog with General HTML and bundled
   assert.match(app, /applyTheme\(state\.theme\);\s*applyStudioPalette\(state\.studioPalette\);\s*applyPageScale\(state\.pageScale\);\s*resetCanvasCursor\(\);\s*loadPluginDocuments\(\)\.catch/);
   assert.match(app, /function pluginRequestPayload\(\)/);
   assert.match(app, /\.\.\.pluginRequestPayload\(\)/);
-  assert.match(app, /function authenticatedApiHeaders\([\s\S]*?X-PenEcho-Session/);
-  assert.match(app, /AI_CONNECTION_STORAGE_KEY = "penecho-ai-connection-id"/);
+  assert.match(app, /function authenticatedApiHeaders\([\s\S]*?X-FastLectures-Session/);
+  assert.match(app, /AI_CONNECTION_STORAGE_KEY = "fastlectures-ai-connection-id"/);
   assert.match(functionSource(app, "canvasClientId"), /crypto\.getRandomValues\(new Uint8Array\(16\)\)/);
   assert.match(app, /AI_CLIENT_ID = canvasClientId\(\)/);
-  assert.match(app, /function authenticatedApiHeaders\([\s\S]*?X-PenEcho-Client/);
-  assert.match(app, /function aiRequestHeaders\([\s\S]*?X-PenEcho-Connection/);
+  assert.match(app, /function authenticatedApiHeaders\([\s\S]*?X-FastLectures-Client/);
+  assert.match(app, /function aiRequestHeaders\([\s\S]*?X-FastLectures-Connection/);
   assert.match(functionSource(app, "readAiCommandResponse"), /application\/x-ndjson[\s\S]*?response\.body\.getReader\(\)[\s\S]*?event\?\.type\s*===\s*"progress"[\s\S]*?onActivity[\s\S]*?terminal\.type\s*===\s*"result"/);
   assert.match(functionSource(app, "applyAiProgress"), /run\.superseded\|\|state\.activeAI!==run[\s\S]*?setStatus\(text,AI_PROGRESS_STATUS_KEYS\[event\.phase\]\)/);
   assert.match(functionSource(app, "applyAiProgress"), /event\?\.phase==="waiting"[\s\S]*?\["retrying","image-fallback"\]/);
@@ -1541,7 +1541,7 @@ test("simple native draw is loaded and rendered without enabling legacy animatio
     validate = functionSource(app, "validate"),
     prepare = functionSource(app, "preparePendingItem");
   assert.match(html, /<script src="draw\.js"><\/script>[\s\S]*?<script src="app\.js"><\/script>/);
-  assert.match(app, /const DRAW = window\.PENECHO_DRAW/);
+  assert.match(app, /const DRAW = window\.FASTLECTURES_DRAW/);
   assert.match(validate, /acceptedTools = \["write_text", "draw_formula", "plot_function", "draw", "erase"\]/);
   assert.match(validate, /c\.tool === "draw"[\s\S]*?DRAW\?\.normalize\(c, SIZE\)/);
   assert.match(prepare, /c\.tool === "draw"[\s\S]*?DRAW\.render\(c, offscreen, c\.color\)/);
@@ -1754,14 +1754,14 @@ test("the public Viewer camera fits every object in a restored Canvas", () => {
 
 test("animation defaults on without overriding an explicitly disabled plugin choice", () => {
   const storedPluginSettings = vm.runInNewContext(`(${functionSource(read("public/app.js"), "storedPluginSettings")})`, {
-      PLUGIN_DEFINITIONS: [{ id: "animation", defaultEnabled: true, legacyStorageKey: "penecho-animation-plugin" }],
-      PLUGIN_STORAGE_KEY: "penecho-plugins",
+      PLUGIN_DEFINITIONS: [{ id: "animation", defaultEnabled: true, legacyStorageKey: "fastlectures-animation-plugin" }],
+      PLUGIN_STORAGE_KEY: "fastlectures-plugins",
       localStorage: { getItem: () => null },
     }),
     explicitlyDisabled = vm.runInNewContext(`(${functionSource(read("public/app.js"), "storedPluginSettings")})`, {
-      PLUGIN_DEFINITIONS: [{ id: "animation", defaultEnabled: true, legacyStorageKey: "penecho-animation-plugin" }],
-      PLUGIN_STORAGE_KEY: "penecho-plugins",
-      localStorage: { getItem: (key) => key === "penecho-plugins" ? '{"animation":false}' : null },
+      PLUGIN_DEFINITIONS: [{ id: "animation", defaultEnabled: true, legacyStorageKey: "fastlectures-animation-plugin" }],
+      PLUGIN_STORAGE_KEY: "fastlectures-plugins",
+      localStorage: { getItem: (key) => key === "fastlectures-plugins" ? '{"animation":false}' : null },
     });
 
   assert.deepEqual({ ...storedPluginSettings() }, { animation:true });
@@ -1771,13 +1771,13 @@ test("animation defaults on without overriding an explicitly disabled plugin cho
 test("general HTML defaults on while preserving an explicit user choice", () => {
   const storedPluginSettings = vm.runInNewContext(`(${functionSource(read("public/app.js"), "storedPluginSettings")})`, {
       PLUGIN_DEFINITIONS: [{ id:"general", defaultEnabled:true }],
-      PLUGIN_STORAGE_KEY: "penecho-plugins",
+      PLUGIN_STORAGE_KEY: "fastlectures-plugins",
       localStorage: { getItem:() => null },
     }),
     explicitlyDisabled = vm.runInNewContext(`(${functionSource(read("public/app.js"), "storedPluginSettings")})`, {
       PLUGIN_DEFINITIONS: [{ id:"general", defaultEnabled:true }],
-      PLUGIN_STORAGE_KEY: "penecho-plugins",
-      localStorage: { getItem:(key) => key === "penecho-plugins" ? '{"general":false}' : null },
+      PLUGIN_STORAGE_KEY: "fastlectures-plugins",
+      localStorage: { getItem:(key) => key === "fastlectures-plugins" ? '{"general":false}' : null },
     });
   assert.deepEqual({ ...storedPluginSettings() }, { general:true });
   assert.deepEqual({ ...explicitlyDisabled() }, { general:false });
@@ -1786,13 +1786,13 @@ test("general HTML defaults on while preserving an explicit user choice", () => 
 test("professional diagrams default on while preserving an explicit user choice", () => {
   const storedPluginSettings = vm.runInNewContext(`(${functionSource(read("public/app.js"), "storedPluginSettings")})`, {
       PLUGIN_DEFINITIONS: [{ id:"flowchart", defaultEnabled:true }],
-      PLUGIN_STORAGE_KEY: "penecho-plugins",
+      PLUGIN_STORAGE_KEY: "fastlectures-plugins",
       localStorage: { getItem:() => null },
     }),
     explicitlyDisabled = vm.runInNewContext(`(${functionSource(read("public/app.js"), "storedPluginSettings")})`, {
       PLUGIN_DEFINITIONS: [{ id:"flowchart", defaultEnabled:true }],
-      PLUGIN_STORAGE_KEY: "penecho-plugins",
-      localStorage: { getItem:(key) => key === "penecho-plugins" ? '{"flowchart":false}' : null },
+      PLUGIN_STORAGE_KEY: "fastlectures-plugins",
+      localStorage: { getItem:(key) => key === "fastlectures-plugins" ? '{"flowchart":false}' : null },
     });
   assert.deepEqual({ ...storedPluginSettings() }, { flowchart:true });
   assert.deepEqual({ ...explicitlyDisabled() }, { flowchart:false });
@@ -1867,7 +1867,7 @@ test("strict CSP dynamic layout uses stylesheet rules instead of element style a
   assert.doesNotMatch(app, /pluginStylesPreview\.srcdoc|<style>\$\{escaped\}/);
   assert.doesNotMatch(html, /id="pluginStylesPreview"[^>]*\ssandbox(?:\s|>)/);
   assert.match(functionSource(app, "updatePluginStylesPreview"), /widget-host\.html/);
-  assert.match(functionSource(app, "handlePluginStylesPreviewMessage"), /penecho-widget-host-ready/);
+  assert.match(functionSource(app, "handlePluginStylesPreviewMessage"), /fastlectures-widget-host-ready/);
   assert.doesNotMatch(widgetHost, /if \(initialized \|\| typeof message\.html/);
 });
 
@@ -2013,8 +2013,8 @@ test("live widgets use native canvas chrome, state-aware iframe gestures, and th
   assert.match(requestSnapshot, /timeoutMs = WIDGET_SNAPSHOT_TIMEOUT_MS[\s\S]*?highResolution = highResolution === true[\s\S]*?if \(widget\.snapshotPromise\)[\s\S]*?widget\.snapshotPromiseHighResolution[\s\S]*?await waitForWidgetSnapshot\(inFlight,signal\)[\s\S]*?widget\.snapshotVersion >= widget\.contentVersion[\s\S]*?widget\.snapshotHighResolution[\s\S]*?widget\.snapshotPromise = snapshotPromise[\s\S]*?widget\.snapshotPromiseHighResolution = highResolution[\s\S]*?widget\.snapshotPromise = null/);
   assert.doesNotMatch(requestSnapshot, /waitForWidgetContent|readyPromise|contentReady|\bfetch\s*\(/);
   assert.match(requestSnapshot, /if \(!widget\.hostReady\)[\s\S]*?widget\.hostReadyPromise[\s\S]*?sendWidgetInit\(widget\)/);
-  assert.match(messageHandler, /penecho-widget-updated[\s\S]*?widget\.contentVersion\+\+/);
-  assert.doesNotMatch(messageHandler, /penecho-widget-updated[\s\S]*?widget\.favorite = false/);
+  assert.match(messageHandler, /fastlectures-widget-updated[\s\S]*?widget\.contentVersion\+\+/);
+  assert.doesNotMatch(messageHandler, /fastlectures-widget-updated[\s\S]*?widget\.favorite = false/);
   assert.doesNotMatch(messageHandler, /removeLocalFavorite|\/api\/favorites|DELETE/);
   const favoriteState = functionSource(app, "setCommunityWidgetFavorite");
   assert.match(favoriteState, /widget\.favorite = favorite[\s\S]*?!favorite[\s\S]*?favoriteArtifactSha256 = ""[\s\S]*?widget\.favoriteBusy = busy === true[\s\S]*?syncObjectChrome\(\)/);
@@ -2026,14 +2026,14 @@ test("live widgets use native canvas chrome, state-aware iframe gestures, and th
   const importWidget = functionSource(app, "importCommunityWidgetArtifact");
   assert.match(importWidget, /delete source\.id[\s\S]*?delete source\.favorite[\s\S]*?favoriteState\?\.selected === true[\s\S]*?source\.favoriteSourceId[\s\S]*?source\.favoriteArtifactSha256[\s\S]*?source\.favoriteCloudId[\s\S]*?source\.favoriteCommunityItemId/);
   assert.match(importWidget, /const widget = widgetRecord\(source\)[\s\S]*?return \{ id:widget\.id, title:widget\.title \}/, "a favorite import keeps its logical source identity but receives a fresh Canvas instance id");
-  assert.match(messageHandler, /penecho-widget-snapshot-error[\s\S]*?console\.warn\("PenEcho widget snapshot failed:"/);
+  assert.match(messageHandler, /fastlectures-widget-snapshot-error[\s\S]*?console\.warn\("FastLectures widget snapshot failed:"/);
   assert.doesNotMatch(messageHandler, /requestWidgetSnapshot/);
   assert.equal((app.match(/requestWidgetSnapshot\(/g) || []).length, 5, "MCP adds one explicit preview-only capture path");
   assert.match(app, /WIDGET_SNAPSHOT_TIMEOUT_MS = 20000,[\s\S]*?WIDGET_HISTORY_SNAPSHOT_WAIT_MS = 3000/);
   assert.doesNotMatch(app, /WIDGET_(?:BACKGROUND_SNAPSHOT_DELAY|SNAPSHOT_CACHE_REFRESH|SNAPSHOT_CACHE_STAGGER)_MS|scheduleWidgetSnapshot|snapshotTimer|snapshotCapturedAt/);
   assert.match(requestSnapshot, /widget\.snapshotPromise = snapshotPromise[\s\S]*?return await snapshotPromise[\s\S]*?widget\.snapshotPromise = null/);
-  assert.match(messageHandler, /penecho-widget-capture-ready[\s\S]*?return/);
-  assert.doesNotMatch(messageHandler, /penecho-widget-snapshot-ready/);
+  assert.match(messageHandler, /fastlectures-widget-capture-ready[\s\S]*?return/);
+  assert.doesNotMatch(messageHandler, /fastlectures-widget-snapshot-ready/);
   assert.match(messageHandler, /const snapshotImage=await decodeWidgetSnapshot[\s\S]*?pending\.signal\?\.aborted[\s\S]*?widget\.contentVersion!==pending\.contentVersion[\s\S]*?widget\.snapshotImage = snapshotImage[\s\S]*?widget\.snapshotHighResolution = pending\.highResolution[\s\S]*?widget\.snapshotVersion = pending\.contentVersion[\s\S]*?pending\.resolve\(widget\.snapshotImage\)/);
   assert.match(capturableWidgets, /visibleWidgets\(region\)[\s\S]*?state\.pendingWidget[\s\S]*?pending\.shell[\s\S]*?return \[\.\.\.widgets, pending\]/);
   assert.match(prepareSnapshots, /highResolution = false[\s\S]*?capturableWidgets\(region\)[\s\S]*?requestWidgetSnapshot\(widget, WIDGET_SNAPSHOT_TIMEOUT_MS, true, signal, highResolution\)[\s\S]*?Promise\.race\([\s\S]*?WIDGET_HISTORY_SNAPSHOT_WAIT_MS[\s\S]*?Boolean\(widget\.snapshotImage\)/);
@@ -2065,7 +2065,7 @@ test("live widgets use native canvas chrome, state-aware iframe gestures, and th
   assert.equal(updateWidgetRenderVisibility(visibilityWidget, 1001, 100), true);
   visibilityState.widgetGesture = null;
   assert.equal(updateWidgetRenderVisibility(visibilityWidget, 1001, 100), false);
-  assert.match(functionSource(app, "sendWidgetHostState"), /active[\s\S]*?penecho-widget-state/);
+  assert.match(functionSource(app, "sendWidgetHostState"), /active[\s\S]*?fastlectures-widget-state/);
   assert.match(css, /\.canvas-widget\s*\{[^}]*contain:\s*layout paint style/);
   assert.doesNotMatch(css, /\.canvas-widget\s*\{[^}]*will-change:\s*transform/);
   assert.match(css, /\.canvas-widget\.widget-offscreen\s*\{[^}]*visibility:\s*hidden/);
@@ -2105,11 +2105,11 @@ test("live widgets use native canvas chrome, state-aware iframe gestures, and th
   assert.match(pointerDown, /state\.pointers\.set[\s\S]*?beginHandObjectResize\(e, handPoint\)[\s\S]*?beginHandObjectFocus\(e, handPoint\)/);
   assert.match(pointerMove, /Number\(e\.buttons\) === 0[\s\S]*?syncWidgetResizeCursor\(point, e\.pointerType\)/);
   assert.match(functionSource(widgetHost, "controlHit"), /rightDistance[\s\S]*?bottomDistance[\s\S]*?return "resize"[\s\S]*?return "width"[\s\S]*?return "height"/);
-  assert.match(widgetHost, /RESIZE_CURSOR_CLASSES = \["penecho-widget-resize-width", "penecho-widget-resize-height", "penecho-widget-resize-corner"\]/);
+  assert.match(widgetHost, /RESIZE_CURSOR_CLASSES = \["fastlectures-widget-resize-width", "fastlectures-widget-resize-height", "fastlectures-widget-resize-corner"\]/);
   assert.match(functionSource(widgetHost, "setControlCursor"), /classList\.remove\(className\)[\s\S]*?classList\.add\(RESIZE_CURSOR_CLASSES\[0\]\)[\s\S]*?classList\.add\(RESIZE_CURSOR_CLASSES\[1\]\)[\s\S]*?classList\.add\(RESIZE_CURSOR_CLASSES\[2\]\)/);
-  assert.match(widgetHost, /penecho-widget-resize-width[^}]*cursor:ew-resize!important[\s\S]*?penecho-widget-resize-height[^}]*cursor:ns-resize!important[\s\S]*?penecho-widget-resize-corner[^}]*cursor:nwse-resize!important/);
-  assert.doesNotMatch(messageHandler, /penecho-widget-copy-source/);
-  assert.match(functionSource(app, "sendWidgetHostState"), /selected[\s\S]*?penecho-widget-state[\s\S]*?scaleX[\s\S]*?scaleY/);
+  assert.match(widgetHost, /fastlectures-widget-resize-width[^}]*cursor:ew-resize!important[\s\S]*?fastlectures-widget-resize-height[^}]*cursor:ns-resize!important[\s\S]*?fastlectures-widget-resize-corner[^}]*cursor:nwse-resize!important/);
+  assert.doesNotMatch(messageHandler, /fastlectures-widget-copy-source/);
+  assert.match(functionSource(app, "sendWidgetHostState"), /selected[\s\S]*?fastlectures-widget-state[\s\S]*?scaleX[\s\S]*?scaleY/);
   assert.match(functionSource(app, "beginWidgetHostDrag"), /state\.handWidgetPointerIds[\s\S]*?source:"widget-host"[\s\S]*?hit:message\.hit[\s\S]*?startPoint:clientPoint/);
   const widgetStackState = {
       widgets:[
@@ -2398,7 +2398,7 @@ test("text stays above placed objects while selected Widgets temporarily cover i
   assert.match(functionSource(app, "cancelImageEdit"), /setImageStackIndex\(item, edit\.beforeIndex\)[\s\S]*?restoreCanvasObjectFrontKinds\(edit\.beforeFrontCanvasObjectKind, edit\.beforeFrontPlacedCanvasObjectKind\)/);
   assert.match(functionSource(app, "editTextBox"), /bringTextBoxToFront\(item\)[\s\S]*?state\.selectedTextBoxId = item\.id/);
   assert.match(functionSource(app, "focusTextEditor"), /setCanvasObjectFrontKind\("text-box"\)[\s\S]*?state\.activeTextEditorId/);
-  assert.match(widgetHost, /addEventListener\("pointerdown"[\s\S]*?event\.pointerType !== "touch" && !hit[\s\S]*?type:"penecho-widget-activate"[\s\S]*?\{ capture:true, passive:false \}/,
+  assert.match(widgetHost, /addEventListener\("pointerdown"[\s\S]*?event\.pointerType !== "touch" && !hit[\s\S]*?type:"fastlectures-widget-activate"[\s\S]*?\{ capture:true, passive:false \}/,
     "captured Widget activation must also see clicks that originate in text inputs");
   assert.doesNotMatch(functionSource(app, "syncCanvasObjectLayerOrder"), /append|appendChild|insertBefore/, "layer changes must not reparent Widget iframes");
 });
@@ -2451,7 +2451,7 @@ test("widget AI refinement is discoverable near ink and replaces only its locked
   assert.match(functionSource(app, "widgetRefineHintVisible"), /widgetRefineHintHovered\(candidate\) \|\| candidate\.hintUntil > Date\.now\(\)/);
   assert.match(functionSource(app, "confirmTextEditor"), /latchWidgetRefineCandidate\(item, "text-box"\)[\s\S]*?!refineCandidate\) schedule/);
   assert.doesNotMatch(app, /function finishTextBoxChromeGesture\(|function updateTextBoxChromeGesture\(|textBoxGesture/);
-  assert.doesNotMatch(read("public/widget-host.js"), /penecho-widget-hover/);
+  assert.doesNotMatch(read("public/widget-host.js"), /fastlectures-widget-hover/);
   assert.match(functionSource(app, "beginWidgetRefineTouch"), /state\.mode !== "pen"[\s\S]*?setWidgetRefineHoverCandidate\(widget, false\)[\s\S]*?widgetRefineTouchCandidates\.set/);
   assert.doesNotMatch(functionSource(app, "beginWidgetHostTouch"), /beginWidgetRefineTouch/);
   assert.match(app, /state\.mode === "pen"\) beginWidgetRefineTouch\(`canvas-touch:/);
@@ -2675,7 +2675,7 @@ test("widget Refine discovery stays in the parent canvas and leaves iframe event
   assert.doesNotMatch(hitTest, /contentWindow|postMessage|addEventListener/);
   assert.doesNotMatch(functionSource(app, "mountWidget"), /pointerenter|pointerleave|updateHandObjectHover/);
   assert.match(functionSource(app, "mountWidget"), /frame\.addEventListener\("focus"[\s\S]*?focusHandObject\("widget", widget, "widget-focus"\)/);
-  assert.doesNotMatch(widgetHost, /penecho-widget-hover|widget-refine/i);
+  assert.doesNotMatch(widgetHost, /fastlectures-widget-hover|widget-refine/i);
   assert.doesNotMatch(messageHandler, /refine|hover/i);
   assert.match(frameRule, /pointer-events:\s*none/);
   assert.match(frameRule, /touch-action:\s*none/);
@@ -2704,7 +2704,7 @@ test("Widget copy swaps its own icon to a matching frameless check for two secon
   assert.match(css, /object-chrome-button\.object-toolbar-item\)\[data-pe-button\] > svg \{\s*width: 16px;\s*height: 16px;/);
 
   const timers = [], attributes = new Map(), button = {
-      dataset:{}, isConnected:true, innerHTML:"", penechoSpec:{label:"Copy HTML"},
+      dataset:{}, isConnected:true, innerHTML:"", fastlecturesSpec:{label:"Copy HTML"},
       setAttribute(name, value) { attributes.set(name, value); },
     },
     setState = vm.runInNewContext(`(${setStateSource})`, {
@@ -2847,7 +2847,7 @@ test("object editing is routed only through Select while Hand and Pen retain the
   assert.match(select, /beginWidgetGesture[\s\S]*?beginImageGesture[\s\S]*?beginAnimationGesture/);
   assert.doesNotMatch(app, /beginAnimationTouchHold|animationTouchHold|ANIMATION_TOUCH_HOLD|beginImageTouchHold|imageTouchHold|IMAGE_TOUCH_HOLD/);
   assert.match(functionSource(app, "beginObjectChromeMove"), /state\.mode !== "select"/);
-  assert.doesNotMatch(read("public/widget-host.js"), /penecho-widget-wheel|penecho-widget-pan-(?:start|move|end)/);
+  assert.doesNotMatch(read("public/widget-host.js"), /fastlectures-widget-wheel|fastlectures-widget-pan-(?:start|move|end)/);
   assert.match(functionSource(app, "acceptAnimationEdit"), /selectedAnimationId = null[\s\S]*?requestInteractionLayerRender\(\)/);
 });
 
@@ -2875,7 +2875,7 @@ test("Save canvas exposes non-blocking progress and completion feedback", () => 
   assert.match(html, /id="saveCanvasBtn"/);
   assert.match(html, /id="historySaveCurrent"[^>]*>Save<\/button>/);
   assert.match(html, /id="historySave"[^>]*>Save New<\/button>/);
-  assert.match(saveCurrent, /location = state\.currentSnapshotLocation \|\| \(window\.PENECHO_CONFIG\?\.browserCanvasEditing \? "cloud" : state\.snapshotLocation\)/);
+  assert.match(saveCurrent, /location = state\.currentSnapshotLocation \|\| \(window\.FASTLECTURES_CONFIG\?\.browserCanvasEditing \? "cloud" : state\.snapshotLocation\)/);
   assert.match(saveCurrent, /currentSnapshotLocation === location \? state\.currentSnapshotId : null/);
   assert.match(saveCurrent, /requestedName = document\.querySelector\("#historyName"\)/);
   assert.match(saveCurrent, /saveSnapshot\(\{ overwriteId, name, location \}\)/);
@@ -2903,13 +2903,13 @@ test("canvas history clearly separates device, server, and private cross-device 
   const closeHistory = functionSource(app, "closeHistoryPanel"), openHistory = functionSource(app, "openHistoryPanel");
   assert.match(html, /id="historyPanel"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-hidden="true"[^>]*tabindex="-1"[^>]*\sinert/);
   assert.match(html, /id="historyPanel"[^>]*data-pe-surface="manager"[^>]*data-pe-size="xl"[^>]*data-pe-layout="nav-content"[^>]*data-pe-material="control-glass"/);
-  assert.match(html, /class="history-titlebar penecho-workbench-header"[^>]*data-pe-region="header"[\s\S]*?class="penecho-workbench-icon"[^>]*>[\s\S]*?<svg[^>]*viewBox="0 0 24 24"/);
-  assert.match(html, /class="history-library-sidebar penecho-workbench-navigation"/);
+  assert.match(html, /class="history-titlebar fastlectures-workbench-header"[^>]*data-pe-region="header"[\s\S]*?class="fastlectures-workbench-icon"[^>]*>[\s\S]*?<svg[^>]*viewBox="0 0 24 24"/);
+  assert.match(html, /class="history-library-sidebar fastlectures-workbench-navigation"/);
   assert.match(html, /id="historySearch"[^>]*type="search"/);
   assert.match(html, /id="historySearch"[^>]*placeholder="Search"[^>]*data-i18n-aria="historySearchLabel"[^>]*aria-label="Search Canvas Library"/);
   assert.match(openHistory, /requestAnimationFrame\([\s\S]*panel\.focus\(\{ preventScroll:true \}\)[\s\S]*requestAnimationFrame\([\s\S]*renderSnapshotList\(\)/);
   assert.doesNotMatch(openHistory, /historySearch[^\n]*focus/);
-  assert.match(html, /class="history-library-browser"[\s\S]*?class="history-library-sidebar penecho-workbench-navigation"[\s\S]*?<section class="history-library-main"/);
+  assert.match(html, /class="history-library-browser"[\s\S]*?class="history-library-sidebar fastlectures-workbench-navigation"[\s\S]*?<section class="history-library-main"/);
   assert.match(html, /id="historyProjectNav"[^>]*class="history-project-nav"/);
   assert.match(html, /id="historySort"[\s\S]*?value="modified"[\s\S]*?value="name"[\s\S]*?value="created"/);
   assert.match(html, /id="historyViewList"[^>]*data-history-view="list"[\s\S]*?id="historyViewGrid"[^>]*data-history-view="grid"/);
@@ -2922,7 +2922,7 @@ test("canvas history clearly separates device, server, and private cross-device 
   assert.match(html, /class="history-toolbar"[\s\S]*?id="historySavePanel"[^>]*class="history-toolbar-save"/);
   assert.doesNotMatch(html, /class="history-footer"|id="historySelectionName"|id="historyCancel"|id="historyOpenCanvas"|id="historyGridActions"|id="historyGridSelectionName"|id="historyGridLoad"/);
   assert.match(html, /id="historyDeleteDialog"[^>]*class="studio-session-delete-dialog history-delete-dialog"[^>]*role="alertdialog"[^>]*aria-modal="true"[^>]*data-pe-surface="alert"[^>]*data-pe-size="xs"[^>]*data-pe-layout="single"[^>]*data-pe-presentation="modal"[^>]*data-pe-material="opaque"/);
-  assert.doesNotMatch(html, /id="historyPanel"[\s\S]*?<span class="history-kicker">PenEcho<\/span>[\s\S]*?<div class="history-composer">/);
+  assert.doesNotMatch(html, /id="historyPanel"[\s\S]*?<span class="history-kicker">FastLectures<\/span>[\s\S]*?<div class="history-composer">/);
   assert.doesNotMatch(html, /data-i18n="historyDescription"/);
   assert.doesNotMatch(app, /historyDescription:/);
   assert.doesNotMatch(zh, /historyDescription:/);
@@ -2930,12 +2930,12 @@ test("canvas history clearly separates device, server, and private cross-device 
   assert.doesNotMatch(css, /body\[data-theme="(?:studio|research|arcane|scifi)"\] \.history-panel/);
   assert.ok(css.includes("width: min(1080px, calc(100vw - 56px));"));
   assert.ok(css.includes("height: min(720px, calc(100dvh - 56px));"));
-  assert.match(css, /\.penecho-workbench-dialog\s*\{[^}]*--penecho-workbench-header-h:\s*68px[^}]*--penecho-workbench-navigation-w:\s*184px[^}]*--penecho-workbench-menu-item-h:\s*30px/);
-  assert.match(css, /#historyPanel\s*\{[^}]*--penecho-workbench-title-surface:\s*var\(--penecho-workbench-navigation-surface\)[^}]*--penecho-workbench-title-filter:\s*var\(--penecho-workbench-navigation-filter\)/);
-  assert.match(css, /\.history-library-sidebar\s*\{[^}]*--pe-menu-item-h:\s*var\(--penecho-workbench-menu-item-h, 30px\)[^}]*border-right:\s*1px solid var\(--ai-line\)/);
+  assert.match(css, /\.fastlectures-workbench-dialog\s*\{[^}]*--fastlectures-workbench-header-h:\s*68px[^}]*--fastlectures-workbench-navigation-w:\s*184px[^}]*--fastlectures-workbench-menu-item-h:\s*30px/);
+  assert.match(css, /#historyPanel\s*\{[^}]*--fastlectures-workbench-title-surface:\s*var\(--fastlectures-workbench-navigation-surface\)[^}]*--fastlectures-workbench-title-filter:\s*var\(--fastlectures-workbench-navigation-filter\)/);
+  assert.match(css, /\.history-library-sidebar\s*\{[^}]*--pe-menu-item-h:\s*var\(--fastlectures-workbench-menu-item-h, 30px\)[^}]*border-right:\s*1px solid var\(--ai-line\)/);
   assert.match(css, /\.history-library-main\s*\{[^}]*grid-template-rows:\s*50px 74px 30px minmax\(0, 1fr\)/);
   assert.match(css, /\.history-panel\.open\s*\{[^}]*opacity:\s*1[^}]*translate\(-50%, -50%\) scale\(1\)[^}]*visibility:\s*visible/);
-  assert.match(css, /html\.penecho-web-page-scale \.history-panel\s*\{[^}]*min-height:\s*0/);
+  assert.match(css, /html\.fastlectures-web-page-scale \.history-panel\s*\{[^}]*min-height:\s*0/);
   assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.history-library-main\s*\{[^}]*grid-template-rows:\s*42px 48px minmax\(0, 1fr\)/);
   assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.history-content-heading\s*\{[^}]*display:\s*grid[^}]*min-height:\s*48px[^}]*align-items:\s*center[^}]*padding:\s*6px 16px/);
   assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.history-content-meta\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*justify-content:\s*flex-end/);
@@ -2949,18 +2949,18 @@ test("canvas history clearly separates device, server, and private cross-device 
     assert.match(html, new RegExp(`name="${name}" value="server"`));
     assert.match(html, new RegExp(`name="${name}" value="cloud"`));
   }
-  for (const key of ["saveLocation", "storageThisDevice", "storagePenEchoServer", "storagePenEchoCloud", "storageThisDeviceDescription", "storagePenEchoServerDescription", "storagePenEchoCloudDescription", "historyLibraryNavigation", "historyCanvasList", "historyLocations", "historyProjects", "historyAllCanvases", "historyCanvasCount", "historySortModified", "historyViewList", "historyViewGrid", "historyNewCanvas", "historyColumnCanvas", "historyColumnContents", "historyColumnModified", "cloudCanvasConflict"]) {
+  for (const key of ["saveLocation", "storageThisDevice", "storageFastLecturesServer", "storageFastLecturesCloud", "storageThisDeviceDescription", "storageFastLecturesServerDescription", "storageFastLecturesCloudDescription", "historyLibraryNavigation", "historyCanvasList", "historyLocations", "historyProjects", "historyAllCanvases", "historyCanvasCount", "historySortModified", "historyViewList", "historyViewGrid", "historyNewCanvas", "historyColumnCanvas", "historyColumnContents", "historyColumnModified", "cloudCanvasConflict"]) {
     assert.match(app, new RegExp(`${key}:`));
     assert.match(zh, new RegExp(`${key}:`));
   }
-  assert.match(app, /localStorage\.setItem\("penecho-snapshot-location", location\)/);
+  assert.match(app, /localStorage\.setItem\("fastlectures-snapshot-location", location\)/);
   assert.match(app, /currentSnapshotLocation:\s*null/);
   assert.match(app, /state\.currentSnapshotLocation !== state\.snapshotLocation/);
   const serverPayload = functionSource(app, "serverSnapshotPayload"), readServer = functionSource(app, "readServerSnapshot"), readBundle = functionSource(app, "readSnapshotBundle");
-  assert.match(serverPayload, /snapshotBundleAsset\("preview"[\s\S]*?snapshotBundleAsset\("tile"[\s\S]*?snapshotBundleAsset\("resource"[\s\S]*?snapshotBundleAsset\("widget"[\s\S]*?version:2[\s\S]*?bundleVersion:2[\s\S]*?mode:"snapshot"[\s\S]*?format:"penecho-raster-tiles"[\s\S]*?canvasSize:[\s\S]*?tileSize:TILE[\s\S]*?assets:\[\.\.\.snapshotPreservedAssets\(item\.preservedAssets\), \.\.\.tileAssets, \.\.\.widgetAssets, \.\.\.imageAssets, previewAsset\]/);
+  assert.match(serverPayload, /snapshotBundleAsset\("preview"[\s\S]*?snapshotBundleAsset\("tile"[\s\S]*?snapshotBundleAsset\("resource"[\s\S]*?snapshotBundleAsset\("widget"[\s\S]*?version:2[\s\S]*?bundleVersion:2[\s\S]*?mode:"snapshot"[\s\S]*?format:"fastlectures-raster-tiles"[\s\S]*?canvasSize:[\s\S]*?tileSize:TILE[\s\S]*?assets:\[\.\.\.snapshotPreservedAssets\(item\.preservedAssets\), \.\.\.tileAssets, \.\.\.widgetAssets, \.\.\.imageAssets, previewAsset\]/);
   assert.match(serverPayload, /extensions:snapshotExtensionObject\(item\.bundleExtensions\)[\s\S]*?extensions:snapshotExtensionObject\(item\.manifestExtensions\)/);
   assert.match(readServer, /stored\.version \?\? stored\.bundleVersion \?\? 1[\s\S]*?readSnapshotBundle\(stored\)/);
-  assert.match(readBundle, /stored\.manifest\?\.format !== "penecho-raster-tiles"[\s\S]*?snapshotBundleAssetBlob\(previewAsset\)[\s\S]*?widgets,[\s\S]*?images:\[\.\.\.imageById\.values\(\)\]/);
+  assert.match(readBundle, /stored\.manifest\?\.format !== "fastlectures-raster-tiles"[\s\S]*?snapshotBundleAssetBlob\(previewAsset\)[\s\S]*?widgets,[\s\S]*?images:\[\.\.\.imageById\.values\(\)\]/);
   assert.match(readBundle, /bundleExtensions:snapshotExtensionObject\(stored\.extensions\)[\s\S]*?manifestExtensions:snapshotExtensionObject\(stored\.manifest\.extensions\)/);
   const enableSnapshotPlugins = functionSource(app, "enableSnapshotWidgetPlugins"),
     loadSnapshot = functionSource(app, "loadSnapshot");
@@ -3000,16 +3000,16 @@ test("canvas history clearly separates device, server, and private cross-device 
   assert.match(renderSnapshotList, /history-current-label[\s\S]*?studioNavigatorCurrent/);
   assert.match(renderSnapshotList, /isCurrent \? "history-item-save history-save-current" : "history-item-load history-load"[\s\S]*?saveCurrentHistoryItem[\s\S]*?loadHistorySnapshot[\s\S]*?footer\.append\(modifiedColumn, load, more\)[\s\S]*?content\.append\(meta, footer\)[\s\S]*?card\.append\(selectButton, content, advancedActions\)/);
   assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.history-list:not\(\.grid-view\)\s*\{[^}]*grid-auto-rows:\s*max-content[^}]*align-content:\s*start/);
-  assert.match(css, /\.history-panel\[data-pe-surface="manager"\]\s*\{[^}]*width:\s*min\(900px,[^}]*background:\s*var\(--penecho-large-dialog-surface\)[^}]*box-shadow:\s*var\(--penecho-large-dialog-shadow\)[^}]*backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter\)[^}]*container:\s*history-library \/ inline-size/);
-  assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.history-library-sidebar\s*\{[^}]*padding:\s*13px 11px[^}]*background:\s*var\(--penecho-workbench-navigation-surface\)[^}]*backdrop-filter:\s*var\(--penecho-workbench-navigation-filter\)/);
+  assert.match(css, /\.history-panel\[data-pe-surface="manager"\]\s*\{[^}]*width:\s*min\(900px,[^}]*background:\s*var\(--fastlectures-large-dialog-surface\)[^}]*box-shadow:\s*var\(--fastlectures-large-dialog-shadow\)[^}]*backdrop-filter:\s*var\(--fastlectures-large-dialog-surface-filter\)[^}]*container:\s*history-library \/ inline-size/);
+  assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.history-library-sidebar\s*\{[^}]*padding:\s*13px 11px[^}]*background:\s*var\(--fastlectures-workbench-navigation-surface\)[^}]*backdrop-filter:\s*var\(--fastlectures-workbench-navigation-filter\)/);
   assert.doesNotMatch(css, /\.history-panel\[data-pe-surface="manager"\] \.history-library-sidebar\s*\{[^}]*--pe-font-ui:/);
   assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.history-library-sidebar\s*\{[^}]*font-family:\s*var\(--pe-font-ui\)/);
   assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.snapshot-location\.history-sidebar-section legend,[\s\S]*?\.history-sidebar-heading\s*\{[^}]*font:\s*600 11px\/24px var\(--pe-font-ui\)[^}]*letter-spacing:\s*\.04em[^}]*text-transform:\s*uppercase/);
   assert.match(css, /:is\(#pe-button-contract, body\[data-theme="studio"\]\)[\s\S]*?\.history-panel\[data-pe-surface="manager"\][\s\S]*?\.history-project-nav-item\[data-pe-button="menu-item"\][\s\S]*?grid-template-columns:\s*15px minmax\(0, 1fr\) auto[^}]*gap:\s*8px[^}]*color:\s*var\(--pe-ink\)[^}]*font:\s*500 12\.5px\/var\(--pe-menu-item-h, 30px\) var\(--pe-font-ui\)/);
   assert.match(css, /:is\(#pe-button-contract, body\[data-theme="studio"\]\)[\s\S]*?:is\(\.history-location-count, \.history-project-nav-item > small\)\s*\{[^}]*min-width:\s*20px[^}]*height:\s*20px[^}]*border-radius:\s*999px[^}]*background:\s*var\(--pe-surface-raised\)[^}]*font:\s*600 10\.5px\/1 var\(--pe-font-ui\)/);
   assert.match(css, /:is\(#pe-button-contract, body\[data-theme="studio"\]\)[\s\S]*?:is\(\.history-location-count, \.history-project-nav-item > small\)\[hidden\]\s*\{[^}]*display:\s*none/);
-  assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.history-library-main\s*\{[^}]*background:\s*var\(--penecho-workbench-content-surface\)/);
-  assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.history-library-browser\s*\{[^}]*grid-template-columns:\s*var\(--penecho-workbench-navigation-w\) minmax\(0, 1fr\)/);
+  assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.history-library-main\s*\{[^}]*background:\s*var\(--fastlectures-workbench-content-surface\)/);
+  assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.history-library-browser\s*\{[^}]*grid-template-columns:\s*var\(--fastlectures-workbench-navigation-w\) minmax\(0, 1fr\)/);
   assert.match(css, /History Grid follows the catalog card-action skeleton[\s\S]*?\.history-panel\[data-pe-surface="manager"\] \.history-list\.grid-view\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)[^}]*gap:\s*var\(--pe-s6, 12px\)/);
   assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.history-list\.grid-view \.history-card\s*\{[^}]*grid-template-rows:\s*auto auto[^}]*gap:\s*var\(--pe-s4, 8px\)[^}]*padding:\s*8px[^}]*border-radius:\s*var\(--pe-r-group, 10px\)/);
   assert.match(css, /\.history-panel\[data-pe-surface="manager"\] \.history-list\.grid-view \.history-card\.selected\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--pe-accent\) 42%, var\(--pe-line\)\)[^}]*0 6px 14px color-mix\(in srgb, var\(--pe-accent\) 18%, transparent\)/);
@@ -3348,8 +3348,8 @@ test("Studio-only palettes are wired through initialization, localization, and s
   assert.match(appearanceControls, /studio-palette-option\[data-studio-palette\][\s\S]*?data-page-scale/);
   assert.match(embodimentCopy, /t\("guideStudio"\)/);
   assert.match(loadSnapshot, /applyTheme\(item\.theme\)/);
-  assert.match(functionSource(app, "applyTheme"), /normalizeStudioPaletteForTheme\(theme, state\.studioPalette\)[\s\S]*?theme\s*=\s*normalizeTheme\(theme\)[\s\S]*?penecho-studio-palette/);
-  assert.match(functionSource(app, "applyStudioPalette"), /normalizeStudioPalette\(palette\)[\s\S]*?penecho-studio-palette/);
+  assert.match(functionSource(app, "applyTheme"), /normalizeStudioPaletteForTheme\(theme, state\.studioPalette\)[\s\S]*?theme\s*=\s*normalizeTheme\(theme\)[\s\S]*?fastlectures-studio-palette/);
+  assert.match(functionSource(app, "applyStudioPalette"), /normalizeStudioPalette\(palette\)[\s\S]*?fastlectures-studio-palette/);
 
   for (const key of ["guideStudio", "studioPaletteIndigo", "studioPaletteGraphite", "studioPaletteCobalt", "studioPaletteAzure", "studioPaletteTeal", "studioPaletteForest", "studioPaletteAmber", "studioPaletteBurgundy"]) {
     assert.match(app, new RegExp(`\\b${key}:\\s*"`));
@@ -3357,7 +3357,7 @@ test("Studio-only palettes are wired through initialization, localization, and s
   }
   assert.match(css, /body\[data-theme="studio"\]\s*\{/);
   for (const palette of ["indigo", "graphite", "cobalt", "azure", "teal", "forest", "amber", "burgundy"]) assert.match(css, new RegExp(`\\[data-studio-palette="${palette}"\\]`));
-  assert.match(css, /body\[data-theme="studio"\] \.canvas-agent-project-dialog\s*\{[^}]*color:\s*var\(--studio-text\)[^}]*border-color:\s*var\(--studio-line\)[^}]*background:\s*var\(--penecho-dialog-surface\)/);
+  assert.match(css, /body\[data-theme="studio"\] \.canvas-agent-project-dialog\s*\{[^}]*color:\s*var\(--studio-text\)[^}]*border-color:\s*var\(--studio-line\)[^}]*background:\s*var\(--fastlectures-dialog-surface\)/);
   assert.match(css, /body\[data-theme="studio"\] \.canvas-agent-project-row\.selected,[\s\S]*?\.canvas-agent-project-row\.selected:hover\s*\{[^}]*background:\s*var\(--pe-selected\)/);
   assert.match(css, /body\[data-theme="studio"\] \.canvas-agent-resource-heading-icon,[\s\S]*?\.canvas-agent-resource-icon\s*\{[^}]*color:\s*var\(--pe-ink-2\)[^}]*background:\s*var\(--pe-surface-muted\)/);
   assert.match(css, /body\[data-theme="studio"\] \.canvas-agent-prompt-popup\s*\{[^}]*border-color:\s*var\(--studio-line\)[^}]*background:\s*var\(--studio-panel-raised\)/);
@@ -3366,39 +3366,39 @@ test("Studio-only palettes are wired through initialization, localization, and s
 
 test("Studio palette propagates through every Canvas popup surface", () => {
   const css = read("public/style.css"), cloudCss = read("public/cloud-connect.css");
-  assert.match(css, /:root\s*\{[^}]*--penecho-dialog-backdrop:\s*rgba\(18, 23, 34, \.2\)[^}]*--penecho-dialog-backdrop-filter:\s*blur\(4px\) saturate\(1\.08\)[^}]*--penecho-dialog-surface:[^}]*70%, transparent\)[^}]*--penecho-dialog-raised-surface:[^}]*78%, transparent\)[^}]*--penecho-dialog-body-surface:[^}]*74%, transparent\)[^}]*--penecho-dialog-surface-filter:\s*blur\(24px\) saturate\(1\.18\)/);
-  assert.match(css, /--penecho-large-dialog-radius:\s*18px/);
-  assert.match(css, /--penecho-large-dialog-surface:\s*var\(--studio-glass,[^;]+62%, transparent\)\)/);
-  assert.match(css, /--penecho-large-dialog-surface-filter:\s*saturate\(1\.15\) blur\(20px\)/);
-  assert.match(css, /--penecho-large-dialog-shadow:\s*0 28px 80px rgba\(17, 24, 39, \.28\), 0 2px 8px rgba\(17, 24, 39, \.12\)/);
-  assert.match(css, /--penecho-workbench-title-surface:[^;]*70%, transparent\)/);
-  assert.match(css, /--penecho-workbench-title-filter:\s*blur\(24px\) saturate\(1\.2\)/);
-  assert.match(css, /--penecho-workbench-navigation-surface:[^;]*68%, transparent\)/);
-  assert.match(css, /--penecho-workbench-navigation-filter:\s*blur\(24px\) saturate\(1\.14\)/);
-  assert.match(css, /--penecho-workbench-content-surface:[^;]*62%, transparent\)/);
+  assert.match(css, /:root\s*\{[^}]*--fastlectures-dialog-backdrop:\s*rgba\(18, 23, 34, \.2\)[^}]*--fastlectures-dialog-backdrop-filter:\s*blur\(4px\) saturate\(1\.08\)[^}]*--fastlectures-dialog-surface:[^}]*70%, transparent\)[^}]*--fastlectures-dialog-raised-surface:[^}]*78%, transparent\)[^}]*--fastlectures-dialog-body-surface:[^}]*74%, transparent\)[^}]*--fastlectures-dialog-surface-filter:\s*blur\(24px\) saturate\(1\.18\)/);
+  assert.match(css, /--fastlectures-large-dialog-radius:\s*18px/);
+  assert.match(css, /--fastlectures-large-dialog-surface:\s*var\(--studio-glass,[^;]+62%, transparent\)\)/);
+  assert.match(css, /--fastlectures-large-dialog-surface-filter:\s*saturate\(1\.15\) blur\(20px\)/);
+  assert.match(css, /--fastlectures-large-dialog-shadow:\s*0 28px 80px rgba\(17, 24, 39, \.28\), 0 2px 8px rgba\(17, 24, 39, \.12\)/);
+  assert.match(css, /--fastlectures-workbench-title-surface:[^;]*70%, transparent\)/);
+  assert.match(css, /--fastlectures-workbench-title-filter:\s*blur\(24px\) saturate\(1\.2\)/);
+  assert.match(css, /--fastlectures-workbench-navigation-surface:[^;]*68%, transparent\)/);
+  assert.match(css, /--fastlectures-workbench-navigation-filter:\s*blur\(24px\) saturate\(1\.14\)/);
+  assert.match(css, /--fastlectures-workbench-content-surface:[^;]*62%, transparent\)/);
   for (const selector of ["plugin-modal", "changelog-dialog", "settings-panel", "configuration-panel", "crafts-modal", "canvas-agent-project-dialog"]) {
-    assert.match(css, new RegExp(`\\.${selector}\\s*\\{[^}]*border-radius:\\s*var\\(--penecho-large-dialog-radius\\)`));
+    assert.match(css, new RegExp(`\\.${selector}\\s*\\{[^}]*border-radius:\\s*var\\(--fastlectures-large-dialog-radius\\)`));
   }
   for (const selector of ["settings-panel", "crafts-modal"]) {
-    assert.match(css, new RegExp(`\\.${selector}\\s*\\{[^}]*background:\\s*var\\(--penecho-large-dialog-surface\\)[^}]*box-shadow:\\s*var\\(--penecho-large-dialog-shadow\\)[^}]*backdrop-filter:\\s*var\\(--penecho-large-dialog-surface-filter\\)`));
+    assert.match(css, new RegExp(`\\.${selector}\\s*\\{[^}]*background:\\s*var\\(--fastlectures-large-dialog-surface\\)[^}]*box-shadow:\\s*var\\(--fastlectures-large-dialog-shadow\\)[^}]*backdrop-filter:\\s*var\\(--fastlectures-large-dialog-surface-filter\\)`));
   }
-  assert.match(css, /\.history-panel\[data-pe-surface="manager"\]\s*\{[^}]*border-radius:\s*var\(--penecho-large-dialog-radius\)[^}]*background:\s*var\(--penecho-large-dialog-surface\)[^}]*box-shadow:\s*var\(--penecho-large-dialog-shadow\)[^}]*backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter\)/);
-  assert.match(cloudCss, /\.penecho-cloud-dialog\s*\{[^}]*border-radius:\s*var\(--penecho-large-dialog-radius, 1\.125rem\)/);
-  assert.match(cloudCss, /\.penecho-cloud-dialog\.cloud-center\s*\{[^}]*background:\s*var\(--penecho-large-dialog-surface,[^}]*62%, transparent\)\)[^}]*box-shadow:\s*var\(--penecho-large-dialog-shadow,[^}]*0 28px 80px[^}]*backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter, saturate\(1\.15\) blur\(20px\)\)/);
+  assert.match(css, /\.history-panel\[data-pe-surface="manager"\]\s*\{[^}]*border-radius:\s*var\(--fastlectures-large-dialog-radius\)[^}]*background:\s*var\(--fastlectures-large-dialog-surface\)[^}]*box-shadow:\s*var\(--fastlectures-large-dialog-shadow\)[^}]*backdrop-filter:\s*var\(--fastlectures-large-dialog-surface-filter\)/);
+  assert.match(cloudCss, /\.fastlectures-cloud-dialog\s*\{[^}]*border-radius:\s*var\(--fastlectures-large-dialog-radius, 1\.125rem\)/);
+  assert.match(cloudCss, /\.fastlectures-cloud-dialog\.cloud-center\s*\{[^}]*background:\s*var\(--fastlectures-large-dialog-surface,[^}]*62%, transparent\)\)[^}]*box-shadow:\s*var\(--fastlectures-large-dialog-shadow,[^}]*0 28px 80px[^}]*backdrop-filter:\s*var\(--fastlectures-large-dialog-surface-filter, saturate\(1\.15\) blur\(20px\)\)/);
   assert.match(css, /\.plugin-modal\s*\{[^}]*--ink:\s*var\(--studio-text,[^)]+\)[^}]*--panel-raised:\s*var\(--studio-panel,[^)]+\)[^}]*--gold-bright:\s*var\(--studio-accent-strong,[^)]+\)/);
-  assert.match(css, /\.plugin-modal-layer\s*\{[^}]*background:\s*var\(--penecho-dialog-backdrop\)[^}]*backdrop-filter:\s*var\(--penecho-dialog-backdrop-filter\)/);
-  assert.match(css, /\.plugin-modal\s*\{[^}]*background:\s*var\(--penecho-dialog-surface\)[^}]*backdrop-filter:\s*var\(--penecho-dialog-surface-filter\)/);
+  assert.match(css, /\.plugin-modal-layer\s*\{[^}]*background:\s*var\(--fastlectures-dialog-backdrop\)[^}]*backdrop-filter:\s*var\(--fastlectures-dialog-backdrop-filter\)/);
+  assert.match(css, /\.plugin-modal\s*\{[^}]*background:\s*var\(--fastlectures-dialog-surface\)[^}]*backdrop-filter:\s*var\(--fastlectures-dialog-surface-filter\)/);
   assert.match(css, /\.history-panel, \.new-canvas-dialog\s*\{[^}]*--ai-surface:\s*var\(--studio-panel,[^)]+\)[^}]*--ai-accent:\s*var\(--studio-accent,[^)]+\)[^}]*--ai-primary:\s*var\(--studio-accent-strong,[^)]+\)/);
   assert.match(css, /body\[data-theme="studio"\] \.tour-card\s*\{[^}]*border-color:\s*var\(--studio-accent-border\)[^}]*background:\s*var\(--studio-panel\)/);
   assert.match(css, /\.settings-panel, \.configuration-panel\s*\{[^}]*--ink:\s*var\(--studio-text,[^)]+\)[^}]*--gold-bright:\s*var\(--studio-accent-strong,[^)]+\)/);
-  assert.match(css, /\.configuration-panel\s*\{[^}]*background:\s*var\(--penecho-dialog-surface\)[^}]*backdrop-filter:\s*var\(--penecho-dialog-surface-filter\)/);
-  assert.match(css, /\.crafts-modal\s*\{[^}]*--ink:\s*var\(--studio-text,[^)]+\)[^}]*--panel-raised:\s*var\(--studio-panel,[^)]+\)[^}]*background:\s*var\(--penecho-large-dialog-surface\)[^}]*backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter\)/);
-  assert.match(css, /body\[data-theme="studio"\] \.canvas-agent-project-dialog\s*\{[^}]*color:\s*var\(--studio-text\)[^}]*border-color:\s*var\(--studio-line\)[^}]*background:\s*var\(--penecho-dialog-surface\)/);
+  assert.match(css, /\.configuration-panel\s*\{[^}]*background:\s*var\(--fastlectures-dialog-surface\)[^}]*backdrop-filter:\s*var\(--fastlectures-dialog-surface-filter\)/);
+  assert.match(css, /\.crafts-modal\s*\{[^}]*--ink:\s*var\(--studio-text,[^)]+\)[^}]*--panel-raised:\s*var\(--studio-panel,[^)]+\)[^}]*background:\s*var\(--fastlectures-large-dialog-surface\)[^}]*backdrop-filter:\s*var\(--fastlectures-large-dialog-surface-filter\)/);
+  assert.match(css, /body\[data-theme="studio"\] \.canvas-agent-project-dialog\s*\{[^}]*color:\s*var\(--studio-text\)[^}]*border-color:\s*var\(--studio-line\)[^}]*background:\s*var\(--fastlectures-dialog-surface\)/);
   assert.match(css, /body\[data-theme="studio"\] \.canvas-agent-prompt-popup\s*\{[^}]*border-color:\s*var\(--studio-line\)[^}]*background:\s*var\(--studio-panel-raised\)/);
-  assert.match(css, /\.studio-session-delete-dialog\s*\{[^}]*color:\s*var\(--studio-text,[^)]+\)[^}]*background:\s*var\(--penecho-dialog-surface\)[^}]*backdrop-filter:\s*var\(--penecho-dialog-surface-filter\)/);
-  assert.match(css, /\.changelog-dialog\s*\{[^}]*color:\s*var\(--ink\)[^}]*background:\s*var\(--penecho-dialog-surface\)[^}]*backdrop-filter:\s*var\(--penecho-dialog-surface-filter\)/);
+  assert.match(css, /\.studio-session-delete-dialog\s*\{[^}]*color:\s*var\(--studio-text,[^)]+\)[^}]*background:\s*var\(--fastlectures-dialog-surface\)[^}]*backdrop-filter:\s*var\(--fastlectures-dialog-surface-filter\)/);
+  assert.match(css, /\.changelog-dialog\s*\{[^}]*color:\s*var\(--ink\)[^}]*background:\s*var\(--fastlectures-dialog-surface\)[^}]*backdrop-filter:\s*var\(--fastlectures-dialog-surface-filter\)/);
   for (const selector of ["new-canvas-dialog", "studio-session-delete-dialog", "canvas-agent-project-dialog"]) {
-    assert.match(css, new RegExp(`\\.${selector}::backdrop\\s*\\{[^}]*background:\\s*var\\(--penecho-dialog-backdrop\\)[^}]*backdrop-filter:\\s*var\\(--penecho-dialog-backdrop-filter\\)`));
+    assert.match(css, new RegExp(`\\.${selector}::backdrop\\s*\\{[^}]*background:\\s*var\\(--fastlectures-dialog-backdrop\\)[^}]*backdrop-filter:\\s*var\\(--fastlectures-dialog-backdrop-filter\\)`));
   }
 });
 
@@ -3407,24 +3407,24 @@ test("Settings is a centered frosted workbench with persistent navigation and sw
   const panel = html.match(/<section id="settingsPanel"[\s\S]*?<\/section>\s*<\/div>\s*<div id="configurationLayer"/)?.[0] || "";
   assert.match(panel, /role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="settingsTitle"/);
   assert.match(panel, /data-pe-surface="settings"[^>]*data-pe-size="xl"[^>]*data-pe-layout="nav-content"[^>]*data-pe-material="control-glass"/);
-  assert.match(panel, /class="settings-window-header penecho-workbench-header"[^>]*data-pe-region="header"[\s\S]*?class="penecho-workbench-icon"[^>]*>[\s\S]*?id="settingsClose"[\s\S]*?<svg/);
-  assert.match(panel, /class="settings-navigation penecho-workbench-navigation"[^>]*role="tablist"[^>]*aria-orientation="vertical"/);
+  assert.match(panel, /class="settings-window-header fastlectures-workbench-header"[^>]*data-pe-region="header"[\s\S]*?class="fastlectures-workbench-icon"[^>]*>[\s\S]*?id="settingsClose"[\s\S]*?<svg/);
+  assert.match(panel, /class="settings-navigation fastlectures-workbench-navigation"[^>]*role="tablist"[^>]*aria-orientation="vertical"/);
   for (const page of ["appearance", "connections", "canvas", "about"]) {
     assert.match(panel, new RegExp(`data-settings-page-target="${page}"`));
     assert.match(panel, new RegExp(`data-settings-page="${page}"`));
   }
-  assert.ok(panel.indexOf('class="settings-navigation penecho-workbench-navigation"') < panel.indexOf('class="settings-detail"'));
+  assert.ok(panel.indexOf('class="settings-navigation fastlectures-workbench-navigation"') < panel.indexOf('class="settings-detail"'));
   assert.equal((panel.match(/class="studio-palette-option"/g) || []).length, 8);
   assert.equal((panel.match(/data-page-scale=/g) || []).length, 4);
   assert.match(panel, /data-page-scale="0\.9" aria-checked="false"[^>]*>90%<\/button>/);
   assert.match(panel, /data-page-scale="1" aria-checked="true"/);
   assert.doesNotMatch(panel, /data-page-scale="1\.(?:5|75)"/);
-  assert.match(css, /\.settings-panel\s*\{[^}]*top:\s*50%[^}]*left:\s*50%[^}]*border-radius:\s*var\(--penecho-large-dialog-radius\)[^}]*background:\s*var\(--penecho-large-dialog-surface\)[^}]*box-shadow:\s*var\(--penecho-large-dialog-shadow\)[^}]*backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter\)/);
-  assert.match(css, /#settingsPanel\s*\{[^}]*--penecho-workbench-title-surface:\s*var\(--penecho-workbench-navigation-surface\)[^}]*--penecho-workbench-title-filter:\s*var\(--penecho-workbench-navigation-filter\)/);
-  assert.match(css, /#historyPanel\s*\{[^}]*--penecho-workbench-title-surface:\s*var\(--penecho-workbench-navigation-surface\)[^}]*--penecho-workbench-title-filter:\s*var\(--penecho-workbench-navigation-filter\)/);
-  assert.match(css, /\.settings-workbench\s*\{[^}]*grid-template-columns:\s*var\(--penecho-workbench-navigation-w\) minmax\(0, 1fr\)/);
-  assert.match(css, /\.settings-detail\s*\{[^}]*background:\s*var\(--penecho-workbench-content-surface\)/);
-  assert.match(css, /\.settings-navigation\s*\{[^}]*background:\s*var\(--penecho-workbench-navigation-surface\)[^}]*backdrop-filter:\s*var\(--penecho-workbench-navigation-filter\)/);
+  assert.match(css, /\.settings-panel\s*\{[^}]*top:\s*50%[^}]*left:\s*50%[^}]*border-radius:\s*var\(--fastlectures-large-dialog-radius\)[^}]*background:\s*var\(--fastlectures-large-dialog-surface\)[^}]*box-shadow:\s*var\(--fastlectures-large-dialog-shadow\)[^}]*backdrop-filter:\s*var\(--fastlectures-large-dialog-surface-filter\)/);
+  assert.match(css, /#settingsPanel\s*\{[^}]*--fastlectures-workbench-title-surface:\s*var\(--fastlectures-workbench-navigation-surface\)[^}]*--fastlectures-workbench-title-filter:\s*var\(--fastlectures-workbench-navigation-filter\)/);
+  assert.match(css, /#historyPanel\s*\{[^}]*--fastlectures-workbench-title-surface:\s*var\(--fastlectures-workbench-navigation-surface\)[^}]*--fastlectures-workbench-title-filter:\s*var\(--fastlectures-workbench-navigation-filter\)/);
+  assert.match(css, /\.settings-workbench\s*\{[^}]*grid-template-columns:\s*var\(--fastlectures-workbench-navigation-w\) minmax\(0, 1fr\)/);
+  assert.match(css, /\.settings-detail\s*\{[^}]*background:\s*var\(--fastlectures-workbench-content-surface\)/);
+  assert.match(css, /\.settings-navigation\s*\{[^}]*background:\s*var\(--fastlectures-workbench-navigation-surface\)[^}]*backdrop-filter:\s*var\(--fastlectures-workbench-navigation-filter\)/);
   assert.match(css, /\.settings-page\s*\{[^}]*overflow-y:\s*auto/);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*?\.settings-workbench\s*\{\s*grid-template-columns:\s*112px minmax\(0, 1fr\)/);
   assert.match(css, /@media \(max-width: 520px\)[\s\S]*?\.settings-workbench\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\)/);
@@ -3473,8 +3473,8 @@ test("Studio uses glass workbench overlays, contextual pen properties, and a rig
   assert.match(css, /@media \(max-width: 820px\)\s*\{[\s\S]*?studio-navigator-open \.canvas-frame::after\s*\{[^}]*left:\s*min\(360px, calc\(100% - 16px\)\)/);
   assert.match(css, /body\[data-theme="studio"\]\[data-canvas-mode="pen"\] \.pen-tool-properties\s*\{[^}]*display:\s*inline-flex/);
   assert.match(css, /body\[data-theme="studio"\] main > footer\s*\{[^}]*min-height:\s*26px[^}]*border-top:/);
-  assert.match(css, /--studio-agent-glass:\s*linear-gradient\(var\(--penecho-workbench-content-surface\), var\(--penecho-workbench-content-surface\)\), var\(--penecho-large-dialog-surface\)/);
-  assert.match(css, /@media \(min-width: 701px\)[\s\S]*?studio-agent-docked \.canvas-agent-panel\s*\{[\s\S]*?position:\s*absolute[\s\S]*?inset:\s*var\(--studio-toolbar-height\) 0 0 auto[\s\S]*?flex:\s*none[\s\S]*?background:\s*var\(--studio-agent-glass\)[\s\S]*?box-shadow:\s*-4px 0 8px var\(--studio-chrome-shadow-color\)[\s\S]*?backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter\)/);
+  assert.match(css, /--studio-agent-glass:\s*linear-gradient\(var\(--fastlectures-workbench-content-surface\), var\(--fastlectures-workbench-content-surface\)\), var\(--fastlectures-large-dialog-surface\)/);
+  assert.match(css, /@media \(min-width: 701px\)[\s\S]*?studio-agent-docked \.canvas-agent-panel\s*\{[\s\S]*?position:\s*absolute[\s\S]*?inset:\s*var\(--studio-toolbar-height\) 0 0 auto[\s\S]*?flex:\s*none[\s\S]*?background:\s*var\(--studio-agent-glass\)[\s\S]*?box-shadow:\s*-4px 0 8px var\(--studio-chrome-shadow-color\)[\s\S]*?backdrop-filter:\s*var\(--fastlectures-large-dialog-surface-filter\)/);
   assert.match(css, /studio-agent-docked:not\(\.canvas-agent-open\) \.canvas-agent-panel\s*\{[^}]*pointer-events:\s*none[^}]*opacity:\s*0[^}]*translate3d\(100%, 0, 0\)/);
   assert.match(css, /studio-agent-docked \.canvas-agent-panel\s*\{[^}]*transition:\s*transform \.22s cubic-bezier\(\.2,\.72,\.2,1\), opacity \.16s ease/);
   assert.match(css, /studio-agent-docked:not\(\.canvas-agent-open\) \.canvas-agent-panel\s*\{[^}]*transition-delay:\s*0s, 0s, 0s, \.22s/);
@@ -3508,10 +3508,10 @@ test("Studio uses glass workbench overlays, contextual pen properties, and a rig
   assert.doesNotMatch(css, /studio-agent-launcher-floating [^{]*(?:\.canvas-hint|#tip|\.canvas-navigation-lock-hint|\.text-input-hint)/);
   assert.match(functionSource(agent, "canvasAgentApplyPanelWidth"), /canvasAgentFrame\.classList\.add\(`canvas-agent-width-\$\{step\}`\)/);
   assert.match(agent, /function openCanvasAgent\(\{focus=false\}=\{\}\)[\s\S]*?document\.body\.classList\.add\("canvas-agent-open"\)[\s\S]*?if\(docked\)\{[\s\S]*?canvasAgentRestorePanelSize\(\)/);
-  assert.match(css, /html\.penecho-web-page-scale body\[data-theme="studio"\] main\s*\{[^}]*--penecho-canvas-page-dynamic-height/);
+  assert.match(css, /html\.fastlectures-web-page-scale body\[data-theme="studio"\] main\s*\{[^}]*--fastlectures-canvas-page-dynamic-height/);
 });
 
-test("opening PenEcho Agent re-syncs Pen mode presentation without changing the Canvas mode", () => {
+test("opening FastLectures Agent re-syncs Pen mode presentation without changing the Canvas mode", () => {
   const bootstrap = read("src/client/app/ui-bootstrap.js"), agent = read("src/client/app/canvas-agent-runtime.js"),
     syncModePresentation = functionSource(bootstrap, "syncCanvasModePresentation"),
     makeButton = (active) => ({
@@ -3546,7 +3546,7 @@ test("opening PenEcho Agent re-syncs Pen mode presentation without changing the 
   assert.doesNotMatch(openAgent,/setCanvasMode\(/);
 });
 
-test("PenEcho Agent launcher stays clickable while its status shell shows work", () => {
+test("FastLectures Agent launcher stays clickable while its status shell shows work", () => {
   const html = read("public/index.html"), css = read("public/style.css"), agent = read("src/client/app/canvas-agent-runtime.js");
   const syncTrigger = functionSource(agent, "canvasAgentSyncTriggerState");
   assert.match(syncTrigger, /busy = canvasAgent\.requestPending \|\| canvasAgent\.running[\s\S]*?canvasAgentControl\.classList\.toggle\("is-busy",busy\)[\s\S]*?canvasAgentControl\.setAttribute\("aria-busy",String\(busy\)\)/);
@@ -3572,7 +3572,7 @@ test("PenEcho Agent launcher stays clickable while its status shell shows work",
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.canvas-agent-control\.is-busy > #canvasAgentToggle::after\s*\{[^}]*animation:\s*none/);
 });
 
-test("PenEcho Agent launcher uses ordered toolbar compaction before the toolbar wraps", () => {
+test("FastLectures Agent launcher uses ordered toolbar compaction before the toolbar wraps", () => {
   const html = read("public/index.html"), css = read("public/style.css"), core = read("src/client/app/core.js"), agent = read("src/client/app/canvas-agent-runtime.js");
   const toolbar = html.match(/<nav class="toolbar"[\s\S]*?<\/nav>/)?.[0] || "",
     syncLayout = functionSource(agent, "canvasAgentSyncToolbarLayout"),
@@ -3601,13 +3601,13 @@ test("PenEcho Agent launcher uses ordered toolbar compaction before the toolbar 
   assert.match(positionPopover, /studio-toolbar-two-row[\s\S]*?Math\.max\(controlRect\.bottom, toolbarRect\.bottom\)[\s\S]*?anchorBottom/);
 });
 
-test("Studio title bar removes only the PenEcho icon and keeps the wordmark", () => {
+test("Studio title bar removes only the FastLectures icon and keeps the wordmark", () => {
   const html = read("public/index.html"), css = read("public/style.css");
   const brand = html.indexOf('class="brand"'), documentMeta = html.indexOf('id="canvasDocumentMeta"'), status = html.indexOf('id="aiStatusArea"'),
     toolbar = html.indexOf('class="toolbar"'), navigatorToggle = html.indexOf('id="studioNavigatorToggle"'), divider = html.indexOf('class="toolbar-leading-divider"'), primaryTools = html.indexOf('class="tool-group primary-tools"');
   assert.ok(brand < documentMeta && documentMeta < status && status < toolbar,"wordmark, document, and global status follow the title-row reading order");
   assert.match(html, /class="brand"[\s\S]*?class="brand-copy"[\s\S]*?<h1><span>Pen<\/span><strong>Echo<\/strong><\/h1>/);
-  assert.doesNotMatch(html, /class="sigil"|<img src="penecho-mark\.png"/);
+  assert.doesNotMatch(html, /class="sigil"|<img src="fastlectures-mark\.png"/);
   assert.match(css, /body\[data-theme="studio"\] \.brand\s*\{[^}]*flex:\s*0 0 auto[^}]*margin-right:\s*0/);
 });
 
@@ -3651,12 +3651,12 @@ test("Studio title bar exposes document identity, explicit save state, and a bla
   assert.match(navigator, /canvasDocumentNameConfirm\.addEventListener\("click",[\s\S]*?commitCanvasDocumentRename/);
   assert.match(navigator, /event\.key === "Enter" && !event\.isComposing[\s\S]*?commitCanvasDocumentRename/);
   assert.match(functionSource(persistence, "renameCurrentCanvasFromTitle"), /saveSnapshot\(\{ overwriteId, name, location, allowEmpty:true \}\)[\s\S]*?canvasRenamed/);
-  assert.match(functionSource(persistence, "save"), /PenEchoStudioNavigator\?\.updateDocument/);
-  assert.match(persistence, /async function saveSnapshot\([\s\S]*?setStatusKey\(overwriteId \? "snapshotOverwritten" : "snapshotSaved"\);[\s\S]*?PenEchoStudioNavigator\?\.updateDocument/);
-  assert.match(persistence, /async function loadSnapshot\([\s\S]*?state\.currentSnapshotName = snapshotName\(item\);[\s\S]*?PenEchoStudioNavigator\?\.updateDocument/);
+  assert.match(functionSource(persistence, "save"), /FastLecturesStudioNavigator\?\.updateDocument/);
+  assert.match(persistence, /async function saveSnapshot\([\s\S]*?setStatusKey\(overwriteId \? "snapshotOverwritten" : "snapshotSaved"\);[\s\S]*?FastLecturesStudioNavigator\?\.updateDocument/);
+  assert.match(persistence, /async function loadSnapshot\([\s\S]*?state\.currentSnapshotName = snapshotName\(item\);[\s\S]*?FastLecturesStudioNavigator\?\.updateDocument/);
   assert.match(persistence, /state\.currentSnapshotName = snapshotName\(item\);[\s\S]*?state\.currentSnapshotHasExplicitName = Boolean\(String\(item\.name\|\|""\)\.trim\(\)\);[\s\S]*?state\.currentCanvasSuggestedName = ""/);
   assert.match(functionSource(persistence, "saveCurrentCanvas"), /name = requestedName \|\| currentCanvasDisplayName\(\)/);
-  assert.match(functionSource(persistence, "startBlankCanvas"), /PenEchoStudioNavigator\?\.updateDocument/);
+  assert.match(functionSource(persistence, "startBlankCanvas"), /FastLecturesStudioNavigator\?\.updateDocument/);
   for (const key of ["canvasUntitledName", "canvasRename", "canvasRenameCurrent", "canvasRenameNamed", "canvasRenameConfirm", "canvasNamePlaceholder", "canvasNameRequired", "canvasRenamed", "canvasSaveStateUnsaved", "canvasSaveStateSaved", "canvasSaveStateEdited", "canvasSaveStateSaving", "canvasWelcomeKicker", "canvasWelcomeTitle", "canvasWelcomeBody"]) {
     assert.match(core, new RegExp(`\\b${key}:\\s*"`));
     assert.match(zh, new RegExp(`\\b${key}:\\s*"`));
@@ -3672,7 +3672,7 @@ test("Studio navigator groups recent Agent sessions by canvas and opens the boun
   assert.match(html, /id="studioNavigatorSearch"[^>]*type="search"/);
   assert.match(build, /src\/client\/app\/studio-navigator\.js/);
   assert.match(navigator, /let studioNavigatorOpenPreference = false/);
-  assert.doesNotMatch(navigator, /STUDIO_NAVIGATOR_OPEN_KEY|penecho-studio-navigator-open/);
+  assert.doesNotMatch(navigator, /STUDIO_NAVIGATOR_OPEN_KEY|fastlectures-studio-navigator-open/);
   assert.match(functionSource(navigator, "studioNavigatorWorkGroups"), /canvasAgentStoredHistoryGroups\(\)[\s\S]*?studioNavigatorSnapshots\(\)[\s\S]*?sort\(\(a,b\)=>Number\(b\.current\)-Number\(a\.current\)\|\|studioCanvasOpenedAt\(b\.canvasKey\)-studioCanvasOpenedAt\(a\.canvasKey\)\|\|Number\(Boolean\(b\.documentId\)\)-Number\(Boolean\(a\.documentId\)\)\|\|b\.updatedAt-a\.updatedAt\)/);
   assert.match(navigator, /className="studio-navigator-group"[\s\S]*?className="studio-navigator-group-conversations"/);
   assert.match(functionSource(navigator, "studioNavigatorCanvasGroupSnapshot"), /snapshotItemsLocation===identity\.location[\s\S]*?snapshotItems\.find\(candidate=>candidate\.id===identity\.id\)[\s\S]*?studioNavigatorCanvasGroupSnapshots\.set\(key,item\)/);
@@ -3727,7 +3727,7 @@ test("Studio navigator groups recent Agent sessions by canvas and opens the boun
   assert.match(syncNavigatorTheme, /wasActive = document\.body\.classList\.contains\("studio-navigator-enabled"\)[\s\S]*?if \(active && !wasActive\) renderStudioNavigator\(\)/);
   assert.doesNotMatch(navigator, /canvasAgentBeginLocalConversation|canvasAgentStartNewConversation/);
   assert.match(persistence, /function snapshotItemsForCurrentView\(\)/);
-  assert.match(functionSource(persistence, "renderStudioSnapshotLists"), /PenEchoStudioNavigator\?\.render\?\.\(\)/);
+  assert.match(functionSource(persistence, "renderStudioSnapshotLists"), /FastLecturesStudioNavigator\?\.render\?\.\(\)/);
   assert.doesNotMatch(functionSource(persistence, "renderStudioSnapshotLists"), /renderWork|renderCanvases|renderAgent/);
   const renderActiveNavigator=functionSource(navigator,"renderActiveStudioNavigatorHistory"),
     refreshNavigatorSource=navigator.slice(navigator.indexOf("async function refreshStudioNavigatorSource("),navigator.indexOf("function refreshStudioNavigatorSources("));
@@ -3737,7 +3737,7 @@ test("Studio navigator groups recent Agent sessions by canvas and opens the boun
   assert.match(persistence, /wantsConversationForCanvas\?\.\(\{ id:item\.id, location \}\)[\s\S]*?deferConversationStart:restoreStudioConversation/);
   assert.match(functionSource(agent, "canvasAgentCanvasDidChange"), /deferConversationStart[\s\S]*?!deferConversationStart&&/);
   assert.match(agent, /function canvasAgentStoredHistoryGroups\(\)/);
-  assert.match(agent, /PenEchoStudioNavigator\?\.renderAgent/);
+  assert.match(agent, /FastLecturesStudioNavigator\?\.renderAgent/);
   assert.match(css, /body\[data-theme="studio"\] \.studio-navigator\s*\{[^}]*position:\s*absolute[^}]*inset:\s*var\(--studio-toolbar-height\) auto 0 0[^}]*width:\s*var\(--studio-navigator-width\)[^}]*flex:\s*0 0 auto[^}]*border-right:\s*0[^}]*background:\s*var\(--studio-glass\)[^}]*box-shadow:\s*4px 0 8px var\(--studio-chrome-shadow-color\)[^}]*backdrop-filter:\s*saturate\(1\.15\) blur\(20px\)/);
   assert.match(css, /@media \(max-width: 1100px\)[\s\S]*?\.studio-navigator\s*\{[^}]*z-index:\s*45[^}]*box-shadow:\s*4px 0 8px var\(--studio-chrome-shadow-color\)/);
   assert.match(css, /@media \(max-width: 1100px\)[\s\S]*?\.studio-navigator-scrim\s*\{[^}]*z-index:\s*44[^}]*background:\s*rgba\(20, 24, 34, \.16\)/);
@@ -3896,8 +3896,8 @@ test("Auto AI exposes a persisted zero-to-ten-second delay control", () => {
   assert.match(html, /id="autoDelayRange"[^>]*min="0"[^>]*max="10"[^>]*step="0\.1"[^>]*value="5"/);
   assert.match(app, /DEFAULT_AUTO_DELAY = 5000/);
   assert.match(app, /autoEnabled:\s*"Auto \(\{delay\}s\)"/);
-  assert.match(app, /penecho-auto-delay-ms/);
-  assert.match(app, /penecho-auto-ai/);
+  assert.match(app, /fastlectures-auto-delay-ms/);
+  assert.match(app, /fastlectures-auto-ai/);
   assert.match(app, /setTimeout\(hideAutoDelayControl,\s*5000\)/);
   assert.match(app, /if\s*\(state\.auto\)\s*setAutoEnabled\(false\)/);
   assert.match(app, /else\s*setAutoEnabled\(true,\s*true\)/);
@@ -3954,7 +3954,7 @@ test("toolbar exposes reasoning presets and an editable provider-native value be
     assert.match(button, /data-i18n-title=/);
     assert.doesNotMatch(button, /<span/);
   }
-  assert.match(app, /penecho-ai-effort/);
+  assert.match(app, /fastlectures-ai-effort/);
   assert.match(app, /reasoningEffort === "config" \? \{\} : \{ reasoningEffort: state\.reasoningEffort \}/);
   assert.match(functionSource(app, "normalizeToolbarReasoningEffort"), /trim\(\)\.toLowerCase\(\)[\s\S]*?effort\.length <= 128[\s\S]*?\!\/\[\\r\\n\\0\]\//);
   assert.match(functionSource(app, "updateEffortControl"), /customInput\.value = levelKey \? "" : state\.reasoningEffort/);
@@ -4600,7 +4600,7 @@ test("AI text defaults to the cross-platform handwritten font and remembers expl
     prepareAgentItems = functionSource(agent, "canvasAgentPrepareCreateItems");
   assert.match(handwrittenOption, /value="Bradley Hand, Segoe Print, Comic Sans MS, cursive"/);
   assert.match(handwrittenOption, /\bselected\b/);
-  assert.match(core, /AI_FONT_STORAGE_KEY = "penecho-ai-font"/);
+  assert.match(core, /AI_FONT_STORAGE_KEY = "fastlectures-ai-font"/);
   assert.match(core, /AI_FONT_HANDWRITTEN = "Bradley Hand, Segoe Print, Comic Sans MS, cursive"/);
   assert.match(core, /initialAiFont = normalizeAiFont\(storedAiFont\)/);
   assert.match(core, /aiFont: initialAiFont/);
@@ -4727,7 +4727,7 @@ test("pending copy is exposed as a direct DOM chrome action", () => {
     specs = functionSource(app, "pendingChromeSpecs"),
     button = functionSource(app, "createObjectChromeButton");
   assert.match(specs, /pendingCopyable\(target\)[\s\S]*?kind:"copy"[\s\S]*?copyPendingText\(itemIndex\)/);
-  assert.match(button, /kind === "move" \|\| kind === "toolbar" \|\| button\.disabled[\s\S]*?button\.penechoSpec\?\.activate\?\.\(button\)/);
+  assert.match(button, /kind === "move" \|\| kind === "toolbar" \|\| button\.disabled[\s\S]*?button\.fastlecturesSpec\?\.activate\?\.\(button\)/);
   assert.match(functionSource(app, "objectChromeLabel"), /kind === "copy"[\s\S]*?t\("copyText"\)/);
 });
 
@@ -4943,7 +4943,7 @@ test("a multi-tool AI draft has one uniform group corner resize", () => {
   assert.ok(bounded.x + bounded.w <= 800 && bounded.y + bounded.h <= 800);
 });
 
-test("PenEcho Agent internet search is configured in Settings and toggled beside attachments", () => {
+test("FastLectures Agent internet search is configured in Settings and toggled beside attachments", () => {
   const html=read("public/index.html"),app=read("public/app.js"),server=read("src/server/main.js"),runtime=read("src/server/canvas-agent/runtime.mjs"),css=read("public/style.css"),zh=read("public/locales/zh.js");
   for(const id of ["settingsOpenSearch","settingsSearchEntryStatus","settingsDeepSeekSearchProvider","settingsOpenCodeGoSearchSetup","settingsDeepSeekSearchApiKey","settingsDeepSeekSearchSaved","settingsTavilyApiKey","settingsTavilySaved","settingsDuckDuckGoReady","settingsSearchTestResults","settingsSearchTestFlashLabel","settingsTestSearch","canvasAgentSearch"]) assert.match(html,new RegExp(`id="${id}"`));
   assert.ok(html.indexOf('id="canvasAgentAttach"')<html.indexOf('id="canvasAgentSearch"'));

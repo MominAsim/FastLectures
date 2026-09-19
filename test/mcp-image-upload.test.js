@@ -31,7 +31,7 @@ test('missing encoder and unsupported HEIF codec provide actionable safe errors'
  const vm=require('node:vm'),fs=require('node:fs'),source=fs.readFileSync(require.resolve('../src/server/mcp/image-upload'),'utf8');
  const load=sharpFactory=>{const module={exports:{}};vm.runInNewContext(source,{require:id=>id==='sharp'?sharpFactory():require(id),module,Buffer});return module.exports.prepareUploadedImage;};
  const png=Buffer.from('89504e470d0a1a0a','hex');
- await assert.rejects(load(()=>{throw new Error('private local path');})(png,'x'),e=>e.code==='image_encoder_unavailable'&&e.status===503&&/reinstall PenEcho/.test(e.message)&&!e.message.includes('private'));
+ await assert.rejects(load(()=>{throw new Error('private local path');})(png,'x'),e=>e.code==='image_encoder_unavailable'&&e.status===503&&/reinstall FastLectures/.test(e.message)&&!e.message.includes('private'));
  const heif=Buffer.from('00000018667479706865696300000000','hex');
  const decode=load(()=>()=>({timeout(){return this;},metadata:async()=>{throw new Error('heif: Unsupported feature: Unsupported codec');},destroy(){}}));
  await assert.rejects(decode(heif,'x.heic'),e=>e.code==='image_codec_unavailable'&&e.status===415&&/PNG/.test(e.message));

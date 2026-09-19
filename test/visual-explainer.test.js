@@ -49,8 +49,8 @@ function sampleArtifactPlan() {
     ],
     relations:[{id:"pipeline-core",from:{regionId:"pipeline",port:"core"},to:{regionId:"core",port:"in"},kind:"drilldown",label:"K iterations"},{id:"tower-core",from:{regionId:"tower",port:"out"},to:{regionId:"core",port:"tower"},kind:"flow"}],
     artifacts:[
-      {id:"tower-html",title:"Tower details",html:"<!doctype html><style>body{font:18px system-ui}</style><div data-penecho-port=\"out\">n-gram gates</div>"},
-      {id:"core-html",title:"Core details",html:"<!doctype html><button data-penecho-port=\"in\">Step</button><div data-penecho-port=\"tower\">MoE × 224</div><script>document.querySelector('button').onclick=()=>document.body.dataset.step=1<\/script>"},
+      {id:"tower-html",title:"Tower details",html:"<!doctype html><style>body{font:18px system-ui}</style><div data-fastlectures-port=\"out\">n-gram gates</div>"},
+      {id:"core-html",title:"Core details",html:"<!doctype html><button data-fastlectures-port=\"in\">Step</button><div data-fastlectures-port=\"tower\">MoE × 224</div><script>document.querySelector('button').onclick=()=>document.body.dataset.step=1<\/script>"},
     ],
   };
 }
@@ -58,13 +58,13 @@ function sampleArtifactPlan() {
 test("VisualExplainerPlan compiler preserves semantics and owns all renderer syntax",()=>{
   const compiler=clientCompiler(),normalized=compiler.normalize(samplePlan()),html=compiler.document(samplePlan()),widget=compiler.widget(samplePlan(),{width:1400,height:900});
   assert.equal(normalized.regions.length,2);
-  assert.match(html,/data-penecho-visual-explainer/);
+  assert.match(html,/data-fastlectures-visual-explainer/);
   assert.match(html,/Transformer 架构/);
   assert.doesNotMatch(html,/AntVInfographic|sequence-steps|grid-template-columns/);
   assert.equal(widget.pluginId,"general");
   assert.equal(widget.widgetType,"html_widget");
-  assert.equal(widget.sourceFormat,"penecho-visual-explainer-plan+json");
-  assert.match(widget.frameworkVersion,/penecho-visual-explainer\/3/);
+  assert.equal(widget.sourceFormat,"fastlectures-visual-explainer-plan+json");
+  assert.match(widget.frameworkVersion,/fastlectures-visual-explainer\/3/);
   assert.match(widget.frameworkVersion,/antv-infographic\/0\.2\.20/);
   assert.equal(JSON.stringify(JSON.parse(widget.copyText)),JSON.stringify(normalized));
 });
@@ -83,18 +83,18 @@ test("Visual Explainer assets use the single current plan, local AntV, fallback 
   assert.doesNotMatch(runtime,/plan\.sections|function responsiveLayout|function renderHybridPlan/);
   assert.match(runtime,/ANTV_RENDER_TIMEOUT/);
   assert.match(runtime,/body\.append\(renderNative\(\{\.\.\.region,kind:region\.renderer\}\)\)/);
-  assert.match(runtime,/penecho-visual-explainer-diagnostics/);
+  assert.match(runtime,/fastlectures-visual-explainer-diagnostics/);
   assert.match(runtime,/relation-dagre-flow-lr-compact-card/);
   assert.match(runtime,/ResizeObserver/);
-  assert.match(runtime,/penecho-widget-updated/);
+  assert.match(runtime,/fastlectures-widget-updated/);
   assert.match(runtime,/semanticReplanRecommended/);
   assert.match(host,/visual-explainer-vendor\.js/);
   assert.match(host,/visual-explainer-runtime\.js\?v=3/);
   assert.match(host,/frame-src 'self' data: blob:/);
   assert.match(host,/visualExplainerAllowsNestedFrames\(visualPlan\)/);
   assert.match(runtime,/function renderCurrentPlan/);
-  assert.match(runtime,/data-penecho-port/);
-  assert.match(runtime,/penecho-visual-artifact-ports/);
+  assert.match(runtime,/data-fastlectures-port/);
+  assert.match(runtime,/fastlectures-visual-artifact-ports/);
   assert.match(runtime,/function drawRelations/);
   assert.match(host,/validVisualExplainerDiagnostics/);
   assert.match(server,/antv-infographic-0\.2\.20\.min\.js/);
@@ -116,7 +116,7 @@ test("Visual Explainer assets use the single current plan, local AntV, fallback 
   assert.equal(read("public/vendor/antv-infographic.LICENSE"),read("node_modules/@antv/infographic/LICENSE"));
 });
 
-test("PenEcho Agent frames a new Visual Explainer in the unobscured viewport beside its panel",()=>{
+test("FastLectures Agent frames a new Visual Explainer in the unobscured viewport beside its panel",()=>{
   const browser=read("src/client/app/canvas-agent-runtime.js"),frameSource=functionSource(browser,"canvasAgentFrameRegion"),framePlanSource=functionSource(browser,"canvasAgentFramePlan"),state={scale:.24,panX:0,panY:0},viewRect={left:0,top:0,width:1600,height:900},panelRect={left:1200,top:120,right:1580,bottom:880,width:380,height:760},calls={render:0,sync:0};
   const frame=vm.runInNewContext(`(() => { ${framePlanSource} return ${frameSource}; })()`,{
     SIZE:20000,state,
@@ -138,7 +138,7 @@ test("PenEcho Agent frames a new Visual Explainer in the unobscured viewport bes
 
 test("nested HTML frames are enabled only when the current Visual Explainer embeds HTML",()=>{
   const host=read("public/widget-host.js"),policies=vm.runInNewContext(`(() => {
-    const rendererUrl="http://127.0.0.1/vendor/penecho-dom-renderer.js",visualExplainerVendorUrl="http://127.0.0.1/vendor/visual-explainer.js",visualExplainerRuntimeUrl="http://127.0.0.1/visual-explainer-runtime.js";
+    const rendererUrl="http://127.0.0.1/vendor/fastlectures-dom-renderer.js",visualExplainerVendorUrl="http://127.0.0.1/vendor/visual-explainer.js",visualExplainerRuntimeUrl="http://127.0.0.1/visual-explainer-runtime.js";
     ${functionSource(host,"csp")}
     return [csp(),csp(true)];
   })()`),allows=vm.runInNewContext(`(${functionSource(host,"visualExplainerAllowsNestedFrames")})`);
@@ -155,7 +155,7 @@ test("Current Visual Explainer compiles multiple isolated HTML artifacts, explic
   const compiler=clientCompiler(),plan=sampleArtifactPlan(),normalized=compiler.normalize(plan),widget=compiler.widget(plan,{width:2200,height:1400}),artifact=compiler.artifact(plan,"core-html",{w:1200,h:800});
   assert.equal(normalized.regions.length,4);assert.equal(normalized.artifacts.length,2);assert.equal(normalized.typography.titlePx,64);
   assert.equal(artifact.pluginId,"general");assert.equal(artifact.sourceMirrorsHtml,true);assert.match(artifact.html,/MoE × 224/);
-  const replaced=compiler.replaceArtifact(plan,"core-html",{tool:"html_widget",pluginId:"general",title:"Core live",html:"<!doctype html><div data-penecho-port=\"in\">Patched</div>",sourceFormat:"html",refreshSeconds:0});
+  const replaced=compiler.replaceArtifact(plan,"core-html",{tool:"html_widget",pluginId:"general",title:"Core live",html:"<!doctype html><div data-fastlectures-port=\"in\">Patched</div>",sourceFormat:"html",refreshSeconds:0});
   assert.match(replaced.artifacts.find(item=>item.id==="core-html").html,/Patched/);assert.match(replaced.artifacts.find(item=>item.id==="tower-html").html,/n-gram gates/);
   assert.doesNotMatch(widget.copyText,/"version"|compositionMode/);assert.match(widget.html,/\\u003cbutton/);
   const bad=structuredClone(plan);bad.relations[0].to.port="missing";assert.throws(()=>compiler.normalize(bad),/unknown port core\.missing/);
@@ -177,7 +177,7 @@ test("Visual Explainer preserves the authored 12-column composition and stacks i
   assert.equal(layout(1100,regions).columns,6);
 });
 
-test("PenEcho's deterministic AntV resolver produces renderable sequence, hierarchy, and relationship SVG",async()=>{
+test("FastLectures's deterministic AntV resolver produces renderable sequence, hierarchy, and relationship SVG",async()=>{
   const runtime=read("public/visual-explainer-runtime.js"),resolver=vm.runInNewContext(`(() => {${functionSource(runtime,"hierarchyRoot")}\n${functionSource(runtime,"antvOptions")}\nreturn antvOptions;})()`),
     {renderToString}=await import("@antv/infographic/ssr"),palette=["#2563eb","#16a34a","#ea580c"],sections=[
       {id:"flow",title:"Flow",kind:"flow",items:[{id:"a",label:"Input",description:"Start"},{id:"b",label:"Output",description:"Finish"}]},

@@ -7,7 +7,7 @@ function assert(value,message){if(!value)throw Object.assign(Error(message),{cod
 async function runDiscoveryAcceptance(options){
  const client=require(path.join(options.moduleDirectory,'discovery-client.js')),lan=require(path.join(options.moduleDirectory,'lan-discovery.js'));const endpoint=client.validateURL(options.endpoint);
  assert(net.isIP(new URL(endpoint).hostname.replace(/^\[|\]$/g,'')),'Verified endpoint must contain a numeric private IP');
- const credentials=client.loadCredentials(options.hostId,{stateDirectory:options.stateDirectory});const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'penecho-discovery-acceptance-'));
+ const credentials=client.loadCredentials(options.hostId,{stateDirectory:options.stateDirectory});const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'fastlectures-discovery-acceptance-'));
  const report={startedAt:new Date().toISOString(),readOnlySharedState:true,noServerStop:true,noAIConfigurationWrites:true,cases:[],passed:false};const started=Date.now();
  let stalledServer;const stalledSockets=new Set();
  const badInitial='https://127.0.0.1:1/mcp',badCache='https://127.0.0.1:2/mcp';
@@ -56,7 +56,7 @@ async function runDiscoveryAcceptance(options){
  return report;
 }
 async function main(argv=process.argv.slice(2)){
- const options=argumentsFrom(argv);if(options.help){console.log('PenEcho authenticated IP/cache/LAN discovery acceptance. Uses real LAN discovery and disposable credential/cache copies; real state is read-only.\n--module-dir ABS_DIR --host-id ID --state-directory ABS_REAL_STATE --endpoint https://PRIVATE_IP:PORT/mcp [--output REPORT.json]\nCovers initial IP, valid/missing/stale/corrupt/unreadable cache, stalled TLS with cache/discovery fallback, explicitly simulated no-advertisements outage, then real discovery recovery. Reports setup, resolve, discovery, first-candidate, cache-write and fsync timings. No server stop or AI config changes.');return 0;}
+ const options=argumentsFrom(argv);if(options.help){console.log('FastLectures authenticated IP/cache/LAN discovery acceptance. Uses real LAN discovery and disposable credential/cache copies; real state is read-only.\n--module-dir ABS_DIR --host-id ID --state-directory ABS_REAL_STATE --endpoint https://PRIVATE_IP:PORT/mcp [--output REPORT.json]\nCovers initial IP, valid/missing/stale/corrupt/unreadable cache, stalled TLS with cache/discovery fallback, explicitly simulated no-advertisements outage, then real discovery recovery. Reports setup, resolve, discovery, first-candidate, cache-write and fsync timings. No server stop or AI config changes.');return 0;}
  const controller=new AbortController(),abort=()=>controller.abort(Error('Interrupted'));process.once('SIGINT',abort);process.once('SIGTERM',abort);
  try{const report=await runDiscoveryAcceptance({...options,signal:controller.signal});if(options.output){fs.mkdirSync(path.dirname(options.output),{recursive:true});fs.writeFileSync(options.output,JSON.stringify(report,null,2)+'\n',{mode:0o600});}console.log(JSON.stringify(report,null,2));return report.passed?0:1;}finally{process.removeListener('SIGINT',abort);process.removeListener('SIGTERM',abort);}
 }

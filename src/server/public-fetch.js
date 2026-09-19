@@ -175,7 +175,7 @@ function createPublicFetchService(options = {}) {
         headers:{
           "Accept":"*/*",
           "Accept-Language":"zh-CN,zh;q=0.9,en;q=0.7",
-          "User-Agent":"Mozilla/5.0 (compatible; PenEcho/0.8; public-data-reader)",
+          "User-Agent":"Mozilla/5.0 (compatible; FastLectures/0.8; public-data-reader)",
           ...(origin ? { "Origin":origin } : {}),
         },
         lookup(_hostname, requestOptions, callback) {

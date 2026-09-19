@@ -6,7 +6,7 @@ The footer becomes one action rail: Close / Close all on the left, Library on th
 
 ## Design source map
 
-- Fixed sidebar footer → penecho_design/penecho-design-language.html #buttons compact Ghost and popover footer example → one quiet action rail, shared 28px controls, compact 12.5/500 text, native focus and disabled behavior.
+- Fixed sidebar footer → fastlectures_design/fastlectures-design-language.html #buttons compact Ghost and popover footer example → one quiet action rail, shared 28px controls, compact 12.5/500 text, native focus and disabled behavior.
 - MCP follow → #buttons Toolbar selected state → aria-pressed toggle with existing semantic tint; content-sized label to avoid icon-width clipping.
 - MCP Close all → #buttons compact Ghost → secondary action; disabled when no open MCP documents or closing.
 - Footer hierarchy → #typography control label and metadata → shortened contextual labels, preserved full accessible names, 8px rail inset, no second oversized library row.
@@ -35,7 +35,7 @@ The primary task implemented and reviewed the behavior. Tests were delegated wit
 
 ## Close all loading footprint
 
-Both Close all controls now overlay the existing busy spinner at the button center while transparent label text preserves intrinsic width and its accessible name. Source map: penecho-design-language.html button state matrix / compact Ghost busy state; explicit user refinement requires loading to occupy the original button rather than append width. The 071 style override retains the existing spinner size and animation, with a text-color fallback when semantic variables are unavailable.
+Both Close all controls now overlay the existing busy spinner at the button center while transparent label text preserves intrinsic width and its accessible name. Source map: fastlectures-design-language.html button state matrix / compact Ghost busy state; explicit user refinement requires loading to occupy the original button rather than append width. The 071 style override retains the existing spinner size and animation, with a text-color fallback when semantic variables are unavailable.
 
 A temporary browser fixture loaded actual public/style.css and the two real button IDs. English wide-state widths stayed 68.703125 px; Chinese at a 390 px viewport and 200% CSS zoom stayed 136 px. Busy transitions preserved button vertical positions; the bounded narrow fixture had scrollWidth = clientWidth = 390. The centered spinner was visually inspected. The fixture and tab were removed. Main task handled this small UI fix directly; no subagent or Cloud deployment.
 

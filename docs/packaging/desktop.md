@@ -1,25 +1,25 @@
-# PenEcho desktop packaging
+# FastLectures desktop packaging
 
-This directory contains PenEcho's Electron packaging for macOS and Windows. It keeps the existing browser canvas and CLI while adding a native desktop shell.
+This directory contains FastLectures's Electron packaging for macOS and Windows. It keeps the existing browser canvas and CLI while adding a native desktop shell.
 
 End users do **not** need Node.js or Python. Electron bundles its own Chromium and Node.js runtime. API mode is the recommended beginner path. Codex CLI and Claude Code can also be installed from the setup page without opening a terminal.
 
 ## First launch
 
-1. PenEcho opens the graphical setup page.
+1. FastLectures opens the graphical setup page.
 2. The user chooses API, Kimi, Codex CLI, or Claude CLI.
 3. `Test, save & launch` validates the fields, stores any API key in a user-only local credential file, and tests the provider for up to 30 seconds. On macOS the key is compressed locally without accessing Keychain; Windows keeps Electron `safeStorage` and DPAPI encryption.
-4. After a successful test, the app restarts and opens the local PenEcho canvas automatically. If the test fails or times out, the saved configuration can still be launched.
+4. After a successful test, the app restarts and opens the local FastLectures canvas automatically. If the test fails or times out, the saved configuration can still be launched.
 5. Later launches open the canvas directly. `Settings…` remains available from the application menu.
 
-Codex CLI and Claude Code selections include `Install & sign in`. PenEcho downloads only the providers' official installer scripts, validates the response, installs without administrator access, opens the official browser login, and then resumes the connection test. This path does not require npm or a separately installed Node.js runtime.
+Codex CLI and Claude Code selections include `Install & sign in`. FastLectures downloads only the providers' official installer scripts, validates the response, installs without administrator access, opens the official browser login, and then resumes the connection test. This path does not require npm or a separately installed Node.js runtime.
 
 The Kimi partner preset supports Kimi Code and Kimi Open Platform, Global and Mainland China access, OpenAI-compatible defaults, and editable endpoints. Kimi Code defaults to model `k3` and also exposes its Anthropic-compatible endpoint. Kimi Open Platform defaults to model `kimi-k3`. The setup page uses the same partner links already published in the project README.
 
 Desktop state is stored in the operating system's normal application-data directory:
 
-- macOS: `~/Library/Application Support/PenEcho`
-- Windows: `%APPDATA%\PenEcho`
+- macOS: `~/Library/Application Support/FastLectures`
+- Windows: `%APPDATA%\FastLectures`
 
 The desktop service defaults to `127.0.0.1`. LAN listening is available only through Advanced settings. Personal plugins are stored under the application-data directory instead of inside the installed application bundle.
 
@@ -54,7 +54,7 @@ Windows installers cannot be created reliably on this Mac without Wine/Mono and 
 
 ## Icons
 
-The icon master is the same `public/penecho-mark.png` used by the website. Generate all platform assets with:
+The icon master is the same `public/fastlectures-mark.png` used by the website. Generate all platform assets with:
 
 ```bash
 npm run icons
@@ -62,12 +62,12 @@ npm run icons
 
 Generated production assets:
 
-- `build/icons/penecho-1024.png`
-- `build/icons/penecho.png`
-- `build/icons/penecho.icns`
-- `build/icons/penecho.ico`
+- `build/icons/fastlectures-1024.png`
+- `build/icons/fastlectures.png`
+- `build/icons/fastlectures.icns`
+- `build/icons/fastlectures.ico`
 
-The website brand icon is applied to the app bundle, Dock/taskbar executable, DMG and Windows setup executable. Squirrel's generic green install animation is replaced with the generated PenEcho-branded `penecho-install.gif`, so first install and update never show an unfamiliar third-party splash. Its wordmark is derived from checked-in brand artwork instead of build-host fonts, keeping the Windows splash deterministic in isolated cross-platform builds.
+The website brand icon is applied to the app bundle, Dock/taskbar executable, DMG and Windows setup executable. Squirrel's generic green install animation is replaced with the generated FastLectures-branded `fastlectures-install.gif`, so first install and update never show an unfamiliar third-party splash. Its wordmark is derived from checked-in brand artwork instead of build-host fonts, keeping the Windows splash deterministic in isolated cross-platform builds.
 
 ## Signing and notarization
 
@@ -104,9 +104,9 @@ PFX-based Authenticode remains an optional fallback using `windows-signing` envi
 - `WINDOWS_CERTIFICATE_PFX_BASE64`
 - `WINDOWS_CERTIFICATE_PASSWORD`
 
-The certificate must be a Windows-trusted code-signing certificate with its private key, not the Apple Developer ID certificate. Configure either Azure or PFX, never both. Signed modes use SHA-256 and a trusted timestamp, and the workflow verifies that both `PenEcho.exe` and `PenEcho-Setup-*.exe` have valid timestamped Authenticode signatures before artifacts are uploaded.
+The certificate must be a Windows-trusted code-signing certificate with its private key, not the Apple Developer ID certificate. Configure either Azure or PFX, never both. Signed modes use SHA-256 and a trusted timestamp, and the workflow verifies that both `FastLectures.exe` and `FastLectures-Setup-*.exe` have valid timestamped Authenticode signatures before artifacts are uploaded.
 
-The update download progress is shown only inside the PenEcho window. It is intentionally never mirrored onto the Windows taskbar icon.
+The update download progress is shown only inside the FastLectures window. It is intentionally never mirrored onto the Windows taskbar icon.
 
 Never commit certificates or credentials.
 
@@ -116,26 +116,26 @@ Keep source, icon masters, Forge configuration and the workflow in the source br
 
 The workflow can be run manually for private testing. When triggered by a `v*` tag, it creates a **draft** GitHub Release and uploads the installers. Test every installer before publishing the draft.
 
-Packaged apps check for updates shortly after launch and every six hours. `Help -> Check for Updates…` also provides a manual check. PenEcho reads the latest published release directly from the public GitHub Releases API, shows the release notes, and waits for the user to approve the download.
+Packaged apps check for updates shortly after launch and every six hours. `Help -> Check for Updates…` also provides a manual check. FastLectures reads the latest published release directly from the public GitHub Releases API, shows the release notes, and waits for the user to approve the download.
 
-Only published GitHub Releases are offered. Drafts and prereleases are not installed as normal updates. The updater accepts only the exact asset name for the current platform and architecture, only downloads it from the `penecho/penecho` GitHub Release path over HTTPS, and checks GitHub's SHA-256 digest when it is available.
+Only published GitHub Releases are offered. Drafts and prereleases are not installed as normal updates. The updater accepts only the exact asset name for the current platform and architecture, only downloads it from the `fastlectures/fastlectures` GitHub Release path over HTTPS, and checks GitHub's SHA-256 digest when it is available.
 
 Local unsigned builds can still exercise the update flow during development:
 
-- macOS downloads the matching ZIP, validates its PenEcho bundle ID and version, then replaces the installed `.app` after the running process exits. PenEcho must be installed in a user-writable location.
+- macOS downloads the matching ZIP, validates its FastLectures bundle ID and version, then replaces the installed `.app` after the running process exits. FastLectures must be installed in a user-writable location.
 - Windows downloads the matching Squirrel Setup executable and starts its silent installed-app upgrade path. Squirrel install/update events update the shortcut and exit without opening the canvas.
 
 These paths intentionally do not invoke Electron's native `autoUpdater`, because macOS Squirrel requires a valid Apple code signature even when both releases are intentionally unsigned. Signing and notarization can still be added later without changing the release asset contract.
 
 Recommended public assets:
 
-- `PenEcho-1.2.0-mac-arm64.dmg`
-- `PenEcho-1.2.0-mac-x64.dmg`
-- `PenEcho-1.2.0-mac-arm64.zip`
-- `PenEcho-1.2.0-mac-x64.zip`
-- `PenEcho-Setup-1.2.0-win-x64.exe`
+- `FastLectures-1.2.0-mac-arm64.dmg`
+- `FastLectures-1.2.0-mac-x64.dmg`
+- `FastLectures-1.2.0-mac-arm64.zip`
+- `FastLectures-1.2.0-mac-x64.zip`
+- `FastLectures-Setup-1.2.0-win-x64.exe`
 - `RELEASES`
-- `penecho-1.2.0-full.nupkg`
+- `fastlectures-1.2.0-full.nupkg`
 - `SHA256SUMS-<platform>-<arch>.txt`
 
-The DMG and Setup executable are the visible installers. PenEcho uses the macOS ZIP and Windows Setup executable for in-app updates, so those assets must remain attached when the draft is published. `RELEASES` and `.nupkg` remain useful Squirrel release artifacts but are not downloaded by PenEcho's unsigned update path.
+The DMG and Setup executable are the visible installers. FastLectures uses the macOS ZIP and Windows Setup executable for in-app updates, so those assets must remain attached when the draft is published. `RELEASES` and `.nupkg` remain useful Squirrel release artifacts but are not downloaded by FastLectures's unsigned update path.

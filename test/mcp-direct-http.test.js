@@ -16,7 +16,7 @@ function request(status, body, options = {}) {
 }
 const message = (method,id = 1,params) => ({jsonrpc:'2.0',method,id,params});
 async function fixture(t, options = {}) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(),'penecho-direct-test-'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(),'fastlectures-direct-test-'));
   const disposed = []; const service = createDirectHttpService({preferredPort:0,getHostnames:()=>[],stateDirectory:directory,getAddresses:() => [],announce:() => ({close(){}}),callTool:async ownerId => ({ownerId}),disposeOwner:id => disposed.push(id),...options});
   t.after(async () => { await service.close(); fs.rmSync(directory,{recursive:true,force:true}); });
   return {service,status:await service.start(),directory,disposed};
@@ -31,7 +31,7 @@ test('trusted HTTPS, auth, host, discovery, independent sessions and restart ide
   assert.equal(first.body.result.protocolVersion,'2025-11-25');
   const a = first.headers['mcp-session-id'], b = second.headers['mcp-session-id']; assert.notEqual(a,b);
   assert.ok((await request(status,message('tools/list'),{session:a})).body.result.tools.length);
-  const calls = await Promise.all([a,b].map(session => request(status,message('tools/call',77,{name:'penecho_list_canvases'}),{session})));
+  const calls = await Promise.all([a,b].map(session => request(status,message('tools/call',77,{name:'fastlectures_list_canvases'}),{session})));
   assert.notEqual(calls[0].body.result.structuredContent.ownerId,calls[1].body.result.structuredContent.ownerId);
   assert.equal((await request(status,message('ping'))).status,400);
   assert.equal((await request(status,undefined,{method:'GET'})).status,405);
@@ -51,7 +51,7 @@ test('upgrading retains an existing finite-lived CA and token without silently r
   const modulePath = require.resolve('../src/server/mcp/direct-http-identity.js');
   const legacy = {exports:{}};
   vm.runInNewContext(fs.readFileSync(modulePath,'utf8').replace("Date.parse('9999-12-31T23:59:59Z')", "Date.now() + 3650 * 86400000"), {require,module:legacy,Buffer,process});
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(),'penecho-existing-ca-'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(),'fastlectures-existing-ca-'));
   t.after(() => fs.rmSync(directory,{recursive:true,force:true}));
   const existing = legacy.exports.loadDirectHttpIdentity(directory);
   const file = path.join(directory,'direct-http','identity.json'), before = fs.readFileSync(file);
@@ -104,7 +104,7 @@ test('HTTP disconnect does not cancel a tool; service shutdown cancels it',async
 });
 test('concurrent processes atomically publish one shared identity',async t => {
   const {execFile} = require('node:child_process'); const {promisify} = require('node:util');
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(),'penecho-direct-race-'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(),'fastlectures-direct-race-'));
   t.after(() => fs.rmSync(directory,{recursive:true,force:true}));
   const modulePath = path.resolve(__dirname,'../src/server/mcp/direct-http-identity.js');
   const script = `const x=require(process.argv[1]).loadDirectHttpIdentity(process.argv[2]); process.stdout.write(JSON.stringify({hostId:x.hostId,token:x.accessToken}));`;
@@ -114,7 +114,7 @@ test('concurrent processes atomically publish one shared identity',async t => {
 });
 test('identity rejects symlinks and oversized files without changing external modes',async t => {
   const {loadDirectHttpIdentity} = require('../src/server/mcp/direct-http-identity.js');
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(),'penecho-direct-files-'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(),'fastlectures-direct-files-'));
   t.after(() => fs.rmSync(directory,{recursive:true,force:true}));
   const external = path.join(directory,'external'); fs.mkdirSync(external,{mode:0o755});
   const externalMode=fs.statSync(external).mode;

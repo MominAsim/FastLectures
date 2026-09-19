@@ -64,15 +64,15 @@ test("progress and a fragmented final Canvas title coexist in the same turn", as
   const session = { canvasTitleRequested:true };
   const chunk = (step, text) => publicSessionEvent({ type:"assistant/chunk", data:{ turn:1, step, chunk:{ type:"text-delta", text } } }, session);
   assert.equal(chunk(1, "进展：正在整理内容。\n").text, "进展：正在整理内容。\n");
-  assert.equal(chunk(2, "<penecho_canvas_"), null);
-  assert.equal(chunk(2, "title>内容整理</penecho_canvas_title>\n已完成。").text, "已完成。");
+  assert.equal(chunk(2, "<fastlectures_canvas_"), null);
+  assert.equal(chunk(2, "title>内容整理</fastlectures_canvas_title>\n已完成。").text, "已完成。");
   assert.equal(publicSessionEvent({ type:"turn/end", data:{ turn:1, reason:{ kind:"completed" } } }, session).canvasTitle, "内容整理");
 });
 
 test("Harness forwards CLI progress to the chat before the CLI decision resolves", async t => {
   const fs = require("node:fs"), os = require("node:os"), path = require("node:path");
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
-  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-progress-stream-"));
+  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-progress-stream-"));
   const connection = { id:"progress-test", provider:"claude-cli", name:"Test", cliPath:"unused-test-cli", cliModel:"test", effort:"high" };
   const events = [], progress = "进展：正在读取现有内容。", reply = "读取完成。";
   let release, cliResolved = false, calls = 0, sawProgress;
@@ -88,7 +88,7 @@ test("Harness forwards CLI progress to the chat before the CLI decision resolves
       request.onText?.(JSON.stringify({ progress }).slice(0, -1) + ",");
       await pending;
       cliResolved = true;
-      return JSON.stringify({ progress, type:"tool_call", name:"penecho_read_file", arguments:{ path:"canvas.json" } });
+      return JSON.stringify({ progress, type:"tool_call", name:"fastlectures_read_file", arguments:{ path:"canvas.json" } });
     },
   });
   t.after(async () => { release(); await host.dispose(); fs.rmSync(stateDirectory, { recursive:true, force:true }); });

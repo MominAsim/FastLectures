@@ -1,5 +1,5 @@
-# PenEcho Tool State Machine
-# PenEcho 工具状态机
+# FastLectures Tool State Machine
+# FastLectures 工具状态机
 
 > Status: discussion draft. This document records the intended behavior and the
 > gaps found in the current implementation. The manual-image Hand lifecycle

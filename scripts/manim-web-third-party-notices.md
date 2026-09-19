@@ -1,6 +1,6 @@
 # Manim-Web browser bundle third-party notices
 
-PenEcho packages the Manim-Web 0.3.24 browser entry and its emitted MathJax chunk. The bundle includes or can exercise code from the following packages. The corresponding license texts are distributed beside this notice.
+FastLectures packages the Manim-Web 0.3.24 browser entry and its emitted MathJax chunk. The bundle includes or can exercise code from the following packages. The corresponding license texts are distributed beside this notice.
 
 | Package | Resolved version | License | Distributed text |
 | --- | --- | --- | --- |

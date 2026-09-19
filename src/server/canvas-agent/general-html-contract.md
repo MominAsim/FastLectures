@@ -1,4 +1,4 @@
-# PenEcho Agent General HTML
+# FastLectures Agent General HTML
 
 This contract is for ordinary General HTML only. Use it when the user explicitly asks for ordinary HTML or when custom browser behavior is the defining result: interaction that changes data or views, animation, simulation, a live display, a small browser-native tool, a freeform overlay, or a custom illustration. Do not use this route for a new Visual Explorer; that always-on contract has its own source markers and review workflow.
 
@@ -15,7 +15,7 @@ Create one complete responsive HTML document through `canvas_create` with one Wi
 * dimensions selected for the actual content
 * the exact placement returned by `canvas_inspect` when a planned Widget proposal was requested
 
-HTML is the canonical source. Omit `copyText` and `copyLabel`; PenEcho derives its trusted Copy HTML action from `html`. Do not minify. Keep major HTML elements, CSS declarations, and JavaScript statements on stable separate lines so later `canvas_patch_widget` diffs stay small.
+HTML is the canonical source. Omit `copyText` and `copyLabel`; FastLectures derives its trusted Copy HTML action from `html`. Do not minify. Keep major HTML elements, CSS declarations, and JavaScript statements on stable separate lines so later `canvas_patch_widget` diffs stay small.
 
 The visible Widget must answer visually. Unless the user explicitly requests raw data or code, do not make JSON, XML, YAML, source code, or a `<pre>` dump the primary view.
 
@@ -35,7 +35,7 @@ The generated HTML may use public HTTPS resources when they materially improve t
 
 Never include secrets, authorization headers, cookies, private endpoints, hidden proxies, or user data that was not explicitly provided for that destination. Do not use forms, persistent storage, `sendBeacon`, or current-frame navigation. Useful public source links should use `target="_blank"` and `rel="noopener noreferrer"`.
 
-After initial render and meaningful layout or state changes, call `window.parent.postMessage({type:"penecho-widget-updated"}, "*")`; do not send it every animation frame.
+After initial render and meaningful layout or state changes, call `window.parent.postMessage({type:"fastlectures-widget-updated"}, "*")`; do not send it every animation frame.
 
 ## Refinement
 

@@ -47,7 +47,7 @@ async function runLegacyConfigure(argv, options) {
 }
 
 function temporaryDirectory() {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cli-test-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cli-test-"));
   test.after(() => fs.rmSync(directory, { recursive:true, force:true }));
   return directory;
 }
@@ -111,19 +111,19 @@ test("parses commands, provider overrides, and explicit config files", () => {
 });
 
 test("hidden UAT mode forces the public UAT origin and isolates Cloud credentials", () => {
-  const directory = temporaryDirectory(), home = path.join(directory, "home"), cwd = path.join(directory, "cwd"), stateDir = path.join(home, ".penecho");
+  const directory = temporaryDirectory(), home = path.join(directory, "home"), cwd = path.join(directory, "cwd"), stateDir = path.join(home, ".fastlectures");
   fs.mkdirSync(stateDir, { recursive:true }); fs.mkdirSync(cwd, { recursive:true });
-  fs.writeFileSync(path.join(stateDir, "config.env"), "AI_PROVIDER=codex-cli\nCODEX_CLI_MODEL=gpt-5.6-sol\nPENECHO_CLOUD_ORIGIN=https://penecho.ai\n");
-  const configuration = resolveConfiguration(parseArgs(["--uat"]), { env:{ PENECHO_CLOUD_ENV:"prod" }, home, cwd, packageRoot:ROOT });
-  assert.equal(configuration.env.PENECHO_CLOUD_ENV, "uat");
-  assert.equal(configuration.env.PENECHO_CLOUD_ORIGIN, "https://internaltest.penecho.ai");
-  assert.equal(configuration.env.PENECHO_CLOUD_STATE_DIR, path.join(stateDir, "cloud-uat"));
+  fs.writeFileSync(path.join(stateDir, "config.env"), "AI_PROVIDER=codex-cli\nCODEX_CLI_MODEL=gpt-5.6-sol\nFASTLECTURES_CLOUD_ORIGIN=https://fastlectures.ai\n");
+  const configuration = resolveConfiguration(parseArgs(["--uat"]), { env:{ FASTLECTURES_CLOUD_ENV:"prod" }, home, cwd, packageRoot:ROOT });
+  assert.equal(configuration.env.FASTLECTURES_CLOUD_ENV, "uat");
+  assert.equal(configuration.env.FASTLECTURES_CLOUD_ORIGIN, "https://internaltest.fastlectures.ai");
+  assert.equal(configuration.env.FASTLECTURES_CLOUD_STATE_DIR, path.join(stateDir, "cloud-uat"));
   assert.equal(configuration.env.CODEX_CLI_MODEL, "gpt-5.6-sol");
   assert.doesNotMatch(helpText(), /--uat/);
 });
 
 test("default startup reads only the global config and ignores project env files", () => {
-  const directory = temporaryDirectory(), home = path.join(directory, "home"), cwd = path.join(directory, "cwd"), packageRoot = path.join(directory, "package"), stateDir = path.join(home, ".penecho");
+  const directory = temporaryDirectory(), home = path.join(directory, "home"), cwd = path.join(directory, "cwd"), packageRoot = path.join(directory, "package"), stateDir = path.join(home, ".fastlectures");
   for (const item of [stateDir, cwd, packageRoot]) fs.mkdirSync(item, { recursive:true });
   fs.writeFileSync(path.join(packageRoot, ".env"), "AI_PROVIDER=api\nAI_API_MODEL=package\n");
   fs.writeFileSync(path.join(cwd, ".env"), "AI_PROVIDER=api\nAI_API_MODEL=cwd\n");
@@ -137,7 +137,7 @@ test("default startup reads only the global config and ignores project env files
 });
 
 test("--config replaces the global config source", () => {
-  const directory = temporaryDirectory(), home = path.join(directory, "home"), cwd = path.join(directory, "cwd"), stateDir = path.join(home, ".penecho");
+  const directory = temporaryDirectory(), home = path.join(directory, "home"), cwd = path.join(directory, "cwd"), stateDir = path.join(home, ".fastlectures");
   fs.mkdirSync(stateDir, { recursive:true }); fs.mkdirSync(cwd, { recursive:true });
   fs.writeFileSync(path.join(stateDir, "config.env"), "AI_PROVIDER=codex-cli\nCODEX_CLI_MODEL=global-model\n");
   fs.writeFileSync(path.join(cwd, "team.env"), "AI_PROVIDER=claude-cli\nCLAUDE_CLI_MODEL=team-model\n");
@@ -160,7 +160,7 @@ test("CLI model and effort override saved configuration", () => {
 });
 
 test("migrated connections supply provider settings and an empty store ignores legacy defaults", () => {
-  const home = temporaryDirectory(), stateDir = path.join(home, ".penecho");
+  const home = temporaryDirectory(), stateDir = path.join(home, ".fastlectures");
   fs.mkdirSync(stateDir);
   fs.writeFileSync(path.join(stateDir, "config.env"), "AI_PROVIDER=api\nAI_API_KEY=legacy-key\nOPENAI_API_KEY=legacy-alias\nPORT=4555\n");
   const file = path.join(stateDir, "connections.json");
@@ -176,21 +176,21 @@ test("migrated connections supply provider settings and an empty store ignores l
 });
 
 test("explicit CLI overrides are passed separately without rewriting migrated connections", () => {
-  const home = temporaryDirectory(), stateDir = path.join(home, ".penecho");
+  const home = temporaryDirectory(), stateDir = path.join(home, ".fastlectures");
   fs.mkdirSync(stateDir);
   const file = path.join(stateDir, "connections.json"), saved = JSON.stringify({ version:1, connections:[{ id:"saved", provider:"claude-cli", cliModel:"opus", effort:"high" }] });
   fs.writeFileSync(file, saved);
   const config = resolveConfiguration(parseArgs(["--codex", "--model", "custom-model", "--effort", "low"]), { env:{}, home });
-  assert.deepEqual(JSON.parse(config.env.PENECHO_CONNECTION_OVERRIDE), { AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"custom-model", AI_EFFORT:"low" });
+  assert.deepEqual(JSON.parse(config.env.FASTLECTURES_CONNECTION_OVERRIDE), { AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"custom-model", AI_EFFORT:"low" });
   assert.equal(config.provider, "codex-cli");
   assert.equal(fs.readFileSync(file, "utf8"), saved);
-  const normal = resolveConfiguration(parseArgs([]), { env:{ PENECHO_CONNECTION_OVERRIDE:config.env.PENECHO_CONNECTION_OVERRIDE }, home });
+  const normal = resolveConfiguration(parseArgs([]), { env:{ FASTLECTURES_CONNECTION_OVERRIDE:config.env.FASTLECTURES_CONNECTION_OVERRIDE }, home });
   assert.equal(normal.provider, "claude-cli");
-  assert.deepEqual(JSON.parse(normal.env.PENECHO_CONNECTION_OVERRIDE), {});
+  assert.deepEqual(JSON.parse(normal.env.FASTLECTURES_CONNECTION_OVERRIDE), {});
 });
 
 test("first launch sends legacy baseline separately from transient CLI flags", async () => {
-  const home = temporaryDirectory(), stateDir = path.join(home, ".penecho");
+  const home = temporaryDirectory(), stateDir = path.join(home, ".fastlectures");
   fs.mkdirSync(stateDir);
   fs.writeFileSync(path.join(stateDir, "config.env"), "AI_PROVIDER=claude-cli\nCLAUDE_CLI_MODEL=opus\nAI_EFFORT=high\n");
   let launched;
@@ -205,13 +205,13 @@ test("first launch sends legacy baseline separately from transient CLI flags", a
   assert.equal(launched.env.AI_EFFORT, "high");
   assert.equal(launched.env.CODEX_CLI_MODEL, "");
   assert.equal(launched.env.PORT, "4444");
-  assert.deepEqual(JSON.parse(launched.env.PENECHO_CONNECTION_OVERRIDE), { AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"transient", AI_EFFORT:"low" });
+  assert.deepEqual(JSON.parse(launched.env.FASTLECTURES_CONNECTION_OVERRIDE), { AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"transient", AI_EFFORT:"low" });
   assert.equal(fs.existsSync(path.join(stateDir, "connections.json")), false);
 });
 
 test("damaged connection stores fail clearly and preserve the original file", async () => {
   for (const saved of ["{broken", '{"version":1,"connections":null}', '{"version":99,"connections":[]}']) {
-    const home = temporaryDirectory(), stateDir = path.join(home, ".penecho");
+    const home = temporaryDirectory(), stateDir = path.join(home, ".fastlectures");
     fs.mkdirSync(stateDir);
     const file = path.join(stateDir, "connections.json"), errors = capture();
     fs.writeFileSync(file, saved);
@@ -230,9 +230,9 @@ test("canonical save creates global defaults and removes legacy names", () => {
   saveConfiguration(configuration, { AI_PROVIDER:"api", AI_API_FORMAT:"openai", AI_API_URL:"https://example.test/v1", AI_API_MODEL:"gpt-test", AI_API_KEY:"new", AI_EFFORT:"xhigh" });
   const saved = fs.readFileSync(configuration.configFile, "utf8");
   assert.match(saved, /^AI_TIMEOUT_SECONDS=180$/m);
-  assert.match(saved, /^PENECHO_AI_IMAGE_FORMAT=webp$/m);
+  assert.match(saved, /^FASTLECTURES_AI_IMAGE_FORMAT=webp$/m);
   assert.match(saved, /^AI_API_URL=https:\/\/example\.test\/v1$/m);
-  assert.match(saved, /^PENECHO_REQUEST_TRACE=false$/m);
+  assert.match(saved, /^FASTLECTURES_REQUEST_TRACE=false$/m);
   assert.match(saved, /^AUTO_AI_DELAY_SECONDS=5$/m);
   assert.match(saved, /^CUSTOM_SETTING=keep$/m);
   assert.doesNotMatch(saved, /OPENAI_|CODEX_CLI_TIMEOUT_SECONDS/);
@@ -277,8 +277,8 @@ test("configure opens the UI connections manager without terminal prompts or sav
     output:capture().stream, errorOutput:capture().stream, updateScheduler:() => {},
     startServer:async configuration => { started = configuration; },
   }), 0);
-  assert.equal(started.env.PENECHO_OPEN_CONNECTIONS, "true");
-  assert.equal(fs.existsSync(path.join(home, ".penecho", "config.env")), false);
+  assert.equal(started.env.FASTLECTURES_OPEN_CONNECTIONS, "true");
+  assert.equal(fs.existsSync(path.join(home, ".fastlectures", "config.env")), false);
 });
 
 test("normal startup serves first, then checks, installs, stops, and waits for a manual start", async () => {
@@ -298,16 +298,16 @@ test("normal startup serves first, then checks, installs, stops, and waits for a
   });
   assert.equal(code, 0);
   assert.deepEqual(events, ["server", "check", "install:99.0.0", "stop"]);
-  assert.match(output.text(), /PenEcho v\d+\.\d+\.\d+/);
-  assert.match(output.text(), /newer PenEcho version/);
-  assert.match(output.text(), /Run `penecho` again/);
+  assert.match(output.text(), /FastLectures v\d+\.\d+\.\d+/);
+  assert.match(output.text(), /newer FastLectures version/);
+  assert.match(output.text(), /Run `fastlectures` again/);
   assert.equal(errors.text(), "");
 });
 
 test("API configure saves before testing, keeps an existing key, and returns success after a failed test", async () => {
   const directory = temporaryDirectory(), home = path.join(directory, "home"), cwd = path.join(directory, "cwd");
-  fs.mkdirSync(path.join(home, ".penecho"), { recursive:true }); fs.mkdirSync(cwd, { recursive:true });
-  fs.writeFileSync(path.join(home, ".penecho", "config.env"), "AI_PROVIDER=api\nAI_API_FORMAT=openai\nAI_API_URL=https://old.test/v1\nAI_API_MODEL=old-model\nAI_API_KEY=existing-key\nAI_EFFORT=high\n");
+  fs.mkdirSync(path.join(home, ".fastlectures"), { recursive:true }); fs.mkdirSync(cwd, { recursive:true });
+  fs.writeFileSync(path.join(home, ".fastlectures", "config.env"), "AI_PROVIDER=api\nAI_API_FORMAT=openai\nAI_API_URL=https://old.test/v1\nAI_API_MODEL=old-model\nAI_API_KEY=existing-key\nAI_EFFORT=high\n");
   const ui = scriptedUi({
     selections:["openai", "xhigh", "save"],
     inputs:["https://new.test/v1", "gpt-5.6-sol"],
@@ -317,7 +317,7 @@ test("API configure saves before testing, keeps an existing key, and returns suc
     env:{}, home, cwd, packageRoot:ROOT, ui, output:capture().stream, errorOutput:capture().stream,
     apiTester:async () => { throw new Error("endpoint unavailable"); },
   });
-  const saved = fs.readFileSync(path.join(home, ".penecho", "config.env"), "utf8");
+  const saved = fs.readFileSync(path.join(home, ".fastlectures", "config.env"), "utf8");
   assert.equal(code, 0);
   assert.match(saved, /^AI_API_URL=https:\/\/new\.test\/v1$/m);
   assert.match(saved, /^AI_API_MODEL=gpt-5\.6-sol$/m);
@@ -338,7 +338,7 @@ test("Anthropic API configure saves none as an explicit thinking-disabled effort
     env:{}, home, cwd, packageRoot:ROOT, ui, output:capture().stream, errorOutput:capture().stream,
     apiTester:async () => ({ format:"anthropic", status:200 }),
   });
-  const saved = fs.readFileSync(path.join(home, ".penecho", "config.env"), "utf8");
+  const saved = fs.readFileSync(path.join(home, ".fastlectures", "config.env"), "utf8");
   assert.equal(code, 0);
   assert.match(saved, /^AI_API_FORMAT=anthropic$/m);
   assert.match(saved, /^AI_EFFORT=none$/m);
@@ -360,7 +360,7 @@ test("Kimi, Codex, and Claude are supported by configure and save their model ch
       codexCaller:async () => "OK",
       claudeCaller:async () => "OK",
     };
-    const code = await runLegacyConfigure(["configure", scenario.flag], options), saved = fs.readFileSync(path.join(home, ".penecho", "config.env"), "utf8");
+    const code = await runLegacyConfigure(["configure", scenario.flag], options), saved = fs.readFileSync(path.join(home, ".fastlectures", "config.env"), "utf8");
     assert.equal(code, 0);
     assert.match(saved, new RegExp(`^${scenario.field}=${scenario.model.replaceAll(".", "\\.")}$`, "m"));
   }
@@ -368,7 +368,7 @@ test("Kimi, Codex, and Claude are supported by configure and save their model ch
 
 test("API validation and connection requests use the selected wire format", async () => {
   assert.deepEqual(apiConfigurationIssues({ AI_API_KEY:"key", AI_API_URL:"https://example.test/v1", AI_API_MODEL:"model", AI_API_FORMAT:"openai" }), []);
-  assert.deepEqual(apiConfigurationIssues({ AI_API_KEY:"key", AI_API_URL:"https://example.test/v1", AI_API_MODEL:"model", PENECHO_AI_IMAGE_FORMAT:"jpeg" }), ["PENECHO_AI_IMAGE_FORMAT"]);
+  assert.deepEqual(apiConfigurationIssues({ AI_API_KEY:"key", AI_API_URL:"https://example.test/v1", AI_API_MODEL:"model", FASTLECTURES_AI_IMAGE_FORMAT:"jpeg" }), ["FASTLECTURES_AI_IMAGE_FORMAT"]);
   const calls = [], fetchImpl = async (url, options) => { calls.push({ url, options }); return { ok:true, status:200, text:async () => "{}" }; };
   await testApiConnection({ AI_API_FORMAT:"openai", AI_API_URL:"https://openai.test/v1", AI_API_MODEL:"gpt", AI_API_KEY:"key", AI_EFFORT:"xhigh" }, { fetchImpl, timeoutMs:1000 });
   await testApiConnection({ AI_API_FORMAT:"anthropic", AI_API_URL:"https://anthropic.test", AI_API_MODEL:"claude", AI_API_KEY:"key", AI_EFFORT:"max" }, { fetchImpl, timeoutMs:1000 });
@@ -408,7 +408,7 @@ test("API validation and connection requests use the selected wire format", asyn
     minimaxCalls.push({ url, options });
     return { ok:true, status:200, text:async () => "{}" };
   };
-  await testApiConnection({ AI_API_FORMAT:"openai", AI_API_URL:"https://api.minimax.io/v1", AI_API_MODEL:"MiniMax-M3", AI_API_KEY:"key", AI_EFFORT:"medium", PENECHO_API_PRESET:"minimax-global-api" }, { fetchImpl:minimaxFetch, timeoutMs:1000 });
+  await testApiConnection({ AI_API_FORMAT:"openai", AI_API_URL:"https://api.minimax.io/v1", AI_API_MODEL:"MiniMax-M3", AI_API_KEY:"key", AI_EFFORT:"medium", FASTLECTURES_API_PRESET:"minimax-global-api" }, { fetchImpl:minimaxFetch, timeoutMs:1000 });
   const minimaxBody = JSON.parse(minimaxCalls[0].options.body);
   assert.equal(minimaxBody.stream,true);
   assert.equal(minimaxBody.reasoning_effort,"medium");
@@ -419,7 +419,7 @@ test("API validation and connection requests use the selected wire format", asyn
 test("API connection success labels distinguish presets from wire formats", async () => {
   const tested = async () => ({ format:"openai", status:200 });
   const kimi = isolatedConfiguration(parseArgs(["--api"]), {
-    AI_PROVIDER:"api", AI_API_FORMAT:"openai", AI_API_URL:"https://api.kimi.com/coding/v1", AI_API_MODEL:"k3", AI_API_KEY:"key", PENECHO_API_PRESET:"kimi-global-coding",
+    AI_PROVIDER:"api", AI_API_FORMAT:"openai", AI_API_URL:"https://api.kimi.com/coding/v1", AI_API_MODEL:"k3", AI_API_KEY:"key", FASTLECTURES_API_PRESET:"kimi-global-coding",
   });
   const custom = isolatedConfiguration(parseArgs(["--api"]), {
     AI_PROVIDER:"api", AI_API_FORMAT:"openai", AI_API_URL:"https://example.test/v1", AI_API_MODEL:"model", AI_API_KEY:"key",
@@ -454,7 +454,7 @@ test("API connection timeout covers an SSE body that never completes", async () 
 
 test("configured Codex check reads the bundled catalog and sends one small image request", async () => {
   const configuration = isolatedConfiguration(parseArgs(["--codex"]), {
-    AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"gpt-5.6-sol", AI_EFFORT:"xhigh", AI_TIMEOUT_SECONDS:"120", PENECHO_AI_IMAGE_FORMAT:"webp", CODEX_CLI_PATH:process.execPath, PATH:process.env.PATH,
+    AI_PROVIDER:"codex-cli", CODEX_CLI_MODEL:"gpt-5.6-sol", AI_EFFORT:"xhigh", AI_TIMEOUT_SECONDS:"120", FASTLECTURES_AI_IMAGE_FORMAT:"webp", CODEX_CLI_PATH:process.execPath, PATH:process.env.PATH,
   });
   const calls = [];
   let modelRequest;
@@ -490,7 +490,7 @@ test("configured CLI connection tests abort the model request at an explicit cal
     codexCaller:input => new Promise((resolve, reject) => {
       input.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once:true });
     }),
-  }), error => error.code === "PENECHO_CONNECTION_TEST_TIMEOUT" && /timed out/.test(error.message));
+  }), error => error.code === "FASTLECTURES_CONNECTION_TEST_TIMEOUT" && /timed out/.test(error.message));
 });
 
 test("configured Codex Test upgrades an old CLI and performs every remaining check with the managed CLI", async () => {
@@ -661,7 +661,7 @@ test("Codex upgrade waiting is outside the model timeout and the restarted timeo
   await run(makeConfiguration(), async () => "OK");
   await assert.rejects(run(makeConfiguration(), input => new Promise((resolve, reject) => {
     input.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once:true });
-  })), error => error.code === "PENECHO_CONNECTION_TEST_TIMEOUT");
+  })), error => error.code === "FASTLECTURES_CONNECTION_TEST_TIMEOUT");
 });
 
 test("Codex Test does not begin an upgrade after its pre-install test budget expires", async () => {
@@ -677,7 +677,7 @@ test("Codex Test does not begin an upgrade after its pre-install test budget exp
     },
     codexInstaller:async () => { installs += 1; },
     onCliUpgrade:async () => { callbacks += 1; },
-  }), error => error.code === "PENECHO_CONNECTION_TEST_TIMEOUT");
+  }), error => error.code === "FASTLECTURES_CONNECTION_TEST_TIMEOUT");
   assert.equal(installs, 0);
   assert.equal(callbacks, 0);
 });
@@ -819,12 +819,12 @@ test("CLI preflight failures print one upgrade command without blocking startup"
     });
     assert.equal(code, 0, errorOutput.text());
     assert.deepEqual(starts, [cliProvider]);
-    assert.match(errorOutput.text(), new RegExp(`PenEcho ${provider.label} check warning`));
+    assert.match(errorOutput.text(), new RegExp(`FastLectures ${provider.label} check warning`));
     assert.match(errorOutput.text(), /Upgrade or repair/);
     assert.match(errorOutput.text(), new RegExp(provider.command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.equal((errorOutput.text().match(/install\.(?:sh|ps1)/g) || []).length, 1);
-    assert.match(errorOutput.text(), /PenEcho has started/);
-    assert.match(errorOutput.text(), new RegExp(`penecho doctor --${provider.name}`));
+    assert.match(errorOutput.text(), /FastLectures has started/);
+    assert.match(errorOutput.text(), new RegExp(`fastlectures doctor --${provider.name}`));
   }
 });
 
@@ -923,7 +923,7 @@ test("CLI preflight begins only after the server starts and never delays main", 
   assert.equal(typeof finishRunner, "function");
   finishRunner({ code:1, stdout:"", stderr:"failed" });
   await task;
-  assert.match(errorOutput.text(), /PenEcho has started/);
+  assert.match(errorOutput.text(), /FastLectures has started/);
 });
 
 test("a successful system fallback is shared with the running server", async () => {
@@ -956,7 +956,7 @@ test("doctor is diagnostic-only and reports the unified timeout", async () => {
   assert.equal(ready, true);
   assert.match(output.text(), /Node\.js .*22\.19\.0\+ required/);
   assert.match(output.text(), /Unified model timeout is 180 seconds/);
-  assert.match(output.text(), /Reasoning effort is medium \(PenEcho default\)/);
+  assert.match(output.text(), /Reasoning effort is medium \(FastLectures default\)/);
   assert.match(output.text(), /no model request was made/);
 });
 
@@ -981,7 +981,7 @@ test("help documents active options without obsolete setup or legacy stdio guida
   const help = helpText();
   assert.doesNotMatch(help, /configure|legacy stdio|curl|irm /);
   assert.match(help, /Settings → Connections/);
-  assert.match(help, /~\/.penecho\/config\.env/);
+  assert.match(help, /~\/.fastlectures\/config\.env/);
   assert.match(help, /--config/);
   assert.match(help, /--model/);
   assert.match(help, /--effort/);

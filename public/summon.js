@@ -2,7 +2,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
-  else root.PENECHO_SUMMON = api;
+  else root.FASTLECTURES_SUMMON = api;
 })(typeof globalThis === "object" ? globalThis : this, function () {
   const TAU = Math.PI * 2,
     THINKING_LAYOUT = Object.freeze({

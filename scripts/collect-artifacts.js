@@ -7,8 +7,8 @@ const pkg = require("../package.json");
 
 const ROOT = path.resolve(__dirname, ".."), source = path.join(ROOT, "out", "make"), destination = path.join(ROOT, "release"),
   desktopVersion = pkg.config.desktopVersion,
-  targetPlatform = process.env.PENECHO_TARGET_PLATFORM || process.platform,
-  targetArch = process.env.PENECHO_TARGET_ARCH || process.arch,
+  targetPlatform = process.env.FASTLECTURES_TARGET_PLATFORM || process.platform,
+  targetArch = process.env.FASTLECTURES_TARGET_ARCH || process.arch,
   extensions = new Set([".dmg", ".exe", ".msi", ".nupkg", ".zip"]), exact = new Set(["RELEASES"]);
 
 function walk(directory) {
@@ -22,8 +22,8 @@ const copied = [];
 for (const file of walk(source)) {
   if (!extensions.has(path.extname(file).toLowerCase()) && !exact.has(path.basename(file))) continue;
   const extension = path.extname(file).toLowerCase();
-  let name = extension === ".dmg" ? `PenEcho-${desktopVersion}-mac-${targetArch}.dmg`
-    : extension === ".zip" ? `PenEcho-${desktopVersion}-${targetPlatform === "darwin" ? "mac" : "win"}-${targetArch}.zip`
+  let name = extension === ".dmg" ? `FastLectures-${desktopVersion}-mac-${targetArch}.dmg`
+    : extension === ".zip" ? `FastLectures-${desktopVersion}-${targetPlatform === "darwin" ? "mac" : "win"}-${targetArch}.zip`
       : path.basename(file), target = path.join(destination, name), suffix = 1;
   while (fs.existsSync(target)) {
     const targetExtension = path.extname(name), stem = path.basename(name, targetExtension);
@@ -32,9 +32,9 @@ for (const file of walk(source)) {
   fs.copyFileSync(file, target);
   copied.push(target);
 }
-const icon = path.join(ROOT, "build", "icons", "penecho.ico");
+const icon = path.join(ROOT, "build", "icons", "fastlectures.ico");
 if (targetPlatform === "win32" && fs.existsSync(icon)) {
-  const target = path.join(destination, "penecho.ico");
+  const target = path.join(destination, "fastlectures.ico");
   fs.copyFileSync(icon, target);
   copied.push(target);
 }

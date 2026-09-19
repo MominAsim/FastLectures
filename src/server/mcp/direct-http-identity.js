@@ -12,7 +12,7 @@ const seq = (...p) => der(48, ...p);
 const oid = h => der(6, Buffer.from(h, 'hex'));
 const algorithm = seq(oid('2a8648ce3d040302'));
 const name = value => seq(der(49, seq(oid('550403'), der(12, value))));
-const caName = name('PenEcho MCP Local CA');
+const caName = name('FastLectures MCP Local CA');
 const extension = (id, value, critical = false) => seq(oid(id), ...(critical ? [der(1, [255])] : []), der(4, value));
 // RFC 5280 §4.1.2.5: no well-defined expiration date.
 const CERTIFICATE_NOT_AFTER = Date.parse('9999-12-31T23:59:59Z');
@@ -81,7 +81,7 @@ function loadDirectHttpIdentity(stateDirectory, reset = false) {
 }
 function createDirectHttpLeaf(identity, addresses, hostnames = []) {
   const pair = keys();
-  return {key:pair.privateKey.export({format:'pem',type:'pkcs8'}), cert:certificate(pair.publicKey, crypto.createPrivateKey(identity.key), name('PenEcho MCP'), [
+  return {key:pair.privateKey.export({format:'pem',type:'pkcs8'}), cert:certificate(pair.publicKey, crypto.createPrivateKey(identity.key), name('FastLectures MCP'), [
     extension('551d13', seq(), true), extension('551d0f', der(3, [7, 128]), true),
     extension('551d25', seq(oid('2b06010505070301'))),
     extension('551d11', seq(...[...new Set(['localhost',...hostnames])].map(host=>der(130,host)), ...[...new Set(['127.0.0.1', ...addresses])].map(a => der(135, a.split('.').map(Number)))))

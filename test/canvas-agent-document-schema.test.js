@@ -10,7 +10,7 @@ test('document adapter exposes draw constraints and rejects excess items before 
     calls.push(args);
     throw new Error('Invalid draw must never reach browser RPC');
   }};
-  const draw = createDocumentTools(session).find(tool => tool.name === 'penecho_draw');
+  const draw = createDocumentTools(session).find(tool => tool.name === 'fastlectures_draw');
   assert.ok(draw);
   assert.doesNotThrow(() => assertObjectJsonSchema(draw.parameters));
   const items = draw.parameters.properties.items;
@@ -38,7 +38,7 @@ test('all public tool schemas remain SDK supported with model-visible execution 
     assert.doesNotThrow(() => assertObjectJsonSchema(schema), tool.name);
     assert.deepEqual(tool.inputSchema, original);
   }
-  const draw = harnessDocumentSchema(TOOLS.find(tool => tool.name === 'penecho_draw').inputSchema);
+  const draw = harnessDocumentSchema(TOOLS.find(tool => tool.name === 'fastlectures_draw').inputSchema);
   const items = draw.properties.items;
   assert.match(items.description, /"minItems":1,"maxItems":24/);
   assert.match(items.items.properties.strokeWidth.description, /"minimum":1,"maximum":12/);
@@ -68,7 +68,7 @@ test('nested constraints remain lossless annotations without rewriting literal d
 
 test('draw rejection exposes actionable counts and ranges and never arbitrary invalid values', () => {
   const base = {sessionId:'s', artifactId:'a', requestId:'r', title:'Diagram'};
-  const reject = (items, pattern) => assert.throws(() => validateToolArguments('penecho_draw', {...base, items}), error => {
+  const reject = (items, pattern) => assert.throws(() => validateToolArguments('fastlectures_draw', {...base, items}), error => {
     assert.equal(error.code, 'invalid_arguments');
     assert.equal(error.status, 400);
     assert.match(error.message, pattern);
@@ -82,6 +82,6 @@ test('draw rejection exposes actionable counts and ranges and never arbitrary in
   reject([{id:'e',type:'ellipse',height:40}], /height.*80\.\.1200.*received 40/);
   reject([{id:'l',type:'line',points:[{x:0,y:0},{x:1,y:1},{x:2,y:2}]}], /has 3 points; expected exactly 2/);
   reject([{id:'r',type:'rect',strokeWidth:'PRIVATE SOURCE CONTENT'}], /received string/);
-  assert.throws(() => validateToolArguments('penecho_draw', {...base,items:[{id:'r',type:'rect',width:{source:'PRIVATE SOURCE CONTENT'}}]}), error => !error.message.includes('PRIVATE SOURCE CONTENT'));
-  assert.equal(validateToolArguments('penecho_draw', {...base,items:[{id:'r',type:'rect',width:80,strokeWidth:12,x:0,y:0}]}).items[0].width, 80);
+  assert.throws(() => validateToolArguments('fastlectures_draw', {...base,items:[{id:'r',type:'rect',width:{source:'PRIVATE SOURCE CONTENT'}}]}), error => !error.message.includes('PRIVATE SOURCE CONTENT'));
+  assert.equal(validateToolArguments('fastlectures_draw', {...base,items:[{id:'r',type:'rect',width:80,strokeWidth:12,x:0,y:0}]}).items[0].width, 80);
 });

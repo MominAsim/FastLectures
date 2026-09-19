@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="../../public/penecho-readme-header.png" alt="PenEcho" width="760">
+  <img src="../../public/fastlectures-readme-header.png" alt="FastLectures" width="760">
 </h1>
 
 <p align="center">
@@ -21,25 +21,25 @@
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="AGPL-3.0-only"></a>
 </p>
 <p align="center">
-  <a href="https://penecho.ai">Site</a> ·
-  <a href="https://github.com/penecho/penecho/releases/latest">Download</a> ·
+  <a href="https://fastlectures.ai">Site</a> ·
+  <a href="https://github.com/fastlectures/fastlectures/releases/latest">Download</a> ·
   <a href="#quick-start">Início rápido</a> ·
   <a href="../mcp-setup.md">Guia MCP</a> ·
   <a href="https://discord.gg/3jrPJ3mXdX">Discord</a>
 </p>
 
 <p align="center">
-  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_full_demo.webp" alt="Demonstração completa do PenEcho" width="49%">
-  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins.webp" alt="Demonstração de diagramas profissionais do PenEcho" width="49%">
+  <img src="https://github.com/fastlectures/fastlectures/releases/download/v0.1.0/fastlectures_full_demo.webp" alt="Demonstração completa do FastLectures" width="49%">
+  <img src="https://github.com/fastlectures/fastlectures/releases/download/v0.1.0/fastlectures_plugins.webp" alt="Demonstração de diagramas profissionais do FastLectures" width="49%">
 </p>
 
 <p align="center">
-  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/penecho_plugins_sub_x10.webp" alt="Demonstração de plugins do PenEcho" width="49%">
-  <img src="https://github.com/penecho/penecho/releases/download/v0.1.0/play_patris.webp" alt="Demonstração do canvas interativo do PenEcho" width="49%">
+  <img src="https://github.com/fastlectures/fastlectures/releases/download/v0.1.0/fastlectures_plugins_sub_x10.webp" alt="Demonstração de plugins do FastLectures" width="49%">
+  <img src="https://github.com/fastlectures/fastlectures/releases/download/v0.1.0/play_patris.webp" alt="Demonstração do canvas interativo do FastLectures" width="49%">
 </p>
 
 <p align="center">
-  <a href="https://www.kimi.com/code?aff=penecho">
+  <a href="https://www.kimi.com/code?aff=fastlectures">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="../assets/kimi-open-source-friends-dark.svg">
       <img src="../assets/kimi-open-source-friends-light.svg" alt="Kimi Open Source Friends" width="326" height="56">
@@ -49,17 +49,17 @@
 
 ## Uma extensão espacial da sua conversa com IA
 
-Continue conversando com **Codex, Claude, Kimi ou outros agentes de IA**. Deixe o PenEcho dar um lugar para o seu trabalho.
+Continue conversando com **Codex, Claude, Kimi ou outros agentes de IA**. Deixe o FastLectures dar um lugar para o seu trabalho.
 
 Com MCP, sua IA pode transformar explicações em diagramas e ideias em prévias interativas. Mantenha referências, raciocínio e resultados lado a lado, anote no canvas e leve seus comentários para a próxima rodada.
 
 | Continue a conversa | Veja o trabalho tomar forma | Envie seus comentários |
 | --- | --- | --- |
-| Trabalhe com o agente de IA que você já usa. | O servidor MCP do PenEcho traz diagramas, documentos e prévias interativas para o Canvas. | Experimente o resultado, faça anotações e deixe o agente ler seus comentários para a próxima revisão. |
+| Trabalhe com o agente de IA que você já usa. | O servidor MCP do FastLectures traz diagramas, documentos e prévias interativas para o Canvas. | Experimente o resultado, faça anotações e deixe o agente ler seus comentários para a próxima revisão. |
 
 <p align="center">
   <a href="../assets/mcp-spatial-example.png">
-    <img src="../assets/mcp-spatial-example.png" alt="Uma discussão de arquitetura com IA, com comentários manuscritos ao lado da proposta no PenEcho Canvas" width="760">
+    <img src="../assets/mcp-spatial-example.png" alt="Uma discussão de arquitetura com IA, com comentários manuscritos ao lado da proposta no FastLectures Canvas" width="760">
   </a>
 </p>
 <p align="center"><em>Uma discussão de arquitetura com anotações manuscritas no Canvas.</em></p>
@@ -80,18 +80,18 @@ Com MCP, sua IA pode transformar explicações em diagramas e ideias em prévias
 | Atualização | O que acrescenta |
 | --- | --- |
 | **Espaço de trabalho MCP** | Descoberta de Canvases, capturas, edição de objetos, Widgets interativos, arquivos-fonte virtuais e feedback do usuário para agentes externos. Suporta navegadores locais, na LAN e na Cloud por um dispositivo vinculado, com autorização explícita. |
-| **Cloud MCP** | Conecte agentes de IA externos diretamente aos seus canvases habilitados no PenEcho Cloud para ler conteúdo, criar e editar resultados e acompanhar comentários manuscritos. Cloud MCP e Local MCP são formas opcionais de conexão. |
-| **PenEcho Cloud Credits API** | Use modelos hospedados pelo PenEcho com créditos da conta, além de suas próprias conexões de API e CLI. Consulte modelos disponíveis, preços e saldo nas configurações. |
+| **Cloud MCP** | Conecte agentes de IA externos diretamente aos seus canvases habilitados no FastLectures Cloud para ler conteúdo, criar e editar resultados e acompanhar comentários manuscritos. Cloud MCP e Local MCP são formas opcionais de conexão. |
+| **FastLectures Cloud Credits API** | Use modelos hospedados pelo FastLectures com créditos da conta, além de suas próprias conexões de API e CLI. Consulte modelos disponíveis, preços e saldo nas configurações. |
 | **Gerenciamento de conexões** | Salve várias conexões de IA e escolha a conexão ativa de cada cliente. |
 | **Canvas e ambiente de trabalho** | Desenho e navegação mais responsivos, controles refinados do Studio, painel adaptável do Agent e atalhos de teclado personalizáveis. |
 
 ## Como funciona
 
 <p align="center">
-  <img src="../../public/penecho-architecture.webp" alt="Arquitetura do PenEcho: um navegador se conecta ao PenEcho Cloud ou ao PC local. A Cloud inclui modelos hospedados e se conecta ao dispositivo vinculado. O PC executa o PenEcho CLI ou App com sua API de LLM ou seus agentes. Agentes externos podem usar Cloud MCP ou Local MCP; ambas as conexões são opcionais." width="1483">
+  <img src="../../public/fastlectures-architecture.webp" alt="Arquitetura do FastLectures: um navegador se conecta ao FastLectures Cloud ou ao PC local. A Cloud inclui modelos hospedados e se conecta ao dispositivo vinculado. O PC executa o FastLectures CLI ou App com sua API de LLM ou seus agentes. Agentes externos podem usar Cloud MCP ou Local MCP; ambas as conexões são opcionais." width="1483">
 </p>
 
-Abra o PenEcho no navegador pelo PenEcho Cloud ou pelo PC local executando o CLI ou o aplicativo desktop. A Cloud oferece modelos hospedados e pode se conectar ao dispositivo vinculado; seu PC pode usar sua própria API de modelos ou seus agentes. Agentes de IA externos, como Codex e Claude, podem se conectar por Cloud MCP ou Local MCP. Ambas as conexões MCP são opcionais.
+Abra o FastLectures no navegador pelo FastLectures Cloud ou pelo PC local executando o CLI ou o aplicativo desktop. A Cloud oferece modelos hospedados e pode se conectar ao dispositivo vinculado; seu PC pode usar sua própria API de modelos ou seus agentes. Agentes de IA externos, como Codex e Claude, podem se conectar por Cloud MCP ou Local MCP. Ambas as conexões MCP são opcionais.
 
 Consulte as [notas de arquitetura](../architecture.md) para detalhes de implementação.
 
@@ -99,16 +99,16 @@ Consulte as [notas de arquitetura](../architecture.md) para detalhes de implemen
 
 ## Início rápido
 
-**Desktop:** baixe o aplicativo para Windows ou macOS em [GitHub Releases](https://github.com/penecho/penecho/releases/latest).
+**Desktop:** baixe o aplicativo para Windows ou macOS em [GitHub Releases](https://github.com/fastlectures/fastlectures/releases/latest).
 
 **npm:** requer Node.js **22.19 ou mais recente**.
 
 ```bash
-npm install -g penecho
-penecho
+npm install -g fastlectures
+fastlectures
 ```
 
-Abra `http://localhost:3888`. Adicione sua API de modelos ou um Codex, Claude Code ou Kimi CLI autenticado em **Configurações → Conexões**. As conexões são salvas em `~/.penecho/connections.json`; as configurações gerais continuam em `~/.penecho/config.env`. Para modelos hospedados pelo PenEcho, entre na conta e selecione um modelo disponível nas configurações.
+Abra `http://localhost:3888`. Adicione sua API de modelos ou um Codex, Claude Code ou Kimi CLI autenticado em **Configurações → Conexões**. As conexões são salvas em `~/.fastlectures/connections.json`; as configurações gerais continuam em `~/.fastlectures/config.env`. Para modelos hospedados pelo FastLectures, entre na conta e selecione um modelo disponível nas configurações.
 
 Na inicialização, defina um código de acesso de seis dígitos ou habilite explicitamente o acesso aberto na sua rede confiável. A inicialização também mostra os endereços LAN para outros dispositivos.
 
@@ -116,8 +116,8 @@ Na inicialização, defina um código de acesso de seis dígitos ou habilite exp
 <summary>Executar a partir do código-fonte</summary>
 
 ```bash
-git clone https://github.com/penecho/penecho.git
-cd penecho
+git clone https://github.com/fastlectures/fastlectures.git
+cd fastlectures
 npm install
 npm start
 ```
@@ -130,47 +130,47 @@ npm start
 
 Para **Local MCP**:
 
-1. Inicie o PenEcho e habilite o Canvas atual em **Configurações → Serviço MCP**.
+1. Inicie o FastLectures e habilite o Canvas atual em **Configurações → Serviço MCP**.
 2. Use as configurações para configurar um cliente local compatível ou copie a configuração de inicialização gerada. Em uma instalação global via npm, clientes que aceitam JSON `mcpServers` podem usar:
 
    ```json
    {
      "mcpServers": {
-       "penecho": { "command": "penecho", "args": ["mcp"] }
+       "fastlectures": { "command": "fastlectures", "args": ["mcp"] }
      }
    }
    ```
 
-3. Peça ao agente: **“Mostre a arquitetura que discutimos no meu PenEcho Canvas.”**
+3. Peça ao agente: **“Mostre a arquitetura que discutimos no meu FastLectures Canvas.”**
 
-O agente pode capturar conteúdo relevante, editar objetos, criar resultados visuais, aplicar alterações aos arquivos-fonte de documentos e receber seus comentários. Apenas Canvases habilitados e conectados podem ser descobertos. Com Local MCP, o cliente MCP é executado no host do PenEcho; o suporte a navegadores na LAN e em dispositivos vinculados não expõe publicamente o endpoint MCP local. Cloud MCP é uma conexão HTTPS autenticada separada para seus canvases habilitados no PenEcho Cloud.
+O agente pode capturar conteúdo relevante, editar objetos, criar resultados visuais, aplicar alterações aos arquivos-fonte de documentos e receber seus comentários. Apenas Canvases habilitados e conectados podem ser descobertos. Com Local MCP, o cliente MCP é executado no host do FastLectures; o suporte a navegadores na LAN e em dispositivos vinculados não expõe publicamente o endpoint MCP local. Cloud MCP é uma conexão HTTPS autenticada separada para seus canvases habilitados no FastLectures Cloud.
 
-Instalações desktop devem usar a configuração gerada, que inclui o runtime correto distribuído com o aplicativo. Consulte a [configuração MCP](../mcp-setup.md) e a [skill opcional de fluxo de trabalho do agente](../../skills/penecho-mcp/SKILL.md).
+Instalações desktop devem usar a configuração gerada, que inclui o runtime correto distribuído com o aplicativo. Consulte a [configuração MCP](../mcp-setup.md) e a [skill opcional de fluxo de trabalho do agente](../../skills/fastlectures-mcp/SKILL.md).
 
-## PenEcho Cloud e conexões de IA
+## FastLectures Cloud e conexões de IA
 
-O [PenEcho Cloud](https://penecho.ai) acrescenta projetos privados com histórico de versões, favoritos sincronizados, compartilhamento público pelo Echoes e acesso remoto a um computador vinculado.
+O [FastLectures Cloud](https://fastlectures.ai) acrescenta projetos privados com histórico de versões, favoritos sincronizados, compartilhamento público pelo Echoes e acesso remoto a um computador vinculado.
 
 | Conexão | Como funciona |
 | --- | --- |
-| **Modelos PenEcho** | Entre na conta, selecione um modelo hospedado disponível e use créditos da conta. As configurações mostram preços atuais e saldo. |
+| **Modelos FastLectures** | Entre na conta, selecione um modelo hospedado disponível e use créditos da conta. As configurações mostram preços atuais e saldo. |
 | **Sua API de modelos** | Configure um endpoint compatível com OpenAI ou Anthropic, um modelo e uma chave de API. O uso é gerenciado pelo seu provedor. |
 | **Seu CLI** | Use Codex, Claude Code ou Kimi CLI instalado e autenticado localmente. A disponibilidade e o uso dependem do plano do provedor. |
 
 Os modelos hospedados usados no seu computador exigem login na Cloud, sem pareamento de dispositivo nem chave separada da Credits API. Cloud MCP pode acessar diretamente os canvases habilitados na Cloud. Para acessar pela Cloud um Canvas hospedado no seu computador, o dispositivo vinculado precisa estar online e contar com o suporte de retransmissão necessário.
 
-Suas próprias conexões de API e CLI não gastam créditos PenEcho. A conta Cloud é opcional para uso local com sua própria conexão. Os recursos de IA exigem acesso ao provedor selecionado; executar o PenEcho localmente não torna um modelo remoto disponível offline.
+Suas próprias conexões de API e CLI não gastam créditos FastLectures. A conta Cloud é opcional para uso local com sua própria conexão. Os recursos de IA exigem acesso ao provedor selecionado; executar o FastLectures localmente não torna um modelo remoto disponível offline.
 
 ## Configurações de modelos recomendadas
 
-Estas recomendações equilibram a qualidade das respostas e a latência em tarefas reais de canvas do PenEcho, com base nos testes práticos atuais. O tempo de resposta varia conforme o provedor, a complexidade do canvas e o comportamento de raciocínio.
+Estas recomendações equilibram a qualidade das respostas e a latência em tarefas reais de canvas do FastLectures, com base nos testes práticos atuais. O tempo de resposta varia conforme o provedor, a complexidade do canvas e o comportamento de raciocínio.
 
 | Modelo | Esforço | Observações | Uso recomendado |
 | --- | --- | --- | --- |
 | Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `medium` | Ótima qualidade com melhor equilíbrio de latência | Trabalho cotidiano no canvas |
 | Claude Opus 4.8 / 5.0 (`claude-opus-4-8` / `claude-opus-5-0`) | `high` | Maior qualidade de raciocínio, esperas mais longas e variáveis | Escrita à mão, matemática, diagramas ou layouts complexos |
 | Fable 5 (`claude-fable-5` ou `fable`) | `medium` | Frequentemente responde em cerca de metade do tempo de `gpt-5.6-sol` com `xhigh` | Uso geral rápido e de alta qualidade |
-| [Kimi K3](https://platform.kimi.ai?aff=penecho) (`kimi-k3`) | `medium` | Qualidade muito boa; `medium` mantém um equilíbrio prático | Padrão recomendado para Kimi |
+| [Kimi K3](https://platform.kimi.ai?aff=fastlectures) (`kimi-k3`) | `medium` | Qualidade muito boa; `medium` mantém um equilíbrio prático | Padrão recomendado para Kimi |
 | `gpt-5.6-terra` | `low` a `high` | Surpreendentemente capaz e responsivo | Metas flexíveis de qualidade e latência |
 | `gpt-5.6-luna` | `xhigh` | Resultados muito bons no canvas com ótima velocidade | Prioridade à qualidade, mantendo a responsividade |
 | `gpt-5.6-sol` | `high` | Suficiente para a maioria dos pedidos, mais responsivo que `xhigh` | Padrão quando a responsividade é importante |
@@ -180,6 +180,6 @@ Estas recomendações equilibram a qualidade das respostas e a latência em tare
 
 ## Comunidade e licença
 
-Leia [CONTRIBUTING.md](../../CONTRIBUTING.md) para contribuir e execute `npm run check` antes de abrir um pull request. Relate bugs em [Issues](https://github.com/penecho/penecho/issues), discuta ideias em [Discussions](https://github.com/penecho/penecho/discussions) ou participe do [Discord](https://discord.gg/3jrPJ3mXdX).
+Leia [CONTRIBUTING.md](../../CONTRIBUTING.md) para contribuir e execute `npm run check` antes de abrir um pull request. Relate bugs em [Issues](https://github.com/fastlectures/fastlectures/issues), discuta ideias em [Discussions](https://github.com/fastlectures/fastlectures/discussions) ou participe do [Discord](https://discord.gg/3jrPJ3mXdX).
 
 Licenciado sob [AGPL-3.0-only](../../LICENSE). Há também uma [licença comercial](../../COMMERCIAL-LICENSE.md) alternativa. Consulte a [política de marcas](../../TRADEMARKS.md) e o [acordo de contribuição](../../CONTRIBUTOR-LICENSE-AGREEMENT.md).

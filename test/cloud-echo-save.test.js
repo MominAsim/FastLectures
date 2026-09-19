@@ -29,7 +29,7 @@ function plain(value) {
 function harness(overrides = {}) {
   const events = [];
   const context = {
-    window:{ PENECHO_CONFIG:{ runtime:"cloud", browserCanvasEditing:true } },
+    window:{ FASTLECTURES_CONFIG:{ runtime:"cloud", browserCanvasEditing:true } },
     state:{ currentSnapshotId:"local-canvas", currentSnapshotLocation:"device", snapshotLocation:"device" },
     document:{ querySelector:() => ({ value:"Browser Canvas" }) },
     snapshotSaveInProgress:false,
@@ -82,7 +82,7 @@ test("browser editing saves back to the current Library source even when the lin
   for (const location of ["server", "cloud", "device"]) {
     for (const online of [true, false]) {
       const run = harness({
-        window:{ PENECHO_CONFIG:{ runtime:"cloud", browserCanvasEditing:true, linkedDeviceOnline:online } },
+        window:{ FASTLECTURES_CONFIG:{ runtime:"cloud", browserCanvasEditing:true, linkedDeviceOnline:online } },
         state:{ currentSnapshotId:"saved-canvas", currentSnapshotLocation:location, snapshotLocation:"cloud" },
       });
       await run.saveCurrentCanvas();

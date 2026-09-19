@@ -1,4 +1,4 @@
-# PenEcho Agent 集中修改与 Widget 内容自适应升级方案
+# FastLectures Agent 集中修改与 Widget 内容自适应升级方案
 
 日期：2026-09-05。状态：分析与建议；未修改产品实现、未启动应用、未部署。依据当前工作区源码、用户提供的请求日志、现有测试及临时故障注入。工作区已有其他改动，本分析未改写这些文件。
 
@@ -21,7 +21,7 @@
 
 ## 2. 现有 patch 的能力与边界
 
-实现依据：[widget-patch.js](/Users/heack/workspace/penecho_071_version/src/server/widget-patch.js:326)、[最终严格应用](/Users/heack/workspace/penecho_071_version/src/server/widget-patch.js:480)、[完整结果验证](/Users/heack/workspace/penecho_071_version/src/server/widget-patch.js:639)。
+实现依据：[widget-patch.js](/Users/heack/workspace/fastlectures_071_version/src/server/widget-patch.js:326)、[最终严格应用](/Users/heack/workspace/fastlectures_071_version/src/server/widget-patch.js:480)、[完整结果验证](/Users/heack/workspace/fastlectures_071_version/src/server/widget-patch.js:639)。
 
 | 情况 | 当前行为 | 升级取舍 |
 | --- | --- | --- |
@@ -42,13 +42,13 @@
 
 有一个诊断可改进点：前置定位可能利用声明行号选择重复上下文，但最终 `exactContextPatch` 不接受多重匹配，结果仍安全拒绝；此时错误可能退化为泛化 `context-mismatch`，应明确报告 `ambiguous-context`。孤立 CR 换行的兼容也不如 CRLF 完整，属于低优先级边界，不能据此宣称任意换行格式都已支持。
 
-专业惯例上，继续使用模型熟悉的 unified diff、上下文定位、完整验证后原子提交。Git 文档也将重新统计 hunk 行数与整批失败列为既有行为；PenEcho 可以沿用这些语义，不需要实际调用 Git，也不应引入 `--reject` 式部分落地。[Git apply 官方文档](https://git-scm.com/docs/git-apply)
+专业惯例上，继续使用模型熟悉的 unified diff、上下文定位、完整验证后原子提交。Git 文档也将重新统计 hunk 行数与整批失败列为既有行为；FastLectures 可以沿用这些语义，不需要实际调用 Git，也不应引入 `--reject` 式部分落地。[Git apply 官方文档](https://git-scm.com/docs/git-apply)
 
 ## 3. 非阻塞候选：提交与读取快照的一致性
 
 **纠正：下面的源码修改是 VM 人工注入，不是已确认的用户可执行操作。用户无法直接修改 Widget 源码；在找到实际可达路径前，本节不作为升级阻塞项。**
 
-[canvasAgentReplaceWidget](/Users/heack/workspace/penecho_071_version/src/client/app/canvas-agent-runtime.js:4154) 当前顺序为：检查 revision、检查空闲状态、生成当前 Widget 快照、等待 hash、检查会话有效、写入。等待 hash 之后只检查会话是否仍有效，没有复查 revision。相比之下，Create 与 Edit 已在异步准备后复查版本。
+[canvasAgentReplaceWidget](/Users/heack/workspace/fastlectures_071_version/src/client/app/canvas-agent-runtime.js:4154) 当前顺序为：检查 revision、检查空闲状态、生成当前 Widget 快照、等待 hash、检查会话有效、写入。等待 hash 之后只检查会话是否仍有效，没有复查 revision。相比之下，Create 与 Edit 已在异步准备后复查版本。
 
 本轮 VM 故障注入结果：
 
@@ -77,7 +77,7 @@ revision 检查记录：只有 expected 7 / current 7 一次
 
 ### 4.1 一次读够，不把“读了一次”当成“读全了”
 
-[canvas_read](/Users/heack/workspace/penecho_071_version/src/client/app/canvas-agent-runtime.js:3861) 默认只返回 200 行。已有总行数、范围、截断状态、资源 hash、版本和 EOF 信息。
+[canvas_read](/Users/heack/workspace/fastlectures_071_version/src/client/app/canvas-agent-runtime.js:3861) 默认只返回 200 行。已有总行数、范围、截断状态、资源 hash、版本和 EOF 信息。
 
 完整读取的判据应同时包括 `start=1`、`end=total`、内容未截断。仅 `truncated=false` 不代表从文件开头读过；一个从中间一直读到 EOF 的窗口也可能是 false。局部修改只需覆盖所有计划修改位置及其上下文，不必为形式上的“完整”读取整个大文件。
 
@@ -95,7 +95,7 @@ revision 检查记录：只有 expected 7 / current 7 一次
 
 保持现有单 `patch:string`；不新增 `patches[]`、逐段执行、模型可见 dry-run 工具或“执行几段再确认”的流程。引擎已经在内部先构造并验证完整结果。
 
-[当前 Persona](/Users/heack/workspace/penecho_071_version/src/server/canvas-agent/runtime.mjs:168) 还要求约 3,000 tokens / 一分钟后先交付 scaffold，再连续小 patch。建议区分：
+[当前 Persona](/Users/heack/workspace/fastlectures_071_version/src/server/canvas-agent/runtime.mjs:168) 还要求约 3,000 tokens / 一分钟后先交付 scaffold，再连续小 patch。建议区分：
 
 - 编辑已有 Widget：默认集中完成已知改动。
 - 新建较大 Widget：确有首屏等待或输出预算需求时，才渐进交付可用版本；不要先创建注定马上推翻的骨架。
@@ -154,7 +154,7 @@ revision 检查记录：只有 expected 7 / current 7 一次
 
 ### 5.3 Host 实现方式
 
-当前 [positionWidget](/Users/heack/workspace/penecho_071_version/src/client/app/canvas-runtime.js:1617) 将 `w/h` 映射为画布外框，`contentW/contentH` 作为内部视口。仅增加 `h` 会拉伸内容；应同时按现有比例调整 `h` 和 `contentH`，保持文字缩放比。
+当前 [positionWidget](/Users/heack/workspace/fastlectures_071_version/src/client/app/canvas-runtime.js:1617) 将 `w/h` 映射为画布外框，`contentW/contentH` 作为内部视口。仅增加 `h` 会拉伸内容；应同时按现有比例调整 `h` 和 `contentH`，保持文字缩放比。
 
 设本次调整前 `s = h / contentH`，则先把自然内容高度限制到产品上限、Canvas 剩余空间和现有最小尺寸允许的区间，再令 `newH = s × newContentH`。这里不乘 Canvas 的视图缩放 `state.scale`，缩放画布不应触发内容重新定高。
 
@@ -205,7 +205,7 @@ revision 检查记录：只有 expected 7 / current 7 一次
 
 尺寸模式是布局策略，不能随手写入现有严格白名单 `widget.json` manifest。应在明确的对象 schema 与能力版本中扩展，并覆盖往返保存。Web / Desktop / Cloud 需要识别同一版本能力。
 
-Cloud 的 `public/canvas` 按 [官方同步脚本](/Users/heack/workspace/penecho_cloud/tools/sync-public-canvas.mjs:24) 从 071 产物同步；不直接修改生成镜像。后端 Cloud 校验调整在其源文件中完成。Main Canvas 继续使用共享补丁引擎原有返回契约。
+Cloud 的 `public/canvas` 按 [官方同步脚本](/Users/heack/workspace/fastlectures_cloud/tools/sync-public-canvas.mjs:24) 从 071 产物同步；不直接修改生成镜像。后端 Cloud 校验调整在其源文件中完成。Main Canvas 继续使用共享补丁引擎原有返回契约。
 
 ## 7. 收益估计与验收
 
@@ -243,7 +243,7 @@ Cloud 的 `public/canvas` 按 [官方同步脚本](/Users/heack/workspace/penech
 可复现的 harness 命令：
 
 ```sh
-node --test --test-name-pattern='PenEcho Agent reports the exact widget patch hunk|PenEcho Agent terminally stops same-target patching|PenEcho Agent bounds Visual Explorer captures|PenEcho Agent progressively delivers complete Visual Explorer' test/canvas-agent.test.js
+node --test --test-name-pattern='FastLectures Agent reports the exact widget patch hunk|FastLectures Agent terminally stops same-target patching|FastLectures Agent bounds Visual Explorer captures|FastLectures Agent progressively delivers complete Visual Explorer' test/canvas-agent.test.js
 ```
 
 临时 probe 文件已清理。尚未实施新协议、自适应尺寸或 P0 修复；没有新功能截图验收、真机手势测试或升级后延迟测量。此前称作 P0 的源码并发场景已按用户产品约束降级为非阻塞候选。
@@ -275,7 +275,7 @@ node --test --test-name-pattern='PenEcho Agent reports the exact widget patch hu
 - 源码资源版本/hash：对应 `widget.html`、`widget.source` 及明确可修改的 manifest。只对本次涉及的资源做一致性校验，明确 Canvas/对象/artifact 身份。快照不包含位置、尺寸、选择、运行时诊断或截图状态。
 - 几何状态：`x/y/w/h/contentW/contentH`、层级等保留提交时最新值；内容 patch 默认不写这些字段。改变外框使用明确的几何操作。
 - 渲染/视觉状态：截图新鲜度、ready、运行态更新及待复核状态，决定后续视觉验收，不决定源码 patch 能否提交。
-- 现有 `contentVersion` 会因 `penecho-widget-updated` 增长，不能直接改名作为源码版本使用。可先使用规范化源码资源 hash，避免急于增加多套持久化计数器。
+- 现有 `contentVersion` 会因 `fastlectures-widget-updated` 增长，不能直接改名作为源码版本使用。可先使用规范化源码资源 hash，避免急于增加多套持久化计数器。
 - 全局 Canvas revision 仍推进，用于同步和 Undo；纯几何变化不再因全局版本不同而拒绝内容 patch。新能力须在工具协议和客户端同时落地，旧客户端按协商能力兼容。
 - 当前源码确实发生变化时，例如另一笔已提交 patch 或 Undo 恢复了源码，才按资源 hash/上下文处理真实冲突。若只有几何改变，直接提交并保留几何。
 - 当前无实际同对象手势时，选中状态不阻止源码修改。实际手势进行中可由宿主有界等待安全提交点，不让模型为此重读源码或截图解锁。须将几何编辑历史与源码提交历史分开，避免共享 `widgetHistoryBefore` 吞掉用户操作。

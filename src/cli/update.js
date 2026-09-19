@@ -7,7 +7,7 @@ const PACKAGE_JSON = require("../../package.json");
 const UPDATE_CHECK_TIMEOUT_MS = 30000;
 const UPDATE_CHECK_ATTEMPTS = 2;
 const UPDATE_RETRY_DELAY_MS = 250;
-const UPDATE_SKIP_ENV = "PENECHO_SKIP_UPDATE_CHECK";
+const UPDATE_SKIP_ENV = "FASTLECTURES_SKIP_UPDATE_CHECK";
 
 function parsedVersion(value) {
   const match = String(value || "").trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/);
@@ -17,7 +17,7 @@ function parsedVersion(value) {
 
 function compareVersions(left, right) {
   const a = parsedVersion(left), b = parsedVersion(right);
-  if (!a || !b) throw new Error("PenEcho received an invalid npm version.");
+  if (!a || !b) throw new Error("FastLectures received an invalid npm version.");
   for (let index = 0; index < 3; index++) {
     if (a.numbers[index] !== b.numbers[index]) return a.numbers[index] > b.numbers[index] ? 1 : -1;
   }
@@ -53,13 +53,13 @@ async function fetchLatestNpmVersion(packageName = PACKAGE_JSON.name, options = 
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), remainingMs);
     try {
       const response = await fetchImpl(url, {
-        headers:{ Accept:"application/json", "User-Agent":`penecho/${PACKAGE_JSON.version}` },
+        headers:{ Accept:"application/json", "User-Agent":`fastlectures/${PACKAGE_JSON.version}` },
         redirect:"error",
         signal:controller.signal,
       });
       if (!response.ok) throw new Error(`npm registry returned HTTP ${response.status}.`);
       const latest = String((await response.json())?.version || "").trim();
-      if (!parsedVersion(latest)) throw new Error("npm registry returned an invalid PenEcho version.");
+      if (!parsedVersion(latest)) throw new Error("npm registry returned an invalid FastLectures version.");
       return latest.replace(/^v/, "");
     } catch (error) {
       lastError = controller.signal.aborted ? new Error(`npm update check timed out after ${timeoutMs} ms.`) : error;
@@ -140,46 +140,46 @@ async function maybeUpdateOnStart(argv, options = {}) {
       fetchImpl:options.updateFetch,
       timeoutMs:options.updateTimeoutMs,
     }));
-  output.write("Checking latest PenEcho version...\n");
+  output.write("Checking latest FastLectures version...\n");
   let latest;
   try {
     latest = await checker();
     if (compareVersions(latest, PACKAGE_JSON.version) <= 0) {
-      output.write(`PenEcho v${PACKAGE_JSON.version} is the latest version.\n`);
+      output.write(`FastLectures v${PACKAGE_JSON.version} is the latest version.\n`);
       return { checked:true, latest, restarted:false };
     }
   } catch (error) {
-    output.write(`Latest PenEcho version check unavailable (${updateCheckErrorMessage(error)}); continuing with the running service.\n`);
+    output.write(`Latest FastLectures version check unavailable (${updateCheckErrorMessage(error)}); continuing with the running service.\n`);
     return { checked:false, restarted:false };
   }
 
-  output.write(`A newer PenEcho version is available: v${latest} (current v${PACKAGE_JSON.version}).\n`);
-  if (!await confirmUpdate("Update PenEcho now?", options)) {
-    output.write(`Continuing with PenEcho v${PACKAGE_JSON.version}.\n`);
+  output.write(`A newer FastLectures version is available: v${latest} (current v${PACKAGE_JSON.version}).\n`);
+  if (!await confirmUpdate("Update FastLectures now?", options)) {
+    output.write(`Continuing with FastLectures v${PACKAGE_JSON.version}.\n`);
     return { checked:true, latest, restarted:false };
   }
 
-  output.write(`Updating PenEcho to v${latest}...\n`);
+  output.write(`Updating FastLectures to v${latest}...\n`);
   const installer = options.updateInstaller || (version => runNpmGlobalUpdate(version, { cwd:options.cwd, env:options.env }));
   let installed = false;
   try {
     installed = Boolean(await installer(latest));
   } catch (error) {
-    errorOutput.write(`PenEcho update failed: ${error.message}\n`);
+    errorOutput.write(`FastLectures update failed: ${error.message}\n`);
   }
   if (!installed) {
     errorOutput.write(`Continuing with v${PACKAGE_JSON.version}. You can update manually with \`npm install --global ${PACKAGE_JSON.name}@latest\`.\n`);
     return { checked:true, latest, restarted:false };
   }
 
-  output.write(`PenEcho v${latest} installed successfully.\n`);
+  output.write(`FastLectures v${latest} installed successfully.\n`);
   try {
     if (typeof options.updateFinalizer === "function") await options.updateFinalizer();
   } catch (error) {
-    errorOutput.write(`PenEcho was updated, but the current service could not stop: ${error.message}\nStop it manually, then run \`penecho\` to start v${latest}.\n`);
+    errorOutput.write(`FastLectures was updated, but the current service could not stop: ${error.message}\nStop it manually, then run \`fastlectures\` to start v${latest}.\n`);
     return { checked:true, latest, updated:true, restarted:false, exitCode:1 };
   }
-  output.write(`Update complete. Run \`penecho\` again to start v${latest}.\n`);
+  output.write(`Update complete. Run \`fastlectures\` again to start v${latest}.\n`);
   return { checked:true, latest, updated:true, restarted:false };
 }
 

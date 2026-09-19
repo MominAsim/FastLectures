@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#05050a">
+  <link rel="icon" type="image/png" href="fastlectures-mark.png">
+  <title>Create account | FastLectures</title>
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+  <div class="auth-layout">
+    <header class="auth-header">
+      <a class="auth-brand" href="/" aria-label="Back to canvas">
+        <svg class="auth-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6c-.8-.9-2-1.5-3.4-1.6H6.6C5 3 3.5 3.6 2.4 4.8 1.3 6 1 7.5 1.6 9l2.3 12.8c.2 1.2 1.2 2.1 2.5 2.2h9.2c1.3.1 2.3-1 2.5-2.2L22.4 9c.6-1.5.3-3-.8-4.4zM8 17l-1.5-8.8h2L10 17H8zm4 0h2.1l.6-3.6.8-4.5H13L12.2 17zm6.5 0h-2.2l-1.4-8H19l1.5 8z"/></svg>
+        <span class="auth-name">FastLectures</span>
+      </a>
+    </header>
+
+    <main class="auth-card" role="form" aria-labelledby="register-heading">
+      <h1 id="register-heading" class="auth-title">Create your account</h1>
+      <p class="auth-subtitle">Sync study progress, build flashcards, and never lose your notes.</p>
+
+      <form id="register-form" novalidate autocomplete="on">
+        <div class="field">
+          <label for="reg-name">Display name</label>
+          <input id="reg-name" type="text" autocomplete="name" required placeholder="e.g., Alex" minlength="1" maxlength="80" aria-describedby="reg-name-hint">
+          <p id="reg-name-hint" class="field-hint" hidden></p>
+        </div>
+        <div class="field">
+          <label for="reg-email">Email</label>
+          <input id="reg-email" type="email" autocomplete="email" required placeholder="you@school.edu" aria-describedby="reg-email-hint">
+          <p id="reg-email-hint" class="field-hint" hidden></p>
+        </div>
+        <div class="field">
+          <label for="reg-password">Password</label>
+          <input id="reg-password" type="password" autocomplete="new-password" required placeholder="At least 10 characters" minlength="10" aria-describedby="reg-password-hint reg-strength">
+          <p id="reg-password-hint" class="field-hint" hidden></p>
+          <div id="reg-strength" class="strength" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+        </div>
+
+        <div id="register-error" class="auth-error" role="alert" hidden></div>
+
+        <button id="register-submit" class="btn-primary" type="submit" autofocus>Create account</button>
+
+        <p class="auth-alt">Already have an account? <a href="/login.html">Sign in</a> · <a href="/forgot.html">Reset password</a></p>
+      </form>
+    </main>
+
+    <footer class="auth-footer">
+      <p>All study data stays on your FastLectures server. No tracking, no ads.</p>
+    </footer>
+  </div>
+
+  <script src="auth.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      if (FASTLECTURES_AUTH.authenticated) { location.replace("/"); return; }
+      const form = document.getElementById("register-form"), name = document.getElementById("reg-name"), email = document.getElementById("reg-email"), password = document.getElementById("reg-password"), errorBox = document.getElementById("register-error"), submit = document.getElementById("register-submit"), strength = document.getElementById("reg-strength"), hint = document.getElementById("reg-password-hint");
+      function strengthScore(pw) { let s = 0; if (pw.length >= 10) s += 1; if (pw.length >= 16) s += 1; if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) s += 1; if (/\d/.test(pw)) s += 1; if (/[^a-zA-Z0-9]/.test(pw)) s += 1; return Math.min(4, s); }
+      password.addEventListener("input", () => {
+        const sc = strengthScore(password.value);
+        strength.setAttribute("data-score", sc);
+        hint.hidden = sc >= 3; hint.textContent = sc < 2 ? "Add characters, mixed case, or symbols." : "";
+      });
+      form.addEventListener("submit", async function(e) {
+        e.preventDefault(); errorBox.hidden = true; submit.disabled = true; submit.textContent = "Creating account…";
+        try {
+          const res = await FASTLECTURES_AUTH.register(email.value, password.value, name.value);
+          location.replace(`/verify.html?token=${encodeURIComponent(res.token)}&email=${encodeURIComponent(res.user.email)}`);
+        } catch (err) {
+          errorBox.textContent = err.message || "Registration failed."; errorBox.hidden = false; submit.disabled = false; submit.textContent = "Create account";
+        }
+      });
+    });
+  </script>
+</body>
+</html>

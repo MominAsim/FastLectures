@@ -3,21 +3,21 @@ const fs=require('node:fs'),os=require('node:os'),path=require('node:path')
 
 test('Harness advertises document tools, preserves their order, and lets a fresh decision retry an old Canvas revision',async t=>{
   const {CanvasHarnessHost}=await import('../src/server/canvas-agent/runtime.mjs')
-  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'penecho-batch-integration-'))
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'fastlectures-batch-integration-'))
   const connection={id:'batch',provider:'claude-cli',name:'Batch fixture',cliPath:'unused-test-cli',cliModel:'test-model',effort:'medium'}
   let requests=0,session,resolveEnd,rejectEnd,currentRevision=10
   const finished=new Promise((resolve,reject)=>{resolveEnd=resolve;rejectEnd=reject}),browser=[],frames=[]
   const decisions=[
     {type:'tool_calls',calls:[
-      {name:'penecho_read_file',arguments:{path:'canvas.json'}},
-      {name:'penecho_read_file',arguments:{path:'objects/index.json'}},
+      {name:'fastlectures_read_file',arguments:{path:'canvas.json'}},
+      {name:'fastlectures_read_file',arguments:{path:'objects/index.json'}},
     ]},
     {type:'tool_calls',calls:[
-      {name:'penecho_edit_canvas',arguments:{requestId:'move-a',baseRevision:10,action:'move',objectId:'text-a',region:{x:10,y:10,w:100,h:100}}},
-      {name:'penecho_edit_canvas',arguments:{requestId:'move-b',baseRevision:10,action:'move',objectId:'text-b',region:{x:20,y:20,w:100,h:100}}},
+      {name:'fastlectures_edit_canvas',arguments:{requestId:'move-a',baseRevision:10,action:'move',objectId:'text-a',region:{x:10,y:10,w:100,h:100}}},
+      {name:'fastlectures_edit_canvas',arguments:{requestId:'move-b',baseRevision:10,action:'move',objectId:'text-b',region:{x:20,y:20,w:100,h:100}}},
     ]},
-    {type:'tool_call',name:'penecho_read_file',arguments:{path:'canvas.json'}},
-    {type:'tool_call',name:'penecho_edit_canvas',arguments:{requestId:'move-b-retry',baseRevision:11,action:'move',objectId:'text-b',region:{x:20,y:20,w:100,h:100}}},
+    {type:'tool_call',name:'fastlectures_read_file',arguments:{path:'canvas.json'}},
+    {type:'tool_call',name:'fastlectures_edit_canvas',arguments:{requestId:'move-b-retry',baseRevision:11,action:'move',objectId:'text-b',region:{x:20,y:20,w:100,h:100}}},
     {type:'final',text:'Updated both.'},
   ]
   const host=new CanvasHarnessHost({stateDirectory:directory,rootDirectory:path.resolve(__dirname,'..'),
@@ -28,8 +28,8 @@ test('Harness advertises document tools, preserves their order, and lets a fresh
       assert.ok(decision,`unexpected model request ${requests}`)
       if(requests===1){
         const names=JSON.parse(request.prompt).availableTools.map(tool=>tool.name)
-        assert.ok(names.includes('penecho_read_file'))
-        assert.ok(names.includes('penecho_edit_canvas'))
+        assert.ok(names.includes('fastlectures_read_file'))
+        assert.ok(names.includes('fastlectures_edit_canvas'))
         assert.equal(names.includes('canvas_read'),false)
         assert.equal(names.includes('canvas_edit'),false)
       }

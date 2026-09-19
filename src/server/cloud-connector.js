@@ -20,7 +20,7 @@ const PUBLIC_MESSAGE_TIMEOUT_MS = 3_500;
 const MODEL_EVALUATION_QUEUE_TTL_MS = 10_000;
 const MODEL_EVALUATION_QUEUE_LIMIT = 32;
 const BROWSER_CALLBACK_PATH = "/api/cloud/sign-in/callback";
-const CLOUD_AI_CONTEXT_KEY = "__penechoCloudAi";
+const CLOUD_AI_CONTEXT_KEY = "__fastlecturesCloudAi";
 const LOCAL_CONNECTION_ID_PATTERN = /^(?:hosted:)?[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function normalizedCloudAiConnectionId(value) {
@@ -42,7 +42,7 @@ function cloudAiRelayRequest(payload) {
 
 function cloudAiConnectionHeaders(context) {
   const connectionId = normalizedCloudAiConnectionId(context?.connectionId);
-  return connectionId ? { "x-penecho-connection":connectionId } : {};
+  return connectionId ? { "x-fastlectures-connection":connectionId } : {};
 }
 
 function normalizedOrigin(value) {
@@ -54,7 +54,7 @@ function normalizedOrigin(value) {
 }
 
 function defaultDeviceName() {
-  return `${os.hostname()} PenEcho server`;
+  return `${os.hostname()} FastLectures server`;
 }
 
 function defaultPlatform() {
@@ -62,13 +62,13 @@ function defaultPlatform() {
 }
 
 function safeMessage(error) {
-  const message = String(error?.message || "Local PenEcho could not complete the request.");
+  const message = String(error?.message || "Local FastLectures could not complete the request.");
   return message.replace(/(?:sk-|key-|Bearer\s+)[A-Za-z0-9._-]{12,}/gi, "[credential redacted]").slice(0, 1000);
 }
 
 function temporaryCloudError(error, origin) {
   const cause = error?.cause?.code || error?.code || error?.name || "cloud_network_error";
-  const label = String(origin || "").includes("internaltest.penecho.ai") ? "UAT Cloud" : "PenEcho Cloud";
+  const label = String(origin || "").includes("internaltest.fastlectures.ai") ? "UAT Cloud" : "FastLectures Cloud";
   const wrapped = new Error(`${label} is temporarily unavailable (${cause}). Your Canvas is still safe on this device. Try Save again in a moment.`);
   wrapped.status = 503;
   wrapped.code = "cloud_temporarily_unavailable";
@@ -120,7 +120,7 @@ function sha256(bytes) {
 }
 
 function communityArtifactLineage(kind, artifact) {
-  const itemId=kind==="widget"?artifact?.widget?.communityOriginItemId:artifact?.extensions?.penechoCommunity?.originItemId;
+  const itemId=kind==="widget"?artifact?.widget?.communityOriginItemId:artifact?.extensions?.fastlecturesCommunity?.originItemId;
   return /^[0-9a-f-]{36}$/i.test(String(itemId||""))?{itemId:String(itemId)}:null;
 }
 
@@ -128,7 +128,7 @@ function publicAccount(value) {
   if (!value?.id) return null;
   return {
     id: String(value.id),
-    name: String(value.name || "PenEcho user"),
+    name: String(value.name || "FastLectures user"),
     ...(value.bio ? { bio:String(value.bio) } : {}),
     ...(value.avatarUrl ? { avatarUrl:String(value.avatarUrl) } : {}),
     credits: Number(value.credits || 0),
@@ -175,7 +175,7 @@ function accountSessionExpired(configuration, now = Date.now()) {
 }
 
 class CloudConnector {
-  constructor({ stateDir, executeRequest, executeHttpRequest = null, executeCanvasAgentRequest = null, executeMcpRequest = null, closeMcpChannels = null, logger = null, defaultOrigin = "https://penecho.ai", capabilities = null, heartbeatTimeoutMs = null, helloTimeoutMs = 15_000 }) {
+  constructor({ stateDir, executeRequest, executeHttpRequest = null, executeCanvasAgentRequest = null, executeMcpRequest = null, closeMcpChannels = null, logger = null, defaultOrigin = "https://fastlectures.ai", capabilities = null, heartbeatTimeoutMs = null, helloTimeoutMs = 15_000 }) {
     this.stateDir = stateDir;
     this.file = path.join(stateDir, "cloud-device.json");
     this.executeRequest = executeRequest;
@@ -330,10 +330,10 @@ class CloudConnector {
 
   requireCloudAccount() {
     if (this.expireAccountSessionIfNeeded()) {
-      throw cloudSignInRequiredError("The local PenEcho Cloud account session expired. Sign in on this computer again.");
+      throw cloudSignInRequiredError("The local FastLectures Cloud account session expired. Sign in on this computer again.");
     }
     const token = accountToken(this.configuration);
-    if (!token || !this.configuration?.origin) throw cloudSignInRequiredError("Connect your PenEcho Cloud account on this computer first.");
+    if (!token || !this.configuration?.origin) throw cloudSignInRequiredError("Connect your FastLectures Cloud account on this computer first.");
     return { ...this.configuration, accountToken: token };
   }
 
@@ -362,14 +362,14 @@ class CloudConnector {
         if (!configuration.legacyAccountAccess) {
           await this.confirmAccountSessionAfterUnauthorized(configuration.accountToken, payload.message);
         }
-        throw Object.assign(new Error(payload.message || "PenEcho Cloud rejected this account request."), {
+        throw Object.assign(new Error(payload.message || "FastLectures Cloud rejected this account request."), {
           status:403,
           code:payload.error || "cloud_request_not_authorized",
         });
       }
       const temporary = [502, 503, 504].includes(response.status);
       const error = new Error(temporary
-        ? `${configuration.origin.includes("internaltest.penecho.ai") ? "UAT Cloud" : "PenEcho Cloud"} is temporarily unavailable (HTTP ${response.status}). Your Canvas is still safe on this device. Try Save again in a moment.`
+        ? `${configuration.origin.includes("internaltest.fastlectures.ai") ? "UAT Cloud" : "FastLectures Cloud"} is temporarily unavailable (HTTP ${response.status}). Your Canvas is still safe on this device. Try Save again in a moment.`
         : payload.message || `Cloud account request failed (HTTP ${response.status}).`);
       error.status = response.status;
       error.code = temporary ? "cloud_temporarily_unavailable" : payload.error || "cloud_request_failed";
@@ -406,7 +406,7 @@ class CloudConnector {
     if (!/^hosted:[0-9a-f-]{36}$/i.test(String(connectionId))) return null;
     await this.refreshHostedCatalog();
     const connection = this.hostedConnection(connectionId);
-    if (!connection) throw Object.assign(new Error("The selected PenEcho model is unavailable. Refresh AI connections."), { status:409, code:"CONNECTION_STALE" });
+    if (!connection) throw Object.assign(new Error("The selected FastLectures model is unavailable. Refresh AI connections."), { status:409, code:"CONNECTION_STALE" });
     // Old Cloud catalogs did not declare a protocol. Fail closed until the
     // server is upgraded; a model name or UUID cannot establish its wire format.
     if (!["openai", "anthropic"].includes(connection.apiFormat)) throw Object.assign(new Error("Cloud did not provide a supported API format for this model. Refresh the model list or update the Cloud server."), { status:409, code:"hosted_model_protocol_unavailable" });
@@ -434,7 +434,7 @@ class CloudConnector {
   async reportModelEvaluation(event, timeoutMs = 10_000) {
     this.expireAccountSessionIfNeeded();
     const configuration = this.configuration, token = accountToken(configuration) || deviceToken(configuration);
-    if (!configuration?.origin || !token) throw cloudSignInRequiredError("Sign in to or pair this PenEcho server with PenEcho Cloud before reporting model evaluation feedback.");
+    if (!configuration?.origin || !token) throw cloudSignInRequiredError("Sign in to or pair this FastLectures server with FastLectures Cloud before reporting model evaluation feedback.");
     return forwardModelEvaluation(fetch, configuration.origin, token, event, timeoutMs);
   }
 
@@ -494,7 +494,7 @@ class CloudConnector {
   }
 
   async publicCanvasMessage({ origin } = {}) {
-    const cloudOrigin = normalizedOrigin(origin || this.configuration?.origin || "https://penecho.ai");
+    const cloudOrigin = normalizedOrigin(origin || this.configuration?.origin || "https://fastlectures.ai");
     const response = await fetch(`${cloudOrigin}/api/v1/public/canvas-cloud-message`, {
       method:"GET",
       redirect:"error",
@@ -546,7 +546,7 @@ class CloudConnector {
       throw new Error(payload.message || `Cloud sign-in failed (HTTP ${response.status}).`);
     }
     if (signInSeq !== this.accountSignInSeq) {
-      throw Object.assign(new Error("A newer PenEcho Cloud sign-in replaced this request."), { code:"cloud_sign_in_superseded" });
+      throw Object.assign(new Error("A newer FastLectures Cloud sign-in replaced this request."), { code:"cloud_sign_in_superseded" });
     }
     const account = publicAccount(payload.account);
     const accountUpdatedAt = Date.now();
@@ -572,7 +572,7 @@ class CloudConnector {
     const cloudOrigin = normalizedOrigin(origin);
     const callback = new URL(String(callbackUrl || ""));
     if (callback.protocol !== "http:" || !isLocalCanvasHost(callback.hostname) || callback.username || callback.password || callback.pathname !== BROWSER_CALLBACK_PATH || callback.search || callback.hash) {
-      throw new Error("Cloud sign-in callback must use this local PenEcho server.");
+      throw new Error("Cloud sign-in callback must use this local FastLectures server.");
     }
     if (this.configuration?.origin && this.configuration.origin !== cloudOrigin && deviceToken(this.configuration)) {
       throw new Error("Disconnect or revoke the device linked to the current Cloud address before signing in to another address.");
@@ -583,7 +583,7 @@ class CloudConnector {
     callback.searchParams.set("state", state);
     const authorizationUrl = new URL("/dashboard.html", cloudOrigin);
     authorizationUrl.searchParams.set("local_callback", callback.toString());
-    authorizationUrl.searchParams.set("local_client", "penecho-canvas");
+    authorizationUrl.searchParams.set("local_client", "fastlectures-canvas");
     authorizationUrl.hash = "devices";
     this.browserAuthorizations.set(state, { state, origin: cloudOrigin, callback:callback.toString(), callbackOrigin: callback.origin, expiresAt });
     return { authorizationUrl: authorizationUrl.toString(), expiresAt };
@@ -592,7 +592,7 @@ class CloudConnector {
   async completeBrowserSignIn({ state, code, callbackOrigin }) {
     const stateValue = String(state || "");
     const pending = this.browserAuthorizations.get(stateValue);
-    if (!pending || pending.expiresAt <= Date.now()) throw Object.assign(new Error("This browser sign-in request expired. Start again from local PenEcho."), { status: 401 });
+    if (!pending || pending.expiresAt <= Date.now()) throw Object.assign(new Error("This browser sign-in request expired. Start again from local FastLectures."), { status: 401 });
     const actual = Buffer.from(stateValue);
     const expected = Buffer.from(pending.state);
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
@@ -623,13 +623,13 @@ class CloudConnector {
       });
       const payload = await response.json().catch(() => ({}));
       if (response.status === 401 && (accountToken(this.configuration) !== current.accountToken || this.configuration?.origin !== current.origin)) {
-        throw Object.assign(new Error("A newer PenEcho Cloud sign-in replaced this account check."), { status:409, code:"cloud_request_superseded" });
+        throw Object.assign(new Error("A newer FastLectures Cloud sign-in replaced this account check."), { status:409, code:"cloud_request_superseded" });
       }
       if (response.status === 401 && payload.error === "invalid_local_session") {
         if (this.clearAccountSessionIfCurrent(current.accountToken)) {
-          throw cloudSignInRequiredError("The local PenEcho Cloud account session is no longer valid. Sign in on this computer again.");
+          throw cloudSignInRequiredError("The local FastLectures Cloud account session is no longer valid. Sign in on this computer again.");
         }
-        throw Object.assign(new Error("A newer PenEcho Cloud sign-in replaced this account check."), { status:409, code:"cloud_request_superseded" });
+        throw Object.assign(new Error("A newer FastLectures Cloud sign-in replaced this account check."), { status:409, code:"cloud_request_superseded" });
       }
       if (response.status === 401) {
         throw Object.assign(new Error(payload.message || "Cloud could not authoritatively validate the local account session."), {
@@ -656,18 +656,18 @@ class CloudConnector {
 
   async confirmAccountSessionAfterUnauthorized(expectedToken, message = "") {
     if (!expectedToken || accountToken(this.configuration) !== expectedToken) {
-      throw Object.assign(new Error("A newer PenEcho Cloud sign-in replaced this request."), { status:409, code:"cloud_request_superseded" });
+      throw Object.assign(new Error("A newer FastLectures Cloud sign-in replaced this request."), { status:409, code:"cloud_request_superseded" });
     }
     try {
       await this.refreshAccount({ force:true });
     } catch (error) {
       if (error?.code === "cloud_sign_in_required" || error?.code === "cloud_request_superseded") throw error;
       if (accountToken(this.configuration) !== expectedToken) {
-        throw Object.assign(new Error("A newer PenEcho Cloud sign-in replaced this request."), { status:409, code:"cloud_request_superseded" });
+        throw Object.assign(new Error("A newer FastLectures Cloud sign-in replaced this request."), { status:409, code:"cloud_request_superseded" });
       }
       throw temporaryCloudError(error, this.configuration?.origin);
     }
-    throw Object.assign(new Error(message || "PenEcho Cloud rejected this request while the account session remains valid."), {
+    throw Object.assign(new Error(message || "FastLectures Cloud rejected this request while the account session remains valid."), {
       status:403,
       code:"cloud_request_not_authorized",
     });
@@ -760,14 +760,14 @@ class CloudConnector {
   async widgetFavoriteThumbnail(favoriteId) {
     this.expireAccountSessionIfNeeded();
     const configuration=this.configuration,token=accountToken(configuration),legacyAccountAccess=Boolean(configuration?.legacyAccountAccess);
-    if(!configuration?.origin||!token)throw Object.assign(new Error("Sign in to PenEcho Cloud on this computer first."),{status:401,code:"cloud_account_required"});
+    if(!configuration?.origin||!token)throw Object.assign(new Error("Sign in to FastLectures Cloud on this computer first."),{status:401,code:"cloud_account_required"});
     const response=await fetch(`${configuration.origin}/api/v1/favorites/${encodeURIComponent(favoriteId)}/thumbnail`,{method:"GET",redirect:"error",headers:{accept:"image/webp",authorization:`Bearer ${token}`}});
     if(!response.ok){
-      if(response.status===401&&!legacyAccountAccess)await this.confirmAccountSessionAfterUnauthorized(token,"PenEcho Cloud rejected this favorite thumbnail request.");
+      if(response.status===401&&!legacyAccountAccess)await this.confirmAccountSessionAfterUnauthorized(token,"FastLectures Cloud rejected this favorite thumbnail request.");
       throw Object.assign(new Error(`Favorite thumbnail request failed (HTTP ${response.status}).`),{status:response.status===401?403:response.status,code:response.status===401?"cloud_request_not_authorized":"favorite_thumbnail_failed"});
     }
     const contentType=String(response.headers.get("content-type")||"").split(";",1)[0].toLowerCase(),bytes=Buffer.from(await response.arrayBuffer());
-    if(contentType!=="image/webp"||!bytes.length||bytes.length>96*1024*1024)throw new Error("PenEcho Cloud returned an invalid favorite thumbnail.");
+    if(contentType!=="image/webp"||!bytes.length||bytes.length>96*1024*1024)throw new Error("FastLectures Cloud returned an invalid favorite thumbnail.");
     return {contentType,bytes};
   }
 
@@ -795,14 +795,14 @@ class CloudConnector {
     const origin=this.configuration?.origin||this.defaultOrigin,token=accountToken(this.configuration),legacyAccountAccess=Boolean(this.configuration?.legacyAccountAccess),suffix=variant==="thumbnail"?"thumbnail":"preview";
     const response = await fetch(`${origin}/api/v1/community/items/${encodeURIComponent(itemId)}/${suffix}`, { method:"GET", redirect:"error", headers:{ accept:"image/webp",...(token?{authorization:`Bearer ${token}`}:{}) } });
     if (!response.ok) {
-      if(response.status===401&&token&&!legacyAccountAccess)await this.confirmAccountSessionAfterUnauthorized(token,"PenEcho Cloud rejected this community image request.");
+      if(response.status===401&&token&&!legacyAccountAccess)await this.confirmAccountSessionAfterUnauthorized(token,"FastLectures Cloud rejected this community image request.");
       throw Object.assign(new Error(`Community preview request failed (HTTP ${response.status}).`), {
         status:response.status===401&&token?403:response.status,
         code:response.status===401&&token?"cloud_request_not_authorized":"community_image_failed",
       });
     }
     const contentType = String(response.headers.get("content-type") || "").split(";", 1)[0].toLowerCase(), bytes = Buffer.from(await response.arrayBuffer());
-    if (contentType !== "image/webp" || !bytes.length || bytes.length > 4 * 1024 * 1024) throw new Error("PenEcho Cloud returned an invalid community preview.");
+    if (contentType !== "image/webp" || !bytes.length || bytes.length > 4 * 1024 * 1024) throw new Error("FastLectures Cloud returned an invalid community preview.");
     return { contentType, bytes };
   }
 
@@ -888,7 +888,7 @@ class CloudConnector {
     if (response.status === 404) return null;
     if (!response.ok) {
       if (response.status === 401 && configuration.accountToken && !configuration.legacyAccountAccess) {
-        await this.confirmAccountSessionAfterUnauthorized(configuration.accountToken, "PenEcho Cloud rejected this Canvas thumbnail request.");
+        await this.confirmAccountSessionAfterUnauthorized(configuration.accountToken, "FastLectures Cloud rejected this Canvas thumbnail request.");
       }
       throw Object.assign(new Error(`Cloud thumbnail request failed (HTTP ${response.status}).`), {
         status:response.status === 401 ? 403 : response.status,
@@ -929,7 +929,7 @@ class CloudConnector {
   async createAndSaveCloudCanvas({ projectId, name, bundle }) {
     const created = await this.createCloudCanvas(projectId, { name });
     const canvas = created?.canvas;
-    if (!canvas?.id) throw new Error("PenEcho Cloud did not create the Canvas.");
+    if (!canvas?.id) throw new Error("FastLectures Cloud did not create the Canvas.");
     try {
       const saved = await this.saveCloudCanvas({ canvasId:canvas.id, baseRevisionId:null, bundle });
       return { canvas:{ ...canvas, currentRevisionId:saved.revision.id, updatedAt:saved.revision.completedAt || Date.now() }, revision:saved.revision };
@@ -947,7 +947,7 @@ class CloudConnector {
       try {
         const completed = await this.cloudRequest(`/api/v1/device-sync/canvas-revisions/${encodeURIComponent(revisionId)}/complete`, { method: "POST", body: {} });
         if (completed?.revision?.id === revisionId) return completed;
-        lastError = new Error("PenEcho Cloud returned an invalid Canvas revision confirmation.");
+        lastError = new Error("FastLectures Cloud returned an invalid Canvas revision confirmation.");
       } catch (error) {
         lastError = error;
       }
@@ -958,7 +958,7 @@ class CloudConnector {
     } catch (error) {
       lastError ||= error;
     }
-    throw lastError || new Error("PenEcho Cloud could not confirm the saved Canvas revision.");
+    throw lastError || new Error("FastLectures Cloud could not confirm the saved Canvas revision.");
   }
 
   async loadCloudCanvas(canvasId) {
@@ -977,7 +977,7 @@ class CloudConnector {
     const cloudOrigin = normalizedOrigin(origin);
     const accountConfiguration = this.requireCloudAccount();
     if (accountConfiguration.origin !== cloudOrigin) {
-      throw new Error("Use the PenEcho Cloud account that is signed in on this computer.");
+      throw new Error("Use the FastLectures Cloud account that is signed in on this computer.");
     }
     const response = await fetch(`${cloudOrigin}/api/v1/device/${code ? 'pair' : 'link'}`, {
       method: "POST",
@@ -989,7 +989,7 @@ class CloudConnector {
     if (!response.ok || !payload.token || !payload.device?.id) throw new Error(payload.message || `Could not enable Linked Device (HTTP ${response.status}).`);
     if (deviceOperationSeq !== this.deviceOperationSeq) throw Object.assign(new Error("A newer device-link action replaced this request."), { code:"cloud_device_action_superseded" });
     if (accountToken(this.configuration) !== accountConfiguration.accountToken || this.configuration?.origin !== accountConfiguration.origin) {
-      throw cloudSignInRequiredError("The local PenEcho Cloud account changed while this device was linking. Start Link device again.");
+      throw cloudSignInRequiredError("The local FastLectures Cloud account changed while this device was linking. Start Link device again.");
     }
     const existing = this.configuration;
     const configuration = {
@@ -1074,7 +1074,7 @@ class CloudConnector {
   }
 
   enable() {
-    if (!deviceToken(this.configuration)) throw new Error("Enable Linked Device to connect this PenEcho server.");
+    if (!deviceToken(this.configuration)) throw new Error("Enable Linked Device to connect this FastLectures server.");
     this.writeConfiguration({ ...this.configuration, enabled: true });
     this.stopped = false;
     this.reconnectAttempt = 0;
@@ -1294,7 +1294,7 @@ class CloudConnector {
         canvasAi = operation === undefined,
         executor = canvasMcp ? this.executeMcpRequest : canvasAgent ? this.executeCanvasAgentRequest : remoteCanvas ? this.executeHttpRequest : this.executeRequest,
         timeoutMs = Number(message.timeoutMs) || 210_000;
-      if (typeof executor !== "function") throw Object.assign(new Error("This PenEcho version does not support Remote Canvas."), { code:"remote_canvas_unsupported" });
+      if (typeof executor !== "function") throw Object.assign(new Error("This FastLectures version does not support Remote Canvas."), { code:"remote_canvas_unsupported" });
       const relayRequest = canvasAi ? cloudAiRelayRequest(message.payload) : null,
         payload = relayRequest?.connectionId
           ? await executor(relayRequest.payload, timeoutMs, { connectionId:relayRequest.connectionId })

@@ -31,11 +31,11 @@ test("mobile connection shell preserves the server-side security boundary", () =
   const config = json("tools/mobile/capacitor.config.json");
   const html = fs.readFileSync(path.join(ROOT, "tools/mobile/web/index.html"), "utf8");
   const app = fs.readFileSync(path.join(ROOT, "tools/mobile/web/app.js"), "utf8");
-  assert.equal(config.appId, "ai.penecho.mobile");
+  assert.equal(config.appId, "ai.fastlectures.mobile");
   assert.deepEqual(config.server.allowNavigation, ["*"]);
   assert.equal(config.server.cleartext, true);
   assert.match(html, /id="serverUrl"/);
-  assert.match(html, /penecho-mark\.png/);
+  assert.match(html, /fastlectures-mark\.png/);
   assert.match(app, /\["http:", "https:"\]/);
   assert.match(app, /target\.username \|\| target\.password \|\| target\.search \|\| target\.hash/);
   assert.match(app, /localStorage\.setItem/);
@@ -50,10 +50,10 @@ test("mobile builder creates branded, optionally signed APK targets", () => {
   assert.match(builder, /android\.injected\.version\.name/);
   assert.match(builder, /android:usesCleartextTraffic/);
   assert.match(builder, /ANDROID_SIGNING_STORE_FILE/);
-  assert.match(builder, /penecho-1024\.png/);
+  assert.match(builder, /fastlectures-1024\.png/);
   assert.match(builder, /android-debug/);
   assert.match(ignore, /tools\/mobile\/android\//);
-  assert.match(ignore, /tools\/mobile\/web\/penecho-mark\.png/);
+  assert.match(ignore, /tools\/mobile\/web\/fastlectures-mark\.png/);
 });
 
 test("iOS builder exports a signed IPA with an independent CI build number", () => {
@@ -66,8 +66,8 @@ test("iOS builder exports a signed IPA with an independent CI build number", () 
   assert.match(builder, /PROVISIONING_PROFILE_SPECIFIER/);
   assert.match(builder, /-exportArchive/);
   assert.match(builder, /ITSAppUsesNonExemptEncryption = false/);
-  assert.match(builder, /PenEcho-\$\{APP_PACKAGE\.version\}-\$\{suffix\}/);
-  assert.doesNotMatch(builder, /penecho_cloud|public\/canvas/);
+  assert.match(builder, /FastLectures-\$\{APP_PACKAGE\.version\}-\$\{suffix\}/);
+  assert.doesNotMatch(builder, /fastlectures_cloud|public\/canvas/);
 });
 
 test("iOS release workflow signs tag artifacts and keeps TestFlight upload explicit", () => {
@@ -79,7 +79,7 @@ test("iOS release workflow signs tag artifacts and keeps TestFlight upload expli
   assert.match(workflow, /\/usr\/bin\/base64 -D/);
   assert.doesNotMatch(workflow, /base64 --decode/);
   assert.match(workflow, /npm run mobile:ipa/);
-  assert.match(workflow, /release\/mobile\/PenEcho-\*-ios\.ipa/);
+  assert.match(workflow, /release\/mobile\/FastLectures-\*-ios\.ipa/);
   assert.match(workflow, /UPLOAD_TESTFLIGHT: \$\{\{ inputs\.upload_testflight == true \}\}/);
   assert.match(workflow, /xcrun altool --upload-app/);
 });

@@ -69,8 +69,8 @@ test("Widget initialization carries its authored source identity", () => {
       pluginId:"general",
       title:"Fields",
       html:"<main></main>",
-      sourceFormat:"penecho-visual-explorer+html",
-      frameworkVersion:"penecho-visual-explorer/1",
+      sourceFormat:"fastlectures-visual-explorer+html",
+      frameworkVersion:"fastlectures-visual-explorer/1",
       hostOrigin:"https://canvas.example",
     },
     send = vm.runInNewContext(`(${functionSource(canvas, "sendWidgetInit")})`, {
@@ -81,34 +81,34 @@ test("Widget initialization carries its authored source identity", () => {
   assert.equal(sent.length, 1);
   assert.equal(sent[0].targetOrigin, "https://canvas.example");
   assert.deepEqual(JSON.parse(JSON.stringify(sent[0].message)), {
-    type:"penecho-widget-init",
+    type:"fastlectures-widget-init",
     imageAssets:{},
     title:"Fields",
     html:"<main></main>",
     pluginStyles:"/* plugin */",
-    sourceFormat:"penecho-visual-explorer+html",
-    frameworkVersion:"penecho-visual-explorer/1",
+    sourceFormat:"fastlectures-visual-explorer+html",
+    frameworkVersion:"fastlectures-visual-explorer/1",
   });
 });
 
 test("shared and legacy science modes require supported init metadata and one exact HTML skill marker", () => {
   const host = read("public/widget-host.js"),
     gate = vm.runInNewContext(`(${functionSource(host, "scienceWidgetMode")})`),
-    meta = (content, name = "penecho-visual-skill") => ({ getAttribute(attribute) { return attribute === "content" ? content : name; } }),
+    meta = (content, name = "fastlectures-visual-skill") => ({ getAttribute(attribute) { return attribute === "content" ? content : name; } }),
     parsedFor = (metas) => ({ querySelectorAll(selector) { assert.equal(selector, "meta"); return metas; } });
   for (const skill of ["math-2d", "physics-2d", "math-3d"]) {
-    assert.equal(gate(parsedFor([meta(skill)]), "penecho-visual-explorer+html", "penecho-visual-explorer/1"), true);
-    assert.equal(gate(parsedFor([meta(skill)]), "penecho-mcp+html", undefined), true);
+    assert.equal(gate(parsedFor([meta(skill)]), "fastlectures-visual-explorer+html", "fastlectures-visual-explorer/1"), true);
+    assert.equal(gate(parsedFor([meta(skill)]), "fastlectures-mcp+html", undefined), true);
   }
   for (const markers of [[], [meta("math-4d")], [meta("math-2d"), meta("physics-2d")]]) {
-    assert.equal(gate(parsedFor(markers), "penecho-mcp+html", undefined), false);
+    assert.equal(gate(parsedFor(markers), "fastlectures-mcp+html", undefined), false);
   }
-  assert.equal(gate(parsedFor([meta("math-2d")]), "penecho-visual-explorer+html", "penecho-visual-explorer/2"), false);
-  assert.equal(gate(parsedFor([meta("math-2d")]), "penecho-widget+html", "penecho-visual-explorer/1"), false);
-  assert.equal(gate(parsedFor([meta("math-4d")]), "penecho-visual-explorer+html", "penecho-visual-explorer/1"), false);
-  assert.equal(gate(parsedFor([meta("math-2d", "PENECHO-VISUAL-SKILL")]), "penecho-visual-explorer+html", "penecho-visual-explorer/1"), false);
-  assert.equal(gate(parsedFor([meta("math-2d"), meta("math-3d")]), "penecho-visual-explorer+html", "penecho-visual-explorer/1"), false);
-  assert.equal(gate(parsedFor([]), "penecho-visual-explorer+html", "penecho-visual-explorer/1"), false);
+  assert.equal(gate(parsedFor([meta("math-2d")]), "fastlectures-visual-explorer+html", "fastlectures-visual-explorer/2"), false);
+  assert.equal(gate(parsedFor([meta("math-2d")]), "fastlectures-widget+html", "fastlectures-visual-explorer/1"), false);
+  assert.equal(gate(parsedFor([meta("math-4d")]), "fastlectures-visual-explorer+html", "fastlectures-visual-explorer/1"), false);
+  assert.equal(gate(parsedFor([meta("math-2d", "FASTLECTURES-VISUAL-SKILL")]), "fastlectures-visual-explorer+html", "fastlectures-visual-explorer/1"), false);
+  assert.equal(gate(parsedFor([meta("math-2d"), meta("math-3d")]), "fastlectures-visual-explorer+html", "fastlectures-visual-explorer/1"), false);
+  assert.equal(gate(parsedFor([]), "fastlectures-visual-explorer+html", "fastlectures-visual-explorer/1"), false);
   assert.match(host, /widgetDocument\(imageHtml, message\.pluginStyles \|\| "", runtimeVersion, message\.sourceFormat, message\.frameworkVersion\)/);
 });
 
@@ -191,11 +191,11 @@ test("science readiness waits for authored ready, the DOM renderer, and two pres
   assert.equal(contexts[0].type, "webgl2");
   assert.equal(contexts[0].attributes.alpha, false);
   assert.equal(contexts[0].attributes.preserveDrawingBuffer, true);
-  assert.equal(typeof context.window.penechoWidgetReady, "function");
-  context.penechoWidgetReady();
+  assert.equal(typeof context.window.fastlecturesWidgetReady, "function");
+  context.fastlecturesWidgetReady();
   assert.equal(posted.length, 0);
   assert.equal(frames.length, 0);
-  context.__penechoScienceRendererReady();
+  context.__fastlecturesScienceRendererReady();
   assert.equal(posted.length, 0);
   assert.equal(frames.length, 1);
   assert.equal(HTMLCanvasElement.prototype.getContext, originalGetContext);
@@ -204,11 +204,11 @@ test("science readiness waits for authored ready, the DOM renderer, and two pres
   assert.equal(posted.length, 0);
   frames.shift()();
   assert.equal(posted.length, 1);
-  assert.equal(posted[0].type, "penecho-widget-document-ready");
+  assert.equal(posted[0].type, "fastlectures-widget-document-ready");
   assert.equal(posted[0].runtimeVersion, 9);
   assert.doesNotMatch(runtimeSource, /setTimeout/);
   assert.match(host, /typeof globalThis\.html2canvas===\\"function\\"/);
-  assert.match(host, /globalThis\.__penechoScienceRendererReady\?\.\(\)/);
+  assert.match(host, /globalThis\.__fastlecturesScienceRendererReady\?\.\(\)/);
 
   const staticPosted = [], staticFrames = [], StaticCanvas = function StaticCanvas() {};
   StaticCanvas.prototype.getContext = () => ({});
@@ -220,7 +220,7 @@ test("science readiness waits for authored ready, the DOM renderer, and two pres
   staticContext.globalThis = staticContext;
   staticContext.window = staticContext;
   vm.runInNewContext(`(${runtimeSource})(10, false)`, staticContext);
-  staticContext.__penechoScienceRendererReady();
+  staticContext.__fastlecturesScienceRendererReady();
   assert.equal(staticFrames.length, 1);
   staticFrames.shift()();
   staticFrames.shift()();
@@ -277,7 +277,7 @@ test("science snapshot hooks are bounded and failures do not displace the ordina
     }), undefined);
   assert.deepEqual(scienceCalls, ["before", "after"]);
   assert.deepEqual(JSON.parse(JSON.stringify(posted)), [{
-    type:"penecho-widget-snapshot-error",
+    type:"fastlectures-widget-snapshot-error",
     runtimeVersion:12,
     requestId:"failed",
     error:"Widget snapshot before hook failed: prepare failed",
@@ -288,7 +288,7 @@ test("science snapshot hooks are bounded and failures do not displace the ordina
   const snapshotCalls = [],
     snapshot = vm.runInNewContext(`(async ${functionSource(host, "snapshot")})`, {
       scienceMode:false,activeSnapshot:null,activeSnapshotRender:null,
-      globalThis:{ __penechoScienceSnapshotHooks:{ beforeSnapshot() { throw Error("collision"); } } },
+      globalThis:{ __fastlecturesScienceSnapshotHooks:{ beforeSnapshot() { throw Error("collision"); } } },
       snapshotDebugLog() {},
       schedulePresentationSize() {},
       snapshotDocument: async (message, requirePresentedFrame) => {
@@ -301,5 +301,5 @@ test("science snapshot hooks are bounded and failures do not displace the ordina
   assert.deepEqual(snapshotCalls, [false]);
   assert.match(host, /runtime\.toString\(\).*JSON\.stringify\(scienceMode\)/);
   assert.match(functionSource(host, "snapshotDocument"), /if \(requirePresentedFrame && !presentedFrame\) throw Error\("Widget frame was not presented"\)/);
-  assert.doesNotMatch(functionSource(host, "snapshotDocument"), /__penechoScienceSnapshotHooks|setRuntimeActive\(false\)/);
+  assert.doesNotMatch(functionSource(host, "snapshotDocument"), /__fastlecturesScienceSnapshotHooks|setRuntimeActive\(false\)/);
 });

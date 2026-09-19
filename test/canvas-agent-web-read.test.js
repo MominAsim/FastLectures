@@ -16,7 +16,7 @@ const waitFor = async (predicate, timeoutMs = 2000) => {
     if (predicate()) return;
     await new Promise(resolve => setTimeout(resolve, 10));
   }
-  throw new Error("Timed out waiting for the PenEcho Agent web read test.");
+  throw new Error("Timed out waiting for the FastLectures Agent web read test.");
 };
 
 class FakeRequest extends EventEmitter {
@@ -83,7 +83,7 @@ test("public web fetch resolves and pins every address while blocking private an
   assert.equal(result.body.toString(), "public response");
   assert.equal(requests.length, 1);
   assert.equal(requests[0].options.method, "GET");
-  assert.equal(requests[0].options.headers["User-Agent"], "Mozilla/5.0 (compatible; PenEcho/0.8; public-data-reader)");
+  assert.equal(requests[0].options.headers["User-Agent"], "Mozilla/5.0 (compatible; FastLectures/0.8; public-data-reader)");
   assert.equal(Object.hasOwn(requests[0].options.headers, "cookie"), false);
   assert.equal(Object.hasOwn(requests[0].options.headers, "authorization"), false);
   let pinned;
@@ -141,8 +141,8 @@ test("public web fetch revalidates redirects and rejects oversized responses", a
   );
 });
 
-test("PenEcho Agent web_read executes through the CLI Harness path and returns bounded extracted text", async t => {
-  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-canvas-agent-web-read-test-"));
+test("FastLectures Agent web_read executes through the CLI Harness path and returns bounded extracted text", async t => {
+  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-canvas-agent-web-read-test-"));
   t.after(() => fs.rmSync(stateDirectory, { recursive:true, force:true }));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
   const calls = [], messages = [], publicFetchCalls = [];
@@ -203,8 +203,8 @@ test("PenEcho Agent web_read executes through the CLI Harness path and returns b
   assert.equal(runtimeSource.includes("const WEB_READ_TIMEOUT_MS = 12_000"), true);
 });
 
-test("PenEcho Agent web_read remains available when internet search is off", async t => {
-  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-canvas-agent-web-read-disabled-test-"));
+test("FastLectures Agent web_read remains available when internet search is off", async t => {
+  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-canvas-agent-web-read-disabled-test-"));
   t.after(() => fs.rmSync(stateDirectory, { recursive:true, force:true }));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
   const calls = [], messages = [], publicFetchCalls = [];
@@ -250,8 +250,8 @@ test("PenEcho Agent web_read remains available when internet search is off", asy
   assert.doesNotMatch(calls[1].prompt, /Internet search is off/);
 });
 
-test("PenEcho Agent web_read is exposed on the API Harness tool path", async t => {
-  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-canvas-agent-web-read-api-test-"));
+test("FastLectures Agent web_read is exposed on the API Harness tool path", async t => {
+  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-canvas-agent-web-read-api-test-"));
   t.after(() => fs.rmSync(stateDirectory, { recursive:true, force:true }));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
   const connection = {
@@ -288,8 +288,8 @@ test("PenEcho Agent web_read is exposed on the API Harness tool path", async t =
   assert.ok(webRead, "web_read must be serialized to the API model provider");
 });
 
-test("PenEcho Agent web_read returns diagnostic errors for invalid, HTTP, and content-type failures", async t => {
-  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-canvas-agent-web-read-errors-test-"));
+test("FastLectures Agent web_read returns diagnostic errors for invalid, HTTP, and content-type failures", async t => {
+  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-canvas-agent-web-read-errors-test-"));
   t.after(() => fs.rmSync(stateDirectory, { recursive:true, force:true }));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
   const calls = [], messages = [], publicFetchCalls = [];

@@ -1,12 +1,12 @@
 "use strict";
 
 const DEFAULT_REASONING_EFFORT = "medium";
-const PENECHO_REASONING_EFFORTS = Object.freeze(["none", "low", "medium", "high", "xhigh", "max"]);
-const PENECHO_REASONING_EFFORT_SET = new Set(PENECHO_REASONING_EFFORTS);
+const FASTLECTURES_REASONING_EFFORTS = Object.freeze(["none", "low", "medium", "high", "xhigh", "max"]);
+const FASTLECTURES_REASONING_EFFORT_SET = new Set(FASTLECTURES_REASONING_EFFORTS);
 
 function normalizeReasoningEffort(value, fallback = DEFAULT_REASONING_EFFORT) {
   const effort = String(value || "").trim().toLowerCase();
-  return PENECHO_REASONING_EFFORT_SET.has(effort) ? effort : fallback;
+  return FASTLECTURES_REASONING_EFFORT_SET.has(effort) ? effort : fallback;
 }
 
 function reasoningEffortTimeoutMultiplier(effort) {
@@ -60,7 +60,7 @@ function apiReasoningParameters(options = {}) {
 
 module.exports = {
   DEFAULT_REASONING_EFFORT,
-  PENECHO_REASONING_EFFORTS,
+  FASTLECTURES_REASONING_EFFORTS,
   apiFamily,
   apiReasoningParameters,
   mapKimiReasoningEffort,

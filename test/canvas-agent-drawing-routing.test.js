@@ -13,7 +13,7 @@ test('Agent and external MCP share the whole-figure pen limit and complex Widget
     assert.ok(instructions.indexOf(VISUAL_EXPLORER_SELECTION) < instructions.indexOf(NATIVE_DRAWING_ROUTING));
     assert.match(instructions, /at most 10 strokes or primitive marks in total/);
     assert.match(instructions, /action="draw_ink"/);
-    assert.match(instructions, /must use one HTML Widget through penecho_present_widget/);
+    assert.match(instructions, /must use one HTML Widget through fastlectures_present_widget/);
     assert.match(instructions, /Count the whole figure, not each tool call/);
     assert.match(instructions, /do not split a complex diagram across batches/);
     assert.match(instructions, /Explicit user implementation constraints take precedence/);
@@ -30,7 +30,7 @@ test('drawing guidance preserves Visual Explorer, small annotations, plots and s
     /follow visual-explorer guidance for explanation-first results and general-html for ordinary HTML tools or interaction-first results/,
     /does not convert existing Canvas objects or Widgets/,
     /constrain small edits\/annotations to an existing complex figure/,
-    /change bare function graphs from penecho_plot/,
+    /change bare function graphs from fastlectures_plot/,
     /require Canvas output for source-only requests/,
   ];
   for (const boundary of requiredBoundaries) assert.match(NATIVE_DRAWING_ROUTING, boundary);

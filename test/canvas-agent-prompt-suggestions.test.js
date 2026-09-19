@@ -44,12 +44,12 @@ function translation(source,key){
   return JSON.parse(`"${match[1]}"`);
 }
 
-test("PenEcho Agent keeps the Revise pencil seam inside its icon viewBox",()=>{
+test("FastLectures Agent keeps the Revise pencil seam inside its icon viewBox",()=>{
   const {iconPaths}=promptConstants();
   assert.equal(iconPaths.revise[1],"M13.5 9l3.5 3.5M4 5h6M4 9h5");
 });
 
-test("PenEcho Agent places its categorized prompt list at the top of the content area without repeated guidance",()=>{
+test("FastLectures Agent places its categorized prompt list at the top of the content area without repeated guidance",()=>{
   const {document}=parseHTML(html),panel=document.querySelector("#canvasAgentPanel"),prompts=document.querySelector("#canvasAgentPromptSuggestions"),transcript=document.querySelector("#canvasAgentTranscript"),form=document.querySelector("#canvasAgentForm"),categories=document.querySelector("#canvasAgentPromptCategories"),list=document.querySelector("#canvasAgentPromptPopup");
   assert.equal(prompts.parentElement,panel);
   assert.equal(prompts.nextElementSibling,transcript);
@@ -64,7 +64,7 @@ test("PenEcho Agent places its categorized prompt list at the top of the content
   assert.doesNotMatch(css,/canvas-agent-prompt-popup:not\(\[hidden\]\)[^}]*canvas-agent-empty/);
 });
 
-test("PenEcho Agent keeps the Try asking trigger in the composer and its content above the transcript",()=>{
+test("FastLectures Agent keeps the Try asking trigger in the composer and its content above the transcript",()=>{
   const {document}=parseHTML(html),form=document.querySelector("#canvasAgentForm"),surface=form.querySelector(".canvas-agent-composer-surface"),toolbar=form.querySelector(".canvas-agent-composer-toolbar"),control=document.querySelector("#canvasAgentPromptControl"),project=document.querySelector("#canvasAgentProjectControl"),connection=document.querySelector("#canvasAgentConnection"),toggle=document.querySelector("#canvasAgentPromptToggle"),prompts=document.querySelector("#canvasAgentPromptSuggestions"),categories=document.querySelector("#canvasAgentPromptCategories"),list=document.querySelector("#canvasAgentPromptPopup"),tabs=[...categories.querySelectorAll('[role="tab"]')],panels=[...list.querySelectorAll('[role="tabpanel"]')];
   assert.equal(toolbar.parentElement,surface);
   assert.deepEqual([...toolbar.children],[project,control,connection]);
@@ -102,7 +102,7 @@ test("Try asking uses the full remaining height and only its content view scroll
   assert.doesNotMatch(css,/\.canvas-agent-prompt-copy > \[data-pe-region="description"\]/);
 });
 
-test("PenEcho Agent keeps the Try asking trigger available without requiring panel focus",()=>{
+test("FastLectures Agent keeps the Try asking trigger available without requiring panel focus",()=>{
   const input={value:"",disabled:false},form={contains:node=>node===input},document={activeElement:null},panel={hidden:true,dataset:{}},control={hidden:true},suggestions={contains:()=>false},canvasAgent={inputMode:"text",inkPresent:false,attachments:[],references:[],requestPending:false,running:false,viewingHistoryId:"",pendingApproval:null,attachmentBusy:false,projectUploadBusy:false},referencePicker={hidden:true},approval={hidden:true},context={canvasAgentPromptControl:control,canvasAgentPromptSuggestions:suggestions,canvasAgentPanel:panel,canvasAgentForm:form,document,canvasAgent,canvasAgentInput:input,canvasAgentReferencePicker:referencePicker,canvasAgentApproval:approval};
   const available=vm.runInNewContext(`(()=>{${functionSource("canvasAgentPromptSuggestionsAvailable")}return canvasAgentPromptSuggestionsAvailable;})()`,context);
   assert.equal(available(),true,"new/load can prepare the top view before the panel becomes visible");
@@ -110,12 +110,12 @@ test("PenEcho Agent keeps the Try asking trigger available without requiring pan
   for(const [target,key,value] of blockers){const previous=target[key];target[key]=value;assert.equal(available(),false,`${key} should hide suggestions`);target[key]=previous;}
 });
 
-test("PenEcho Agent classifies image, Office, document, code, and generic files",()=>{
+test("FastLectures Agent classifies image, Office, document, code, and generic files",()=>{
   const classify=vm.runInNewContext(`(()=>{${functionSource("canvasAgentPromptFileContext")}return canvasAgentPromptFileContext;})()`);
   assert.equal(classify({kind:"image",name:"photo.bin"}),"image");assert.equal(classify({name:"budget.xlsx",mediaType:"application/octet-stream"}),"spreadsheet");assert.equal(classify({name:"deck.pptx"}),"presentation");assert.equal(classify({name:"paper.pdf"}),"document");assert.equal(classify({name:"agent.ts"}),"code");assert.equal(classify({name:"archive.bin"}),"file");
 });
 
-test("PenEcho Agent intent precedence follows explicit choices before inferred canvas content",()=>{
+test("FastLectures Agent intent precedence follows explicit choices before inferred canvas content",()=>{
   let selected=false,project=null,hasInk=false,hasContent=false;
   const canvasAgent={attachments:[],projectId:""},state={selection:null,images:[],widgets:[],textBoxes:[],animations:[],preservedSnapshotAnimations:[]},scope={canvasAgent,state,SIZE:100,canvasAgentReferencedIds:()=>selected?["selected"]:[],canvasAgentProjectById:()=>project,visibleInkBounds:()=>hasInk?{x:1,y:1,w:2,h:2}:null,canvasAgentContentBounds:()=>hasContent?{x:1,y:1,w:2,h:2}:null};
   scope.canvasAgentPromptFileContext=vm.runInNewContext(`(()=>{${functionSource("canvasAgentPromptFileContext")}return canvasAgentPromptFileContext;})()`);
@@ -123,7 +123,7 @@ test("PenEcho Agent intent precedence follows explicit choices before inferred c
   assert.equal(context(),"blank");hasContent=true;assert.equal(context(),"canvas");state.images.push({});assert.equal(context(),"image");hasInk=true;assert.equal(context(),"notes");project={kind:"folder"};canvasAgent.projectId="folder-1";assert.equal(context(),"project");selected=true;assert.equal(context(),"selection");canvasAgent.attachments=[{kind:"file",name:"budget.xlsx"}];assert.equal(context(),"spreadsheet");canvasAgent.attachments=[{kind:"image",name:"photo.png"}];assert.equal(context(),"image");
 });
 
-test("PenEcho Agent chooses three context-specific primary intents",()=>{
+test("FastLectures Agent chooses three context-specific primary intents",()=>{
   const constants=promptConstants(),expected={blank:["file","architecture","handwriting"],image:["imageVisual","imageLayer","imagePublish"],spreadsheet:["spreadsheetVisual","spreadsheetLayer","spreadsheetPublish"],presentation:["presentationVisual","presentationLayer","presentationPublish"],document:["documentVisual","documentStudy","documentPublish"],code:["codeVisual","codeLayer","codePlan"],file:["file","fileLayer","filePublish"],project:["architecture","projectPlan","projectPublish"],selection:["selectionVisual","selectionLayer","selectionPublish"],notes:["notesVisual","applyAnnotations","handwriting"],canvas:["canvasVisual","canvasLayer","canvasPublish"]},defaultCategory=vm.runInNewContext(`(()=>{${functionSource("canvasAgentDefaultPromptCategory")}return canvasAgentDefaultPromptCategory;})()`);
   for(const item of Object.values(constants.library))assert.ok(["notes","files","create"].includes(item.category),`${item.prompt} needs one prompt category`);
   for(const [context,ids] of Object.entries(expected)){
@@ -133,7 +133,7 @@ test("PenEcho Agent chooses three context-specific primary intents",()=>{
   }
 });
 
-test("PenEcho Agent adds three distinct Files requests and three distinct Create requests",()=>{
+test("FastLectures Agent adds three distinct Files requests and three distinct Create requests",()=>{
   const constants=promptConstants(),expected=[
     ["compareFiles","files","Compare Related Files","比较相关文件"],
     ["projectEvidence","files","Find Evidence Across the Project","查找项目依据"],
@@ -183,7 +183,7 @@ function interactiveScene(){
   return {set,input,active,document,form,control,panel,suggestions,notes,files,create,tabs,lists,popup,toggle,canvasAgent,render:context.canvasAgentRenderPromptSuggestions,selectCategory:context.canvasAgentSelectPromptCategory,handleCategoryKey:context.canvasAgentHandlePromptCategoryKeydown,setExpanded:context.canvasAgentSetPromptSuggestionsExpanded,sync,choose:context.canvasAgentChoosePromptSuggestion,activate:context.canvasAgentActivatePromptSuggestion,preventFocusLoss:context.canvasAgentPreventPromptSuggestionFocusLoss,finishPointer:context.canvasAgentFinishPromptSuggestionPointer,toggleExpanded:context.canvasAgentTogglePromptSuggestions};
 }
 
-test("PenEcho Agent renders contextual ideas as compact title-only rows",()=>{
+test("FastLectures Agent renders contextual ideas as compact title-only rows",()=>{
   const scene=interactiveScene();scene.render(scene.set);
   assert.deepEqual(scene.lists.map(list=>list.children.length),[7,7,5]);
   assert.equal(scene.notes.hidden,false);assert.equal(scene.files.hidden,true);assert.equal(scene.create.hidden,true);
@@ -225,7 +225,7 @@ test("touch and pen select in one tap without opening the soft keyboard",()=>{
   const keyboard=interactiveScene();keyboard.render(keyboard.set);keyboard.setExpanded(true);keyboard.notes.children.at(-1).click();assert.equal(keyboard.input.focused,true,"keyboard activation keeps the standard focus path");
 });
 
-test("PenEcho Agent ships localized titles and full prompts without rendering summaries in the list",()=>{
+test("FastLectures Agent ships localized titles and full prompts without rendering summaries in the list",()=>{
   const {library}=promptConstants(),items=Object.values(library),promptKeys=[...new Set(items.map(item=>item.prompt))],titleKeys=[...new Set(items.map(item=>item.title))];
   for(const key of promptKeys){const en=translation(english,key),zh=translation(chinese,key),summaryKey=`${key}Summary`,enSummary=translation(english,summaryKey),zhSummary=translation(chinese,summaryKey);assert.equal(en.length>25,true,`English ${key} is incomplete`);assert.equal(zh.length>12,true,`Chinese ${key} is incomplete`);assert.equal(enSummary.length>20,true,`English ${summaryKey} is incomplete`);assert.equal(zhSummary.length>8,true,`Chinese ${summaryKey} is incomplete`);}
   for(const key of titleKeys){const words=translation(english,key).trim().split(/\s+/),zh=translation(chinese,key);assert.equal(words.length>=3&&words.length<=5,true,`English ${key} must be 3-5 words`);assert.equal(zh.length>=4&&zh.length<=24,true,`Chinese ${key} should stay compact`);}
@@ -234,6 +234,6 @@ test("PenEcho Agent ships localized titles and full prompts without rendering su
   assert.equal(translation(english,"canvasAgentEmptyTitle"),"Understand what is here, then build on it.");assert.equal(translation(chinese,"canvasAgentEmptyTitle"),"理解当前画布，继续完善内容。");assert.ok(translation(english,"canvasAgentPromptSuggestionsHint"));assert.ok(translation(chinese,"canvasAgentPromptSuggestionsHint"));assert.doesNotMatch(functionSource("canvasAgentRenderPromptSuggestions"),/Summary|createElement\("small"\)|description/);
 });
 
-test("PenEcho Agent refreshes prompt intent when attachments, references, projects, or canvas state change",()=>{
+test("FastLectures Agent refreshes prompt intent when attachments, references, projects, or canvas state change",()=>{
   assert.match(functionSource("canvasAgentRenderAttachments"),/canvasAgentSyncPromptSuggestions\(\)/);assert.match(functionSource("canvasAgentSyncSelection"),/canvasAgentSyncPromptSuggestions\(\)/);assert.match(functionSource("canvasAgentSelectProject"),/canvasAgentSyncPromptSuggestions\(\)/);assert.match(functionSource("canvasAgentEnsureProjects"),/canvasAgentSyncPromptSuggestions\(\)/);assert.match(functionSource("canvasAgentCanvasDidChange"),/canvasAgentSyncPromptSuggestions\(\)/);assert.match(functionSource("canvasAgentSyncPromptSuggestions"),/suggestionSet\.key!==canvasAgent\.promptSuggestionContextKey/);
 });

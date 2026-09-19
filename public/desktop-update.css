@@ -14,7 +14,7 @@
   backdrop-filter: blur(10px);
 }
 .desktop-update-prompt[hidden] { display: none; }
-main > footer.penecho-desktop-update-visible { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; }
+main > footer.fastlectures-desktop-update-visible { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; }
 .desktop-update-row {
   display: flex;
   min-height: 46px;

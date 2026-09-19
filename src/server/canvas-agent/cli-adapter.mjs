@@ -19,7 +19,7 @@ const MAX_CLI_PROMPT_CHARS = 500_000
 const MAX_CLI_DECISION_REPAIR_CHARS = 120_000
 const MAX_CLI_PROGRESS_SOURCE_CHARS = 16_384
 const MAX_CLI_PROGRESS_CHARS = 160
-const CLI_RETRY_POLICY = resolveRetryPolicy({ mode:'normal', maxRetries:0 }, 'penecho-cli-llm.retryPolicy')
+const CLI_RETRY_POLICY = resolveRetryPolicy({ mode:'normal', maxRetries:0 }, 'fastlectures-cli-llm.retryPolicy')
 const CLI_REASONING_LEVELS = Object.freeze(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
 
 const CLI_PROTOCOL_SYSTEM = `Harness owns the conversation and tools. Return bare JSON. Never invoke CLI built-ins; no prose/fences/reasoning. Use images.
@@ -33,7 +33,7 @@ function hash(value) {
 
 function bounded(value, limit = MAX_CLI_PROMPT_CHARS) {
   const text = String(value ?? '')
-  if (text.length > limit) throw new Error('PenEcho Agent CLI context exceeds the safe local CLI prompt limit. Start a new conversation or use a larger-context model.')
+  if (text.length > limit) throw new Error('FastLectures Agent CLI context exceeds the safe local CLI prompt limit. Start a new conversation or use a larger-context model.')
   return text
 }
 
@@ -115,10 +115,10 @@ function requestConnection(connection, reasoningEffort) {
 }
 
 export function cliConnectionProfile(connection) {
-  if (!connection || !CLI_PROVIDERS.has(connection.provider)) throw new Error('PenEcho Agent selected an unsupported CLI connection.')
+  if (!connection || !CLI_PROVIDERS.has(connection.provider)) throw new Error('FastLectures Agent selected an unsupported CLI connection.')
   const model = String(connection.cliModel || '').trim() || 'default'
   return {
-    provider:`penecho-cli-${hash(connection.id).slice(0, 12)}`,
+    provider:`fastlectures-cli-${hash(connection.id).slice(0, 12)}`,
     model,
     displayName:connection.name || ({
       'kimi-cli':'Kimi CLI',
@@ -220,7 +220,7 @@ function parseJsonCandidate(candidate) {
 function jsonObject(text) {
   const trimmed = String(text || '').trim()
   try { return parseJsonCandidate(trimmed) }
-  catch { throw new Error('PenEcho Agent CLI returned an invalid Harness decision. Expected the entire response to be one JSON value.') }
+  catch { throw new Error('FastLectures Agent CLI returned an invalid Harness decision. Expected the entire response to be one JSON value.') }
 }
 
 function invalidCliDecision(message) {
@@ -237,35 +237,35 @@ function decisionProgress(value) {
 export function parseCliDecision(output, toolNames = []) {
   let value
   try { value = jsonObject(output) }
-  catch (error) { throw invalidCliDecision(`PenEcho Agent CLI returned an invalid Harness decision: ${error.message}`) }
+  catch (error) { throw invalidCliDecision(`FastLectures Agent CLI returned an invalid Harness decision: ${error.message}`) }
   const progress=decisionProgress(value)
   const multiple=Array.isArray(value)?value:(value?.type==='tool_calls'&&Array.isArray(value.calls)?value.calls:null)
   if(multiple){
-    if(multiple.length<2)throw invalidCliDecision('PenEcho Agent CLI tool_calls must contain at least two calls; use tool_call for one.')
+    if(multiple.length<2)throw invalidCliDecision('FastLectures Agent CLI tool_calls must contain at least two calls; use tool_call for one.')
     const calls=multiple.map((call,index)=>{
-      if(!call||typeof call!=='object'||Array.isArray(call)||!['tool_call',undefined].includes(call.type))throw invalidCliDecision(`PenEcho Agent CLI tool_calls[${index}] is invalid.`)
+      if(!call||typeof call!=='object'||Array.isArray(call)||!['tool_call',undefined].includes(call.type))throw invalidCliDecision(`FastLectures Agent CLI tool_calls[${index}] is invalid.`)
       const name=String(call.name||'')
       let args
       try{args=typeof call.arguments==='string'?jsonObject(call.arguments):call.arguments}
-      catch(error){throw invalidCliDecision(`PenEcho Agent CLI tool_calls[${index}] arguments are invalid JSON: ${error.message}`)}
-      if(!args||typeof args!=='object'||Array.isArray(args))throw invalidCliDecision(`PenEcho Agent CLI tool_calls[${index}] arguments must be a JSON object.`)
+      catch(error){throw invalidCliDecision(`FastLectures Agent CLI tool_calls[${index}] arguments are invalid JSON: ${error.message}`)}
+      if(!args||typeof args!=='object'||Array.isArray(args))throw invalidCliDecision(`FastLectures Agent CLI tool_calls[${index}] arguments must be a JSON object.`)
       return {name,arguments:JSON.stringify(args)}
     })
     return {type:'tool_calls',calls,...(progress?{progress}:{})}
   }
-  if (!value || typeof value !== 'object') throw invalidCliDecision('PenEcho Agent CLI decision must be a JSON object.')
+  if (!value || typeof value !== 'object') throw invalidCliDecision('FastLectures Agent CLI decision must be a JSON object.')
   if (value.type === 'final') {
     const text = String(value.text || '').trim()
-    if (!text) throw invalidCliDecision('PenEcho Agent CLI returned an empty final answer.')
+    if (!text) throw invalidCliDecision('FastLectures Agent CLI returned an empty final answer.')
     return { type:'final', text, ...(progress?{progress}:{}) }
   }
-  if (value.type !== 'tool_call') throw invalidCliDecision('PenEcho Agent CLI decision type must be final or tool_call.')
+  if (value.type !== 'tool_call') throw invalidCliDecision('FastLectures Agent CLI decision type must be final or tool_call.')
   const name = String(value.name || '')
-  if (!toolNames.includes(name)) throw invalidCliDecision(`PenEcho Agent CLI requested unavailable tool: ${name || '(empty)'}.`)
+  if (!toolNames.includes(name)) throw invalidCliDecision(`FastLectures Agent CLI requested unavailable tool: ${name || '(empty)'}.`)
   let args
   try { args = typeof value.arguments === 'string' ? jsonObject(value.arguments) : value.arguments }
-  catch (error) { throw invalidCliDecision(`PenEcho Agent CLI tool arguments are invalid JSON: ${error.message}`) }
-  if (!args || typeof args !== 'object' || Array.isArray(args)) throw invalidCliDecision('PenEcho Agent CLI tool arguments must be a JSON object.')
+  catch (error) { throw invalidCliDecision(`FastLectures Agent CLI tool arguments are invalid JSON: ${error.message}`) }
+  if (!args || typeof args !== 'object' || Array.isArray(args)) throw invalidCliDecision('FastLectures Agent CLI tool arguments must be a JSON object.')
   return { type:'tool_call', name, arguments:JSON.stringify(args), ...(progress?{progress}:{}) }
 }
 
@@ -310,7 +310,7 @@ export function normalizeCliTokenUsage(value) {
   }
 }
 
-export async function callPenEchoCli({ connection, systemPrompt, prompt, atlasImage, signal, onText = null, onActivity = null, onUsage = null }) {
+export async function callFastLecturesCli({ connection, systemPrompt, prompt, atlasImage, signal, onText = null, onActivity = null, onUsage = null }) {
   const request = {
     executable:connection.cliPath,
     model:connection.cliModel || null,
@@ -322,8 +322,8 @@ export async function callPenEchoCli({ connection, systemPrompt, prompt, atlasIm
   }
   if (connection.provider === 'kimi-cli') {
     // Kimi ACP currently starts its default agent profile with built-in tools
-    // and exposes no ACP option for selecting PenEcho's tool-free profile.
-    // PenEcho Agent therefore uses the disposable --agent-file path for every
+    // and exposes no ACP option for selecting FastLectures's tool-free profile.
+    // FastLectures Agent therefore uses the disposable --agent-file path for every
     // Harness step. Text mode exposes genuine assistant/thinking deltas so the
     // idle timeout can refresh; direct Canvas AI keeps its separate Kimi path.
     return callKimiCanvasAgentCli({ ...request, prompt:`${systemPrompt}\n\n--- HARNESS REQUEST ---\n${prompt}`, onUsage })
@@ -334,11 +334,11 @@ export async function callPenEchoCli({ connection, systemPrompt, prompt, atlasIm
   if (connection.provider === 'claude-cli') {
     return callClaudeCli({ ...request, systemPrompt, prompt, onUsage })
   }
-  throw new Error(`PenEcho Agent does not support CLI provider ${connection.provider}.`)
+  throw new Error(`FastLectures Agent does not support CLI provider ${connection.provider}.`)
 }
 
-export class PenEchoCliAdapter extends LlmAdapter {
-  constructor({ callCli = callPenEchoCli, attachments = () => undefined, timeoutMs = () => DEFAULT_CLI_TIMEOUT_MS, onDiagnostic = () => {} } = {}) {
+export class FastLecturesCliAdapter extends LlmAdapter {
+  constructor({ callCli = callFastLecturesCli, attachments = () => undefined, timeoutMs = () => DEFAULT_CLI_TIMEOUT_MS, onDiagnostic = () => {} } = {}) {
     super()
     this.callCli = callCli
     this.attachments = attachments
@@ -360,7 +360,7 @@ export class PenEchoCliAdapter extends LlmAdapter {
 
   route(provider) {
     const route = this.routes.get(provider)
-    if (!route) throw new Error(`PenEcho Agent CLI provider route is unavailable: ${provider}.`)
+    if (!route) throw new Error(`FastLectures Agent CLI provider route is unavailable: ${provider}.`)
     return route
   }
 
@@ -415,7 +415,7 @@ export class PenEchoCliAdapter extends LlmAdapter {
     const activeConnection=requestConnection(connection,options.reasoningEffort)
     const controller = new AbortController(),
       timeout = createCanvasAgentModelTimeout(controller, this.timeoutMs(connection.id), {
-        reasonFor:(_kind, limitMs)=>Object.assign(new Error(`PenEcho Agent CLI request timed out after ${canvasAgentTimeoutSeconds(limitMs)} seconds without output activity. The conversation is preserved; send another message to continue.`), { name:'TimeoutError' }),
+        reasonFor:(_kind, limitMs)=>Object.assign(new Error(`FastLectures Agent CLI request timed out after ${canvasAgentTimeoutSeconds(limitMs)} seconds without output activity. The conversation is preserved; send another message to continue.`), { name:'TimeoutError' }),
       }),
       signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal
     try {
@@ -468,7 +468,7 @@ export class PenEchoCliAdapter extends LlmAdapter {
       }
       if (controller.signal.aborted && !options.signal?.aborted) throw controller.signal.reason instanceof Error
         ? controller.signal.reason
-        : Object.assign(new Error('PenEcho Agent CLI request timed out.'), { name:'TimeoutError' })
+        : Object.assign(new Error('FastLectures Agent CLI request timed out.'), { name:'TimeoutError' })
       if (error?.code === 'UPSTREAM_ERROR') throw new LlmError(String(error.message || error), 'UPSTREAM_ERROR', { cause:error })
       throw error
     } finally {
@@ -506,7 +506,7 @@ export class PenEchoCliAdapter extends LlmAdapter {
       }
       const calls=decision.type==='tool_calls'?decision.calls:[decision]
       for(let index=0;index<calls.length;index++){
-        const call=calls[index],blockIndex=index+blockOffset,id=CallId(`penecho_cli_${randomUUID()}`)
+        const call=calls[index],blockIndex=index+blockOffset,id=CallId(`fastlectures_cli_${randomUUID()}`)
         yield { type:'block-start', index:blockIndex, blockType:'tool-call' }
         yield { type:'tool-call-delta', index:blockIndex, id, name:call.name, argumentsDelta:call.arguments }
         yield { type:'block-end', index:blockIndex, block:{ type:'tool-call', id, name:call.name, arguments:call.arguments } }
@@ -514,13 +514,13 @@ export class PenEchoCliAdapter extends LlmAdapter {
       if (decision.usage) yield { type:'usage', usage:decision.usage }
       yield { type:'finish', reason:{ kind:'tool-calls' } }
     } finally {
-      if(!complete)iteratorController.abort(Object.assign(new Error('PenEcho Agent CLI stream closed.'),{name:'AbortError'}))
+      if(!complete)iteratorController.abort(Object.assign(new Error('FastLectures Agent CLI stream closed.'),{name:'AbortError'}))
     }
   }
 }
 
-export const PenEchoCliLlmPlugin = {
-  name:'penecho-cli-llm',
+export const FastLecturesCliLlmPlugin = {
+  name:'fastlectures-cli-llm',
   inject:['llm', 'attachments'],
   apply(ctx, { host }) {
     host.installCliAdapter(ctx)

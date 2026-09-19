@@ -359,7 +359,7 @@ function normalizedRootRelative(input, { allowEmpty = true } = {}) {
   }
   const segments = supplied.split(/[\\/]/);
   if (segments.length > PROJECT_ROOT_DEPTH_LIMIT || segments.some(segment => !segment || segment === "." || segment === ".."
-    || segment.toLowerCase() === ".penecho" || segment.length > 255)) {
+    || segment.toLowerCase() === ".fastlectures" || segment.length > 255)) {
     throw projectError("The server folder path is invalid or too deep.", 400, "project_root_path_invalid");
   }
   return { relativePath:segments.join("/"), segments };
@@ -409,7 +409,7 @@ function normalizedRegistryProject(project) {
 
 class CanvasAgentProjectStore {
   constructor({ stateDirectory, allowedRoots = [], hostRoots = [], logger = null }) {
-    if (!stateDirectory) throw new Error("PenEcho Agent project storage requires a state directory.");
+    if (!stateDirectory) throw new Error("FastLectures Agent project storage requires a state directory.");
     this.stateDirectory = path.resolve(stateDirectory);
     this.registryFile = path.join(this.stateDirectory, "canvas-agent-projects.json");
     this.uploadDirectory = path.join(this.stateDirectory, PROJECT_UPLOAD_DIRECTORY);
@@ -434,11 +434,11 @@ class CanvasAgentProjectStore {
           info = await fs.lstat(keyFile);
         }
         if (!info.isFile() || info.isSymbolicLink() || await fs.realpath(keyFile) !== keyFile || info.size !== 32) {
-          throw projectError("The PenEcho Agent root identity key is unsafe.", 500, "project_metadata_invalid");
+          throw projectError("The FastLectures Agent root identity key is unsafe.", 500, "project_metadata_invalid");
         }
         await fs.chmod(keyFile, 0o600);
         const secret = await fs.readFile(keyFile);
-        if (secret.length !== 32) throw projectError("The PenEcho Agent root identity key is invalid.", 500, "project_metadata_invalid");
+        if (secret.length !== 32) throw projectError("The FastLectures Agent root identity key is invalid.", 500, "project_metadata_invalid");
         return secret;
       })().catch(error => { this.rootIdSecretPromise = null; throw error; });
     }
@@ -483,7 +483,7 @@ class CanvasAgentProjectStore {
     const rootIdSecret = await this.rootIdSecret(), candidates = await Promise.all(configuredRoots.map(async configured => {
       const configuredPath = typeof configured === "string" ? configured : configured?.path;
       const canonical = await this.canonicalDirectory(configuredPath, { allowFilesystemRoot:true }).catch(() => null);
-      if (!canonical || path.basename(canonical).toLowerCase() === ".penecho") return null;
+      if (!canonical || path.basename(canonical).toLowerCase() === ".fastlectures") return null;
       const configuredName = typeof configured === "object" ? boundedString(configured?.name, 120).trim() : "";
       const driveLabel = isFilesystemRoot(canonical) && /^[A-Za-z]:$/.test(configuredName),
         name = configuredName && (driveLabel || !/[\0-\x1f\x7f/\\:]/.test(configuredName)) && configuredName !== "." && configuredName !== ".."
@@ -579,7 +579,7 @@ class CanvasAgentProjectStore {
       for await (const entry of directory) {
         scanned += 1;
         if (scanned > PROJECT_ROOT_SCAN_LIMIT) { truncated = true; break; }
-        if (entry.name.toLowerCase() === ".penecho" || /[\0-\x1f\x7f\u202a-\u202e\u2066-\u2069]/.test(entry.name) || entry.isSymbolicLink() || !entry.isDirectory()) continue;
+        if (entry.name.toLowerCase() === ".fastlectures" || /[\0-\x1f\x7f\u202a-\u202e\u2066-\u2069]/.test(entry.name) || entry.isSymbolicLink() || !entry.isDirectory()) continue;
         const candidate = path.join(selected.canonical, entry.name), details = await fs.lstat(candidate).catch(() => null);
         if (details?.isSymbolicLink() || details && !details.isDirectory()) continue;
         const canonical = await fs.realpath(candidate).catch(() => null);
@@ -769,7 +769,7 @@ class CanvasAgentProjectStore {
 
   async addFromHostRoot(rootId, relativePath = "", options = {}) {
     if (!normalizedRootRelative(relativePath).segments.length) {
-      throw projectError("Choose a folder inside a PenEcho host root.", 400, "project_root_path_invalid");
+      throw projectError("Choose a folder inside a FastLectures host root.", 400, "project_root_path_invalid");
     }
     const selected = await this.resolveRootSelection(rootId, relativePath, { ...options, host:true });
     return this.add(selected.canonical, { kind:"folder", origin:"native" });
@@ -1057,9 +1057,9 @@ class CanvasAgentProjectStore {
   async historyFile(id, { create = false } = {}) {
     const project = await this.resolve(id);
     if (project.kind === "file") return this.fileHistoryFile(project, { create });
-    const metadata = path.join(project.path, ".penecho");
+    const metadata = path.join(project.path, ".fastlectures");
     const existing = await fs.lstat(metadata).catch(error => error?.code === "ENOENT" ? null : Promise.reject(error));
-    if (existing?.isSymbolicLink() || existing && !existing.isDirectory()) throw projectError("The project's .penecho path is not a safe metadata folder.", 409, "project_metadata_invalid");
+    if (existing?.isSymbolicLink() || existing && !existing.isDirectory()) throw projectError("The project's .fastlectures path is not a safe metadata folder.", 409, "project_metadata_invalid");
     const file = path.join(metadata, PROJECT_HISTORY_FILE);
     await this.validateHistoryFile(file);
     return { project, metadata, file };
@@ -1084,7 +1084,7 @@ class CanvasAgentProjectStore {
     const { metadata, file } = initial;
     await fs.mkdir(metadata, { recursive:true, mode:0o700 });
     const canonicalMetadata = await fs.realpath(metadata), project = await this.resolve(id);
-    if (canonicalMetadata !== path.join(project.path, ".penecho")) throw projectError("The project's metadata folder escaped the selected project.", 409, "project_metadata_invalid");
+    if (canonicalMetadata !== path.join(project.path, ".fastlectures")) throw projectError("The project's metadata folder escaped the selected project.", 409, "project_metadata_invalid");
     await atomicJsonWrite(file, { version:1, conversations });
     return conversations;
   }

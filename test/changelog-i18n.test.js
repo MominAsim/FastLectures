@@ -16,7 +16,7 @@ test("release note translation keys resolve to prose in English and Chinese", ()
   const en = Object.fromEntries([...app.matchAll(/^\s+(changelog\w+): (".*"),?$/gm)].map(match => [match[1], JSON.parse(match[2])]));
   const context = { window: {} };
   vm.runInNewContext(read("public/locales/zh.js"), context);
-  const I18N = { en, zh: context.window.PENECHO_LOCALES.zh };
+  const I18N = { en, zh: context.window.FASTLECTURES_LOCALES.zh };
   const lookup = app.match(/const t = (\(key\) => [^;]+);/);
   assert.ok(lookup, "production translation lookup exists");
   for (const language of ["en", "zh"]) {

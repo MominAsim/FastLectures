@@ -1210,13 +1210,13 @@ function default_1(start, minLine, maxLine) {
 
 }},cache={};
 function require(id){if(cache[id])return cache[id].exports;const module=cache[id]={exports:{}};modules[id](module,module.exports,require);return module.exports;}
-globalThis.PenEchoCanvasFilePatch=require("src/shared/canvas-file-patch.js");
+globalThis.FastLecturesCanvasFilePatch=require("src/shared/canvas-file-patch.js");
 })();
 (() => {
   "use strict";
 
-  const INSTALLATION_KEY = "penecho-anonymous-installation-id-v1";
-  const SENT_KEY = "penecho-client-activity-sent-v1";
+  const INSTALLATION_KEY = "fastlectures-anonymous-installation-id-v1";
+  const SENT_KEY = "fastlectures-client-activity-sent-v1";
   const IDENTIFIER_PATTERN = /^[0-9a-f]{32,64}$/;
 
   function randomInstallationId() {
@@ -1253,7 +1253,7 @@ globalThis.PenEchoCanvasFilePatch=require("src/shared/canvas-file-patch.js");
   }
 
   function metadata() {
-    const config = window.PENECHO_CONFIG || {};
+    const config = window.FASTLECTURES_CONFIG || {};
     const runtime = String(config.runtime || "device");
     if (runtime === "viewer") return null;
     const platform = browserPlatform();
@@ -1265,7 +1265,7 @@ globalThis.PenEchoCanvasFilePatch=require("src/shared/canvas-file-patch.js");
       : platform === "unknown" && runtime === "cloud" ? "web" : platform;
     const version = String(config.clientVersion || (runtime === "cloud" ? "cloud" : "unknown")).trim();
     const safeVersion = /^[0-9A-Za-z][0-9A-Za-z._+-]{0,47}$/.test(version) ? version : "unknown";
-    const origin = runtime === "cloud" ? location.origin : String(config.cloudOrigin || "https://penecho.ai");
+    const origin = runtime === "cloud" ? location.origin : String(config.cloudOrigin || "https://fastlectures.ai");
     return { client, platform:reportedPlatform, version:safeVersion, origin };
   }
 
@@ -1537,14 +1537,14 @@ globalThis.PenEchoCanvasFilePatch=require("src/shared/canvas-file-patch.js");
     if (!Number.isFinite(width)) return PEN_SIZE_MIN;
     return Math.max(PEN_SIZE_MIN, Math.min(PEN_SIZE_MAX, width));
   }
-  const ZH = window.PENECHO_LOCALES?.zh || {};
-  const DRAW = window.PENECHO_DRAW;
-  const SELECT = window.PENECHO_SELECTION;
-  const TOUR = window.PENECHO_TOUR;
-  const MIXED_TEXT = window.PENECHO_MIXED_TEXT;
-  const ANIMATION = window.PENECHO_ANIMATION;
-  const PLUGINS = window.PENECHO_PLUGINS;
-  const SUMMON = window.PENECHO_SUMMON;
+  const ZH = window.FASTLECTURES_LOCALES?.zh || {};
+  const DRAW = window.FASTLECTURES_DRAW;
+  const SELECT = window.FASTLECTURES_SELECTION;
+  const TOUR = window.FASTLECTURES_TOUR;
+  const MIXED_TEXT = window.FASTLECTURES_MIXED_TEXT;
+  const ANIMATION = window.FASTLECTURES_ANIMATION;
+  const PLUGINS = window.FASTLECTURES_PLUGINS;
+  const SUMMON = window.FASTLECTURES_SUMMON;
   const API_PRESETS = Object.freeze({
     "kimi-global-api":Object.freeze({ family:"kimi", region:"global", service:"api", format:"openai", url:"https://api.moonshot.ai/v1", model:"kimi-k3" }),
     "kimi-china-api":Object.freeze({ family:"kimi", region:"china", service:"api", format:"openai", url:"https://api.moonshot.cn/v1", model:"kimi-k3" }),
@@ -1565,7 +1565,7 @@ globalThis.PenEchoCanvasFilePatch=require("src/shared/canvas-file-patch.js");
     kimi:Object.freeze(["k3", "kimi-k3"]),
     minimax:Object.freeze(["MiniMax-M3", "MiniMax-M2.7"]),
   });
-  const AI_FONT_STORAGE_KEY = "penecho-ai-font",
+  const AI_FONT_STORAGE_KEY = "fastlectures-ai-font",
     AI_FONT_HANDWRITTEN = "Bradley Hand, Segoe Print, Comic Sans MS, cursive",
     AI_FONT_HANDWRITTEN_LEGACY = "Segoe Print, Comic Sans MS, cursive",
     AI_FONT_OPTIONS = new Set([
@@ -1613,7 +1613,7 @@ globalThis.PenEchoCanvasFilePatch=require("src/shared/canvas-file-patch.js");
     WIDGET_HISTORY_SNAPSHOT_WAIT_MS = 3000;
   const PLUGIN_TEMPLATE_DOCUMENTS = Object.freeze({
     simple: `---
-penecho-plugin: 1
+fastlectures-plugin: 1
 id: air-quality
 name: Air Quality
 name-zh: 空气质量
@@ -1633,7 +1633,7 @@ recommended-refresh-seconds: 900
 
 ## Output contract
 
-Return exactly one html_widget command and no prose, with pluginId:"air-quality". Generate a complete responsive HTML document that uses the place from the user's request, displays the most important air-quality information clearly, matches the current PenEcho theme when host context exposes it, and keeps the outer layout transparent by default. Use a contained opaque or translucent surface only when it materially improves legibility or semantic grouping.
+Return exactly one html_widget command and no prose, with pluginId:"air-quality". Generate a complete responsive HTML document that uses the place from the user's request, displays the most important air-quality information clearly, matches the current FastLectures theme when host context exposes it, and keeps the outer layout transparent by default. Use a contained opaque or translucent surface only when it materially improves legibility or semantic grouping.
 
 ## Runtime rules
 
@@ -1646,7 +1646,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   const PLUGIN_TEMPLATE_STYLES = Object.freeze({ simple:"" });
   const I18N = {
     en: {
-      title: "PenEcho | Handwritten AI Canvas",
+      title: "FastLectures | Handwritten AI Canvas",
       language: "Language",
       hintPrefix: "Hint",
       guideStudio: "Studio assistant",
@@ -1786,7 +1786,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       plot: "Plot",
       tip: "Pan: two-finger scroll, Hand, or Space + drag · Zoom: pinch or Ctrl/Cmd + scroll",
       tourReplay: "Feature tour",
-      tourDialog: "PenEcho feature tour",
+      tourDialog: "FastLectures feature tour",
       tourBadge: "Quick tour",
       tourBadgeNew: "What's new",
       tourProgress: "Tour progress",
@@ -1795,12 +1795,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       tourBack: "Back",
       tourNext: "Next",
       tourDone: "Finish",
-      tourCanvasAgentLauncherTitle: "Open PenEcho Agent",
+      tourCanvasAgentLauncherTitle: "Open FastLectures Agent",
       tourMcpTitle: "Bring external AI onto your canvas",
       tourMcpBody: "Connect Codex, Claude, or another MCP-compatible AI to create and edit canvas content. Set it up in Settings → MCP service, then use this button to connect or disconnect. Give the AI your request in its own app.",
       tourCanvasAgentLauncherBody: "On larger screens, use the Agent control at the right end of the toolbar. On narrow screens, use the floating button at the lower right. Start multi-step work with folders, files, web research, and the current canvas.",
       tourCanvasAgentPanelTitle: "Work in the Agent panel",
-      tourCanvasAgentPanelBody: "PenEcho Agent opens as a right sidebar on larger screens and a bottom panel on narrow screens. Type or handwrite a request, add files or a read-only folder project, reference a Widget, and enable web search when available. Resize the desktop sidebar from its left edge.",
+      tourCanvasAgentPanelBody: "FastLectures Agent opens as a right sidebar on larger screens and a bottom panel on narrow screens. Type or handwrite a request, add files or a read-only folder project, reference a Widget, and enable web search when available. Resize the desktop sidebar from its left edge.",
       tourEffortTitle: "Choose how deeply AI reasons",
       tourEffortBody: "AI Effort controls the reasoning depth used for each request. Higher levels suit difficult derivations and multi-step problems, but can take longer. Configured uses the default selected in your local setup.",
       tourHandTitle: "Move the canvas anywhere",
@@ -1817,7 +1817,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       tourFavoritesBody: "Use the star button to open your Echoes favorites. Add a favorite Widget to the current Canvas, or open a favorite Canvas here as a new Canvas.",
       tourShareCanvasTitle: "Publish this Canvas to Echoes",
       tourShareCanvasBody: "Share opens a preview and publishing form for the current Canvas. After signing in, review its details before making it public in Echoes, then copy its link or share it as an image. Use Cloud instead for private saves.",
-      tourCloudTitle: "Keep private work in PenEcho Cloud",
+      tourCloudTitle: "Keep private work in FastLectures Cloud",
       tourCloudBody: "Open Cloud to sign in, save and reopen private versioned Canvases by project, and use favorite Canvases or Widgets from Echoes in your current Canvas.",
       tourManualAITitle: "Run Auto AI on demand",
       tourManualAIBody: "Click the magic orb to run the same prompt used by Auto AI immediately. It uses the current canvas context—or only the lasso selection when one is active.",
@@ -1825,13 +1825,13 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       tourStatusBody: "This status indicator reports when AI is observing, writing, finished, delayed, or needs confirmation. When a multi-part draft is ready, nearby controls let you accept or discard the complete response.",
       tourCanvasTitle: "Navigate the large canvas",
       tourCanvasBody: "Write with a mouse or stylus. Pan with one finger, the middle mouse button, or Alt-drag. Zoom with a wheel or trackpad, and pinch with two fingers. Your pointer position and zoom level are shown below the canvas.",
-      changelogDialog: "PenEcho release notes",
+      changelogDialog: "FastLectures release notes",
       changelogClose: "Close release notes",
       changelogBadge: "What's new",
       changelogTitle: "Create with Canvas Agent and MCP",
       changelogCanvasAgent: "Canvas Agent works with your canvas, files, and web sources to create and refine editable visual content. Continue the conversation to build on your results.",
       changelogMcpCanvases: "Connect external AI tools through MCP to create and update Canvas documents. Find their canvases in the Navigator and follow the latest updates.",
-      changelogCloudMcp: "New Cloud MCP lets external AI agents such as Codex and Claude connect to your enabled PenEcho Cloud canvases to read content, create and edit results, and follow your handwritten feedback. Cloud MCP and Local MCP are optional connection paths.",
+      changelogCloudMcp: "New Cloud MCP lets external AI agents such as Codex and Claude connect to your enabled FastLectures Cloud canvases to read content, create and edit results, and follow your handwritten feedback. Cloud MCP and Local MCP are optional connection paths.",
       changelogFrostedStudio: "A simpler frosted Studio brings the toolbar, Navigator, Agent, settings, and dialogs into one restrained visual system. Translucent materials, fine hairlines, and lighter controls keep the Canvas visible and the workspace easy to scan.",
       changelogPerformance: "Drawing, erasing, panning, and zooming feel more immediate. Low-latency live ink and coordinated frame work keep Widgets live and restore sharper text after movement.",
       changelogKeyboardShortcuts: "Customizable keyboard shortcuts are now available in Settings for focusing the Agent, saving, undo and redo, opening the Canvas Library, fullscreen, and Settings.",
@@ -1863,7 +1863,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsShortcutResetDone: "Shortcut reset for {command}.",
       settingsShortcutResetAllDone: "All shortcuts were reset.",
       settingsShortcutCancelled: "Shortcut change cancelled.",
-      shortcutFocusAgent: "Toggle PenEcho Agent",
+      shortcutFocusAgent: "Toggle FastLectures Agent",
       shortcutFocusAgentHelp: "Open or close Agent while Canvas has focus.",
       shortcutSaveCanvasHelp: "Save or overwrite the current Canvas using its existing location.",
       shortcutUndoHelp: "Undo the latest Canvas change.",
@@ -1899,9 +1899,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsProvider: "AI provider",
       settingsCliModel: "Model (optional)",
       settingsCliPath: "Command or path",
-      settingsCliHelp: "PenEcho detects the CLI automatically. If one-click installation fails, copy the official command and install it in a terminal.",
+      settingsCliHelp: "FastLectures detects the CLI automatically. If one-click installation fails, copy the official command and install it in a terminal.",
       settingsCliChecking: "Checking CLI…",
-      settingsCliCheckingDetail: "Looking for a PenEcho-managed or system installation.",
+      settingsCliCheckingDetail: "Looking for a FastLectures-managed or system installation.",
       settingsCliReady: "{provider} is ready",
       settingsCliReadyDetail: "{source} installation{version} passed the local check.",
       settingsCliKimiAuthDeferred: "Authentication will be confirmed by the first Kimi request.",
@@ -1911,7 +1911,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsCliMissingDetail: "Use one-click install, or run the official command below yourself.",
       settingsCliRepairRequired: "{provider} needs repair",
       settingsCliRepairRequiredDetail: "The CLI was found but could not start. Rerun the official installer below.",
-      settingsCliManaged: "PenEcho-managed",
+      settingsCliManaged: "FastLectures-managed",
       settingsCliSystem: "System",
       settingsCliCopyCommand: "Copy command",
       settingsCliCommandCopied: "Command copied.",
@@ -1928,15 +1928,15 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsLocalConnections: "Local connections",
       settingsLocalConnectionsEmpty: "No local connections yet. Choose Manage to add one.",
       settingsCapabilities: "Capabilities",
-      settingsCloudSetupHelp: "Sign in to PenEcho Cloud, then choose a cloud model below. No API key or CLI setup needed.",
+      settingsCloudSetupHelp: "Sign in to FastLectures Cloud, then choose a cloud model below. No API key or CLI setup needed.",
       settingsCloudSetupLink: "Sign in",
       settingsHostedModels: "Cloud models",
       settingsHostedRefresh: "Refresh",
       settingsHostedPricing: "How credits are calculated",
-      settingsHostedPricingHelp: "Input, cache reads, cache writes and output have separate rates. The displayed multiplier applies to each base rate. Your own connections do not spend PenEcho credits.",
+      settingsHostedPricingHelp: "Input, cache reads, cache writes and output have separate rates. The displayed multiplier applies to each base rate. Your own connections do not spend FastLectures credits.",
       settingsHostedBilling: "Account & credits ↗",
-      settingsHostedBrowserNotice: "Use PenEcho models to edit this Canvas and save to Cloud. Your own connections, local files and device settings need a linked device.",
-      settingsLinkedDeviceOffline: "Your linked device is offline. Open PenEcho on that device, then refresh. Cloud models and Cloud Library remain available.",
+      settingsHostedBrowserNotice: "Use FastLectures models to edit this Canvas and save to Cloud. Your own connections, local files and device settings need a linked device.",
+      settingsLinkedDeviceOffline: "Your linked device is offline. Open FastLectures on that device, then refresh. Cloud models and Cloud Library remain available.",
       canvasAgentCloudContext: "Cloud Canvas",
       canvasAgentCloudContextHelp: "This connection works with the current Canvas. Use a device connection for local folders and files.",
       canvasAgentCloudFileFormats: "Cloud documents: PDF text layer, DOCX, XLSX, CSV, TXT, MD, JSON; up to 8 MiB each. No scanned PDFs or OCR. Files expire 30 days after upload.",
@@ -1944,8 +1944,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentCloudFilesHelp: "Cloud Agent accepts images and the current Canvas. For documents or local files, select a device connection. Your draft is kept.",
       settingsHostedLinkDevice: "Link a device ↗",
       settingsHostedLoading: "Loading available models…",
-      settingsHostedEmpty: "No PenEcho models are available right now.",
-      settingsHostedError: "Could not refresh PenEcho models. Try again.",
+      settingsHostedEmpty: "No FastLectures models are available right now.",
+      settingsHostedError: "Could not refresh FastLectures models. Try again.",
       settingsHostedBalance: "{count} credits available",
       settingsHostedRateUnit: "Credits per 1M tokens",
       settingsHostedRateModel: "Model",
@@ -2004,7 +2004,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsModelFetchFailed: "Could not fetch models from the provider.",
       settingsModelSuggestions: "Available models",
       settingsSystemDialogTitle: "System settings",
-      settingsSystemDialogSubtitle: "Saved changes take effect after PenEcho restarts.",
+      settingsSystemDialogSubtitle: "Saved changes take effect after FastLectures restarts.",
       settingsKeySaved: "Key saved",
       settingsApiFormat: "API format",
       settingsApiRegion: "Access region",
@@ -2016,13 +2016,13 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsApiModel: "Model",
       settingsApiUrl: "Base URL",
       settingsApiKey: "API key",
-      settingsApiKeyHelp: "Stored only in the local PenEcho configuration file.",
+      settingsApiKeyHelp: "Stored only in the local FastLectures configuration file.",
       settingsSearchSection: "Internet search",
       settingsSearchDescription: "On by default. DeepSeek Flash or Tavily can be added, while DuckDuckGo, research, GitHub, and stock search remain available as backups.",
       settingsDeepSeekSearchProvider: "Flash key provider",
       settingsDeepSeekSearchProviderOfficial: "DeepSeek official",
       settingsDeepSeekSearchProviderOpenCodeGo: "OpenCode Go",
-      settingsDeepSeekSearchProviderHelp: "Choose where this key was issued. PenEcho automatically sends native Flash search to the matching endpoint.",
+      settingsDeepSeekSearchProviderHelp: "Choose where this key was issued. FastLectures automatically sends native Flash search to the matching endpoint.",
       settingsOpenCodeGoSearchSetupTitle: "OpenCode Go setup",
       settingsOpenCodeGoSearchSetupBody: "Open the Go page in your current OpenCode Workspace, enable China-hosted DeepSeek models, then copy the Go API key and paste it below.",
       settingsOpenCodeGoSearchSetupLink: "Open OpenCode Go",
@@ -2046,7 +2046,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsDeepSeekSearchApiKeySavedPlaceholder: "Paste a new key or leave blank to keep the saved key",
       settingsDeepSeekSearchSaved: "Flash key saved",
       settingsTavilyApiKey: "Tavily API key",
-      settingsTavilyApiKeyHelp: "Optional fallback web-search provider. Stored locally and sent only from the PenEcho service to Tavily when search is enabled and called.",
+      settingsTavilyApiKeyHelp: "Optional fallback web-search provider. Stored locally and sent only from the FastLectures service to Tavily when search is enabled and called.",
       settingsTavilyApiKeySavedPlaceholder: "Paste a new key or leave blank to keep the saved key",
       settingsTavilySaved: "Tavily saved",
       settingsDuckDuckGoReady: "DuckDuckGo fallback ready",
@@ -2055,7 +2055,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsEffort: "Reasoning",
       settingsMaxTokens: "Maximum response tokens",
       settingsMaxTokensHelp: "Includes thinking tokens. Default 63,000; must be larger than 15,000. Low limits may be exhausted during reasoning.",
-      settingsAgentTurnLimit: "PenEcho Agent rounds per request",
+      settingsAgentTurnLimit: "FastLectures Agent rounds per request",
       settingsAgentTurnLimitUnit: "rounds",
       settingsAgentTurnLimitHelp: "Stops only the current request at the limit. Results and conversation stay available so the next message can continue. Default 100.",
       settingsTimeout: "No-activity timeout",
@@ -2069,9 +2069,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       settingsLoadFailed: "Could not load settings.",
       settingsSaving: "Saving…",
       settingsProviderApplied: "Saved and applied. New AI requests will use this connection immediately—no restart required.",
-      settingsSystemSaved: "Saved. Restart PenEcho to apply these system changes.",
+      settingsSystemSaved: "Saved. Restart FastLectures to apply these system changes.",
       settingsCanvasSection: "Canvas preferences",
-      settingsCanvasAgentAutoOpen: "Open PenEcho Agent with each canvas",
+      settingsCanvasAgentAutoOpen: "Open FastLectures Agent with each canvas",
       settingsWidgetShadow: "Widget & image shadows",
       settingsAISection: "AI",
       settingsSummonSection: "Thinking indicator",
@@ -2102,7 +2102,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       summonTip7: "Tip: Real Photo Search places sourced web photos directly on the canvas.",
       summonTip8: "Tip: use Hand to move and freely resize images, animations, and AI widgets.",
       summonTip9: "Tip: remote images remain included when you save the canvas or export a PNG.",
-      summonTip10: "Tip: save a canvas to the PenEcho server so other authorized devices can open it.",
+      summonTip10: "Tip: save a canvas to the FastLectures server so other authorized devices can open it.",
       summonTip11: "Tip: pause a few seconds after writing and AI replies on its own; auto mode can be toggled in Settings.",
       summonTip12: "Tip: click the AI orb on the canvas to manually pick Answer, Hint, Continue, Explain, or Plot.",
       summonTip13: "Tip: circle content with the lasso and AI will work only on that selection.",
@@ -2117,7 +2117,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       summonTip22: "Tip: tap a widget, or hover it with a mouse, to reveal AI Refine.",
       summonTip23: "Tip: AI Refine uses the newest strokes, text, and images in this view as instructions.",
       summonTip24: "Tip: use AI Refine to update a widget in place; regular AI adds a new widget.",
-      debugTitle: "PenEcho debug",
+      debugTitle: "FastLectures debug",
       openLocalLog: "Open local server log",
       history: "Canvas Library",
       historyTitle: "Canvas Library",
@@ -2184,11 +2184,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       studioNavigatorDeleteSessionFailed: "This session could not be deleted. Try again.",
       saveLocation: "Location",
       storageThisDevice: "Device",
-      storagePenEchoServer: "Server",
-      storagePenEchoCloud: "Cloud",
+      storageFastLecturesServer: "Server",
+      storageFastLecturesCloud: "Cloud",
       storageThisDeviceDescription: "Stored only on this device.",
-      storagePenEchoServerDescription: "Stored on this host for authorized users.",
-      storagePenEchoCloudDescription: "Private account storage, available on any client.",
+      storageFastLecturesServerDescription: "Stored on this host for authorized users.",
+      storageFastLecturesCloudDescription: "Private account storage, available on any client.",
       canvasProject: "Project",
       canvasProjectAll: "All projects",
       canvasProjectUncategorized: "No Project",
@@ -2218,9 +2218,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasSaveStateSaving: "Saving…",
       canvasWelcomeKicker: "start here",
       canvasWelcomeTitle: "Start sketching, or create with AI",
-      canvasWelcomeBody: "Ask PenEcho Agent, or connect an external AI via MCP to create and edit canvas content.",
+      canvasWelcomeBody: "Ask FastLectures Agent, or connect an external AI via MCP to create and edit canvas content.",
       canvasBrowserWelcomeTitle: "Start sketching on your Cloud Canvas",
-      canvasBrowserWelcomeBody: "Choose a PenEcho cloud model in Settings to work with this Canvas online. Connect a device to use local files and connections.",
+      canvasBrowserWelcomeBody: "Choose a FastLectures cloud model in Settings to work with this Canvas online. Connect a device to use local files and connections.",
       exportPng: "Export PNG",
       newCanvasTitle: "New canvas",
       closeCanvasTitle: "Close canvas",
@@ -2258,8 +2258,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       snapshotCloudCacheLoadFailed: "Cloud is unavailable. Cached canvases remain visible; select Cloud to try again.",
       snapshotCloudSignInRequired: "Sign in to view Cloud canvases",
       snapshotCloudSignInHint: "Your Cloud projects and canvases appear here once you are signed in.",
-      openPenEchoCloud: "Open PenEcho Cloud",
-      openPenEchoCloudExternal: "Open PenEcho Cloud in a new tab",
+      openFastLecturesCloud: "Open FastLectures Cloud",
+      openFastLecturesCloudExternal: "Open FastLectures Cloud in a new tab",
       opensInNewTab: "Opens in a new tab",
       openCloudCanvasUnsaved: "This Canvas has unsaved changes. Opening another Canvas in a new page will not save them. Continue?",
       snapshotLoading: "Loading “{name}”…",
@@ -2274,7 +2274,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       loadSnapshot: "Load",
       deleteSnapshot: "Delete",
       emptyDeviceHistory: "Nothing saved on this device yet",
-      serverHistoryDeviceOffline: "Linked device is offline. Open PenEcho on that device and keep it connected to access its canvases.",
+      serverHistoryDeviceOffline: "Linked device is offline. Open FastLectures on that device and keep it connected to access its canvases.",
       serverHistoryDeviceRequired: "No linked device. Link a device to access its canvases.",
       emptyServerHistory: "Nothing saved on this server yet",
       emptyCloudHistory: "Nothing saved to Cloud yet",
@@ -2295,8 +2295,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       snapshotImages: "images",
       snapshotModified: "Modified {time}",
       deleteSnapshotConfirmDevice: "Delete this snapshot from this device?",
-      deleteSnapshotConfirmServer: "Delete this shared snapshot from the PenEcho server?",
-      deleteSnapshotConfirmCloud: "Move this Cloud Canvas to Trash? It remains recoverable from PenEcho Cloud.",
+      deleteSnapshotConfirmServer: "Delete this shared snapshot from the FastLectures server?",
+      deleteSnapshotConfirmCloud: "Move this Cloud Canvas to Trash? It remains recoverable from FastLectures Cloud.",
       canvasHintWidgetAdded: "Mark a widget with Pen, then choose AI Refine.",
       canvasHintWidgetFullscreen: "Double-click a widget to maximize it.",
       canvasHintWidgetInline: "Double-click a widget to interact.",
@@ -2326,7 +2326,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       observing: "Observing...",
       aiPreparingCanvas: "Preparing canvas context...",
       aiSendingRequest: "Sending request...",
-      aiRequestReceived: "Request received by PenEcho",
+      aiRequestReceived: "Request received by FastLectures",
       aiPreparingImage: "Preparing model input...",
       aiConnecting: "Connecting to the model...",
       aiWaitingResponse: "Waiting for the model...",
@@ -2334,7 +2334,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       aiValidatingResponse: "Checking model response...",
       aiRetrying: "Correcting response · attempt {attempt}",
       aiImageFallback: "Retrying with a compatible image · attempt {attempt}",
-      aiStillWaiting: "The model is taking longer than usual · PenEcho timeout {seconds}s",
+      aiStillWaiting: "The model is taking longer than usual · FastLectures timeout {seconds}s",
       aiCancelled: "AI request cancelled",
       aiCancelledForInput: "AI request cancelled because new input started",
       deferred: "New ink found; this AI result was deferred",
@@ -2401,14 +2401,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       savedSourceCloud: "Cloud",
       savedSourceCommunity: "Cloud community",
       savedSourceSynced: "Cloud + local",
-      savedSourceSyncedTitle: "On PenEcho Cloud and this device",
-      savedSourceLocalTitle: "On this device only; it uploads to PenEcho Cloud after you sign in",
-      savedSourceCloudTitle: "On PenEcho Cloud",
+      savedSourceSyncedTitle: "On FastLectures Cloud and this device",
+      savedSourceLocalTitle: "On this device only; it uploads to FastLectures Cloud after you sign in",
+      savedSourceCloudTitle: "On FastLectures Cloud",
       savedErrorAdd: "This Widget could not be added.",
       savedErrorOpen: "This Canvas could not be opened.",
       savedErrorToggle: "The favorite could not be updated. Try again shortly.",
       closeSavedCrafts: "Close Favorites",
-      shareCanvasCloud: "Share Canvas to PenEcho Cloud",
+      shareCanvasCloud: "Share Canvas to FastLectures Cloud",
       shareWidget: "Share widget",
       openInNewPage: "Open in a new page",
       openCanvas: "Open Canvas",
@@ -2421,19 +2421,19 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       favoriteWidgets: "Favorite Widgets",
       projects: "Projects",
       explore: "Echoes",
-      canvasAgent: "PenEcho Agent",
-      openCanvasAgent: "Open PenEcho Agent",
-      closeCanvasAgent: "Close PenEcho Agent",
-      newCanvasAgentConversation: "New PenEcho Agent conversation",
-      canvasAgentAutoAIFocusPaused: "PenEcho Agent has focus · Canvas Auto AI is paused.",
+      canvasAgent: "FastLectures Agent",
+      openCanvasAgent: "Open FastLectures Agent",
+      closeCanvasAgent: "Close FastLectures Agent",
+      newCanvasAgentConversation: "New FastLectures Agent conversation",
+      canvasAgentAutoAIFocusPaused: "FastLectures Agent has focus · Canvas Auto AI is paused.",
       canvasAgentExternalAIPaused: "External conversation selected · Canvas Auto AI is paused. Feedback is kept for the external AI.",
-      canvasAgentAutoAIRequestPaused: "PenEcho Agent is working · Canvas Auto AI is paused.",
+      canvasAgentAutoAIRequestPaused: "FastLectures Agent is working · Canvas Auto AI is paused.",
       canvasAgentProject: "Manage projects and files",
       canvasAgentProjectClose: "Close project manager",
       canvasAgentProjectBoundary: "This version supports read access only. For file safety, modifying files is not supported.",
       canvasAgentWorkspace: "Workspace",
       canvasAgentProjectManager: "Project manager",
-      canvasAgentProjectManagerDescription: "Projects are folders. Files are added from the PenEcho Agent composer.",
+      canvasAgentProjectManagerDescription: "Projects are folders. Files are added from the FastLectures Agent composer.",
       canvasAgentProjects: "Projects",
       canvasAgentProjectsDescription: "A project is a folder the Agent can read while working.",
       canvasAgentProjectFolders: "project folders",
@@ -2441,7 +2441,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentCancelProjectCreate: "Cancel",
       canvasAgentNoProjects: "No project folders yet. Create one by choosing a folder.",
       canvasAgentFiles: "Files",
-      canvasAgentFilesDescription: "Files already used with PenEcho Agent appear here.",
+      canvasAgentFilesDescription: "Files already used with FastLectures Agent appear here.",
       canvasAgentKnownFiles: "known files",
       canvasAgentNoFiles: "No files yet. Add one from the chat composer.",
       canvasAgentFilesAddHint: "Add a file from the chat composer, or paste it with Ctrl/Cmd+V.",
@@ -2456,15 +2456,15 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentUploadEmpty: "Choose a non-empty file.",
       canvasAgentUploadTooLarge: "Uploads are limited to 32 MB.",
       canvasAgentFileReadFailed: "The selected file could not be read.",
-      canvasAgentFilePreparing: "Copying the file to PenEcho…",
+      canvasAgentFilePreparing: "Copying the file to FastLectures…",
       canvasAgentAttachmentLimit: "A message can include at most five files and images in any combination.",
       canvasAgentFileInstructionRequired: "Add instructions for the attached file or files before sending.",
       canvasAgentFileReadOnly: "Read only",
       canvasAgentRemoveProject: "Remove resource",
       canvasAgentRemoveProjectTitle: "Remove resource?",
-      canvasAgentRemoveFolderConfirm: "Remove “{name}” from PenEcho? The folder and its .penecho conversation history will stay on disk.",
-      canvasAgentRemoveNativeFileConfirm: "Remove “{name}” from PenEcho? The original file will stay on disk, but its saved project conversations will be deleted.",
-      canvasAgentRemoveUploadConfirm: "Delete the uploaded copy “{name}” and its saved project conversations from PenEcho? This cannot be undone.",
+      canvasAgentRemoveFolderConfirm: "Remove “{name}” from FastLectures? The folder and its .fastlectures conversation history will stay on disk.",
+      canvasAgentRemoveNativeFileConfirm: "Remove “{name}” from FastLectures? The original file will stay on disk, but its saved project conversations will be deleted.",
+      canvasAgentRemoveUploadConfirm: "Delete the uploaded copy “{name}” and its saved project conversations from FastLectures? This cannot be undone.",
       canvasAgentServerFolders: "Choose a project folder",
       canvasAgentServerFoldersDetail: "Select a host folder to register it as a read-only project.",
       canvasAgentNoHostFolders: "No host folders are available",
@@ -2474,7 +2474,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentRootLoading: "Loading folders…",
       canvasAgentRootApprovalRequired: "Approval required",
       canvasAgentRootApprovalTitle: "Approve private folder access?",
-      canvasAgentRootApprovalDetail: "Allow PenEcho to browse “{name}” for this folder-selection session.",
+      canvasAgentRootApprovalDetail: "Allow FastLectures to browse “{name}” for this folder-selection session.",
       canvasAgentRootApprovalReject: "Cancel",
       canvasAgentRootApprovalAllow: "Allow once",
       canvasAgentRootPermissionDenied: "The system denied access. Change the folder's system permissions to use it.",
@@ -2484,10 +2484,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentApprovalAllow: "Allow once",
       canvasAgentHistory: "Sessions on this Canvas",
       canvasAgentHistoryManageAll: "View all recent work",
-      canvasAgentResizeTop: "Resize PenEcho Agent from the top edge",
-      canvasAgentResizeBottom: "Resize PenEcho Agent from the bottom edge",
-      canvasAgentResizeLeft: "Resize PenEcho Agent from the left edge",
-      canvasAgentResizeRight: "Resize PenEcho Agent from the right edge",
+      canvasAgentResizeTop: "Resize FastLectures Agent from the top edge",
+      canvasAgentResizeBottom: "Resize FastLectures Agent from the bottom edge",
+      canvasAgentResizeLeft: "Resize FastLectures Agent from the left edge",
+      canvasAgentResizeRight: "Resize FastLectures Agent from the right edge",
       canvasAgentHistoryEmpty: "No saved conversations for this canvas",
       canvasAgentHistoryCurrent: "Current",
       canvasAgentHistoryViewing: "Viewing saved conversation",
@@ -2522,8 +2522,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentEmptyTitle: "Understand what is here, then build on it.",
       canvasAgentEmptyBody: "Use the Canvas, handwriting, Widgets, folders, files, and the web as context. Ask Agent to explain, organize, plan, or update the work directly.",
       canvasAgentInputHint: "Type or use the Pen button to write by hand. Reference a Widget, then ask Agent to extract canvas handwriting, inspect source, arrange content, or edit the Widget.",
-      canvasAgentPlaceholder: "Ask PenEcho Agent…",
-      canvasAgentMessage: "Message PenEcho Agent",
+      canvasAgentPlaceholder: "Ask FastLectures Agent…",
+      canvasAgentMessage: "Message FastLectures Agent",
       canvasAgentChooseConnection: "Choose AI connection",
       canvasAgentModel: "AI model",
       canvasAgentPromptSuggestions: "Suggested prompts",
@@ -2715,7 +2715,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentReferencePickMiss: "No Widget there — click directly on a Widget or choose one from the list.",
       canvasAgentReferenceCountOne: "1 Widget",
       canvasAgentReferenceCount: "{count} Widgets",
-      canvasAgentMove: "Drag to move PenEcho Agent",
+      canvasAgentMove: "Drag to move FastLectures Agent",
       canvasAgentAttach: "Attach files and images",
       canvasAgentAttachTitle: "Attach up to five files and images",
       canvasAgentSearchOn: "Internet search on",
@@ -2727,7 +2727,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentOpenFileFailed: "The system could not open this file.",
       canvasAgentOpenFileUnavailable: "This file is no longer available.",
       canvasAgentImageSourceTooLarge: "The original image is larger than 12 MB. Choose a smaller image.",
-      canvasAgentImageCompressionTooLarge: "PenEcho could not resize and convert this image to a WebP below 5 MB. Choose a smaller image.",
+      canvasAgentImageCompressionTooLarge: "FastLectures could not resize and convert this image to a WebP below 5 MB. Choose a smaller image.",
       canvasAgentImagesTooLarge: "Images in one message can total at most 25 MB.",
       canvasAgentImageUnsupported: "This image format is not supported.",
       canvasAgentImagePreparing: "Preparing attachments…",
@@ -2796,7 +2796,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       comingSoon: "Coming soon",
       refreshPlugins: "Refresh local plugins",
       serverPluginsComingTitle: "Server plugin marketplace is coming",
-      serverPluginsComingDescription: "Free community plugins, server selection, trust details, and updates will appear here after the PenEcho website launches.",
+      serverPluginsComingDescription: "Free community plugins, server selection, trust details, and updates will appear here after the FastLectures website launches.",
       pluginBuiltIn: "Built in",
       pluginLocal: "Local Markdown",
       pluginPersonalSection: "Your plugins",
@@ -2922,13 +2922,13 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     },
     zh: ZH,
   };
-  const PLUGIN_STORAGE_KEY = "penecho-plugins",
+  const PLUGIN_STORAGE_KEY = "fastlectures-plugins",
     DEFAULT_THEME = "studio",
     DEFAULT_STUDIO_PALETTE = "teal",
     REMOVED_THEMES = new Set(["arcane", "scifi", "research"]),
     SUPPORTED_THEMES = new Set([DEFAULT_THEME]),
     SUPPORTED_STUDIO_PALETTES = new Set(["indigo", "graphite", "cobalt", "azure", "teal", "forest", "amber", "burgundy"]),
-    DIAGRAM_RUNTIME_VERSION = "penecho-diagram-source-v1",
+    DIAGRAM_RUNTIME_VERSION = "fastlectures-diagram-source-v1",
     DIAGRAM_SOURCE_FORMATS = new Set(["mermaid", "dot", "bpmn-xml", "vega-lite", "geojson", "smiles", "cytoscape-json"]),
     BUILTIN_PLUGIN_DEFINITIONS = Object.freeze([]);
   const PLUGIN_DEFINITIONS = [...BUILTIN_PLUGIN_DEFINITIONS];
@@ -2962,7 +2962,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     }));
   }
   const initialPlugins = storedPluginSettings();
-  const ERASER_MODE_STORAGE_KEY = "penecho-eraser-mode";
+  const ERASER_MODE_STORAGE_KEY = "fastlectures-eraser-mode";
   function normalizeAiFont(value) {
     const font = String(value || "").trim();
     if (font === AI_FONT_HANDWRITTEN_LEGACY) return AI_FONT_HANDWRITTEN;
@@ -2974,36 +2974,36 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (font === AI_FONT_HANDWRITTEN_LEGACY) return AI_FONT_HANDWRITTEN;
     return AI_FONT_OPTIONS.has(font) ? font : TEXT_EDITOR_FONT_FAMILY;
   }
-  const storedPrimaryLanguage = localStorage.getItem("penecho-language"),
+  const storedPrimaryLanguage = localStorage.getItem("fastlectures-language"),
     storedLegacyLanguage = localStorage.getItem("ghostboard-language"),
-    storedTheme = localStorage.getItem("penecho-theme") || localStorage.getItem("ghostboard-theme"),
-    storedStudioPalette = localStorage.getItem("penecho-studio-palette"),
-    storedGrid = localStorage.getItem("penecho-grid") ?? localStorage.getItem("ghostboard-grid"),
-    storedAutoEnabled = localStorage.getItem("penecho-auto-ai"),
-    storedAutoDelayText = localStorage.getItem("penecho-auto-delay-ms"),
-    storedSummonEnabled = localStorage.getItem("penecho-summon-enabled"),
-    storedCanvasAgentAutoOpen = localStorage.getItem("penecho-canvas-agent-auto-open"),
-    storedWidgetShadowEnabled = localStorage.getItem("penecho-widget-shadow"),
+    storedTheme = localStorage.getItem("fastlectures-theme") || localStorage.getItem("ghostboard-theme"),
+    storedStudioPalette = localStorage.getItem("fastlectures-studio-palette"),
+    storedGrid = localStorage.getItem("fastlectures-grid") ?? localStorage.getItem("ghostboard-grid"),
+    storedAutoEnabled = localStorage.getItem("fastlectures-auto-ai"),
+    storedAutoDelayText = localStorage.getItem("fastlectures-auto-delay-ms"),
+    storedSummonEnabled = localStorage.getItem("fastlectures-summon-enabled"),
+    storedCanvasAgentAutoOpen = localStorage.getItem("fastlectures-canvas-agent-auto-open"),
+    storedWidgetShadowEnabled = localStorage.getItem("fastlectures-widget-shadow"),
     storedAiFont = localStorage.getItem(AI_FONT_STORAGE_KEY),
-    storedSnapshotLocation = localStorage.getItem("penecho-snapshot-location"),
+    storedSnapshotLocation = localStorage.getItem("fastlectures-snapshot-location"),
     storedEraserMode = localStorage.getItem(ERASER_MODE_STORAGE_KEY),
-    storedAiEffort = normalizeToolbarReasoningEffort(localStorage.getItem("penecho-ai-effort")),
+    storedAiEffort = normalizeToolbarReasoningEffort(localStorage.getItem("fastlectures-ai-effort")),
     storedAutoDelay = storedAutoDelayText === null ? NaN : Number(storedAutoDelayText),
     initialLanguage = TOUR.resolveInitialLanguage(storedPrimaryLanguage, storedLegacyLanguage),
     initialTheme = normalizeTheme(storedTheme),
     initialStudioPalette = normalizeStudioPaletteForTheme(storedTheme, storedStudioPalette),
-    initialPageScale = window.PenEchoPageScale?.current?.() || 1,
+    initialPageScale = window.FastLecturesPageScale?.current?.() || 1,
     initialGrid = storedGrid === null ? true : storedGrid === "true",
-    configuredAutoDelay = Number(window.PENECHO_CONFIG?.autoAiDelayMs),
-    configuredAiTimeout = Number(window.PENECHO_CONFIG?.aiRequestTimeoutMs),
-    configuredAiEffort = normalizeToolbarReasoningEffort(window.PENECHO_CONFIG?.aiEffort),
-    configuredCanvasAgentAutoOpen = typeof window.PENECHO_CONFIG?.canvasAgentAutoOpen === "boolean" ? window.PENECHO_CONFIG.canvasAgentAutoOpen : null,
-    configuredAccessSession = String(window.PENECHO_CONFIG?.accessSessionToken || sessionStorage.getItem("penecho-access-session") || ""),
+    configuredAutoDelay = Number(window.FASTLECTURES_CONFIG?.autoAiDelayMs),
+    configuredAiTimeout = Number(window.FASTLECTURES_CONFIG?.aiRequestTimeoutMs),
+    configuredAiEffort = normalizeToolbarReasoningEffort(window.FASTLECTURES_CONFIG?.aiEffort),
+    configuredCanvasAgentAutoOpen = typeof window.FASTLECTURES_CONFIG?.canvasAgentAutoOpen === "boolean" ? window.FASTLECTURES_CONFIG.canvasAgentAutoOpen : null,
+    configuredAccessSession = String(window.FASTLECTURES_CONFIG?.accessSessionToken || sessionStorage.getItem("fastlectures-access-session") || ""),
     serverAutoDelay = Number.isFinite(configuredAutoDelay) && configuredAutoDelay >= 0 ? configuredAutoDelay : DEFAULT_AUTO_DELAY,
     initialAutoDelay = Number.isFinite(storedAutoDelay) && storedAutoDelay >= 0 && storedAutoDelay <= 10000 ? storedAutoDelay : Math.min(10000, serverAutoDelay),
     initialAutoEnabled = storedAutoEnabled === null ? true : storedAutoEnabled === "true",
     initialSummonEnabled = storedSummonEnabled === null ? true : storedSummonEnabled === "true",
-    initialCanvasAgentAutoOpen = window.PENECHO_CONFIG?.desktopApp === true && configuredCanvasAgentAutoOpen !== null
+    initialCanvasAgentAutoOpen = window.FASTLECTURES_CONFIG?.desktopApp === true && configuredCanvasAgentAutoOpen !== null
       ? configuredCanvasAgentAutoOpen
       : storedCanvasAgentAutoOpen === null ? configuredCanvasAgentAutoOpen !== false : storedCanvasAgentAutoOpen === "true",
     initialWidgetShadowEnabled = storedWidgetShadowEnabled === "true",
@@ -3012,7 +3012,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     // The public viewer shares the Cloud origin (and therefore localStorage)
     // with editable Cloud Canvases. Never inherit their last-selected Cloud
     // history location: the read-only shell has no /api/cloud/library route.
-    initialSnapshotLocation = window.PENECHO_CONFIG?.runtime === "viewer"
+    initialSnapshotLocation = window.FASTLECTURES_CONFIG?.runtime === "viewer"
       ? "device"
       : ["device", "server", "cloud"].includes(storedSnapshotLocation) ? storedSnapshotLocation : "device",
     initialAiEffort = storedAiEffort || configuredAiEffort || "config",
@@ -3024,14 +3024,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const hex = [...bytes].map(value => value.toString(16).padStart(2, "0")).join("");
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
-  const AI_CONNECTION_STORAGE_KEY = "penecho-ai-connection-id",
+  const AI_CONNECTION_STORAGE_KEY = "fastlectures-ai-connection-id",
     AI_CLIENT_ID = canvasClientId();
   function aiConnectionScope(hosted = false) {
-    const config = window.PENECHO_CONFIG || {}, cloud = config.runtime === "cloud";
+    const config = window.FASTLECTURES_CONFIG || {}, cloud = config.runtime === "cloud";
     const account = String(config.connectionAccountId || "");
     if (cloud || hosted) {
       if (!account) return "";
-      const origin = cloud ? location.origin : String(config.cloudOrigin || "https://penecho.ai");
+      const origin = cloud ? location.origin : String(config.cloudOrigin || "https://fastlectures.ai");
       const owner = `${origin}:${account}:${cloud ? "cloud" : "local"}`;
       return hosted ? `${owner}:hosted` : config.linkedDeviceId ? `${owner}:device:${config.linkedDeviceId}` : "";
     }
@@ -3045,7 +3045,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const hostedKey = aiConnectionStorageKey(true), localKey = aiConnectionStorageKey();
     const hosted = hostedKey && localStorage.getItem(`${hostedKey}:selected`) === "true";
     const key = hosted ? hostedKey : localKey;
-    const legacy = window.PENECHO_CONFIG?.runtime !== "cloud" ? localStorage.getItem(AI_CONNECTION_STORAGE_KEY) : null;
+    const legacy = window.FASTLECTURES_CONFIG?.runtime !== "cloud" ? localStorage.getItem(AI_CONNECTION_STORAGE_KEY) : null;
     const id = String((key && localStorage.getItem(key)) || (!hosted && legacy && !legacy.startsWith("hosted:") ? legacy : "default")).trim();
     return id === "default" || id === "cli-override" || /^(?:hosted:)?[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id) ? id : "default";
   }
@@ -3067,7 +3067,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       if (aiConnectionScope(true) !== scope || selectedAiConnectionId() !== connectionId || !hostedSettings.models.some(model => `hosted:${model.id}` === connectionId)) throw aiConnectionSelectionError();
       return;
     }
-    await window.PenEchoLinkedDevice?.refresh({ ifNeeded:true });
+    await window.FastLecturesLinkedDevice?.refresh({ ifNeeded:true });
     if (aiConnectionScope() !== scope || selectedAiConnectionId() !== connectionId) throw aiConnectionSelectionError();
     const response = await fetch("/api/settings/connections", { headers:authenticatedApiHeaders(), signal:AbortSignal.timeout(12000) });
     const body = await response.json();
@@ -3078,26 +3078,26 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     syncLocalConnectionSelection();
     renderConnectionLists();
     const valid = settings.connections.some(connection => connection.id === connectionId);
-    if (!valid && !(window.PENECHO_CONFIG?.runtime !== "cloud" && connectionId === "default" && settings.connections.length)) throw aiConnectionSelectionError();
+    if (!valid && !(window.FASTLECTURES_CONFIG?.runtime !== "cloud" && connectionId === "default" && settings.connections.length)) throw aiConnectionSelectionError();
   }
   function authenticatedApiHeaders(headers = {}) {
-    const csrf = window.PENECHO_CONFIG?.runtime === "cloud"
-      ? document.cookie.split(";").map(value => value.trim()).find(value => value.startsWith("penecho_csrf="))?.slice("penecho_csrf=".length) || ""
+    const csrf = window.FASTLECTURES_CONFIG?.runtime === "cloud"
+      ? document.cookie.split(";").map(value => value.trim()).find(value => value.startsWith("fastlectures_csrf="))?.slice("fastlectures_csrf=".length) || ""
       : "";
     return configuredAccessSession
-      ? { ...headers, "X-PenEcho-Client":AI_CLIENT_ID, "X-PenEcho-Session":configuredAccessSession, ...(csrf ? { "X-PenEcho-CSRF":decodeURIComponent(csrf) } : {}) }
-      : { ...headers, "X-PenEcho-Client":AI_CLIENT_ID, ...(csrf ? { "X-PenEcho-CSRF":decodeURIComponent(csrf) } : {}) };
+      ? { ...headers, "X-FastLectures-Client":AI_CLIENT_ID, "X-FastLectures-Session":configuredAccessSession, ...(csrf ? { "X-FastLectures-CSRF":decodeURIComponent(csrf) } : {}) }
+      : { ...headers, "X-FastLectures-Client":AI_CLIENT_ID, ...(csrf ? { "X-FastLectures-CSRF":decodeURIComponent(csrf) } : {}) };
   }
   function aiRequestHeaders(headers = {}) {
     const id = selectedAiConnectionId();
-    if (window.PENECHO_CONFIG?.runtime === "cloud" && id === "default") throw aiConnectionSelectionError();
-    return { ...authenticatedApiHeaders(headers), "X-PenEcho-Connection":id };
+    if (window.FASTLECTURES_CONFIG?.runtime === "cloud" && id === "default") throw aiConnectionSelectionError();
+    return { ...authenticatedApiHeaders(headers), "X-FastLectures-Connection":id };
   }
   function canvasAssetUrl(name) {
     // Cloud-served shells (remote canvas + read-only viewer) live under nested
     // routes (/canvas/community/:id, /canvas/view/:id), so assets must resolve
     // against the canvas root rather than the page URL.
-    const runtime = window.PENECHO_CONFIG?.runtime;
+    const runtime = window.FASTLECTURES_CONFIG?.runtime;
     const base = runtime === "cloud" || runtime === "viewer" ? new URL("/canvas/", location.origin) : location.href;
     return new URL(name, base).href;
   }
@@ -3136,7 +3136,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       widgetActivationTap: null,
       handToolbarTap: null,
       spacePan: false,
-      wheelZoom: localStorage.getItem("penecho-wheel-zoom") === "true",
+      wheelZoom: localStorage.getItem("fastlectures-wheel-zoom") === "true",
       viewModeNavigationLocked: false,
       textEditors: new Map(),
       textBoxes: [],
@@ -3288,8 +3288,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   const AI_CANCELLED = "AI_CANCELLED";
   const AI_REJECTED = "AI_REJECTED";
   const AI_SUPERSEDED = "AI_SUPERSEDED";
-  const FEATURE_TOUR_STORAGE_KEY = "penecho-tour-progress";
-  const CHANGELOG_STORAGE_KEY = "penecho-changelog-seen";
+  const FEATURE_TOUR_STORAGE_KEY = "fastlectures-tour-progress";
+  const CHANGELOG_STORAGE_KEY = "fastlectures-changelog-seen";
   const CHANGELOG_VERSION = "1.3.0";
   // Keep seen IDs stable. Add a new ID (or bump its -vN suffix) to show only that feature to returning users.
   const FEATURE_TOUR_STEPS = Object.freeze([
@@ -3339,7 +3339,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (!element || !key) return null;
     let record = runtimeStyleRules.get(key);
     if (!record) {
-      const className = `penecho-runtime-${String(key).replace(/[^a-z0-9_-]/gi, "-")}`,
+      const className = `fastlectures-runtime-${String(key).replace(/[^a-z0-9_-]/gi, "-")}`,
         sheet = textEditorStyleSheet();
       if (!sheet) return null;
       try {
@@ -3421,7 +3421,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   };
   const setStatusKey = (key) => setStatus(t(key), key);
   const t = (key) => I18N[state.language]?.[key] || I18N.en[key] || key;
-  window.PenEchoI18n = Object.freeze({
+  window.FastLecturesI18n = Object.freeze({
     t,
     currentLanguage:() => state.language,
   });
@@ -3546,7 +3546,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     featureTour.activeObserver = null;
   }
   function featureTourObserverTarget() {
-    if (window.PENECHO_CONFIG?.runtime === "viewer") return null;
+    if (window.FASTLECTURES_CONFIG?.runtime === "viewer") return null;
     const target = document.body;
     return typeof Node === "function" && target instanceof Node ? target : null;
   }
@@ -3898,10 +3898,15 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const section = document.getElementById("settingsHostedSection"), list = document.getElementById("settingsHostedList"), status = document.getElementById("settingsHostedStatus"), rates = document.getElementById("settingsHostedRates");
     if (!section || !list) return;
     const cloudSetupLink = document.getElementById("settingsCloudSetupLink");
-    if (cloudSetupLink) cloudSetupLink.href = `${String(window.PENECHO_CONFIG?.cloudOrigin || (window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : "https://penecho.ai")).replace(/\/$/, "")}/auth.html`;
-    const browserEditing = window.PENECHO_CONFIG?.browserCanvasEditing === true,
-      hostUnavailable = browserEditing && window.PENECHO_CONFIG?.linkedDeviceOnline !== true,
-      deviceLinked = window.PENECHO_CONFIG?.linkedDeviceLinked === true,
+    if (cloudSetupLink) {
+      const runtime = window.FASTLECTURES_CONFIG?.runtime;
+      const cloud = runtime === "cloud";
+      const base = cloud ? String(window.FASTLECTURES_CONFIG?.cloudOrigin || "https://fastlectures.ai").replace(/\/$/, "") : "";
+      cloudSetupLink.href = cloud ? `${base}/auth.html` : "/login.html";
+    }
+    const browserEditing = window.FASTLECTURES_CONFIG?.browserCanvasEditing === true,
+      hostUnavailable = browserEditing && window.FASTLECTURES_CONFIG?.linkedDeviceOnline !== true,
+      deviceLinked = window.FASTLECTURES_CONFIG?.linkedDeviceLinked === true,
       notice = document.getElementById("settingsHostedBrowserNotice");
     notice.hidden = !hostUnavailable;
     notice.dataset.i18n = deviceLinked ? "settingsLinkedDeviceOffline" : "settingsHostedBrowserNotice";
@@ -3973,7 +3978,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       }
       rates.append(table);
     }
-    document.getElementById("settingsHostedBilling").href = `${String(window.PENECHO_CONFIG?.cloudOrigin || (window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : "https://penecho.ai")).replace(/\/$/, "")}/dashboard.html#billing`;
+    document.getElementById("settingsHostedBilling").href = `${String(window.FASTLECTURES_CONFIG?.cloudOrigin || (window.FASTLECTURES_CONFIG?.runtime === "cloud" ? location.origin : "https://fastlectures.ai")).replace(/\/$/, "")}/dashboard.html#billing`;
     if (typeof canvasAgentUpdateConnectionButton === "function") canvasAgentUpdateConnectionButton();
   }
   function loadHostedModels(options = {}) {
@@ -3984,19 +3989,19 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return wrapped;
   }
   async function loadHostedModelsOnce({ accountChanged = false } = {}) {
-    if (window.PENECHO_CONFIG?.runtime === "viewer" || (hostedSettings.loading && !accountChanged)) return;
+    if (window.FASTLECTURES_CONFIG?.runtime === "viewer" || (hostedSettings.loading && !accountChanged)) return;
     if (accountChanged) { hostedSettings.models = []; hostedSettings.credits = null; hostedSettings.signedIn = false; }
-    const generation = ++hostedSettings.generation, cloud = window.PENECHO_CONFIG?.runtime === "cloud";
+    const generation = ++hostedSettings.generation, cloud = window.FASTLECTURES_CONFIG?.runtime === "cloud";
     hostedSettings.loading = true; hostedSettings.error = false; renderHostedModels();
     try {
       const response = await fetch(cloud ? "/api/v1/models" : "/api/cloud/models", { headers:authenticatedApiHeaders(), signal:AbortSignal.timeout(12_000) });
       if (generation !== hostedSettings.generation) return;
-      if ([401, 403].includes(response.status)) { window.PENECHO_CONFIG.connectionAccountId = ""; hostedSettings.signedIn = false; hostedSettings.models = []; return; }
+      if ([401, 403].includes(response.status)) { window.FASTLECTURES_CONFIG.connectionAccountId = ""; hostedSettings.signedIn = false; hostedSettings.models = []; return; }
       if (!response.ok) throw new Error("catalog_unavailable");
       const body = await response.json();
       if (generation !== hostedSettings.generation) return;
-      window.PENECHO_CONFIG.connectionAccountId = String(body.accountId || window.PENECHO_CONFIG.connectionAccountId || "");
-      if (!cloud && body.origin) window.PENECHO_CONFIG.cloudOrigin = body.origin;
+      window.FASTLECTURES_CONFIG.connectionAccountId = String(body.accountId || window.FASTLECTURES_CONFIG.connectionAccountId || "");
+      if (!cloud && body.origin) window.FASTLECTURES_CONFIG.cloudOrigin = body.origin;
       hostedSettings.signedIn = true;
       hostedSettings.models = (Array.isArray(body.models) ? body.models : []).filter(model => model.available === true && model.enabled !== false && !model.retiredAt && Number(model.multiplier) > 0).slice(0, 100);
       const hostedKey = aiConnectionStorageKey(true), legacy = localStorage.getItem(AI_CONNECTION_STORAGE_KEY);
@@ -4023,7 +4028,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         selected = legacy;
       }
     }
-    if (window.PENECHO_CONFIG?.runtime !== "cloud" && selected === "default" && key && !localStorage.getItem(key)) {
+    if (window.FASTLECTURES_CONFIG?.runtime !== "cloud" && selected === "default" && key && !localStorage.getItem(key)) {
       selected = settings.connections[0]?.id || "default";
       storeAiConnectionSelection(selected);
     }
@@ -4036,7 +4041,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     for (const control of section.querySelectorAll("input, select, button")) control.disabled = !visible;
   }
   function openConfiguration(mode, restoreTarget = null) {
-    if (window.PENECHO_CONFIG?.browserCanvasEditing && window.PENECHO_CONFIG?.linkedDeviceOnline !== true) return false;
+    if (window.FASTLECTURES_CONFIG?.browserCanvasEditing && window.FASTLECTURES_CONFIG?.linkedDeviceOnline !== true) return false;
     if (!configurationLayer || !canvasSettingsForm) return false;
     closeSettings(false);
     settings.configurationMode = mode;
@@ -4408,7 +4413,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     updateConnectionModelFetchState();
   }
   function showCliInstaller(provider, visible, repair = false) {
-    settingsInstallCli.hidden = !visible || !window.penechoDesktop?.installCli || !["kimi-cli", "codex-cli", "claude-cli"].includes(provider);
+    settingsInstallCli.hidden = !visible || !window.fastlecturesDesktop?.installCli || !["kimi-cli", "codex-cli", "claude-cli"].includes(provider);
     settingsInstallCli.dataset.provider = settingsInstallCli.hidden ? "" : provider;
     settingsInstallCli.textContent = t(repair ? "settingsRepairCli" : "settingsInstallCli");
   }
@@ -4552,11 +4557,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   async function installCanvasCli() {
     const provider = settingsInstallCli.dataset.provider;
-    if (!window.penechoDesktop?.installCli || !provider) return;
+    if (!window.fastlecturesDesktop?.installCli || !provider) return;
     setConnectionTestBusy(true);
     setSettingsStatus(t("settingsInstallingCli"));
     try {
-      const result = await window.penechoDesktop.installCli(provider);
+      const result = await window.fastlecturesDesktop.installCli(provider);
       if (!result?.ok) throw new Error(result?.error || t("settingsCliInstallFailed"));
       settingsCliPath.value = result.executable;
       settings.cli[provider] = { model:settingsCliModel.value, path:result.executable };
@@ -4678,7 +4683,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function routeStartupConnections(body) {
     if (settings.startupConnectionsChecked) return;
     settings.startupConnectionsChecked = true;
-    if (window.PENECHO_CONFIG?.runtime === "cloud" || window.PENECHO_CONFIG?.runtime === "viewer") return;
+    if (window.FASTLECTURES_CONFIG?.runtime === "cloud" || window.FASTLECTURES_CONFIG?.runtime === "viewer") return;
     if (body.openConnections === true || body.hasUsableConnection === false) {
       selectSettingsPage("connections");
       openSettings();
@@ -4689,7 +4694,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     void loadHostedModels();
     setSettingsStatus(t("settingsLoading"));
     try {
-      await window.PenEchoLinkedDevice?.refresh({ ifNeeded:true });
+      await window.FastLecturesLinkedDevice?.refresh({ ifNeeded:true });
       const connectionScope = aiConnectionScope();
       const response = await fetch("/api/settings", { headers:authenticatedApiHeaders(), signal:AbortSignal.timeout(12000) }), body = await response.json();
       if (!response.ok) throw new Error(body?.error || t("settingsLoadFailed"));
@@ -4822,7 +4827,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       nextPage = available.has(page) ? page : "appearance",
       pageChanged = settings.activePage !== nextPage;
     settings.activePage = nextPage;
-    if (nextPage === "mcp") { void mcpRefreshSettings(); window.PenEchoMcpSettings?.open(); }
+    if (nextPage === "mcp") { void mcpRefreshSettings(); window.FastLecturesMcpSettings?.open(); }
     tabs.forEach((tab) => {
       const selected = tab.dataset.settingsPageTarget === settings.activePage;
       tab.classList.toggle("active", selected);
@@ -4892,7 +4897,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function setSummonEnabled(enabled) {
     state.summonEnabled = Boolean(enabled);
-    localStorage.setItem("penecho-summon-enabled", String(state.summonEnabled));
+    localStorage.setItem("fastlectures-summon-enabled", String(state.summonEnabled));
     if (!state.summonEnabled) hideSummon();
     updateSettingsPanel();
   }
@@ -4903,20 +4908,20 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function setCanvasAgentAutoOpen(enabled) {
     state.canvasAgentAutoOpen = Boolean(enabled);
-    localStorage.setItem("penecho-canvas-agent-auto-open", String(state.canvasAgentAutoOpen));
+    localStorage.setItem("fastlectures-canvas-agent-auto-open", String(state.canvasAgentAutoOpen));
     settingsCanvasAgentAutoOpenToggle.classList.toggle("on", state.canvasAgentAutoOpen);
     settingsCanvasAgentAutoOpenToggle.setAttribute("aria-checked", String(state.canvasAgentAutoOpen));
   }
   function setWidgetShadowEnabled(enabled) {
     state.widgetShadowEnabled = Boolean(enabled);
-    localStorage.setItem("penecho-widget-shadow", String(state.widgetShadowEnabled));
+    localStorage.setItem("fastlectures-widget-shadow", String(state.widgetShadowEnabled));
     view.classList.toggle("widget-shadows", state.widgetShadowEnabled);
     settingsWidgetShadowToggle.classList.toggle("on", state.widgetShadowEnabled);
     settingsWidgetShadowToggle.setAttribute("aria-checked", String(state.widgetShadowEnabled));
     requestRender();
   }
   function maybeStartOnboarding() {
-    if (window.PENECHO_CONFIG?.runtime === "viewer" || settings.open) return false;
+    if (window.FASTLECTURES_CONFIG?.runtime === "viewer" || settings.open) return false;
     if (!maybeStartFeatureTour()) maybeShowChangelog();
   }
   function autoDelayText() {
@@ -5041,7 +5046,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return pluginId === "general" || state.plugins[pluginId] === true;
   }
   function diagramRuntime() {
-    return window.PENECHO_DIAGRAM_RUNTIME || null;
+    return window.FASTLECTURES_DIAGRAM_RUNTIME || null;
   }
   function canonicalStoredDiagramFormat(value) {
     const format = String(value || "").trim().toLowerCase();
@@ -5139,7 +5144,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (typeof value !== "string") return null;
     const suffix = extension === "css" ? "styles\\.css" : "plugin\\.md",
       legacy = extension === "md" ? "|[a-z0-9][a-z0-9-]{0,63}\\.md" : "";
-    // PenEcho Cloud appends a content-version query (?v=<sha>) for cache
+    // FastLectures Cloud appends a content-version query (?v=<sha>) for cache
     // busting; accept it alongside the plain paths the local server returns.
     return new RegExp(`^plugins/(?:private/)?(?:[a-z0-9][a-z0-9-]{0,63}/${suffix}${legacy})(?:\\?v=[a-f0-9]{6,16})?$`).test(value) ? value : null;
   }
@@ -5156,7 +5161,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     updatePluginControl();
     updatePluginAuthoringUi();
     try {
-      const nativeCloudCanvasReadsEnabled = window.PENECHO_CONFIG?.runtime === "cloud" && window.PENECHO_CONFIG?.remoteCanvasNativeReads === true,
+      const nativeCloudCanvasReadsEnabled = window.FASTLECTURES_CONFIG?.runtime === "cloud" && window.FASTLECTURES_CONFIG?.remoteCanvasNativeReads === true,
         catalogRequests = nativeCloudCanvasReadsEnabled
           ? [
               { path:"/api/plugins", cache:"default", accept:(entry) => entry?.builtIn !== false },
@@ -5547,10 +5552,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function updatePluginStylesPreview(validation) {
     // The read-only viewer never exposes plugin authoring. Avoid creating its
     // hidden preview iframe (and a third, unnecessary Widget host document).
-    if (!pluginStylesPreview || window.PENECHO_CONFIG?.runtime === "viewer") return;
+    if (!pluginStylesPreview || window.FASTLECTURES_CONFIG?.runtime === "viewer") return;
     const css = validation?.manifest?.styles || "";
     pluginStylesPreviewPayload = {
-      type:"penecho-widget-init",
+      type:"fastlectures-widget-init",
       title:t("pluginStylesPreview"),
       html:`<!doctype html><meta charset="utf-8"><style>
       *{box-sizing:border-box}body{margin:0;padding:22px;background:#fff;color:#172033;font:16px/1.45 system-ui,sans-serif}
@@ -5576,7 +5581,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return true;
   }
   function handlePluginStylesPreviewMessage(event) {
-    if (event.source !== pluginStylesPreview?.contentWindow || event.origin !== location.origin || event.data?.type !== "penecho-widget-host-ready") return;
+    if (event.source !== pluginStylesPreview?.contentWindow || event.origin !== location.origin || event.data?.type !== "fastlectures-widget-host-ready") return;
     pluginStylesPreviewReady = true;
     sendPluginStylesPreview();
   }
@@ -5865,7 +5870,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const effort = normalizeToolbarReasoningEffort(value);
     if (!effort) return false;
     state.reasoningEffort = effort;
-    localStorage.setItem("penecho-ai-effort", state.reasoningEffort);
+    localStorage.setItem("fastlectures-ai-effort", state.reasoningEffort);
     updateEffortControl();
     hideEffortControl();
     return true;
@@ -5874,7 +5879,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     state.auto = enabled;
     clearTimeout(state.timer);
     state.timer = 0;
-    localStorage.setItem("penecho-auto-ai", String(enabled));
+    localStorage.setItem("fastlectures-auto-ai", String(enabled));
     updateAutoControl();
     canvasAgentSyncAutomaticAIStatus();
     if (enabled) {
@@ -5925,7 +5930,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     summonFX?.refreshText();
     positionAnimationControls();
     requestInteractionLayerRender();
-    window.dispatchEvent(new CustomEvent("penecho:languagechange", { detail:{ language:state.language } }));
+    window.dispatchEvent(new CustomEvent("fastlectures:languagechange", { detail:{ language:state.language } }));
   }
   function updateAppearanceControls() {
     document.querySelectorAll(".studio-palette-option[data-studio-palette]").forEach((button) => {
@@ -5979,12 +5984,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     document.body.dataset.theme = theme;
     document.body.dataset.studioPalette = studioPalette;
     embodiment.dataset.theme = theme;
-    localStorage.setItem("penecho-theme", theme);
+    localStorage.setItem("fastlectures-theme", theme);
     if (removedTheme || studioPaletteChanged) {
-      localStorage.setItem("penecho-studio-palette", studioPalette);
+      localStorage.setItem("fastlectures-studio-palette", studioPalette);
       updateAppearanceControls();
     }
-    state.gridVisible = (localStorage.getItem("penecho-grid") ?? localStorage.getItem("ghostboard-grid")) !== "false";
+    state.gridVisible = (localStorage.getItem("fastlectures-grid") ?? localStorage.getItem("ghostboard-grid")) !== "false";
     updateEmbodimentLabel();
     updateGridButton();
     syncStudioWorkbench(theme);
@@ -5994,13 +5999,13 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function applyStudioPalette(palette) {
     state.studioPalette = normalizeStudioPalette(palette);
     document.body.dataset.studioPalette = state.studioPalette;
-    localStorage.setItem("penecho-studio-palette", state.studioPalette);
+    localStorage.setItem("fastlectures-studio-palette", state.studioPalette);
     updateAppearanceControls();
     updatePaint();
     requestRender();
   }
   function applyPageScale(scale) {
-    state.pageScale = window.PenEchoPageScale?.apply?.(scale) || 1;
+    state.pageScale = window.FastLecturesPageScale?.apply?.(scale) || 1;
     updateAppearanceControls();
     fit();
     window.dispatchEvent(new Event("resize"));
@@ -6103,7 +6108,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       state.navigationTimer = 0;
       state.navigationDeadline = 0;
       view.classList.remove("is-navigating", "is-wheel-navigating");
-      void window.PenEchoStudioNavigator?.flushMcpFollow?.();
+      void window.FastLecturesStudioNavigator?.flushMcpFollow?.();
     };
     state.navigationTimer = setTimeout(hide, NAVIGATION_HINT_VISIBLE_MS);
   }
@@ -7486,7 +7491,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       sourceFormat = typeof item.sourceFormat === "string" ? item.sourceFormat.trim() : inferredSourceFormat,
       frameworkVersion = typeof item.frameworkVersion === "string" ? item.frameworkVersion.trim() : "";
     if (diagramKind.length > 80 || sourceFormat.length > 80 || frameworkVersion.length > 120) return null;
-    const copyTextLimit=sourceFormat==="penecho-visual-explainer-plan+json"?MAX_VISUAL_EXPLAINER_SOURCE_LENGTH:MAX_WIDGET_COPY_TEXT_LENGTH;
+    const copyTextLimit=sourceFormat==="fastlectures-visual-explainer-plan+json"?MAX_VISUAL_EXPLAINER_SOURCE_LENGTH:MAX_WIDGET_COPY_TEXT_LENGTH;
     if (widgetType !== "diagram_source" && allowCopy && item.copyText !== undefined && (typeof item.copyText !== "string" || !item.copyText.trim() || item.copyText.length > copyTextLimit)) return null;
     if (widgetType !== "diagram_source" && allowCopy && item.copyLabel !== undefined && (typeof item.copyLabel !== "string" || !item.copyLabel.trim() || item.copyLabel.length > 80)) return null;
     const communityOriginItemId = typeof item.communityOriginItemId === "string" && /^[0-9a-f-]{36}$/i.test(item.communityOriginItemId) ? item.communityOriginItemId : null,
@@ -7582,7 +7587,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     delete publicWidget.favoriteArtifactSha256;
     delete publicWidget.favoriteCloudId;
     delete publicWidget.favoriteCommunityItemId;
-    return { format:"penecho-widget", formatVersion:1, widget:publicWidget, ...communityImages };
+    return { format:"fastlectures-widget", formatVersion:1, widget:publicWidget, ...communityImages };
   }
   function setCommunityWidgetFavorite(widgetId, favorite, busy = false, artifactSha256 = undefined, reference = undefined) {
     const widget = state.widgets.find((item) => item.id === widgetId);
@@ -7606,7 +7611,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
 
   async function importCommunityWidgetArtifact(artifact, origin = null, options = null) {
-    if (!artifact || artifact.format !== "penecho-widget" || artifact.formatVersion !== 1 || !artifact.widget) throw Error("The community Widget is invalid.");
+    if (!artifact || artifact.format !== "fastlectures-widget" || artifact.formatVersion !== 1 || !artifact.widget) throw Error("The community Widget is invalid.");
     if (state.pendingWidget) acceptPendingWidget({ restoreMode:false });
     if (state.widgetEdit) acceptWidgetEdit();
     const visible = viewportRect(), source = { ...artifact.widget }, favoriteState = options?.favoriteState;
@@ -7629,14 +7634,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     // Fit the widget into the visible canvas: oversized widgets shrink
     // uniformly (content scales through the shell transform) and land centered
     // instead of spilling past the viewport edges.
-    const viewerFit = options?.fitViewport === true && window.PENECHO_CONFIG?.runtime === "viewer";
+    const viewerFit = options?.fitViewport === true && window.FASTLECTURES_CONFIG?.runtime === "viewer";
     const fitScale = viewerFit ? 1 : Math.min(1, (visible.w * 0.9) / Number(source.w || 300) || 1, (visible.h * 0.9) / Number(source.h || 200) || 1);
     if (!viewerFit && fitScale > 0 && fitScale < 1) { source.w = Number(source.w || 300) * fitScale; source.h = Number(source.h || 200) * fitScale; }
     source.x = Math.max(0, Math.min(SIZE - Number(source.w || 300), visible.x + Math.max(0, (visible.w - Number(source.w || 300)) / 2)));
     source.y = Math.max(0, Math.min(SIZE - Number(source.h || 200), visible.y + Math.max(0, (visible.h - Number(source.h || 200)) / 2)));
     await enableSnapshotWidgetPlugins([source]);
     const widget = widgetRecord(source);
-    if (!widget) throw Error("The community Widget is not compatible with this PenEcho version.");
+    if (!widget) throw Error("The community Widget is not compatible with this FastLectures version.");
     if (origin?.id && /^[0-9a-f-]{36}$/i.test(origin.id)) {
       widget.communityOriginItemId = origin.id;
       widget.communityRootItemId = origin.rootItemId || origin.id;
@@ -7659,7 +7664,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function widgetHostUrl(manifest) {
     const url = new URL(canvasAssetUrl("widget-host.html")),
-      runtime = window.PENECHO_CONFIG?.runtime;
+      runtime = window.FASTLECTURES_CONFIG?.runtime;
     // The editable local app isolates Widget code on the other loopback host.
     // Cloud shells serve a host with frame-ancestors 'self', so changing only
     // the hostname there would make the iframe cross-origin and CSP-blocked.
@@ -7898,7 +7903,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function probeWidgetHost(widget) {
     if (!widget.frame?.contentWindow) return false;
-    widget.frame.contentWindow.postMessage({ type:"penecho-widget-host-probe" }, widget.hostOrigin || location.origin);
+    widget.frame.contentWindow.postMessage({ type:"fastlectures-widget-host-probe" }, widget.hostOrigin || location.origin);
     return true;
   }
   function sendWidgetInit(widget) {
@@ -7911,7 +7916,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     widget.initialized = true;
     widget.mcpDocumentLoaded = false;
     widget.frame.contentWindow.postMessage({
-      type:"penecho-widget-init",
+      type:"fastlectures-widget-init",
       title:widget.title,
       html:widget.html,
       imageAssets,
@@ -7943,7 +7948,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     syncMcpWidgetProgress(widget);
     if (!force && widget.hostStateKey === key) return;
     widget.hostStateKey = key;
-    widget.frame.contentWindow.postMessage({ type:"penecho-widget-state", maximized:widget.maximized === true, fitContent:widget.fitContent === true, fitContentAxes:widget.fitContentAxes || null, selected, interactive, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
+    widget.frame.contentWindow.postMessage({ type:"fastlectures-widget-state", maximized:widget.maximized === true, fitContent:widget.fitContent === true, fitContentAxes:widget.fitContentAxes || null, selected, interactive, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
   }
   function markWidgetHostReady(widget) {
     widget.hostReady = true;
@@ -8029,7 +8034,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
           widgetSnapshotRequests.set(requestId,pending);
           signal?.addEventListener("abort",abort,{once:true});
           if(signal?.aborted){abort();return;}
-          widget.frame.contentWindow.postMessage({ type:"penecho-widget-snapshot-request", requestId, width:widget.contentW, height:widget.contentH, timeoutMs:remaining(), highResolution, fullContent }, widget.hostOrigin || location.origin);
+          widget.frame.contentWindow.postMessage({ type:"fastlectures-widget-snapshot-request", requestId, width:widget.contentW, height:widget.contentH, timeoutMs:remaining(), highResolution, fullContent }, widget.hostOrigin || location.origin);
         });
       } finally {
         widget.snapshotCaptureActive = false;
@@ -8071,31 +8076,31 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const widget = [...state.widgets, ...(state.pendingWidget ? [state.pendingWidget] : []), ...(typeof mcpRuntime!=="undefined"?[...(mcpRuntime?.previews?.values()||[])]:[])].find((item) => item.frame?.contentWindow === event.source);
     if (!widget || event.origin !== (widget.hostOrigin || location.origin) || !event.data || typeof event.data !== "object") return;
     const message = event.data;
-    if(widget.mcpEphemeral&&!["penecho-widget-host-ready","penecho-widget-capture-ready","penecho-widget-updated","penecho-widget-snapshot","penecho-widget-snapshot-error","penecho-widget-runtime-diagnostics","penecho-visual-explainer-diagnostics"].includes(message.type))return;
-    if(message.type==="penecho-widget-user-action"&&typeof canvasDocumentsWidgetAction==="function") {
+    if(widget.mcpEphemeral&&!["fastlectures-widget-host-ready","fastlectures-widget-capture-ready","fastlectures-widget-updated","fastlectures-widget-snapshot","fastlectures-widget-snapshot-error","fastlectures-widget-runtime-diagnostics","fastlectures-visual-explainer-diagnostics"].includes(message.type))return;
+    if(message.type==="fastlectures-widget-user-action"&&typeof canvasDocumentsWidgetAction==="function") {
       canvasDocumentsWidgetAction(widget,message);return;
     }
-    if (message.type === "penecho-widget-presentation-size") {
+    if (message.type === "fastlectures-widget-presentation-size") {
       applyWidgetPresentationSize(widget, message);
       return;
     }
-    if (message.type === "penecho-widget-fit-result") {
+    if (message.type === "fastlectures-widget-fit-result") {
       applyWidgetContentFit(widget, message);
       return;
     }
-    if (message.type === "penecho-widget-fit" && ["width", "height", "resize"].includes(message.hit)) {
+    if (message.type === "fastlectures-widget-fit" && ["width", "height", "resize"].includes(message.hit)) {
       requestWidgetContentFit(widget, message.hit);
       return;
     }
-    if (message.type === "penecho-widget-exit-interaction") {
+    if (message.type === "fastlectures-widget-exit-interaction") {
       if (state.interactingWidgetId === widget.id) setWidgetInteraction(null);
       return;
     }
-    if (message.type === "penecho-widget-host-ready") {
+    if (message.type === "fastlectures-widget-host-ready") {
       markWidgetHostReady(widget);
       return;
     }
-    if (message.type === "penecho-widget-capture-ready") {
+    if (message.type === "fastlectures-widget-capture-ready") {
       return;
     }
     if (validWidgetHostActivate(message)) {
@@ -8106,14 +8111,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       return;
     }
     if (validWidgetHostDrag(message)) {
-      if (message.type === "penecho-widget-drag-start") beginWidgetHostDrag(widget, message);
-      else if (message.type === "penecho-widget-drag-move") updateWidgetHostDrag(widget, message);
+      if (message.type === "fastlectures-widget-drag-start") beginWidgetHostDrag(widget, message);
+      else if (message.type === "fastlectures-widget-drag-move") updateWidgetHostDrag(widget, message);
       else finishWidgetHostDrag(widget, message);
       return;
     }
     if (validWidgetHostTouch(message)) {
-      if (message.type === "penecho-widget-touch-start") beginWidgetHostTouch(widget, message);
-      else if (message.type === "penecho-widget-touch-move") updateWidgetHostTouch(widget, message);
+      if (message.type === "fastlectures-widget-touch-start") beginWidgetHostTouch(widget, message);
+      else if (message.type === "fastlectures-widget-touch-move") updateWidgetHostTouch(widget, message);
       else finishWidgetHostTouch(widget, message);
       return;
     }
@@ -8130,7 +8135,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       widget.visualDiagnosticWaiters?.clear();
       return;
     }
-    if (message.type === "penecho-widget-updated") {
+    if (message.type === "fastlectures-widget-updated") {
       if(message.loaded===true){
         widget.mcpDocumentLoaded = true;
         for(const resolve of widget.mcpLoadWaiters||[])resolve();
@@ -8140,18 +8145,18 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       widget.snapshotDataUrl = "";
       return;
     }
-    if (!["penecho-widget-snapshot", "penecho-widget-snapshot-error"].includes(message.type)) return;
+    if (!["fastlectures-widget-snapshot", "fastlectures-widget-snapshot-error"].includes(message.type)) return;
     const pending = widgetSnapshotRequests.get(message.requestId);
     if (!pending || pending.widget !== widget) return;
     widgetSnapshotRequests.delete(message.requestId);
     clearTimeout(pending.timer);
     pending.signal?.removeEventListener("abort",pending.abort);
-    if (message.type === "penecho-widget-snapshot-error" || typeof message.dataUrl !== "string" || !message.dataUrl.startsWith("data:image/png;base64,")
+    if (message.type === "fastlectures-widget-snapshot-error" || typeof message.dataUrl !== "string" || !message.dataUrl.startsWith("data:image/png;base64,")
       || !Number.isFinite(message.width) || message.width <= 0 || !Number.isFinite(message.height) || message.height <= 0) {
-      const snapshotFailure = message.type === "penecho-widget-snapshot-error"
+      const snapshotFailure = message.type === "fastlectures-widget-snapshot-error"
         ? String(message.error || t("widgetExportFailed")).replace(/[\r\n\t]+/g, " ").slice(0, 300)
         : t("widgetExportFailed");
-      if (message.type === "penecho-widget-snapshot-error") console.warn("PenEcho widget snapshot failed:", snapshotFailure);
+      if (message.type === "fastlectures-widget-snapshot-error") console.warn("FastLectures widget snapshot failed:", snapshotFailure);
       const error=Error(snapshotFailure);
       error.code=/^WIDGET_[A-Z_]{1,40}$/.test(message.code||"")?message.code:"WIDGET_CAPTURE_FAILED";
       error.details={widgetId:widget.id,stage:String(message.details?.stage||"capture").slice(0,60),
@@ -8326,7 +8331,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (!widget.pending) beginWidgetEdit(widget);
     const requestId = `widget-fit-${++widgetFitRequestSequence}`;
     widget.contentFitRequest = { requestId, hit, start:widgetLayout(widget), html:widget.html };
-    widget.frame.contentWindow.postMessage({ type:"penecho-widget-fit-request", requestId, hit }, widget.hostOrigin || location.origin);
+    widget.frame.contentWindow.postMessage({ type:"fastlectures-widget-fit-request", requestId, hit }, widget.hostOrigin || location.origin);
     return true;
   }
   function applyWidgetContentFit(widget, message) {
@@ -8444,26 +8449,26 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return finishWidgetGesture({ pointerId:gesture.id });
   }
   function validWidgetHostDrag(message) {
-    return message && ["penecho-widget-drag-start", "penecho-widget-drag-move", "penecho-widget-drag-end"].includes(message.type)
+    return message && ["fastlectures-widget-drag-start", "fastlectures-widget-drag-move", "fastlectures-widget-drag-end"].includes(message.type)
       && Number.isInteger(message.pointerId) && Math.abs(message.pointerId) <= 0x7fffffff
       && ["mouse", "pen", "touch"].includes(message.pointerType)
       && ["width", "height", "resize"].includes(message.hit)
       && [message.localX, message.localY, message.screenX, message.screenY].every(value => Number.isFinite(value) && Math.abs(value) <= 10000000);
   }
   function validWidgetHostTouch(message) {
-    return message && ["penecho-widget-touch-start", "penecho-widget-touch-move", "penecho-widget-touch-end"].includes(message.type)
+    return message && ["fastlectures-widget-touch-start", "fastlectures-widget-touch-move", "fastlectures-widget-touch-end"].includes(message.type)
       && Number.isInteger(message.pointerId) && Math.abs(message.pointerId) <= 0x7fffffff
       && message.pointerType === "touch"
       && [message.localX, message.localY, message.screenX, message.screenY].every(value => Number.isFinite(value) && Math.abs(value) <= 10000000);
   }
   function validWidgetHostActivate(message) {
-    return message?.type === "penecho-widget-activate"
+    return message?.type === "fastlectures-widget-activate"
       && Number.isInteger(message.pointerId) && Math.abs(message.pointerId) <= 0x7fffffff
       && ["mouse", "pen", "touch"].includes(message.pointerType)
       && [message.localX, message.localY, message.screenX, message.screenY].every(value => Number.isFinite(value) && Math.abs(value) <= 10000000);
   }
   function validWidgetRuntimeDiagnostics(message) {
-    return message && message.type === "penecho-widget-runtime-diagnostics"
+    return message && message.type === "fastlectures-widget-runtime-diagnostics"
       && typeof message.truncated === "boolean" && Array.isArray(message.errors) && message.errors.length <= 5
       && message.errors.every(error => error && typeof error === "object"
         && ["error", "unhandledrejection", "script-load"].includes(error.kind)
@@ -8478,7 +8483,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function validVisualExplainerDiagnostics(message) {
     const diagnostics=message?.diagnostics;
-    return message?.type === "penecho-visual-explainer-diagnostics" && diagnostics && typeof diagnostics === "object"
+    return message?.type === "fastlectures-visual-explainer-diagnostics" && diagnostics && typeof diagnostics === "object"
       && diagnostics.version === 1 && ["pass","warn","fail"].includes(diagnostics.status)
       && Number.isInteger(diagnostics.score) && diagnostics.score >= 0 && diagnostics.score <= 100
       && ["comfortable","compact","dense"].includes(diagnostics.density)
@@ -8528,7 +8533,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     screenClientRatio = Math.min(4, Math.max(0.25, screenClientRatio * 0.7 + candidate * 0.3));
   }
   function beginWidgetHostTouch(widget, message) {
-    if (state.mode !== "select" || !validWidgetHostTouch(message) || message.type !== "penecho-widget-touch-start") return false;
+    if (state.mode !== "select" || !validWidgetHostTouch(message) || message.type !== "fastlectures-widget-touch-start") return false;
     const point = widgetHostViewportPoint(widget, message);
     if (!point) return false;
     const id = widgetHostPointerId(widget, message.pointerId);
@@ -8541,14 +8546,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return true;
   }
   function updateWidgetHostTouch(widget, message) {
-    if (state.mode !== "select" || !validWidgetHostTouch(message) || message.type !== "penecho-widget-touch-move") return false;
+    if (state.mode !== "select" || !validWidgetHostTouch(message) || message.type !== "fastlectures-widget-touch-move") return false;
     const id = widgetHostPointerId(widget, message.pointerId),
       point = widgetHostTrackedPoint(widgetHostPointerAnchors.get(id), message) || widgetHostViewportPoint(widget, message);
     if (!point || !state.handWidgetPointerIds.has(id)) return false;
     return updateHandObjectFocus({ pointerId:id });
   }
   function finishWidgetHostTouch(widget, message) {
-    if (!validWidgetHostTouch(message) || message.type !== "penecho-widget-touch-end") return false;
+    if (!validWidgetHostTouch(message) || message.type !== "fastlectures-widget-touch-end") return false;
     const id = widgetHostPointerId(widget, message.pointerId);
     if (!state.handWidgetPointerIds.has(id)) return false;
     finishHandObjectFocus({ pointerId:id });
@@ -8558,7 +8563,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return true;
   }
   function beginWidgetHostDrag(widget, message) {
-    if (!validWidgetHostDrag(message) || message.type !== "penecho-widget-drag-start") return false;
+    if (!validWidgetHostDrag(message) || message.type !== "fastlectures-widget-drag-start") return false;
     if (message.pointerType === "touch") {
       const id = widgetHostPointerId(widget, message.pointerId);
       if ([...state.handWidgetPointerIds].some((pointerId) => pointerId !== id)) return false;
@@ -8595,7 +8600,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function finishWidgetHostDrag(widget, message) {
     const gesture = state.widgetGesture;
-    if (!validWidgetHostDrag(message) || message.type !== "penecho-widget-drag-end" || !gesture || gesture.source !== "widget-host" || gesture.widget !== widget || gesture.hostPointerId !== message.pointerId) return false;
+    if (!validWidgetHostDrag(message) || message.type !== "fastlectures-widget-drag-end" || !gesture || gesture.source !== "widget-host" || gesture.widget !== widget || gesture.hostPointerId !== message.pointerId) return false;
     updateWidgetHostDrag(widget, message);
     return finishWidgetGesture({ pointerId:gesture.id });
   }
@@ -9423,7 +9428,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     requestRender();
   }
   function fitViewerCanvas() {
-    if (window.PENECHO_CONFIG?.runtime !== "viewer") return false;
+    if (window.FASTLECTURES_CONFIG?.runtime !== "viewer") return false;
     viewerAutoFitWidgetId = null;
     viewerAutoFitCanvas = true;
     fit();
@@ -9695,7 +9700,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     let enabled = false;
     try { enabled = new URLSearchParams(location.search).get("renderTiming") === "1"; } catch {}
     const records = [];
-    if (enabled) globalThis.__PENECHO_RENDER_TIMINGS__ = records;
+    if (enabled) globalThis.__FASTLECTURES_RENDER_TIMINGS__ = records;
     return { enabled, records, limit:300 };
   })();
   function canvasRenderTimedStage(record, name, work) {
@@ -10264,12 +10269,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return copied;
   }
   function widgetImageFilename(widget) {
-    const title = String(widget?.title || "penecho-widget")
+    const title = String(widget?.title || "fastlectures-widget")
       .replace(/[\u0000-\u001f<>:"/\\|?*]+/g, "-")
       .replace(/[.\s]+$/g, "")
       .trim()
       .slice(0, 120);
-    return `${title || "penecho-widget"}.png`;
+    return `${title || "fastlectures-widget"}.png`;
   }
   async function downloadWidgetImage(widget) {
     if (!widget || widget.downloadBusy) return false;
@@ -10351,7 +10356,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (copied) button.dataset.copyState = "copied";
     else delete button.dataset.copyState;
     button.innerHTML = OBJECT_CHROME_ICONS[copied ? "accept" : "copy"];
-    button.setAttribute("aria-label", copied ? t("widgetSourceCopied") : objectChromeLabel("copy", button.penechoSpec));
+    button.setAttribute("aria-label", copied ? t("widgetSourceCopied") : objectChromeLabel("copy", button.fastlecturesSpec));
     if (!copied) return;
     button._copyIconResetTimer = setTimeout(() => {
       button._copyIconResetTimer = 0;
@@ -10393,19 +10398,19 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       refineCandidate:options.refine,
       activate:(button) => void beginWidgetRefineConfirmation(options.refine, objectChromeAnchor(button)),
     });
-    if (options.community && window.PenEchoCommunityUI) {
+    if (options.community && window.FastLecturesCommunityUI) {
       const favoriteLabelKey = widget.favoriteBusy ? "favoriteWidgetSaving" : widget.favorite ? "unfavoriteWidget" : "favoriteWidget";
       items.push({
         key:`widget:${widget.id}:tool-favorite`,
         kind:"favorite",
-        label:window.PenEchoCommunityUI.label?.(favoriteLabelKey) || "Favorite",
+        label:window.FastLecturesCommunityUI.label?.(favoriteLabelKey) || "Favorite",
         baseWidth:28,
         iconOnly:true,
         pressed:widget.favorite === true,
         busy:widget.favoriteBusy === true,
         activate:() => {
           if (widget.favoriteBusy) return;
-          window.dispatchEvent(new CustomEvent("penecho:community-widget-action", { detail:{
+          window.dispatchEvent(new CustomEvent("fastlectures:community-widget-action", { detail:{
             action:"favorite",
             widgetId:widget.id,
             favorite:widget.favorite === true,
@@ -10419,10 +10424,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       items.push({
         key:`widget:${widget.id}:tool-share`,
         kind:"share",
-        label:window.PenEchoCommunityUI.label?.("shareWidget") || "Share",
+        label:window.FastLecturesCommunityUI.label?.("shareWidget") || "Share",
         baseWidth:28,
         iconOnly:true,
-        activate:() => window.dispatchEvent(new CustomEvent("penecho:community-widget-action", { detail:{ action:"share", widgetId:widget.id } })),
+        activate:() => window.dispatchEvent(new CustomEvent("fastlectures:community-widget-action", { detail:{ action:"share", widgetId:widget.id } })),
       });
     }
     if (options.download) items.push({
@@ -10649,8 +10654,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (kind === "copy") return t("copyText");
     if (kind === "merge") return t("imageMerge");
     if (kind === "refine") return t("widgetRefine");
-    if (kind === "favorite") return window.PenEchoCommunityUI?.label?.("favoriteWidget") || "Favorite Widget";
-    if (kind === "share") return window.PenEchoCommunityUI?.label?.("shareWidget") || "Share Widget";
+    if (kind === "favorite") return window.FastLecturesCommunityUI?.label?.("favoriteWidget") || "Favorite Widget";
+    if (kind === "share") return window.FastLecturesCommunityUI?.label?.("shareWidget") || "Share Widget";
     if (kind === "download") return t("downloadWidget");
     return t("hand");
   }
@@ -10781,43 +10786,43 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       event.stopPropagation();
       finishStaleWidgetHostGesture(event);
       const dragSurface = kind === "move" || kind === "toolbar";
-      if (button.penechoSpec?.handToolbar) {
-        beginHandToolbarOperation(event.pointerId, button.penechoSpec.handToolbarKey);
-        if (dragSurface) activateHandObjectToolbar(button.penechoSpec.handToolbarKey);
-        refreshHandObjectToolbar(button.penechoSpec.handToolbarKey);
+      if (button.fastlecturesSpec?.handToolbar) {
+        beginHandToolbarOperation(event.pointerId, button.fastlecturesSpec.handToolbarKey);
+        if (dragSurface) activateHandObjectToolbar(button.fastlecturesSpec.handToolbarKey);
+        refreshHandObjectToolbar(button.fastlecturesSpec.handToolbarKey);
       }
       if (!dragSurface) {
         try { button.setPointerCapture(event.pointerId); } catch {}
         return;
       }
-      beginObjectChromeMove(event, button.penechoSpec);
+      beginObjectChromeMove(event, button.fastlecturesSpec);
     });
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       if (kind === "move" || kind === "toolbar" || button.disabled) return;
-      if (kind === "refine") triggerWidgetRefineClickPulse(button.penechoSpec?.refineCandidate?.widgetId);
-      button.penechoSpec?.activate?.(button);
+      if (kind === "refine") triggerWidgetRefineClickPulse(button.fastlecturesSpec?.refineCandidate?.widgetId);
+      button.fastlecturesSpec?.activate?.(button);
     });
     button.addEventListener("pointerenter", (event) => {
-      const key = button.penechoSpec?.handToolbarKey;
+      const key = button.fastlecturesSpec?.handToolbarKey;
       if (key) setHandToolbarHold(key, `chrome-hover:${event.pointerId}:${key}`, true);
     });
     button.addEventListener("pointerleave", (event) => {
-      const key = button.penechoSpec?.handToolbarKey;
+      const key = button.fastlecturesSpec?.handToolbarKey;
       if (key) setHandToolbarHold(key, `chrome-hover:${event.pointerId}:${key}`, false);
     });
     button.addEventListener("focus", () => {
-      const key = button.penechoSpec?.handToolbarKey;
+      const key = button.fastlecturesSpec?.handToolbarKey;
       if (key) setHandToolbarHold(key, `chrome-focus:${key}`, true);
     });
     button.addEventListener("blur", () => {
-      const key = button.penechoSpec?.handToolbarKey;
+      const key = button.fastlecturesSpec?.handToolbarKey;
       if (key) setHandToolbarHold(key, `chrome-focus:${key}`, false);
     });
     if (kind === "refine") {
       button.addEventListener("pointerenter", () => {
-        const candidate = button.penechoSpec?.refineCandidate;
+        const candidate = button.fastlecturesSpec?.refineCandidate;
         if (!candidate) return;
         state.widgetRefineButtonHoverId = candidate.widgetId;
         if (state.widgetRefineHoverCandidate === candidate) {
@@ -10829,7 +10834,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         requestInteractionLayerRender();
       });
       button.addEventListener("pointerleave", () => {
-        const candidate = button.penechoSpec?.refineCandidate;
+        const candidate = button.fastlecturesSpec?.refineCandidate;
         if (state.widgetRefineButtonHoverId === candidate?.widgetId) state.widgetRefineButtonHoverId = null;
         if (state.widgetRefineHoverCandidate === candidate) scheduleWidgetRefineHoverClear();
         scheduleWidgetRefineHintRender();
@@ -10841,29 +10846,29 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return button;
   }
   function ensureObjectChromeStyleRule(button) {
-    if (!button || button.penechoStyleRule) return button?.penechoStyleRule || null;
+    if (!button || button.fastlecturesStyleRule) return button?.fastlecturesStyleRule || null;
     const sheet = textEditorStyleSheet(),
-      className = button.penechoStyleClass || `object-chrome-position-${nextObjectChromeStyleId++}`;
-    button.penechoStyleClass = className;
+      className = button.fastlecturesStyleClass || `object-chrome-position-${nextObjectChromeStyleId++}`;
+    button.fastlecturesStyleClass = className;
     button.classList.add(className);
     if (!sheet) return null;
     try {
       sheet.insertRule(`.${className} { --object-control-x: 0px; --object-control-y: 0px; z-index: 1; }`, sheet.cssRules.length);
-      button.penechoStyleRule = [...sheet.cssRules].find((rule) => rule.selectorText === `.${className}`) || null;
+      button.fastlecturesStyleRule = [...sheet.cssRules].find((rule) => rule.selectorText === `.${className}`) || null;
     } catch {
-      button.penechoStyleRule = null;
+      button.fastlecturesStyleRule = null;
     }
-    return button.penechoStyleRule;
+    return button.fastlecturesStyleRule;
   }
   function removeObjectChromeStyleRule(button) {
-    const rule = button?.penechoStyleRule,
+    const rule = button?.fastlecturesStyleRule,
       sheet = textEditorStyleSheet();
     if (!rule || !sheet) return;
     const index = [...sheet.cssRules].indexOf(rule);
     if (index >= 0) {
       try { sheet.deleteRule(index); } catch {}
     }
-    button.penechoStyleRule = null;
+    button.fastlecturesStyleRule = null;
   }
   function pendingChromeSpecs(specs, pending) {
     if (!pending) return;
@@ -11062,8 +11067,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       active.add(spec.key);
       const label = objectChromeLabel(spec.kind, spec),
         copyConfirmed = spec.kind === "copy" && button.dataset.copyState === "copied",
-        declaration = (button.penechoStyleRule || ensureObjectChromeStyleRule(button))?.["style"];
-      button.penechoSpec = spec;
+        declaration = (button.fastlecturesStyleRule || ensureObjectChromeStyleRule(button))?.["style"];
+      button.fastlecturesSpec = spec;
       if (spec.objectToolbar || spec.standaloneDraftControl) {
         button.removeAttribute("data-pe-button");
         button.removeAttribute("data-pe-density");
@@ -11118,8 +11123,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     syncSelectedWidgetMaterial(selectedWidgetMaterialRecord);
     for (const [key, button] of objectChromeButtons) {
       if (active.has(key)) continue;
-      if (button.penechoSpec?.kind === "refine"
-        && state.widgetRefineButtonHoverId === button.penechoSpec.refineCandidate?.widgetId) {
+      if (button.fastlecturesSpec?.kind === "refine"
+        && state.widgetRefineButtonHoverId === button.fastlecturesSpec.refineCandidate?.widgetId) {
         state.widgetRefineButtonHoverId = null;
         removedHoveredRefineButton = true;
       }
@@ -12356,8 +12361,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return copy;
   }
 // Deterministic Visual Explainer validation and single-Widget compilation.
-  const VISUAL_EXPLAINER_SOURCE_FORMAT = "penecho-visual-explainer-plan+json",
-    VISUAL_EXPLAINER_FRAMEWORK_VERSION = "penecho-visual-explainer/3 antv-infographic/0.2.20",
+  const VISUAL_EXPLAINER_SOURCE_FORMAT = "fastlectures-visual-explainer-plan+json",
+    VISUAL_EXPLAINER_FRAMEWORK_VERSION = "fastlectures-visual-explainer/3 antv-infographic/0.2.20",
     VISUAL_EXPLAINER_SECTION_KINDS = new Set(["flow","timeline","hierarchy","relationship","comparison","cards","metrics","schedule","table","map","notes","matrix"]),
     VISUAL_EXPLAINER_INTENTS = new Set(["explain","organize","plan"]),
     VISUAL_EXPLAINER_IMPORTANCE = new Set(["primary","standard","supporting"]),
@@ -12474,11 +12479,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
 <head>
   <meta charset="utf-8">
   <title>${visualExplainerEscapeHtml(normalized.title)}</title>
-  <style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}.penecho-visual-loading{box-sizing:border-box;width:100%;height:100%;display:grid;place-content:center;padding:48px;color:#334155;text-align:center}.penecho-visual-loading h1{margin:0 0 12px;font-size:clamp(30px,4vw,56px)}.penecho-visual-loading p{margin:0;color:#64748b}</style>
+  <style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}.fastlectures-visual-loading{box-sizing:border-box;width:100%;height:100%;display:grid;place-content:center;padding:48px;color:#334155;text-align:center}.fastlectures-visual-loading h1{margin:0 0 12px;font-size:clamp(30px,4vw,56px)}.fastlectures-visual-loading p{margin:0;color:#64748b}</style>
 </head>
 <body>
-  <main id="penecho-visual-explainer" class="penecho-visual-loading" aria-live="polite"><h1>${visualExplainerEscapeHtml(normalized.title)}</h1><p>${visualExplainerEscapeHtml(normalized.subtitle||"Preparing visual explanation…")}</p></main>
-  <script type="application/json" data-penecho-visual-explainer>${json}</script>
+  <main id="fastlectures-visual-explainer" class="fastlectures-visual-loading" aria-live="polite"><h1>${visualExplainerEscapeHtml(normalized.title)}</h1><p>${visualExplainerEscapeHtml(normalized.subtitle||"Preparing visual explanation…")}</p></main>
+  <script type="application/json" data-fastlectures-visual-explainer>${json}</script>
 </body>
 </html>`;
   }
@@ -12500,7 +12505,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return new Promise(resolve=>{let settled=false;const finish=value=>{if(settled)return;settled=true;clearTimeout(timer);widget.visualDiagnosticWaiters?.delete(finish);resolve(value?structuredClone(value):null);},timer=setTimeout(()=>finish(null),Math.max(500,Math.min(5000,Number(timeoutMs)||3800)));widget.visualDiagnosticWaiters.add(finish);});
   }
 // Canvas snapshots, export, drawing history, strokes, and lasso selection.
-  const SNAPSHOT_DB = "penecho-canvas-history",
+  const SNAPSHOT_DB = "fastlectures-canvas-history",
     SNAPSHOT_STORE = "snapshots",
     SNAPSHOT_TILE_STORE = "snapshot-tiles",
     SNAPSHOT_TILE_DECODE_BATCH_SIZE = 8,
@@ -12508,10 +12513,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     SNAPSHOT_LOCATIONS = new Set(["device", "server", "cloud"]),
     SERVER_DEFAULT_PROJECT_ID = "uncategorized",
     SERVER_ALL_PROJECTS_ID = "all",
-    SERVER_PROJECT_SESSION_KEY = "penecho-selected-canvas-project",
+    SERVER_PROJECT_SESSION_KEY = "fastlectures-selected-canvas-project",
     CLOUD_ALL_PROJECTS_ID = "all",
-    CLOUD_PROJECT_SESSION_KEY = "penecho-selected-cloud-project",
-    HISTORY_VIEW_STORAGE_KEY = "penecho-history-view-v2";
+    CLOUD_PROJECT_SESSION_KEY = "fastlectures-selected-cloud-project",
+    HISTORY_VIEW_STORAGE_KEY = "fastlectures-history-view-v2";
   let snapshotDbPromise = null,
     snapshotItems = [],
     snapshotSaveInProgress = false,
@@ -12552,8 +12557,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const name=String(value||"").replace(/\s+/g," ").trim().slice(0,48).trim();
     if(!name||!currentCanvasNeedsAgentName())return false;
     state.currentCanvasSuggestedName=name;
-    window.PenEchoStudioNavigator?.updateDocument?.();
-    window.PenEchoStudioNavigator?.renderAgent?.();
+    window.FastLecturesStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.renderAgent?.();
     return true;
   }
   function validServerProjectSelection(projectId) {
@@ -12598,13 +12603,13 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return selectedCloudProjectId === CLOUD_ALL_PROJECTS_ID ? cloudDefaultProjectId() : selectedCloudProjectId;
   }
   function snapshotLocationLabel(location = state.snapshotLocation) {
-    return t(location === "server" ? "storagePenEchoServer" : location === "cloud" ? "storagePenEchoCloud" : "storageThisDevice");
+    return t(location === "server" ? "storageFastLecturesServer" : location === "cloud" ? "storageFastLecturesCloud" : "storageThisDevice");
   }
   function cloudHistoryCopy(key) {
     return t({
       title:"snapshotCloudSignInRequired",
       description:"snapshotCloudSignInHint",
-      action:"openPenEchoCloud",
+      action:"openFastLecturesCloud",
       confirmExternalOpen:"openCloudCanvasUnsaved",
     }[key] || key);
   }
@@ -12632,7 +12637,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function updateSnapshotLocationUi() {
     const location = SNAPSHOT_LOCATIONS.has(state.snapshotLocation) ? state.snapshotLocation : "device",
-      descriptionKey = location === "server" ? "storagePenEchoServerDescription" : location === "cloud" ? "storagePenEchoCloudDescription" : "storageThisDeviceDescription";
+      descriptionKey = location === "server" ? "storageFastLecturesServerDescription" : location === "cloud" ? "storageFastLecturesCloudDescription" : "storageThisDeviceDescription";
     document.querySelectorAll('input[name="historyStorageLocation"], input[name="newCanvasStorageLocation"]').forEach((input) => {
       input.checked = input.value === location;
     });
@@ -12654,7 +12659,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       snapshotLoadingId = null;
     }
     state.snapshotLocation = location;
-    localStorage.setItem("penecho-snapshot-location", location);
+    localStorage.setItem("fastlectures-snapshot-location", location);
     snapshotItems = [];
     snapshotItemsLocation = null;
     if (location === "cloud") cloudCanvasProjects = [];
@@ -12790,7 +12795,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       saveButton.classList.toggle("is-saving", busy);
       saveButton.setAttribute("aria-busy", String(busy));
     }
-    window.PenEchoStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.updateDocument?.();
     if (!busy) renderServerProjectUi();
     updateHistoryReadControls();
   }
@@ -12813,7 +12818,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   async function saveCurrentCanvas() {
     if (snapshotSaveInProgress) return;
-    const location = state.currentSnapshotLocation || (window.PENECHO_CONFIG?.browserCanvasEditing ? "cloud" : state.snapshotLocation),
+    const location = state.currentSnapshotLocation || (window.FASTLECTURES_CONFIG?.browserCanvasEditing ? "cloud" : state.snapshotLocation),
       overwriteId = state.currentSnapshotId && state.currentSnapshotLocation === location ? state.currentSnapshotId : null,
       requestedName = document.querySelector("#historyName")?.value.trim(),
       name = requestedName || currentCanvasDisplayName();
@@ -13005,7 +13010,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     try {
       return await canvasBlob(snapshotPreview(), "image/webp", .78);
     } catch (error) {
-      console.warn("PenEcho snapshot thumbnail failed; saving with a fallback thumbnail:", error);
+      console.warn("FastLectures snapshot thumbnail failed; saving with a fallback thumbnail:", error);
       return dataUrlBlob("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
     }
   }
@@ -13039,7 +13044,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     let body = null;
     try { body = await snapshotJsonBody(response, onProgress); } catch {}
     if (!response.ok) {
-      const error = Error(body?.error || `PenEcho server returned HTTP ${response.status}`);
+      const error = Error(body?.error || `FastLectures server returned HTTP ${response.status}`);
       error.status = response.status;
       error.code = body?.code || body?.error || null;
       throw error;
@@ -13064,7 +13069,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   async function cloudSnapshotItems() {
     const response = await fetch("/api/cloud/library", { credentials:"same-origin", cache:"no-store", headers:authenticatedApiHeaders() }),
       body = await snapshotApiResponse(response);
-    if (body?.sync?.bundleVersion !== 2 || body.sync.conflictPolicy !== "base-revision-required") throw Error("PenEcho Cloud does not support this Canvas sync version");
+    if (body?.sync?.bundleVersion !== 2 || body.sync.conflictPolicy !== "base-revision-required") throw Error("FastLectures Cloud does not support this Canvas sync version");
     cloudCanvasProjects = Array.isArray(body.projects) ? body.projects : [];
     const selectedExists = selectedCloudProjectId === CLOUD_ALL_PROJECTS_ID || cloudCanvasProjects.some((project) => project.id === selectedCloudProjectId);
     if (!selectedExists) rememberSelectedCloudProject(cloudDefaultProjectId() || CLOUD_ALL_PROJECTS_ID);
@@ -13074,7 +13079,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     })).sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
   }
   async function snapshotsAt(location) {
-    if (location === "server") await window.PenEchoLinkedDevice?.refresh({ ifNeeded:true });
+    if (location === "server") await window.FastLecturesLinkedDevice?.refresh({ ifNeeded:true });
     return location === "server" ? serverSnapshotItems() : location === "cloud" ? cloudSnapshotItems() : allSnapshots();
   }
   function animationBounds(region = null) {
@@ -13193,7 +13198,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function exportFilename() {
     const now = new Date(),
       pad = (value) => String(value).padStart(2, "0");
-    return `penecho-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.png`;
+    return `fastlectures-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.png`;
   }
   async function exportCanvasPng() {
     const buttons = [document.querySelector("#exportPngBtn"), canvasViewDownloadButton].filter(Boolean);
@@ -13344,12 +13349,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     }
   }
   function snapshotCanvasObjectExtensions() {
-    return { ...snapshotExtensionObject(state.currentSnapshotBundleExtensions), penechoObjectOrder:{
+    return { ...snapshotExtensionObject(state.currentSnapshotBundleExtensions), fastlecturesObjectOrder:{
       version:1, frontKind:state.frontCanvasObjectKind, placedKind:state.frontPlacedCanvasObjectKind,
     } };
   }
   function restoreSnapshotCanvasObjectOrder(extensions) {
-    const order = extensions?.penechoObjectOrder;
+    const order = extensions?.fastlecturesObjectOrder;
     restoreCanvasObjectFrontKinds(order?.version === 1 ? order.frontKind : "image", order?.version === 1 ? order.placedKind : "image");
   }
   function snapshotPreservedAssets(value) {
@@ -13383,7 +13388,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       name:item.name,
       projectId:item.projectId || SERVER_DEFAULT_PROJECT_ID,
       manifest:{
-        format:"penecho-raster-tiles",
+        format:"fastlectures-raster-tiles",
         formatVersion:1,
         canvasSize:{ width:SIZE, height:SIZE },
         tileSize:TILE,
@@ -13455,7 +13460,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (origin?.id && /^[0-9a-f-]{36}$/i.test(origin.id)) {
       item.bundleExtensions = {
         ...snapshotExtensionObject(item.bundleExtensions),
-        penechoCommunity:{
+        fastlecturesCommunity:{
           originItemId:origin.id,
           rootItemId:origin.rootItemId || origin.id,
           originName:String(origin.name || "").trim().slice(0, 160),
@@ -13478,7 +13483,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   // tool keep the restored objects read-only while fitViewerCanvas() frames
   // the complete artifact instead of its publishing-time pan/zoom.
   async function viewCommunityCanvasArtifact(artifact) {
-    if (window.PENECHO_CONFIG?.runtime !== "viewer") throw Error("Read-only Canvas viewing is unavailable in this runtime.");
+    if (window.FASTLECTURES_CONFIG?.runtime !== "viewer") throw Error("Read-only Canvas viewing is unavailable in this runtime.");
     const parsed = await readSnapshotBundle(artifact),
       { item, tileEntries } = parsed,
       loadGeneration = ++state.snapshotLoadGeneration,
@@ -13561,7 +13566,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
           originName:artifact?.widget?.communityOriginName,
           originGeneration:artifact?.widget?.communityOriginGeneration,
         }
-      : artifact?.extensions?.penechoCommunity;
+      : artifact?.extensions?.fastlecturesCommunity;
     return lineage && /^[0-9a-f-]{36}$/i.test(String(lineage.originItemId || ""))
       ? {
           parentItemId:lineage.originItemId,
@@ -13572,7 +13577,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       : null;
   }
   function publishedCommunityOrigin(item) {
-    if (!item || !/^[0-9a-f-]{36}$/i.test(String(item.id || ""))) throw Error("PenEcho Cloud returned an invalid Craft confirmation.");
+    if (!item || !/^[0-9a-f-]{36}$/i.test(String(item.id || ""))) throw Error("FastLectures Cloud returned an invalid Craft confirmation.");
     return {
       originItemId:item.id,
       rootItemId:/^[0-9a-f-]{36}$/i.test(String(item.rootItemId || "")) ? item.rootItemId : item.id,
@@ -13583,12 +13588,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   async function persistCurrentCanvasCommunityOrigin(origin) {
     state.currentSnapshotBundleExtensions = {
       ...snapshotExtensionObject(state.currentSnapshotBundleExtensions),
-      penechoCommunity:origin,
+      fastlecturesCommunity:origin,
     };
     if (state.currentSnapshotLocation !== "device" || !state.currentSnapshotId) return;
     const db = await snapshotDb(), transaction = db.transaction(SNAPSHOT_STORE, "readwrite"), store = transaction.objectStore(SNAPSHOT_STORE), item = await requestResult(store.get(state.currentSnapshotId));
     if (!item) return;
-    item.bundleExtensions = { ...snapshotExtensionObject(item.bundleExtensions), penechoCommunity:origin };
+    item.bundleExtensions = { ...snapshotExtensionObject(item.bundleExtensions), fastlecturesCommunity:origin };
     store.put(item);
     await transactionDone(transaction);
   }
@@ -13645,7 +13650,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         body:JSON.stringify({ name:item.name || "Untitled Canvas", bundle }),
       }),
       body = await snapshotApiResponse(response);
-    if (!body?.canvas?.id || !body?.revision?.id) throw Error("PenEcho Cloud returned an invalid save confirmation");
+    if (!body?.canvas?.id || !body?.revision?.id) throw Error("FastLectures Cloud returned an invalid save confirmation");
     return { id:body.canvas.id, revisionId:body.revision.id };
   }
   async function saveSnapshot({ overwriteId = null, name = null, location = state.snapshotLocation, allowEmpty = false } = {}) {
@@ -13731,9 +13736,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(typeof canvasDocumentsDidSave==="function")await canvasDocumentsDidSave(item,location,storedId,tileEntries);
     canvasAgentCanvasDidPersist(location, storedId);
     await refreshSnapshots();
-    window.PenEchoStudioNavigator?.refreshSource?.(location, { force:true });
+    window.FastLecturesStudioNavigator?.refreshSource?.(location, { force:true });
     setStatusKey(overwriteId ? "snapshotOverwritten" : "snapshotSaved");
-    window.PenEchoStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.updateDocument?.();
     return storedId;
   }
   async function readDeviceSnapshot(id) {
@@ -13745,7 +13750,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return item ? { item, tileEntries } : null;
   }
   async function readSnapshotBundle(stored) {
-    if (!stored || stored.bundleVersion !== 2 || stored.mode !== "snapshot" || stored.formatVersion !== 1 || stored.manifest?.format !== "penecho-raster-tiles" || stored.manifest?.formatVersion !== 1 || !Array.isArray(stored.assets)) throw Error("PenEcho returned an invalid canvas bundle");
+    if (!stored || stored.bundleVersion !== 2 || stored.mode !== "snapshot" || stored.formatVersion !== 1 || stored.manifest?.format !== "fastlectures-raster-tiles" || stored.manifest?.formatVersion !== 1 || !Array.isArray(stored.assets)) throw Error("FastLectures returned an invalid canvas bundle");
     const previewAsset = stored.assets.find((asset) => asset.kind === "preview"),
       tileAssets = stored.assets.filter((asset) => asset.kind === "tile"),
       imageAssets = stored.assets.filter((asset) => asset.kind === "resource" && asset.metadata?.resourceType === "image"),
@@ -13793,10 +13798,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       }),
       body = await snapshotApiResponse(response, onProgress),
       stored = body?.canvas;
-    if (!stored) throw Error("PenEcho server returned an invalid canvas");
+    if (!stored) throw Error("FastLectures server returned an invalid canvas");
     const storedVersion = stored.version ?? stored.bundleVersion ?? 1;
     if (storedVersion === 2) return readSnapshotBundle(stored);
-    if (!Array.isArray(stored.tiles) || !Array.isArray(stored.images)) throw Error("PenEcho server returned an invalid canvas");
+    if (!Array.isArray(stored.tiles) || !Array.isArray(stored.images)) throw Error("FastLectures server returned an invalid canvas");
     return {
       item:{
         ...stored,
@@ -13816,7 +13821,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         headers:authenticatedApiHeaders(),
       }),
       body = await snapshotApiResponse(response, onProgress);
-    if (!body?.bundle || !body?.revision?.id) throw Error("PenEcho Cloud returned an invalid Canvas");
+    if (!body?.bundle || !body?.revision?.id) throw Error("FastLectures Cloud returned an invalid Canvas");
     const parsed = await readSnapshotBundle(body.bundle),
       metadata = snapshotItems.find((item) => item.id === id);
     parsed.item = {
@@ -13937,11 +13942,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       state.snapshotSavedRevision = state.userRevision;
       if(typeof canvasDocumentsAdopt==="function")await canvasDocumentsAdopt(item,location);
       resetCanvasDefaultMode();
-      const restoreStudioConversation=window.PenEchoStudioNavigator?.wantsConversationForCanvas?.({ id:item.id, location })===true;
+      const restoreStudioConversation=window.FastLecturesStudioNavigator?.wantsConversationForCanvas?.({ id:item.id, location })===true;
       canvasAgentCanvasDidChange({ id:item.id, location },{clearProject:true,deferConversationStart:restoreStudioConversation});
-      window.PenEchoStudioNavigator?.canvasDidLoad?.({ id:item.id, location });
-      window.PenEchoStudioNavigator?.renderCanvases?.();
-      window.PenEchoStudioNavigator?.updateDocument?.();
+      window.FastLecturesStudioNavigator?.canvasDidLoad?.({ id:item.id, location });
+      window.FastLecturesStudioNavigator?.renderCanvases?.();
+      window.FastLecturesStudioNavigator?.updateDocument?.();
       setHistoryActivity(t("snapshotLoading").replace("{name}", displayName), t("snapshotLoadApplying"), 100);
       render();
       void refreshVisibleTextBoxQuality();
@@ -13949,7 +13954,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       setStatusKey("snapshotLoaded");
       return true;
     } catch (error) {
-      window.PenEchoStudioNavigator?.cancelPendingConversation?.();
+      window.FastLecturesStudioNavigator?.cancelPendingConversation?.();
       if (decodedTiles?.size) releaseSnapshotTileCanvases(decodedTiles);
       if (loadGeneration !== state.snapshotLoadGeneration) return false;
       const message = t("snapshotLoadFailed").replace("{message}", String(error?.message || error));
@@ -14006,8 +14011,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       state.currentSnapshotPreservedAssets = [];
     }
     await refreshSnapshots();
-    window.PenEchoStudioNavigator?.refreshSource?.(location, { force:true });
-    window.PenEchoStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.refreshSource?.(location, { force:true });
+    window.FastLecturesStudioNavigator?.updateDocument?.();
     setStatusKey("snapshotDeleted");
   }
   function requestSnapshotDelete(item, location = state.snapshotLocation) {
@@ -14152,8 +14157,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     state.currentSnapshotPreservedAssets = [];
     if(typeof canvasDocuments!=="undefined"){canvasDocuments.activeId=null;canvasDocuments.epoch++;canvasDocumentsCurrent();mcpRuntime.feedback=[];mcpRuntime.feedbackSequence=0;canvasDocumentsRender();}
     canvasAgentCanvasDidChange(null,{clearProject:true});
-    window.PenEchoStudioNavigator?.renderCanvases?.();
-    window.PenEchoStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.renderCanvases?.();
+    window.FastLecturesStudioNavigator?.updateDocument?.();
     state.viewInitialized = false;
     state.aiDraftReturnMode = null;
     state.pendingHistoryRestored = false;
@@ -14168,7 +14173,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     setStatusKey("newCanvasReady");
   }
   function openNewCanvasDialog() {
-    window.PenEchoStudioNavigator?.cancelPendingConversation?.();
+    window.FastLecturesStudioNavigator?.cancelPendingConversation?.();
     return requestCanvasTransition({ type:"new" });
   }
   async function completeNewCanvas(saveMode) {
@@ -14245,7 +14250,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return true;
   }
   async function saveEchoToCloud(name) {
-    if (window.PENECHO_CONFIG?.runtime !== "cloud" || !window.PENECHO_CONFIG?.browserCanvasEditing) throw Error("Cloud browser editing is unavailable");
+    if (window.FASTLECTURES_CONFIG?.runtime !== "cloud" || !window.FASTLECTURES_CONFIG?.browserCanvasEditing) throw Error("Cloud browser editing is unavailable");
     await cloudSnapshotItems();
     setSnapshotLocation("cloud", { refresh:false });
     const id = await saveSnapshot({ location:"cloud", overwriteId:null, name:String(name || currentCanvasDisplayName() || "Untitled Canvas"), allowEmpty:true });
@@ -14302,7 +14307,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         state.currentCanvasSuggestedName = "";
         canvasAgentCanvasDidPersist(location, id);
         if(typeof canvasDocumentsSyncExtension==="function"){canvasDocumentsSyncExtension();canvasDocumentsRender();}
-        window.PenEchoStudioNavigator?.updateDocument?.();
+        window.FastLecturesStudioNavigator?.updateDocument?.();
       }
       await refreshSnapshots();
       showHistoryNoticeKey("canvasRenamed", "success");
@@ -14382,7 +14387,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     loading.textContent = t("snapshotLibraryLoading").replace("{location}", snapshotLocationLabel(location));
     list.replaceChildren(loading);
     updateHistorySelectionUi(null);
-    window.PenEchoStudioNavigator?.renderCanvases?.();
+    window.FastLecturesStudioNavigator?.renderCanvases?.();
   }
   function renderSnapshotListError(location = state.snapshotLocation, retainItems = false) {
     const list = document.querySelector("#historyList");
@@ -14413,7 +14418,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       updateHistoryLibrarySummary(null);
       updateHistorySelectionUi(null);
     }
-    window.PenEchoStudioNavigator?.renderCanvases?.();
+    window.FastLecturesStudioNavigator?.renderCanvases?.();
   }
   function renderCloudHistorySignIn() {
     const list = document.querySelector("#historyList");
@@ -14435,7 +14440,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     empty.append(title, description, action);
     list.replaceChildren(empty);
     updateHistorySelectionUi(null);
-    window.PenEchoStudioNavigator?.renderCanvases?.();
+    window.FastLecturesStudioNavigator?.renderCanvases?.();
   }
   function serverProjectName(project) {
     return project?.id === SERVER_DEFAULT_PROJECT_ID || project?.system || project?.systemKey === "uncategorized" ? t("canvasProjectUncategorized") : project?.name || t("canvasProjectUncategorized");
@@ -14716,7 +14721,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     updateHistorySelectionUi();
   }
   function renderStudioSnapshotLists() {
-    window.PenEchoStudioNavigator?.render?.();
+    window.FastLecturesStudioNavigator?.render?.();
   }
   function revokeHistoryPreviewUrlWhenSettled(url, image) {
     const revoke = () => {
@@ -15166,7 +15171,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const panel = document.querySelector("#historyPanel"),
       backdrop = document.querySelector("#historyBackdrop"),
       button = document.querySelector("#historyBtn");
-    window.PenEchoStudioNavigator?.historyManagerWillOpen?.();
+    window.FastLecturesStudioNavigator?.historyManagerWillOpen?.();
     backdrop.hidden = false;
     panel.inert = false;
     panel.classList.add("open");
@@ -15200,7 +15205,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     panel.classList.remove("open");
     panel.setAttribute("aria-hidden", "true");
     button.setAttribute("aria-expanded", "false");
-    window.PenEchoStudioNavigator?.historyManagerDidClose?.();
+    window.FastLecturesStudioNavigator?.historyManagerDidClose?.();
     setTimeout(() => {
       if (!panel.classList.contains("open")) {
         backdrop.hidden = true;
@@ -15605,7 +15610,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     state.textBoxHistoryBefore = null;
     if (state.history.length > MAX_HISTORY) state.history.shift();
     state.future = [];
-    window.PenEchoStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.updateDocument?.();
     return entry;
   }
   function saveUserCanvasChange() {
@@ -15631,7 +15636,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     clearSharpOverlays();
     requestAnimationLayerRender();
     render();
-    window.PenEchoStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.updateDocument?.();
   }
   function undo() {
     save();
@@ -16186,13 +16191,13 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     onActivity?.();
     const contentType=String(response.headers.get("content-type")||"").split(";",1)[0].trim().toLowerCase();
     if(contentType!=="application/x-ndjson")return{ok:response.ok,status:response.status,data:await response.json()};
-    if(!response.body)throw new Error("PenEcho returned an empty progress stream.");
+    if(!response.body)throw new Error("FastLectures returned an empty progress stream.");
     const reader=response.body.getReader(),decoder=new TextDecoder();
     let buffer="",terminal=null;
     const consume=(line)=>{
       if(!line.trim())return;
       let event;
-      try{event=JSON.parse(line)}catch{throw new Error("PenEcho returned an invalid progress event.")}
+      try{event=JSON.parse(line)}catch{throw new Error("FastLectures returned an invalid progress event.")}
       if(event?.type==="progress")onProgress?.(event);
       else if(event?.type==="result"||event?.type==="error")terminal=event;
     };
@@ -16205,7 +16210,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       if(done)break;
     }
     if(buffer.trim())consume(buffer);
-    if(!terminal)throw new Error("PenEcho progress stream ended before the model response arrived.");
+    if(!terminal)throw new Error("FastLectures progress stream ended before the model response arrived.");
     const status=Number.isInteger(terminal.status)?terminal.status:terminal.type==="result"?200:500;
     return{ok:terminal.type==="result"&&status>=200&&status<300,status,data:terminal.data||{}};
   }
@@ -16276,7 +16281,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   async function requestAI(action, packedOverride = null, requestOptions = null) {
     if(typeof canvasDocumentsExternal==="function"&&canvasDocumentsExternal()) {
-      if(action!=="auto") {openCanvasAgent({focus:false});canvasDocumentsReport(canvasDocumentsCopy("An external conversation is selected. Send it an instruction here, or select PenEcho Agent to use Canvas AI.","当前由外部对话处理。请在这里发送指令，或选择 PenEcho Agent 使用画布 AI。"));}
+      if(action!=="auto") {openCanvasAgent({focus:false});canvasDocumentsReport(canvasDocumentsCopy("An external conversation is selected. Send it an instruction here, or select FastLectures Agent to use Canvas AI.","当前由外部对话处理。请在这里发送指令，或选择 FastLectures Agent 使用画布 AI。"));}
       return;
     }
     requestOptions = requestOptions || {};
@@ -19054,14 +19059,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     canvasAgentWidgetPickerContext = canvasAgentWidgetPickerLayer?.getContext("2d"),
     canvasAgentInkContext = canvasAgentInkCanvas?.getContext("2d");
   const CANVAS_AGENT_PROTOCOL_VERSION = 1,
-    CANVAS_AGENT_SESSION_KEY = "penecho-canvas-agent-session-v1",
-    CANVAS_AGENT_CLIENT_KEY = "penecho-canvas-agent-client-v1",
-    CANVAS_AGENT_POSITION_KEY = "penecho-canvas-agent-position-v1",
-    CANVAS_AGENT_HEIGHT_KEY = "penecho-canvas-agent-height-v1",
-    CANVAS_AGENT_WIDTH_KEY = "penecho-canvas-agent-width-v2",
-    CANVAS_AGENT_HISTORY_KEY = "penecho-canvas-agent-history-v1",
-    CANVAS_AGENT_SEARCH_ENABLED_KEY = "penecho-canvas-agent-search-enabled-v1",
-    CANVAS_AGENT_PROJECT_KEY = "penecho-canvas-agent-project-v1",
+    CANVAS_AGENT_SESSION_KEY = "fastlectures-canvas-agent-session-v1",
+    CANVAS_AGENT_CLIENT_KEY = "fastlectures-canvas-agent-client-v1",
+    CANVAS_AGENT_POSITION_KEY = "fastlectures-canvas-agent-position-v1",
+    CANVAS_AGENT_HEIGHT_KEY = "fastlectures-canvas-agent-height-v1",
+    CANVAS_AGENT_WIDTH_KEY = "fastlectures-canvas-agent-width-v2",
+    CANVAS_AGENT_HISTORY_KEY = "fastlectures-canvas-agent-history-v1",
+    CANVAS_AGENT_SEARCH_ENABLED_KEY = "fastlectures-canvas-agent-search-enabled-v1",
+    CANVAS_AGENT_PROJECT_KEY = "fastlectures-canvas-agent-project-v1",
     CANVAS_AGENT_PROJECT_UPLOAD_LIMIT = 32 * 1024 * 1024,
     CANVAS_AGENT_IMAGE_MEDIA_TYPES = new Set(["image/png","image/jpeg","image/webp","image/gif"]),
     CANVAS_AGENT_IMAGE_EXTENSION_TYPES = new Map([[".png","image/png"],[".jpg","image/jpeg"],[".jpeg","image/jpeg"],[".webp","image/webp"],[".gif","image/gif"]]),
@@ -19227,8 +19232,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     promptSuggestions:[],
     inkPresent:false,
     inkStroke:null,
-    searchConfigured:Boolean(window.PENECHO_CONFIG?.canvasAgentSearchConfigured),
-    searchEnabled:Boolean(window.PENECHO_CONFIG?.canvasAgentSearchConfigured) && localStorage.getItem(CANVAS_AGENT_SEARCH_ENABLED_KEY) !== "false",
+    searchConfigured:Boolean(window.FASTLECTURES_CONFIG?.canvasAgentSearchConfigured),
+    searchEnabled:Boolean(window.FASTLECTURES_CONFIG?.canvasAgentSearchConfigured) && localStorage.getItem(CANVAS_AGENT_SEARCH_ENABLED_KEY) !== "false",
     sessionSearchConfigured:false,
     sessionSearchEnabled:false,
     projectId:localStorage.getItem(CANVAS_AGENT_PROJECT_KEY) || "",
@@ -19286,20 +19291,20 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   } catch {}
 
   function canvasAgentAvailable() {
-    const config = window.PENECHO_CONFIG;
+    const config = window.FASTLECTURES_CONFIG;
     return config?.runtime !== "viewer" && (config?.canvasAgent !== false || config?.browserCanvasEditing === true);
   }
   function canvasAgentExecutionAvailable() {
-    const runtime = window.PENECHO_CONFIG?.runtime;
-    return runtime !== "viewer" && (window.PENECHO_CONFIG?.canvasAgent !== false || window.PENECHO_CONFIG?.hostedCanvasAgent === true && canvasAgentUsesCloudHost());
+    const runtime = window.FASTLECTURES_CONFIG?.runtime;
+    return runtime !== "viewer" && (window.FASTLECTURES_CONFIG?.canvasAgent !== false || window.FASTLECTURES_CONFIG?.hostedCanvasAgent === true && canvasAgentUsesCloudHost());
   }
   function canvasAgentCloudSavedCanvasId() {
     const id=String(state.currentSnapshotId||"");
-    return window.PENECHO_CONFIG?.runtime === "cloud" && state.currentSnapshotLocation === "cloud"
+    return window.FASTLECTURES_CONFIG?.runtime === "cloud" && state.currentSnapshotLocation === "cloud"
       && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id) ? id : "";
   }
   function canvasAgentCloudCanvasId() {
-    if (window.PENECHO_CONFIG?.runtime !== "cloud") return "";
+    if (window.FASTLECTURES_CONFIG?.runtime !== "cloud") return "";
     const saved = canvasAgentCloudSavedCanvasId();
     if (saved) return saved;
     const document = canvasDocumentsCurrent();
@@ -19314,14 +19319,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     // Detach before close: late frames and close handlers belong to the old Canvas.
     canvasAgent.socket=null;
     canvasAgent.socketCloudCanvasId="";
-    canvasAgentInvalidateSubmitExecution(Object.assign(Error("PenEcho Agent Canvas changed."),{code:"SESSION_CHANGED"}));
+    canvasAgentInvalidateSubmitExecution(Object.assign(Error("FastLectures Agent Canvas changed."),{code:"SESSION_CHANGED"}));
     canvasAgentDropSessionIdentity();
     canvasAgent.requestPending=false;
     canvasAgentSetRunning(false);
-    try { socket?.close(1000,"PenEcho Agent Canvas changed"); } catch {}
+    try { socket?.close(1000,"FastLectures Agent Canvas changed"); } catch {}
   }
   function canvasAgentUsesCloudHost(connectionId = null) {
-    return window.PENECHO_CONFIG?.runtime === "cloud" && window.PENECHO_CONFIG?.hostedCanvasAgent === true
+    return window.FASTLECTURES_CONFIG?.runtime === "cloud" && window.FASTLECTURES_CONFIG?.hostedCanvasAgent === true
       && /^hosted:[0-9a-f-]{36}$/i.test(connectionId ?? selectedAiConnectionId());
   }
   function canvasAgentContextProjectId() {
@@ -19748,7 +19753,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return "controlled";
   }
   function canvasAgentProjectRootApi() {
-    return window.PENECHO_CONFIG?.runtime==="cloud"
+    return window.FASTLECTURES_CONFIG?.runtime==="cloud"
       ? { roots:"/api/canvas-agent/roots", entries:"/api/canvas-agent/roots", select:"/api/canvas-agent/projects/from-root" }
       : { roots:"/api/canvas-agent/host-roots", entries:"/api/canvas-agent/host-roots", select:"/api/canvas-agent/projects/from-host-root" };
   }
@@ -19771,7 +19776,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return [...(dataTransfer?.items||[])].filter(item=>item.kind==="file").map(item=>item.getAsFile()).filter(file=>file instanceof Blob);
   }
   async function canvasAgentDesktopClipboardFiles() {
-    const desktop=window.penechoDesktop,plural=typeof desktop?.readClipboardFiles==="function";
+    const desktop=window.fastlecturesDesktop,plural=typeof desktop?.readClipboardFiles==="function";
     if(!plural&&typeof desktop?.readClipboardFile!=="function")return [];
     const payload=await (plural?desktop.readClipboardFiles():desktop.readClipboardFile());
     if(!payload?.ok){if(payload?.code==="too_many")throw Error(t("canvasAgentAttachmentLimit"));if(payload?.code==="too_large")throw Error(t("canvasAgentUploadTooLarge"));if(payload?.code==="empty")throw Error(t("canvasAgentUploadEmpty"));return [];}
@@ -20159,10 +20164,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return `/api/v1/hosted/canvases/${encodeURIComponent(scope.canvasId)}/files/${encodeURIComponent(scope.conversationId)}${fileId ? `/${encodeURIComponent(fileId)}` : ""}${scope.draft ? "?draft=1" : ""}`;
   }
   async function canvasAgentUploadCloudFile(file) {
-    if(window.PENECHO_CONFIG?.hostedDocumentFiles!==true)throw Error(t("canvasAgentCloudFilesHelp"));
+    if(window.FASTLECTURES_CONFIG?.hostedDocumentFiles!==true)throw Error(t("canvasAgentCloudFilesHelp"));
     if(!/\.(pdf|docx|xlsx|csv|txt|md|json)$/i.test(file.name)||file.size>8*1024*1024)throw Error(t("canvasAgentCloudFileFormats"));
     const scope=canvasAgentCloudFileScope(),body=await canvasAgentProjectRequest(canvasAgentCloudFilesPath(scope),{
-      method:"POST",headers:{"content-type":"application/x-penecho-document","x-document-name":encodeURIComponent(file.name)},body:file,
+      method:"POST",headers:{"content-type":"application/x-fastlectures-document","x-document-name":encodeURIComponent(file.name)},body:file,
     });
     const current=canvasAgentCloudFileScope();
     if(current.canvasId!==scope.canvasId||current.draft!==scope.draft||current.conversationId!==scope.conversationId||!canvasAgentUsesCloudHost()) {
@@ -20215,7 +20220,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const source=value&&typeof value==="object"?value:{message:value}, nested=source.error&&typeof source.error==="object"?source.error:null,
       code=canvasAgentHistoryText(source.code||source.name||nested?.code||nested?.name||"",128).replace(/[\0-\x1f\x7f]/g,"").trim(),
       fallback=typeof value==="string"?value:"",
-      message=canvasAgentHistoryText(source.message||nested?.message||fallback||"PenEcho Agent failed.",CANVAS_AGENT_ERROR_MESSAGE_LIMIT).trim()||"PenEcho Agent failed.";
+      message=canvasAgentHistoryText(source.message||nested?.message||fallback||"FastLectures Agent failed.",CANVAS_AGENT_ERROR_MESSAGE_LIMIT).trim()||"FastLectures Agent failed.";
     return {code,message};
   }
   function canvasAgentErrorKind(value) {
@@ -20224,7 +20229,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(/CONCURRENC|CAPACITY|SERVER_BUSY/.test(code)||/concurrenc|too many simultaneous|server is busy|service is busy/.test(message))return "busy";
     if(/TIMEOUT|ETIMEDOUT/.test(code)||/timed? out|timeout/.test(message))return "timeout";
     if(/RATE_LIMIT|TOO_MANY_REQUESTS|RESOURCE_EXHAUSTED|QUOTA/.test(code)||code==="429"||/rate limit|too many requests|quota exceeded|\b(?:http )?429\b/.test(message))return "rate_limit";
-    if(/CONTEXT_LENGTH|REQUEST_TOO_LARGE|PAYLOAD_TOO_LARGE|TOKEN_LIMIT/.test(code)||/context (?:length|window)|too many tokens|request (?:is )?too large|message is too large|more attachment data than penecho can safely process|maximum token/.test(message))return "request_too_large";
+    if(/CONTEXT_LENGTH|REQUEST_TOO_LARGE|PAYLOAD_TOO_LARGE|TOKEN_LIMIT/.test(code)||/context (?:length|window)|too many tokens|request (?:is )?too large|message is too large|more attachment data than fastlectures can safely process|maximum token/.test(message))return "request_too_large";
     if(/UNAUTHENTICATED|UNAUTHORIZED|AUTHENTICATION_FAILED|INVALID_API_KEY|API_KEY_INVALID|LOGIN_REQUIRED/.test(code)||code==="401"||/\bunauthorized\b|\bunauthenticated\b|authentication failed|invalid api key|please (?:log|sign) in|not logged in|\b(?:http )?401\b/.test(message))return "authentication";
     if(/MODEL_NOT_FOUND|MODEL_UNAVAILABLE|UNKNOWN_MODEL/.test(code)||/model .*?(?:not found|unavailable|does not exist|not supported)/.test(message))return "model_unavailable";
     if(code==="400"||/\bhttp 400\b/.test(message))return "request_rejected";
@@ -20254,9 +20259,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return `${text.slice(0,end)}…`;
   }
   function canvasAgentVisibleAssistantText(value) {
-    const text=String(value||""),opening=/<p(?:h)?enecho_canvas_title>/.exec(text);
+    const text=String(value||""),opening=/<(?:fastlectures|phenecho|p(?:h)?enecho)_canvas_title>/.exec(text);
     if(!opening)return canvasAgentMessageText(text);
-    const start=opening.index,titleStart=start+opening[0].length,closing=/<\/p(?:h)?enecho_canvas_title>/.exec(text.slice(titleStart));
+    const start=opening.index,titleStart=start+opening[0].length,closing=/<\/(?:fastlectures|phenecho|p(?:h)?enecho)_canvas_title>/.exec(text.slice(titleStart));
     if(!closing)return canvasAgentMessageText(text);
     const end=titleStart+closing.index,before=text.slice(0,start),after=text.slice(end+closing[0].length),left=before.match(/(?:\r?\n[ \t]*)+$/)?.[0]||"",right=after.match(/^(?:[ \t]*\r?\n)+/)?.[0]||"",lineBreak=left.includes("\r\n")||right.includes("\r\n")?"\r\n":"\n",breaks=Math.min(2,Math.max((left.match(/\n/g)||[]).length,(right.match(/\n/g)||[]).length));
     return canvasAgentMessageText(!before.trim()?after.slice(right.length):!after.trim()?before.slice(0,before.length-left.length):left&&right?`${before.slice(0,before.length-left.length)}${lineBreak.repeat(breaks)}${after.slice(right.length)}`:`${before}${after}`);
@@ -20481,7 +20486,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       empty.className="canvas-agent-history-empty";
       empty.textContent=t("canvasAgentHistoryEmpty");
       canvasAgentHistoryList.append(empty);
-      window.PenEchoStudioNavigator?.renderAgent?.();
+      window.FastLecturesStudioNavigator?.renderAgent?.();
       return;
     }
     for (const conversation of histories) {
@@ -20498,7 +20503,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       button.addEventListener("click",()=>current?canvasAgentHideHistoryPopover():void canvasAgentViewStoredConversation(conversation.id));
       canvasAgentHistoryList.append(button);
     }
-    window.PenEchoStudioNavigator?.renderAgent?.();
+    window.FastLecturesStudioNavigator?.renderAgent?.();
   }
   function canvasAgentHideHistoryPopover() {
     canvasAgentHistoryPopover.hidden=true;
@@ -20601,16 +20606,16 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       const reject=canvasAgent.connectReject;
       canvasAgent.connectPromise=null;
       canvasAgent.connectResolve=canvasAgent.connectReject=null;
-      reject(Object.assign(Error("PenEcho Agent session changed."),{code:"SESSION_CHANGED"}));
+      reject(Object.assign(Error("FastLectures Agent session changed."),{code:"SESSION_CHANGED"}));
     }
     for (const controller of canvasAgent.toolControllers.values()) {
-      controller.abort(Error("PenEcho Agent session changed."));
+      controller.abort(Error("FastLectures Agent session changed."));
     }
     canvasAgent.toolControllers.clear();
     canvasAgent.toolResultCache.clear();
     canvasAgent.activeToolExecution=null;
   }
-  function canvasAgentInvalidateSubmitExecution(reason=Error("PenEcho Agent session changed.")) {
+  function canvasAgentInvalidateSubmitExecution(reason=Error("FastLectures Agent session changed.")) {
     const execution=canvasAgent.activeSubmitExecution;
     if (!execution) return;
     canvasAgent.activeSubmitExecution=null;
@@ -20618,7 +20623,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(canvasAgent.requestPending)canvasAgentRequestDidNotSend();
   }
   function canvasAgentBeginSubmitExecution(connectionId) {
-    canvasAgentInvalidateSubmitExecution(Error("A newer PenEcho Agent submission replaced this request."));
+    canvasAgentInvalidateSubmitExecution(Error("A newer FastLectures Agent submission replaced this request."));
     const execution={
       connectionId:String(connectionId||""),
       controller:new AbortController(),
@@ -20640,11 +20645,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       && execution.generation===canvasAgent.sessionGeneration;
   }
   function canvasAgentAssertSubmitExecution(execution) {
-    if (!canvasAgentSubmitExecutionCurrent(execution)) throw Error("PenEcho Agent session changed before the message could be sent.");
+    if (!canvasAgentSubmitExecutionCurrent(execution)) throw Error("FastLectures Agent session changed before the message could be sent.");
   }
   function canvasAgentBindSubmitExecution(execution) {
     canvasAgentAssertSubmitExecution(execution);
-    if (!canvasAgent.sessionReady || !canvasAgent.sessionId || canvasAgent.socket?.readyState!==WebSocket.OPEN) throw Error("PenEcho Agent is not connected.");
+    if (!canvasAgent.sessionReady || !canvasAgent.sessionId || canvasAgent.socket?.readyState!==WebSocket.OPEN) throw Error("FastLectures Agent is not connected.");
     execution.socket=canvasAgent.socket;
     execution.sessionId=canvasAgent.sessionId;
     execution.generation=canvasAgent.sessionGeneration;
@@ -20661,7 +20666,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       && !execution.controller.signal.aborted;
   }
   function canvasAgentAssertToolExecution(execution) {
-    if (!canvasAgentToolExecutionCurrent(execution)) throw canvasAgentToolError("SESSION_EXPIRED","The PenEcho Agent session changed before this tool could finish.");
+    if (!canvasAgentToolExecutionCurrent(execution)) throw canvasAgentToolError("SESSION_EXPIRED","The FastLectures Agent session changed before this tool could finish.");
   }
   function canvasAgentCanvasIdentity({id,location}={}) {
     return id&&location?`${location}:${id}`:`draft:${canvasClientId()}`;
@@ -20707,7 +20712,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       void canvasAgentStartNewConversation(selectedAiConnectionId(),{resetProjection:false}).catch(canvasAgentReportAsyncError);
     } else canvasAgentDropSessionIdentity();
     canvasAgentSyncPromptSuggestions();
-    if (!window.PenEchoStudioNavigator?.isMcpDocked?.()) {
+    if (!window.FastLecturesStudioNavigator?.isMcpDocked?.()) {
       if (state.canvasAgentAutoOpen && (canvasAgentPanel.hidden || !document.body.classList.contains("canvas-agent-open"))) openCanvasAgent({focus:false});
     }
   }
@@ -20723,7 +20728,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function canvasAgentCanvasDidPersist(location,id) {
     canvasAgentReconcileCloudCanvas();
-    if (window.PENECHO_CONFIG?.runtime === "cloud") {
+    if (window.FASTLECTURES_CONFIG?.runtime === "cloud") {
       canvasAgentUpdateConnectionButton();
       if (canvasAgentPanel.dataset.status === "unavailable" && canvasAgentExecutionAvailable()) canvasAgentSetStatus(t("canvasAgentReadyConnect"),"ready");
     }
@@ -20731,7 +20736,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     const previousKey=state.canvasAgentCanvasKey, nextKey=canvasAgentCanvasIdentity({location,id});
     if (previousKey===nextKey) {
       if(!canvasAgent.projectId)canvasAgentWriteHistoryForCanvas(nextKey,canvasAgentHistoryForCanvas(nextKey));
-      window.PenEchoStudioNavigator?.renderAgent?.();
+      window.FastLecturesStudioNavigator?.renderAgent?.();
       return;
     }
     if(canvasAgent.projectId){state.canvasAgentCanvasKey=nextKey;canvasAgentRenderHistoryList();return;}
@@ -20745,7 +20750,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     canvasAgentRenderHistoryList();
   }
   function canvasAgentSendEnvelope(type, payload = {}) {
-    if (!canvasAgent.socket || canvasAgent.socket.readyState !== WebSocket.OPEN) throw Error("PenEcho Agent is not connected.");
+    if (!canvasAgent.socket || canvasAgent.socket.readyState !== WebSocket.OPEN) throw Error("FastLectures Agent is not connected.");
     canvasAgent.outgoingSeq++;
     canvasAgent.socket.send(JSON.stringify({
       version:CANVAS_AGENT_PROTOCOL_VERSION,
@@ -20975,7 +20980,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgent.panelPosition = null;
     }
     canvasAgentSyncToolbarLayout(theme);
-    window.PenEchoStudioNavigator?.syncTheme?.(theme);
+    window.FastLecturesStudioNavigator?.syncTheme?.(theme);
   }
   function canvasAgentResetHeightClasses() {
     for (const name of [...canvasAgentPanel.classList]) if (/^canvas-agent-height-\d+$/.test(name)) canvasAgentPanel.classList.remove(name);
@@ -21259,8 +21264,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return (extension||"FILE").slice(0,5).toUpperCase();
   }
   async function canvasAgentOpenProjectFile(attachment) {
-    if(!attachment?.projectId||typeof window.penechoDesktop?.openProjectFile!=="function")return false;
-    const result=await window.penechoDesktop.openProjectFile(attachment.projectId).catch(()=>({ok:false,code:"open_failed"}));
+    if(!attachment?.projectId||typeof window.fastlecturesDesktop?.openProjectFile!=="function")return false;
+    const result=await window.fastlecturesDesktop.openProjectFile(attachment.projectId).catch(()=>({ok:false,code:"open_failed"}));
     if(result?.ok)return true;
     canvasAgentSetStatus(t(result?.code==="unavailable"?"canvasAgentOpenFileUnavailable":"canvasAgentOpenFileFailed"),"error");
     return false;
@@ -21274,7 +21279,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     name.textContent=String(attachment?.name||"File");
     name.title=name.textContent;
     preview.append(type,name);
-    if(attachment?.projectId&&typeof window.penechoDesktop?.openProjectFile==="function"){
+    if(attachment?.projectId&&typeof window.fastlecturesDesktop?.openProjectFile==="function"){
       preview.classList.add("openable");
       preview.tabIndex=0;
       preview.setAttribute("role","button");
@@ -21337,7 +21342,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     canvasAgentRenderAttachments();
   }
   function canvasAgentSyncAttachmentButton() {
-    const cloudFiles=canvasAgentUsesCloudHost()&&window.PENECHO_CONFIG?.hostedDocumentFiles===true;
+    const cloudFiles=canvasAgentUsesCloudHost()&&window.FASTLECTURES_CONFIG?.hostedDocumentFiles===true;
     canvasAgentAttach.title=cloudFiles?t("canvasAgentCloudFileFormats"):t("canvasAgentAttach");
     canvasAgentFileInput.accept=cloudFiles?"image/*,.pdf,.docx,.xlsx,.csv,.txt,.md,.json":"";
     canvasAgentAttach.disabled=canvasAgent.attachmentBusy||canvasAgent.projectUploadBusy;
@@ -21385,7 +21390,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     }
     const pending=unique.filter(item=>!canvasAgent.attachments.some(attachment=>attachment.fingerprint===item.fingerprint));
     if(!pending.length){canvasAgentFileInput.value="";return false;}
-    if(canvasAgentUsesCloudHost()&&window.PENECHO_CONFIG?.hostedDocumentFiles!==true&&pending.some(item=>!item.image)){
+    if(canvasAgentUsesCloudHost()&&window.FASTLECTURES_CONFIG?.hostedDocumentFiles!==true&&pending.some(item=>!item.image)){
       canvasAgentFileInput.value="";
       canvasAgentSetStatus(t("canvasAgentCloudFilesHelp"),"error");
       return false;
@@ -21928,7 +21933,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return icon;
   }
   function canvasAgentEvaluationClientMetadata() {
-    const config=window.PENECHO_CONFIG||{},runtime=String(config.runtime||"device"),source=`${navigator.userAgent||""} ${navigator.platform||""}`;
+    const config=window.FASTLECTURES_CONFIG||{},runtime=String(config.runtime||"device"),source=`${navigator.userAgent||""} ${navigator.platform||""}`;
     const browserPlatform=/android/i.test(source)?"android":/iphone|ipad|ipod/i.test(source)?"ios":/windows/i.test(source)?"windows":/macintosh|mac os|macintel/i.test(source)?"macos":/linux/i.test(source)?"linux":"unknown";
     const configuredPlatform=String(config.clientPlatform||"").toLowerCase(),platform=new Set(["darwin","win32","linux"]).has(configuredPlatform)?({darwin:"macos",win32:"windows",linux:"linux"})[configuredPlatform]:browserPlatform==="unknown"&&runtime==="cloud"?"web":browserPlatform;
     const client=["ios","android"].includes(platform)?"mobile":runtime==="cloud"?"cloud":config.desktopApp===true?"desktop":"web",version=String(config.clientVersion||(runtime==="cloud"?"cloud":"unknown")).trim();
@@ -22055,7 +22060,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     let decodedBytes=-1;
     try{decodedBytes=atob(match?.[2]||"").length;}catch{}
     if(!match||String(attachment?.mediaType||"")!==match[1]||decodedBytes!==bytes||!Number.isSafeInteger(bytes)||bytes<=0||bytes>maxBytes||!Number.isSafeInteger(width)||width<1||width>CANVAS_AGENT_DETAIL_CAPTURE_POLICY.maxLongEdge||!Number.isSafeInteger(height)||height<1||height>CANVAS_AGENT_DETAIL_CAPTURE_POLICY.maxLongEdge||match[2].length>Math.ceil(maxBytes*4/3)+4)return null;
-    const name=String(attachment.name||"penecho-canvas-capture").replace(/[^\w.-]+/g,"-").replace(/^[.-]+/,"").slice(0,180)||"penecho-canvas-capture";
+    const name=String(attachment.name||"fastlectures-canvas-capture").replace(/[^\w.-]+/g,"-").replace(/^[.-]+/,"").slice(0,180)||"fastlectures-canvas-capture";
     return {id:canvasClientId(),kind:"canvas_capture",name,mediaType:match[1],bytes,width,height,dataUrl:match[0]};
   }
   function canvasAgentRenderErrorElement(target) {
@@ -22250,20 +22255,20 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(name==="load_widget_contract"&&widgetContractKey)return t(widgetContractKey);
     if(name==="load_project_plugin"&&projectPluginKey)return t(projectPluginKey);
     const key = {
-      penecho_list_files:"canvasAgentToolInspect",
-      penecho_read_file:"canvasAgentToolRead",
-      penecho_get_guidance:"canvasAgentToolRead",
-      penecho_present_widget:"canvasAgentToolCreate",
-      penecho_draw:"canvasAgentToolCreate",
-      penecho_plot:"canvasAgentToolCreate",
-      penecho_patch_file:"canvasAgentToolPatchWidget",
-      penecho_edit_canvas:"canvasAgentToolEdit",
-      penecho_capture_canvas:"canvasAgentToolCapture",
-      penecho_capture_widget:"canvasAgentToolCapture",
-      penecho_inspect_session:"canvasAgentToolInspect",
-      penecho_read_feedback:"canvasAgentToolRead",
-      penecho_read_messages:"canvasAgentToolRead",
-      penecho_ack_messages:"canvasAgentToolEdit",
+      fastlectures_list_files:"canvasAgentToolInspect",
+      fastlectures_read_file:"canvasAgentToolRead",
+      fastlectures_get_guidance:"canvasAgentToolRead",
+      fastlectures_present_widget:"canvasAgentToolCreate",
+      fastlectures_draw:"canvasAgentToolCreate",
+      fastlectures_plot:"canvasAgentToolCreate",
+      fastlectures_patch_file:"canvasAgentToolPatchWidget",
+      fastlectures_edit_canvas:"canvasAgentToolEdit",
+      fastlectures_capture_canvas:"canvasAgentToolCapture",
+      fastlectures_capture_widget:"canvasAgentToolCapture",
+      fastlectures_inspect_session:"canvasAgentToolInspect",
+      fastlectures_read_feedback:"canvasAgentToolRead",
+      fastlectures_read_messages:"canvasAgentToolRead",
+      fastlectures_ack_messages:"canvasAgentToolEdit",
       canvas_inspect:"canvasAgentToolInspect",
       canvas_read:"canvasAgentToolRead",
       canvas_capture:"canvasAgentToolCapture",
@@ -22297,9 +22302,9 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       name==="bash"?quoted(args?.command):
       ["glob","grep"].includes(name)?quoted(args?.pattern):
       fileReader?compact(args?.file_path):
-      ["penecho_read_file","penecho_patch_file"].includes(name)?compact(args?.path):
-      name==="penecho_get_guidance"?compact(args?.id):
-      ["penecho_present_widget","penecho_draw","penecho_plot"].includes(name)?compact(args?.title):
+      ["fastlectures_read_file","fastlectures_patch_file"].includes(name)?compact(args?.path):
+      name==="fastlectures_get_guidance"?compact(args?.id):
+      ["fastlectures_present_widget","fastlectures_draw","fastlectures_plot"].includes(name)?compact(args?.title):
       name==="read_database"?[compact(args?.file_path),quoted(args?.query)].filter(Boolean).join(" · "):
       name==="list_directory"?compact(args?.path||"."):
       ["canvas_create","canvas_edit"].includes(name)?compact(args?.summary):
@@ -22470,7 +22475,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (envelope.type === "ready") {
       const selection=canvasAgent.pendingSelection;
       if(selection && (selection.connectionId!==selectedAiConnectionId() || selection.scope!==aiConnectionScope(selection.connectionId.startsWith("hosted:")))) {
-        canvasAgent.connectReject?.(Object.assign(Error("PenEcho Agent selection changed."),{code:"SESSION_CHANGED"}));
+        canvasAgent.connectReject?.(Object.assign(Error("FastLectures Agent selection changed."),{code:"SESSION_CHANGED"}));
         return;
       }
       canvasAgent.lastTurnError=null;
@@ -22539,15 +22544,15 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgentSetStatus(canvasAgentErrorSummary(error),"error");
       if(pendingHandshakeError){
         canvasAgent.sessionReady=Boolean(canvasAgent.sessionId);
-        canvasAgent.connectReject?.(Object.assign(Error(envelope.payload?.message || "PenEcho Agent failed"),{code:error.code}));
+        canvasAgent.connectReject?.(Object.assign(Error(envelope.payload?.message || "FastLectures Agent failed"),{code:error.code}));
         canvasAgent.connectResolve=canvasAgent.connectReject=null;
-      }else if (envelope.payload?.fatal) canvasAgent.connectReject?.(Object.assign(Error(envelope.payload?.message || "PenEcho Agent failed"),{code:error.code}));
+      }else if (envelope.payload?.fatal) canvasAgent.connectReject?.(Object.assign(Error(envelope.payload?.message || "FastLectures Agent failed"),{code:error.code}));
     }
   }
   function canvasAgentSocketUrl(connectionId = selectedAiConnectionId()) {
     const path=canvasAgentUsesCloudHost(connectionId)
       ? `/api/v1/hosted/canvases/${canvasAgentCloudCanvasId()}/agent${canvasAgentCloudSavedCanvasId() ? "" : "?draft=1"}`
-      : window.PENECHO_CONFIG?.runtime === "cloud" ? "/api/v1/remote-canvas/canvas-agent" : "/api/canvas-agent/socket";
+      : window.FASTLECTURES_CONFIG?.runtime === "cloud" ? "/api/v1/remote-canvas/canvas-agent" : "/api/canvas-agent/socket";
     return `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${path}`;
   }
   function canvasAgentRestoreScopedSession(scope, connectionId) {
@@ -22562,14 +22567,14 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function canvasAgentWaitForReady(start,{handshakeId,provider}={}) {
     if (canvasAgent.connectPromise) return canvasAgent.connectPromise;
     const expectedHandshakeId=String(handshakeId||"");
-    if (!expectedHandshakeId) return Promise.reject(Error("PenEcho Agent handshake is missing."));
+    if (!expectedHandshakeId) return Promise.reject(Error("FastLectures Agent handshake is missing."));
     const connectionId=selectedAiConnectionId(), scope=aiConnectionScope(connectionId.startsWith("hosted:"));
     const generation=canvasAgent.sessionGeneration, conversationId=canvasAgent.currentConversation?.id;
     let wrapped;
     const pending=Promise.resolve().then(async()=>{
       for(let attempt=0;attempt<2;attempt++){
         await validateAiConnectionSelection(connectionId,scope);
-        if (canvasAgent.connectPromise !== wrapped || canvasAgent.sessionGeneration !== generation || canvasAgent.currentConversation?.id !== conversationId) throw Object.assign(Error("PenEcho Agent session changed."),{code:"SESSION_CHANGED"});
+        if (canvasAgent.connectPromise !== wrapped || canvasAgent.sessionGeneration !== generation || canvasAgent.currentConversation?.id !== conversationId) throw Object.assign(Error("FastLectures Agent session changed."),{code:"SESSION_CHANGED"});
         canvasAgentRestoreScopedSession(scope,connectionId);
         canvasAgent.pendingSelection = { connectionId, scope };
         canvasAgent.pendingHandshakeId=expectedHandshakeId;
@@ -22693,7 +22698,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   async function canvasAgentConnect(options) {
     canvasAgentReconcileCloudCanvas();
     const cloudCanvasId=canvasAgentCloudCanvasId();
-    const assertCloudCanvas=()=>{if(cloudCanvasId!==canvasAgentCloudCanvasId())throw Object.assign(Error("PenEcho Agent Canvas changed."),{code:"SESSION_CHANGED"});};
+    const assertCloudCanvas=()=>{if(cloudCanvasId!==canvasAgentCloudCanvasId())throw Object.assign(Error("FastLectures Agent Canvas changed."),{code:"SESSION_CHANGED"});};
     if (!canvasAgentExecutionAvailable()) throw Object.assign(Error(t("canvasAgentNoConnections")),{code:"CANVAS_AGENT_NO_CONNECTION"});
     const {submitExecution=null}=options||{};
     await canvasAgentEnsureProjects();
@@ -22707,7 +22712,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvasAgent.resumeToken="";
       canvasAgent.sessionReady=false;
       // Keep the same conversation; the next hello carries its bounded history.
-      try { previousSocket.close(1000,"PenEcho Agent execution host changed"); } catch {}
+      try { previousSocket.close(1000,"FastLectures Agent execution host changed"); } catch {}
     }
     if (canvasAgent.socket?.readyState === WebSocket.OPEN && canvasAgent.sessionId) {
       if (canvasAgent.sessionReady&&canvasAgent.connectionId === connectionId&&canvasAgentSessionContextMatches()) return;
@@ -22735,12 +22740,12 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       const socket = new WebSocket(canvasAgentSocketUrl());
       canvasAgent.socket = socket;
       canvasAgent.socketCloudCanvasId=canvasAgentUsesCloudHost(connectionId)?cloudCanvasId:"";
-      if(previousSocket&&previousSocket!==socket){try{previousSocket.close(1000,"PenEcho Agent session replaced");}catch{}}
+      if(previousSocket&&previousSocket!==socket){try{previousSocket.close(1000,"FastLectures Agent session replaced");}catch{}}
       socket.addEventListener("open",()=>{
         canvasAgentReconcileCloudCanvas();
         if(socket!==canvasAgent.socket){socket.close();return;}
         const selection=canvasAgent.pendingSelection;
-        if(selection && (selection.connectionId!==selectedAiConnectionId() || selection.scope!==aiConnectionScope(selection.connectionId.startsWith("hosted:")))) { socket.close(1000,"PenEcho Agent selection changed"); return; }
+        if(selection && (selection.connectionId!==selectedAiConnectionId() || selection.scope!==aiConnectionScope(selection.connectionId.startsWith("hosted:")))) { socket.close(1000,"FastLectures Agent selection changed"); return; }
         canvasAgent.outgoingSeq = 0;
         canvasAgent.incomingSeq = 0;
         const conversationHistory=canvasAgentContinuationHistory();
@@ -22761,15 +22766,15 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       socket.addEventListener("message",event=>{canvasAgentReconcileCloudCanvas();if(socket===canvasAgent.socket)void canvasAgentHandleMessage(event);});
       socket.addEventListener("close",()=>{
         if (socket !== canvasAgent.socket) return;
-        if (!canvasAgentUsesCloudHost(canvasAgent.connectionId)) window.PenEchoLinkedDevice?.invalidate();
+        if (!canvasAgentUsesCloudHost(canvasAgent.connectionId)) window.FastLecturesLinkedDevice?.invalidate();
         const wasPending = Boolean(canvasAgent.connectReject),hadActiveTurn=canvasAgent.requestPending||canvasAgent.running;
         canvasAgent.sessionEngine="";
         canvasAgent.sessionModel="";
         canvasAgent.sessionChannel="";
         canvasAgent.activeEvaluationContext=null;
-        canvasAgentInvalidateSubmitExecution(Error("PenEcho Agent connection closed."));
+        canvasAgentInvalidateSubmitExecution(Error("FastLectures Agent connection closed."));
         canvasAgentBeginSessionTransition();
-        canvasAgent.connectReject?.(Error("PenEcho Agent connection closed."));
+        canvasAgent.connectReject?.(Error("FastLectures Agent connection closed."));
         canvasAgent.connectResolve = canvasAgent.connectReject = null;
         canvasAgent.connectPromise = null;
         canvasAgent.socket = null;
@@ -22782,7 +22787,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         canvasAgentSyncTriggerState();
         canvasAgentResumeAutomaticAI();
         if(hadActiveTurn&&!canvasAgent.lastTurnError){
-          const error=canvasAgentNormalizeError({code:"CONNECTION_CLOSED",message:"PenEcho Agent connection closed."});
+          const error=canvasAgentNormalizeError({code:"CONNECTION_CLOSED",message:"FastLectures Agent connection closed."});
           canvasAgent.lastTurnError=error;
           canvasAgentErrorRow(error,{eventKey:`connection:${Date.now()}`});
           canvasAgentSetStatus(canvasAgentErrorSummary(error),"error");
@@ -22848,7 +22853,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       canvas_internal_patch_visual_explainer:["objectId","artifactId","baseRevision","expectedHash","changeId","plan","command","summary"],
     }[name];
     const extras=Object.keys(args||{}).filter(key=>!allowed?.includes(key));
-    if(!allowed||extras.length)throw canvasAgentToolError("INVALID_ARGUMENT",extras.length?`Unexpected ${name} argument: ${extras[0]}.`:`Unknown PenEcho Agent tool: ${name}.`);
+    if(!allowed||extras.length)throw canvasAgentToolError("INVALID_ARGUMENT",extras.length?`Unexpected ${name} argument: ${extras[0]}.`:`Unknown FastLectures Agent tool: ${name}.`);
   }
   function canvasAgentAssertRevision(baseRevision) {
     if (!Number.isSafeInteger(baseRevision) || baseRevision !== state.userRevision) {
@@ -22996,7 +23001,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         digest,
         ...(typeof canvasDocumentsCurrent==="function"?{taskContext:canvasDocumentsCurrent().context||""}:{}),
         capture:{target:"canvas",...metadata},
-        image:{mediaType:match[1],data:match[2],name:`penecho-initial-canvas.${extension}`},
+        image:{mediaType:match[1],data:match[2],name:`fastlectures-initial-canvas.${extension}`},
       };
     }
     throw canvasAgentToolError("INITIAL_STATE_CHANGED","The Canvas changed while its initial state was being prepared. Try sending again.");
@@ -23192,10 +23197,10 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
         const placed=canvasAgentPlacementBox(record.w,record.h,raw.placement,reserved);record.x=Math.round(placed.x);record.y=Math.round(placed.y);reserved.push(canvasAgentBox({kind:"text",item:record}));prepared.push({type,kind:"text",record,placed});
       } else if (type === "widget") {
         const widgetType=String(raw.widgetType||"");
-        if(!["html_widget","diagram_source"].includes(widgetType))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE",`Widget type ${widgetType||"(missing)"} is unavailable to PenEcho Agent.`);
+        if(!["html_widget","diagram_source"].includes(widgetType))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE",`Widget type ${widgetType||"(missing)"} is unavailable to FastLectures Agent.`);
         const pluginId=String(raw.pluginId || (widgetType === "diagram_source"?"flowchart":"general")),frameworkVersion=String(raw.frameworkVersion||"").trim();
-        if(widgetType === "diagram_source"||pluginId === "flowchart"||frameworkVersion.startsWith("penecho-professional-diagrams"))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE","PenEcho Agent may edit an existing Professional Diagram, but it cannot create a new Professional Diagram.");
-        if(!canvasAgentWidgetPluginAllowed(pluginId,widgetType))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE",`Plugin ${pluginId} is unavailable, disabled, or not available to PenEcho Agent.`);
+        if(widgetType === "diagram_source"||pluginId === "flowchart"||frameworkVersion.startsWith("fastlectures-professional-diagrams"))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE","FastLectures Agent may edit an existing Professional Diagram, but it cannot create a new Professional Diagram.");
+        if(!canvasAgentWidgetPluginAllowed(pluginId,widgetType))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE",`Plugin ${pluginId} is unavailable, disabled, or not available to FastLectures Agent.`);
         const width=Math.max(execution?.widgetContentViewport?1:300,Math.min(SIZE,Number(raw.width)||Math.max(600,Math.min(1200,visible.w*.7)))),height=Math.max(execution?.widgetContentViewport?1:200,Math.min(SIZE,Number(raw.height)||Math.max(400,Math.min(800,visible.h*.7)))),placed=canvasAgentPlacementBox(width,height,raw.placement,reserved),
           record=widgetRecord({tool:widgetType,widgetType,pluginId,x:placed.x,y:placed.y,w:width,h:height,contentW:execution?.widgetContentViewport?.width??width,contentH:execution?.widgetContentViewport?.height??height,title:String(raw.title||"Canvas widget"),refreshSeconds:Number.isFinite(Number(raw.refreshSeconds))?Number(raw.refreshSeconds):0,html:typeof raw.html === "string"?raw.html:"",source:typeof raw.source === "string"?raw.source:"",sourceFormat:raw.sourceFormat,diagramKind:raw.diagramKind,frameworkVersion:raw.frameworkVersion,copyText:raw.copyText,copyLabel:raw.copyLabel});
         if(!record)throw canvasAgentToolError("INVALID_WIDGET","Widget content or geometry was rejected. Read the plugin capability contract and retry.");
@@ -23253,7 +23258,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     canvasAgentAssertRevision(args.baseRevision);canvasAgentMutationIdle(execution);
     const object=canvasAgentObject(String(args.objectId||""));
     if(!object||object.kind!=="widget")throw canvasAgentToolError("OBJECT_NOT_FOUND","Visual Explainer Widget was not found.",{objectId:args.objectId});
-    if(object.item.widgetType!=="html_widget"||object.item.pluginId!=="general"||object.item.sourceFormat!==VISUAL_EXPLAINER_SOURCE_FORMAT)throw canvasAgentToolError("KIND_MISMATCH","The target is not a PenEcho Visual Explainer Widget.",{objectId:args.objectId});
+    if(object.item.widgetType!=="html_widget"||object.item.pluginId!=="general"||object.item.sourceFormat!==VISUAL_EXPLAINER_SOURCE_FORMAT)throw canvasAgentToolError("KIND_MISMATCH","The target is not a FastLectures Visual Explainer Widget.",{objectId:args.objectId});
     const previousDiagnostics=object.item.visualDiagnostics?structuredClone(object.item.visualDiagnostics):await visualExplainerWaitForDiagnostics(object.item,1200),
       generated=visualExplainerWidgetItem(args.plan,{title:args.title||object.item.title}),currentEdit=widgetEditContext(object.item,"agent"),expectedHash=await canvasAgentHash(currentEdit),
       command={tool:"html_widget",widgetType:"html_widget",pluginId:"general",title:generated.title,refreshSeconds:0,html:generated.html,sourceFormat:generated.sourceFormat,frameworkVersion:generated.frameworkVersion,copyText:generated.copyText,copyLabel:generated.copyLabel,x:object.item.x,y:object.item.y,w:object.item.w,h:object.item.h};
@@ -23409,7 +23414,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     } else canvasAgentAssertRevision(args.baseRevision);
     const command = args.command;
     if (!command || command.pluginId !== object.item.pluginId || !["html_widget","diagram_source"].includes(command.tool)) throw Error("Patched widget command is invalid.");
-    if(!canvasAgentWidgetPluginAllowed(command.pluginId,command.tool))throw Error("The Widget plugin is unavailable, disabled, or not available to PenEcho Agent.");
+    if(!canvasAgentWidgetPluginAllowed(command.pluginId,command.tool))throw Error("The Widget plugin is unavailable, disabled, or not available to FastLectures Agent.");
     const record = widgetRecord({...command,...(sourceOnly?{x:object.item.x,y:object.item.y,w:object.item.w,h:object.item.h}:{}),id:object.item.id,widgetType:command.tool,contentW:object.item.contentW,contentH:object.item.contentH});
     if (!record) throw Error("Patched widget content was rejected by Canvas validation.");
     const sourceHash=sourceOnly?await canvasAgentHash(canvasAgentWidgetSourceState(widgetEditContext(record,"agent"))):null;
@@ -23487,7 +23492,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function canvasAgentRevert(args,execution) {
     canvasAgentAssertToolExecution(execution);
     const latest=canvasAgent.latestChange;
-    if(!latest||String(args.changeId||"")!==latest.changeId)throw canvasAgentToolError("REVERT_NOT_LATEST","Only the latest PenEcho Agent change can be reverted.",{latestChangeId:latest?.changeId||null});
+    if(!latest||String(args.changeId||"")!==latest.changeId)throw canvasAgentToolError("REVERT_NOT_LATEST","Only the latest FastLectures Agent change can be reverted.",{latestChangeId:latest?.changeId||null});
     if(state.userRevision!==latest.revision||state.history.at(-1)!==latest.historyEntry)throw canvasAgentToolError("REVERT_CONFLICT","Canvas changed after this Agent change, so it can no longer be reverted safely.",{changeRevision:latest.revision,currentRevision:state.userRevision});
     const previousRevision=state.userRevision;state.userRevision++;undo();canvasAgent.latestChange=null;requestRender();canvasAgentSyncState();return{ok:true,revertedChangeId:latest.changeId,previousRevision,revision:state.userRevision};
   }
@@ -23533,7 +23538,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       else if (name === "canvas_internal_widget") result = await canvasAgentInternalWidget(args,execution);
       else if (name === "canvas_internal_replace_widget") result = await canvasAgentReplaceWidget(args,execution);
       else if (name === "canvas_internal_patch_visual_explainer") result = await canvasAgentPatchVisualExplainer(args,execution);
-      else throw Error(`Unknown PenEcho Agent tool: ${name}.`);
+      else throw Error(`Unknown FastLectures Agent tool: ${name}.`);
       }
       canvasAgentAssertToolExecution(execution);
       const envelope={ok:true,result};
@@ -23631,7 +23636,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function canvasAgentPrepareOpenState() {
     if(settings.connections.length)canvasAgentUpdateConnectionButton();
-    if(!settings.connections.length || window.PENECHO_CONFIG?.browserCanvasEditing)void loadCanvasSettings();
+    if(!settings.connections.length || window.FASTLECTURES_CONFIG?.browserCanvasEditing)void loadCanvasSettings();
     if(canvasAgentWorkbenchNeedsSync())syncStudioWorkbench();
   }
   function canvasAgentFinishDockedOpen(focus,connect) {
@@ -23708,7 +23713,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     // inspector keeps its persisted width class while closed, so the slide can
     // begin on the click frame instead of waiting for layout reads below.
     document.body.classList.add("canvas-agent-open");
-    window.PenEchoStudioNavigator?.agentWillOpen?.();
+    window.FastLecturesStudioNavigator?.agentWillOpen?.();
     if(animate&&docked){
       canvasAgentScheduleDockedOpenWork(focus,connect);
       return;
@@ -23800,7 +23805,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     canvasAgentSyncAssistantActions();
     if (!canvasAgentExecutionAvailable()) canvasAgentSetStatus(t("canvasAgentNoConnections"),"unavailable");
     else if (canvasAgentPanel.dataset.status === "unavailable") canvasAgentSetStatus(t("canvasAgentReadyConnect"));
-    if (window.PENECHO_CONFIG?.browserCanvasEditing) {
+    if (window.FASTLECTURES_CONFIG?.browserCanvasEditing) {
       renderHostedModels();
       for (const [oldKey, key] of [["canvasWelcomeTitle", "canvasBrowserWelcomeTitle"], ["canvasWelcomeBody", "canvasBrowserWelcomeBody"]]) {
         const element = document.querySelector(`[data-i18n="${oldKey}"]`);
@@ -23809,7 +23814,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     }
   }
   canvasAgentSyncRuntimeAvailability();
-  window.addEventListener("penecho:capabilities-changed", canvasAgentSyncRuntimeAvailability);
+  window.addEventListener("fastlectures:capabilities-changed", canvasAgentSyncRuntimeAvailability);
   canvasAgentToggle.addEventListener("click",()=>canvasAgentPanel.hidden||!document.body.classList.contains("canvas-agent-open") ? openCanvasAgent({focus:false}) : closeCanvasAgent());
   canvasAgentClose.addEventListener("click",closeCanvasAgent);
   canvasAgentProjectButton.addEventListener("click",()=>{
@@ -23860,7 +23865,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   });
   canvasAgentHistoryManage.addEventListener("click",()=>{
     canvasAgentHideHistoryPopover();
-    window.PenEchoStudioNavigator?.open?.("agent");
+    window.FastLecturesStudioNavigator?.open?.("agent");
   });
   canvasAgentHistoryList.addEventListener("keydown",event=>{
     if(!["ArrowDown","ArrowUp","Home","End"].includes(event.key))return;
@@ -24114,7 +24119,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if (outsideEditable) return;
     const files=canvasAgentClipboardFiles(event.clipboardData);
     let hasDesktopFile=false;
-    if(!files.length&&typeof window.penechoDesktop?.hasClipboardFile==="function")try{hasDesktopFile=window.penechoDesktop.hasClipboardFile()===true;}catch{}
+    if(!files.length&&typeof window.fastlecturesDesktop?.hasClipboardFile==="function")try{hasDesktopFile=window.fastlecturesDesktop.hasClipboardFile()===true;}catch{}
     if (!files.length&&!hasDesktopFile) return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -24273,16 +24278,16 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return {artifactId:args.artifactId,objectId:objectIds[0],objectIds,kind,revision:state.userRevision,feedbackCursor:mcpRuntime.feedbackSequence};
   }
   function mcpTroubleshootPrompt() {
-    return "On the computer running PenEcho, allow inbound TCP connections on ports 3922, 13922, and 23922.";
+    return "On the computer running FastLectures, allow inbound TCP connections on ports 3922, 13922, and 23922.";
   }
   // External MCP sessions share Canvas primitives, but never an Agent conversation.
   var mcpRuntime = { socket:null, browserId:null, wanted:false, reconnectTimer:0, reconnectStatusTimer:0, reconnectAt:0, reconnecting:false, reconnectDelay:1000, generation:0, sessions:new Map(), previews:new Map(), controllers:new Map(), queue:Promise.resolve(), queued:0, status:null, loading:null, loadError:null, configuring:false, configureResult:null, feedbackSequence:0, feedback:[], ready:false, connectionLost:false, heartbeatTimer:0, heartbeatSupported:false, lastPong:0, activeMutation:null, mutationDocumentId:null, glowTimer:0, glowing:false, pendingView:new Map(), viewSequence:0, layoutTimer:0, layoutSince:0, viewPaused:false, exampleStatusTimer:0 };
   const mcpCopy = {
     troubleshoot:["Troubleshoot","Troubleshoot"],
     troubleshootHeading:["Allow MCP inbound connections","允许 MCP 入站连接"],
-    troubleshootHelp:["If PenEcho works on the host but other computers cannot connect, send the prompt below to an Agent on the host to allow the required inbound TCP ports.","如果 PenEcho 在主机上可用，但其他电脑无法连接，请将下方提示词发给主机上的 Agent，开放所需的 TCP 入站端口。"],
-    troubleshootStepNetwork:["Keep PenEcho running on the Windows host. Both computers should be on the same trusted private network.","保持 Windows 主机上的 PenEcho 运行，确认两台电脑处于同一可信专用网络。"],
-    troubleshootStepPrompt:["Copy the prompt below and send it to an Agent on the PenEcho host.","复制下方提示词，发给运行 PenEcho 的主机上的 Agent。"],
+    troubleshootHelp:["If FastLectures works on the host but other computers cannot connect, send the prompt below to an Agent on the host to allow the required inbound TCP ports.","如果 FastLectures 在主机上可用，但其他电脑无法连接，请将下方提示词发给主机上的 Agent，开放所需的 TCP 入站端口。"],
+    troubleshootStepNetwork:["Keep FastLectures running on the Windows host. Both computers should be on the same trusted private network.","保持 Windows 主机上的 FastLectures 运行，确认两台电脑处于同一可信专用网络。"],
+    troubleshootStepPrompt:["Copy the prompt below and send it to an Agent on the FastLectures host.","复制下方提示词，发给运行 FastLectures 的主机上的 Agent。"],
     troubleshootStepRetry:["Reconnect from your AI client after the inbound ports are open.","开放入站端口后，从 AI 客户端重新连接。"],
     copyTroubleshootPrompt:["Copy troubleshooting prompt","复制排查提示词"],
     listenerAddresses:["Current MCP listening addresses: {addresses}","当前 MCP 监听地址：{addresses}"],
@@ -24344,24 +24349,24 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     session:["Start your Spatial Workspace","开始使用 Spatial Workspace"],
     sessionHint:["Copy the prompt, close Settings, and check that the MCP indicator on the right of the toolbar is green. Send it to your external Agent to start.","复制提示词后关闭设置，确认工具栏右侧的 MCP 亮绿灯，再发给外部 Agent 即可开始。"],
     starterTitle:["Start with your current task","从当前任务开始"],
-    starterPrompt:["Use PenEcho as our spatial workspace for this task. Show the work with useful diagrams or an interactive view, and revise it from my feedback.","把当前任务放到 PenEcho 空间工作区，用合适的图示或交互界面展示，并根据我的反馈继续修改。"],
+    starterPrompt:["Use FastLectures as our spatial workspace for this task. Show the work with useful diagrams or an interactive view, and revise it from my feedback.","把当前任务放到 FastLectures 空间工作区，用合适的图示或交互界面展示，并根据我的反馈继续修改。"],
     morePrompts:["More examples","更多示例"],
     copyPrompt:["Copy prompt","复制提示词"],exampleCopied:["Prompt copied","提示词已复制"],
     exampleDesignTitle:["Three design options","三个设计方案"],
-    exampleDesignPrompt:["Echo this UI idea in PenEcho with three design options, then let me choose.", "帮我 echo 一下这个界面想法，在 PenEcho 上展示三个方案，让我选择。"],
+    exampleDesignPrompt:["Echo this UI idea in FastLectures with three design options, then let me choose.", "帮我 echo 一下这个界面想法，在 FastLectures 上展示三个方案，让我选择。"],
     exampleArchTitle:["Compare architectures","新旧架构对比"],
     exampleArchPrompt:["Compare the old and new architecture as a diagram on canvas.", "把新旧架构的对比放到 canvas 上，用图形展示差异。"],
     exampleWidgetTitle:["Handwriting to Widget","手写内容转 Widget"],
     exampleWidgetPrompt:["Turn the handwriting on this canvas into an interactive Widget.", "把当前画布上的手写内容整理成一个可交互的 Widget。"],
     exampleFolderTitle:["Show a folder","展示文件夹内容"],
-    exampleFolderPrompt:["PenEcho the current folder’s architecture as a diagram.", "帮我 penecho 一下当前文件夹的架构。"],
+    exampleFolderPrompt:["FastLectures the current folder’s architecture as a diagram.", "帮我 fastlectures 一下当前文件夹的架构。"],
     exampleCodeTitle:["Echo code changes","改代码并回显重点"],
     exampleCodePrompt:["Put your proposed code changes on canvas for review, then echo the implemented changes.", "把你要做的代码修改放到 canvas 上供我确认，完成后 echo 一下重点改动。"],
     exampleFeedbackTitle:["Revise from feedback","根据界面反馈修改"],
-    exampleFeedbackPrompt:["Read my latest feedback and annotations on the current PenEcho canvas, then revise the existing UI in place.","读取我在当前 PenEcho 画布上的最新反馈和批注，根据这些反馈修改现有界面。"],
+    exampleFeedbackPrompt:["Read my latest feedback and annotations on the current FastLectures canvas, then revise the existing UI in place.","读取我在当前 FastLectures 画布上的最新反馈和批注，根据这些反馈修改现有界面。"],
     setupPromptLabel:["Setup prompt","配置提示词"],
-    manualSteps:["Open a conversation in the AI app you want to connect. Copy the prompt below, paste it into that conversation and send it. Keep PenEcho running with MCP enabled; another computer must be on the same network.","在需要连接的 AI 应用中打开对话。复制下面的提示词，粘贴到对话中并发送。保持 PenEcho 运行并开启 MCP；另一台电脑需在同一局域网。"],
-    remoteManualSteps:["On the computer running PenEcho, open Settings → MCP service. Select Codex CLI or Claude Code CLI and choose Auto configure; for another Agent, copy the setup prompt below and send it to that Agent. Reload the client, then return here and open your workspace.","在运行 PenEcho 的电脑上打开 Settings → MCP 服务。选择 Codex CLI 或 Claude Code CLI 并点击自动配置；其他 Agent 使用下方的复制配置指引。重载客户端后，回到此页面开放工作区。"],
+    manualSteps:["Open a conversation in the AI app you want to connect. Copy the prompt below, paste it into that conversation and send it. Keep FastLectures running with MCP enabled; another computer must be on the same network.","在需要连接的 AI 应用中打开对话。复制下面的提示词，粘贴到对话中并发送。保持 FastLectures 运行并开启 MCP；另一台电脑需在同一局域网。"],
+    remoteManualSteps:["On the computer running FastLectures, open Settings → MCP service. Select Codex CLI or Claude Code CLI and choose Auto configure; for another Agent, copy the setup prompt below and send it to that Agent. Reload the client, then return here and open your workspace.","在运行 FastLectures 的电脑上打开 Settings → MCP 服务。选择 Codex CLI 或 Claude Code CLI 并点击自动配置；其他 Agent 使用下方的复制配置指引。重载客户端后，回到此页面开放工作区。"],
     capDrawTitle:["Draw & annotate","绘图与批注"],capDrawHint:["Diagrams, notes and sketches","关系图、笔记与草图"],
     capPlotTitle:["Plots & Widgets","函数图与 Widget"],capPlotHint:["Curves and interactive UI","曲线与交互界面"],
     capCaptureTitle:["Capture on request","按需截图"],capCaptureHint:["Screenshots only when asked","仅在你要求时截图"],
@@ -24377,33 +24382,33 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     configuring:["Configuring…","正在配置…"],
     configurePending:["Saving the MCP configuration. This may take up to 20 seconds.","正在保存 MCP 配置，可能需要约 20 秒。"],
     configureUpdated:["Configuration updated","配置已更新"],
-    configureUpdatedHelp:["Updated to this PenEcho program. Reload your AI client to use it.","已更新为当前 PenEcho 程序的配置。重载 AI 客户端后生效。"],
+    configureUpdatedHelp:["Updated to this FastLectures program. Reload your AI client to use it.","已更新为当前 FastLectures 程序的配置。重载 AI 客户端后生效。"],
     configureTrust:["Configuration saved · certificate setup required","配置已保存 · 需要完成证书设置"],
     configureTrustHelp:["Copy the setup prompt below to your Agent to trust this certificate, reload MCP and verify the connection.","将下方配置指引发给 Agent，完成证书信任、重载 MCP 并验证连接。"],
     configureSaved:["Configuration saved","配置已保存"],
     configureExisting:["Existing configuration found · not verified","已发现已有配置 · 尚未验证"],
-    configureExistingHelp:["No changes were made. Reload this AI client and check for PenEcho tools. If they are unavailable, compare its existing entry with Manual configuration below.","本次未修改配置。请重新加载此 AI 客户端，检查是否出现 PenEcho 工具；若未出现，请对照下方“手动配置”检查已有条目。"],
+    configureExistingHelp:["No changes were made. Reload this AI client and check for FastLectures tools. If they are unavailable, compare its existing entry with Manual configuration below.","本次未修改配置。请重新加载此 AI 客户端，检查是否出现 FastLectures 工具；若未出现，请对照下方“手动配置”检查已有条目。"],
     configureFailed:["Automatic configuration failed","自动配置失败"],
     configureFailedHelp:["Retry, or copy the setup prompt below and send it to your Agent.","请重试，或复制下方的配置指引，发给你的 Agent。"],
     configureUncertain:["Configuration result not confirmed","配置结果尚未确认"],
-    configureUncertainHelp:["The request did not finish. Check the AI client's PenEcho entry before retrying; it may already have been saved.","请求未完成。重试前请检查 AI 客户端中的 PenEcho 条目，配置可能已经保存。"],
+    configureUncertainHelp:["The request did not finish. Check the AI client's FastLectures entry before retrying; it may already have been saved.","请求未完成。重试前请检查 AI 客户端中的 FastLectures 条目，配置可能已经保存。"],
     loadFailed:["Could not load configuration. Select Check again.","未能加载配置。请点击“重新检查”。"],
-    serviceOutdated:["This running PenEcho service has no usable MCP configuration. Restart PenEcho to load the updated service, then check again.","当前运行的 PenEcho 服务未提供有效的 MCP 配置。请重启 PenEcho 以加载更新后的服务，然后重新检查。"],
-    hostRequired:["Configure MCP on the computer running PenEcho. Other devices can view the canvas but cannot configure its local AI clients.","请在运行 PenEcho 的电脑上配置 MCP。其他设备可以查看画布，但不能配置这台电脑的 AI 客户端。"],
-    remoteSetup:["Auto configure is available on the computer running PenEcho. To connect an Agent on this computer, use the setup prompt below.","自动配置需要在运行 PenEcho 的电脑上使用。连接此电脑上的 Agent，请使用下方配置提示词。"],
-    deviceRequired:["MCP needs a linked device. Go to Linked Devices to connect a computer running PenEcho.","MCP 需要关联设备。请前往「连接设备」，连接运行 PenEcho 的电脑。"],
+    serviceOutdated:["This running FastLectures service has no usable MCP configuration. Restart FastLectures to load the updated service, then check again.","当前运行的 FastLectures 服务未提供有效的 MCP 配置。请重启 FastLectures 以加载更新后的服务，然后重新检查。"],
+    hostRequired:["Configure MCP on the computer running FastLectures. Other devices can view the canvas but cannot configure its local AI clients.","请在运行 FastLectures 的电脑上配置 MCP。其他设备可以查看画布，但不能配置这台电脑的 AI 客户端。"],
+    remoteSetup:["Auto configure is available on the computer running FastLectures. To connect an Agent on this computer, use the setup prompt below.","自动配置需要在运行 FastLectures 的电脑上使用。连接此电脑上的 Agent，请使用下方配置提示词。"],
+    deviceRequired:["MCP needs a linked device. Go to Linked Devices to connect a computer running FastLectures.","MCP 需要关联设备。请前往「连接设备」，连接运行 FastLectures 的电脑。"],
     deviceOffline:["Linked Device is unavailable. Open Linked Devices to reconnect, then retry MCP.","Linked Device 不可用。请前往「连接设备」恢复连接后重试 MCP。"],
-    deviceUpdate:["Update PenEcho on the linked computer to enable MCP, then retry.","请更新已连接电脑上的 PenEcho，再重试 MCP。"],
-    accessDenied:["MCP access was refused. On the PenEcho computer, try its localhost address, or refresh and unlock this page before checking again.","MCP 访问被拒绝。请在 PenEcho 所在电脑尝试 localhost 地址，或刷新并解锁页面后重新检查。"],
+    deviceUpdate:["Update FastLectures on the linked computer to enable MCP, then retry.","请更新已连接电脑上的 FastLectures，再重试 MCP。"],
+    accessDenied:["MCP access was refused. On the FastLectures computer, try its localhost address, or refresh and unlock this page before checking again.","MCP 访问被拒绝。请在 FastLectures 所在电脑尝试 localhost 地址，或刷新并解锁页面后重新检查。"],
     focus:["Show","定位"],working:["Working","进行中"],waiting:["Waiting","等待中"],done:["Done","已完成"],error:["Needs attention","需要处理"],
   };
   function mcpText(key) { return mcpCopy[key]?.[state.language === "zh" ? 1 : 0] || key; }
   function mcpEl(id) { return document.getElementById(id); }
   const mcpClientInputs = [...document.querySelectorAll('input[name="mcpClient"]')];
   function mcpSelectedClient() { return mcpClientInputs.find(input=>input.checked)?.value || "codex"; }
-  function mcpLocal() { return window.PENECHO_CONFIG?.runtime !== "viewer"; }
-  function mcpCanCopySetup() { return window.PENECHO_CONFIG?.runtime !== "cloud" && !!mcpLanInstructions() && (mcpRemoteBrowser() ? mcpRuntime.status?.canCopyLanSetup === true : !!mcpRuntime.status?.config); }
-  function mcpRemoteBrowser() { return window.PENECHO_CONFIG?.runtime === "cloud" || mcpRuntime.status?.canConfigureLocalClients === false; }
+  function mcpLocal() { return window.FASTLECTURES_CONFIG?.runtime !== "viewer"; }
+  function mcpCanCopySetup() { return window.FASTLECTURES_CONFIG?.runtime !== "cloud" && !!mcpLanInstructions() && (mcpRemoteBrowser() ? mcpRuntime.status?.canCopyLanSetup === true : !!mcpRuntime.status?.config); }
+  function mcpRemoteBrowser() { return window.FASTLECTURES_CONFIG?.runtime === "cloud" || mcpRuntime.status?.canConfigureLocalClients === false; }
   function mcpExecutionCurrent(execution) {
     return execution.socket === mcpRuntime.socket && execution.socket?.readyState === WebSocket.OPEN
       && execution.generation === mcpRuntime.generation && !execution.controller.signal.aborted
@@ -24449,7 +24454,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function mcpAccessLabel() {
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,
-      availability=mcpRuntime.socket?.availability||{cloud:connected&&window.PENECHO_CONFIG?.runtime==="cloud",local:connected&&window.PENECHO_CONFIG?.runtime!=="cloud"};
+      availability=mcpRuntime.socket?.availability||{cloud:connected&&window.FASTLECTURES_CONFIG?.runtime==="cloud",local:connected&&window.FASTLECTURES_CONFIG?.runtime!=="cloud"};
     return mcpText(availability.cloud&&availability.local?"canvasCloudLocal":availability.cloud?"canvasCloud":availability.local?"canvasLocal":"canvasConnecting");
   }
   function mcpRenderCanvasStatus() {
@@ -24469,7 +24474,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(connected)label=mcpRuntime.activeMutation&&mutationVisible?`${mcpRuntime.activeMutation} ${mcpText("canvasApplying")}`:sessions.length?`MCP · ${clients.slice(0,2).join(" / ")}${clients.length>2?" +":""} · ${sessions.length} ${mcpText(sessions.length===1?"canvasSession":"canvasSessions")}`:accessLabel;
     if(button){if(button.textContent!==label)button.textContent=label;button.title=connected?`${accessLabel}. ${mcpText("canvasNoticeHelp")}`:mcpText("canvasNoticeHelp");}
   }
-  // PenEcho owns deterministic placement and camera batching; MCP clients provide only content.
+  // FastLectures owns deterministic placement and camera batching; MCP clients provide only content.
   function mcpSessionTransportActive(session) {
     return Boolean(session&&!session.closed&&(session.internalAgent||mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN));
   }
@@ -24696,8 +24701,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     document.querySelectorAll("[data-mcp-label]").forEach(node=>{const key=node.dataset.mcpLabel,text=mcpText(key);
       node.textContent=text;
       if(/^example.*Prompt$/.test(key)){
-        node.replaceChildren(...text.split(/(penecho|echo|canvas|画布)/gi).filter(Boolean).map(part=>{
-          if(!/^(penecho|echo|canvas|画布)$/i.test(part))return document.createTextNode(part);
+        node.replaceChildren(...text.split(/(fastlectures|echo|canvas|画布)/gi).filter(Boolean).map(part=>{
+          if(!/^(fastlectures|echo|canvas|画布)$/i.test(part))return document.createTextNode(part);
           const strong=document.createElement("b");strong.textContent=part;return strong;
         }));
       }});
@@ -24812,7 +24817,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     return success;
   }
   async function mcpLanRefresh() {
-    if(window.PENECHO_CONFIG?.runtime === "cloud")return;
+    if(window.FASTLECTURES_CONFIG?.runtime === "cloud")return;
     if(mcpRuntime.loading)await mcpRuntime.loading;
     await mcpRefreshSettings();
   }
@@ -24827,11 +24832,11 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function mcpRememberSetup() {
     mcpRuntime.setupKnown=true;
-    try{localStorage.setItem("penecho-mcp-setup-completed","true");}catch{}
+    try{localStorage.setItem("fastlectures-mcp-setup-completed","true");}catch{}
   }
   function mcpSetupKnown() {
     if(mcpRuntime.setupKnown)return true;
-    try{return localStorage.getItem("penecho-mcp-setup-completed")==="true";}catch{return false;}
+    try{return localStorage.getItem("fastlectures-mcp-setup-completed")==="true";}catch{return false;}
   }
   async function mcpToolbarClick() {
     if(mcpRuntime.toolbarChecking)return;
@@ -24840,7 +24845,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
       mcpRuntime.toolbarManaged=false;mcpRuntime.toolbarPending=false;mcpDisconnect();setStatus(mcpText("disconnected"));return;
     }
     if(!mcpLocal()){openSettings();selectSettingsPage("mcp");return;}
-    if(window.PENECHO_CONFIG?.runtime==="cloud"){
+    if(window.FASTLECTURES_CONFIG?.runtime==="cloud"){
       mcpRuntime.toolbarChecking=true;setStatus(mcpText("checkingSetup"));mcpRenderToolbar();
       try{
         await mcpRefreshSettings();
@@ -24866,8 +24871,8 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
     if(mcpRuntime.reconnectAt)mcpRuntime.reconnectStatusTimer=setTimeout(mcpRenderReconnectStatus,1000);
   }
   function mcpRenderToolbar() {
-    window.PenEchoMcpSettings?.setConnection({enabled:Boolean(mcpRuntime.wanted),connected:Boolean(mcpRuntime.ready),label:mcpAccessLabel()});
-    window.PenEchoStudioNavigator?.syncMcp?.(Boolean(mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN),{reveal:!mcpRuntime.reconnecting});
+    window.FastLecturesMcpSettings?.setConnection({enabled:Boolean(mcpRuntime.wanted),connected:Boolean(mcpRuntime.ready),label:mcpAccessLabel()});
+    window.FastLecturesStudioNavigator?.syncMcp?.(Boolean(mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN),{reveal:!mcpRuntime.reconnecting});
     mcpRenderReconnectStatus();
     const button=mcpEl("mcpToolbarToggle");if(!button)return;
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,opening=Boolean(mcpRuntime.socket)&&!connected;
@@ -24882,7 +24887,7 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   function mcpShowConfigurationError(error) {
     const text=mcpConfigurationErrorText(error);
     setStatus(text);
-    if(window.PENECHO_CONFIG?.runtime!=="cloud"||!["linked_device_required","device_offline","device_timeout"].includes(error.code))return;
+    if(window.FASTLECTURES_CONFIG?.runtime!=="cloud"||!["linked_device_required","device_offline","device_timeout"].includes(error.code))return;
     const notice=mcpEl("status");if(!notice)return;
     const link=document.createElement("a");
     link.href="/dashboard.html#devices";
@@ -24920,47 +24925,47 @@ User writes “我需要根据地点, 显示空气质量”, names a place, and 
   }
   function mcpInstructions() {
     const direct=mcpLanInstructions();
-    if(direct?.transport==="stdio-http")return `Configure PenEcho MCP on THIS Agent's computer using one lightweight stdio CLI per client-owned MCP session. The CLI connects directly to PenEcho HTTPS; no shared Gateway or background discovery daemon.
+    if(direct?.transport==="stdio-http")return `Configure FastLectures MCP on THIS Agent's computer using one lightweight stdio CLI per client-owned MCP session. The CLI connects directly to FastLectures HTTPS; no shared Gateway or background discovery daemon.
 
 ${JSON.stringify(direct,null,2)}
 
-Use this computer's user home and this REQUIRED installation directory: ~/.penecho/mcp on macOS/Linux, %USERPROFILE%\\.penecho\\mcp on Windows. Download discoveryCliUrl to discover.js and sessionCliUrl to client.js in that directory. Do not choose any other directory or filename. Both the MCP command configuration and upload commands MUST use this exact downloaded client.js. The upload script is this same client.js: ~/.penecho/mcp/client.js on macOS/Linux, %USERPROFILE%\\.penecho\\mcp\\client.js on Windows. It is not stored in the Agent skill directory or PenEcho application directory. Retain its resolved absolute path and the local Node executable for subsequent uploads. hostId identifies the PenEcho server, NOT a Canvas instance, document or session. For every upload copy the hostId supplied above, which is also the value after --host-id in the MCP entry. client.js resolves addresses and ports automatically; do not guess IDs, inspect its source or parse port mappings. Verify each SHA-256 against its supplied hash BEFORE execution. Use a locally installed Node.js 18+ and absolute executable/script paths. Never use another computer's paths. Save {hostId,certificatePem,accessToken,initialUrl,addresses} in a private temporary JSON file, run node <absolute discover.js> --import <temporary file> WITHOUT --client, then delete only that temporary file. Discovery only saves verified host credentials and addresses; it does not need the Agent's name and must not rewrite Agent configuration during normal reconnects.
+Use this computer's user home and this REQUIRED installation directory: ~/.fastlectures/mcp on macOS/Linux, %USERPROFILE%\\.fastlectures\\mcp on Windows. Download discoveryCliUrl to discover.js and sessionCliUrl to client.js in that directory. Do not choose any other directory or filename. Both the MCP command configuration and upload commands MUST use this exact downloaded client.js. The upload script is this same client.js: ~/.fastlectures/mcp/client.js on macOS/Linux, %USERPROFILE%\\.fastlectures\\mcp\\client.js on Windows. It is not stored in the Agent skill directory or FastLectures application directory. Retain its resolved absolute path and the local Node executable for subsequent uploads. hostId identifies the FastLectures server, NOT a Canvas instance, document or session. For every upload copy the hostId supplied above, which is also the value after --host-id in the MCP entry. client.js resolves addresses and ports automatically; do not guess IDs, inspect its source or parse port mappings. Verify each SHA-256 against its supplied hash BEFORE execution. Use a locally installed Node.js 18+ and absolute executable/script paths. Never use another computer's paths. Save {hostId,certificatePem,accessToken,initialUrl,addresses} in a private temporary JSON file, run node <absolute discover.js> --import <temporary file> WITHOUT --client, then delete only that temporary file. Discovery only saves verified host credentials and addresses; it does not need the Agent's name and must not rewrite Agent configuration during normal reconnects.
 
-Configure this Agent's supported stdio MCP entry named penecho with command=<absolute local Node executable> and args=[<absolute client.js>,"--host-id",hostId]. Preserve unrelated settings and replace only the previous PenEcho entry; remove old HTTP url/header fields and any old idle-exit option from that entry. Do not add an idle process-exit timer. For Codex use its MCP command/args format; for Claude use its stdio command/args format; use the actual supported format for other clients. Authorization and certificate trust stay in the shared ~/.penecho/mcp store, read by client.js. Do not place accessToken on the command line, print credentials, disable TLS verification, or configure discover.js as the stdio server.
+Configure this Agent's supported stdio MCP entry named fastlectures with command=<absolute local Node executable> and args=[<absolute client.js>,"--host-id",hostId]. Preserve unrelated settings and replace only the previous FastLectures entry; remove old HTTP url/header fields and any old idle-exit option from that entry. Do not add an idle process-exit timer. For Codex use its MCP command/args format; for Claude use its stdio command/args format; use the actual supported format for other clients. Authorization and certificate trust stay in the shared ~/.fastlectures/mcp store, read by client.js. Do not place accessToken on the command line, print credentials, disable TLS verification, or configure discover.js as the stdio server.
 
 Connection order is the last successful IP + port (or the supplied initialUrl on first connection), freshly read shared endpoint cache, then one-shot LAN discovery. Missing, stale or unreachable cache all trigger discovery. Authenticate every candidate and save the verified new address. The same complete sequence runs if reconnecting after idle release fails; another process may already have updated the cache. No hostname lookup is required on this path and address changes never rewrite AI configuration.
 
 The AI client owns the CLI stdin/stdout. Keep the lightweight CLI alive while stdin is open; idle for 30 minutes releases only HTTP, and the next request reconnects and restores the same Canvas. In-flight work prevents idle release. EOF or shutdown signals close the process. Do not add an idle-exit argument, gateway, OS startup job, periodic discovery or reconnect loop while idle. Retry safe connection failures within a bounded request; do not blindly replay a write whose outcome is unknown.
 
-Reload this Agent's MCP integration and verify initialize, tools/list, and penecho_list_canvases. Keep one unique stable client/sessionKey per logical conversation plus returned sessionId/documentId. HTTP recovery in the living CLI restores its original document; after CLI restart call penecho_start_session with the same client/sessionKey/documentId. Never use a new conversation's key or silently switch an existing conversation to another browser. A closed Canvas can reopen; only definitive DOCUMENT_NOT_FOUND permits replacement. Report the actually verified connection result.
+Reload this Agent's MCP integration and verify initialize, tools/list, and fastlectures_list_canvases. Keep one unique stable client/sessionKey per logical conversation plus returned sessionId/documentId. HTTP recovery in the living CLI restores its original document; after CLI restart call fastlectures_start_session with the same client/sessionKey/documentId. Never use a new conversation's key or silently switch an existing conversation to another browser. A closed Canvas can reopen; only definitive DOCUMENT_NOT_FOUND permits replacement. Report the actually verified connection result.
 
-Image files on THIS Agent's computer: run the downloaded client.js as a separate one-shot command using the same local Node executable and host ID: node "<absolute client.js>" --host-id HOST_ID --upload-image "<absolute image path>" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Obtain canvasId and documentId from penecho_start_session with target:current; keep that exact document open and current. Reuse the configured environment and --state-directory if present. Quote paths on Windows/macOS/Linux. The CLI sends original bytes to /mcp/images on the SAME HTTPS port and with the same authentication as /mcp; image processing runs on PenEcho, with no client-side converter or Base64 needed. Maximum original file size: 32 MiB. Supported raw files: PNG, WebP, JPG/JPEG, GIF, TIFF, AVIF; HEIC/HEIF depends on server codecs. Prefer WebP generally, PNG for lossless diagrams/transparency, JPEG for photos. Copy the returned source verbatim into Widget img src or CSS url(), or pass it to penecho_place_image with the sessionId and a new requestId. Never pass a local filesystem path as MCP source. Chat attachment Data URLs can use penecho_upload_image directly. Retry uncertain uploads with the identical target, file and requestId. Verify client.js --help includes --upload-image; if absent, download and verify the current client again.
+Image files on THIS Agent's computer: run the downloaded client.js as a separate one-shot command using the same local Node executable and host ID: node "<absolute client.js>" --host-id HOST_ID --upload-image "<absolute image path>" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Obtain canvasId and documentId from fastlectures_start_session with target:current; keep that exact document open and current. Reuse the configured environment and --state-directory if present. Quote paths on Windows/macOS/Linux. The CLI sends original bytes to /mcp/images on the SAME HTTPS port and with the same authentication as /mcp; image processing runs on FastLectures, with no client-side converter or Base64 needed. Maximum original file size: 32 MiB. Supported raw files: PNG, WebP, JPG/JPEG, GIF, TIFF, AVIF; HEIC/HEIF depends on server codecs. Prefer WebP generally, PNG for lossless diagrams/transparency, JPEG for photos. Copy the returned source verbatim into Widget img src or CSS url(), or pass it to fastlectures_place_image with the sessionId and a new requestId. Never pass a local filesystem path as MCP source. Chat attachment Data URLs can use fastlectures_upload_image directly. Retry uncertain uploads with the identical target, file and requestId. Verify client.js --help includes --upload-image; if absent, download and verify the current client again.
 
-Optional helper skill: if this Agent supports local skills, create or update penecho-mcp using its supported skill location and format. Use this one-shot SKILL.md content (adapt the format if needed): When saving the skill, replace NODE_PATH, CLIENT_JS_PATH and HOST_ID below with the actual absolute local Node executable, fixed installation path expanded to an absolute client.js path and supplied hostId. These are connection identifiers, not credentials; never embed accessToken.
+Optional helper skill: if this Agent supports local skills, create or update fastlectures-mcp using its supported skill location and format. Use this one-shot SKILL.md content (adapt the format if needed): When saving the skill, replace NODE_PATH, CLIENT_JS_PATH and HOST_ID below with the actual absolute local Node executable, fixed installation path expanded to an absolute client.js path and supplied hostId. These are connection identifiers, not credentials; never embed accessToken.
 
 ---
-name: penecho-mcp
-description: Create, read, or edit PenEcho canvases, including following the user's drawings and notes.
+name: fastlectures-mcp
+description: Create, read, or edit FastLectures canvases, including following the user's drawings and notes.
 ---
 
 Use connected tools; search only missing deferred tools. Bind once with start_session; retain sessionId/documentId and stable client/sessionKey. Use target:current for the user's current Canvas.
 
-Upload files with the installed bridge: "NODE_PATH" "CLIENT_JS_PATH" --host-id HOST_ID --upload-image "ABSOLUTE_IMAGE_PATH" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Required client.js location: ~/.penecho/mcp/client.js (macOS/Linux), %USERPROFILE%\\.penecho\\mcp\\client.js (Windows), not the skill or application directory. HOST_ID is the setup server hostId, never a canvasId/documentId/sessionId. Copy it from the MCP entry if needed. client.js resolves the address/port automatically; do not inspect source or port mappings. Get canvasId/documentId from start_session target:current; reuse returned source. Read upload_image source parameters for upload details.
+Upload files with the installed bridge: "NODE_PATH" "CLIENT_JS_PATH" --host-id HOST_ID --upload-image "ABSOLUTE_IMAGE_PATH" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Required client.js location: ~/.fastlectures/mcp/client.js (macOS/Linux), %USERPROFILE%\\.fastlectures\\mcp\\client.js (Windows), not the skill or application directory. HOST_ID is the setup server hostId, never a canvasId/documentId/sessionId. Copy it from the MCP entry if needed. client.js resolves the address/port automatically; do not inspect source or port mappings. Get canvasId/documentId from start_session target:current; reuse returned source. Read upload_image source parameters for upload details.
 
 Follow live schemas; get_guidance only for the needed topic. Keep artifact IDs. Read source/contentHash before patching. Retry uncertain writes with identical arguments/requestId. Capture when visual evidence is needed; combine final mutation and completion. Inbox reads do not acknowledge.
 
 If skill creation is unavailable or fails, simply skip it and continue MCP setup; no extra user action is needed.`;
-    if(direct?.transport==="http")return `Configure PenEcho using native Streamable HTTP MCP on THIS Agent's computer. Preserve unrelated client configuration. No Gateway, background daemon, or stdio bridge is needed.
+    if(direct?.transport==="http")return `Configure FastLectures using native Streamable HTTP MCP on THIS Agent's computer. Preserve unrelated client configuration. No Gateway, background daemon, or stdio bridge is needed.
 
 ${JSON.stringify(direct,null,2)}
 
-Use Node.js 18+ for the short-lived discovery helper. Download discoveryCliUrl to ~/.penecho/mcp/discover.js (use this computer's home directory on Windows too). Verify its SHA-256 equals discoveryCliSha256 BEFORE executing. Save {hostId,certificatePem,accessToken,addresses} to a private temporary JSON file, import with node <absolute discover.js> --import <file> --client <codex|claude>, then delete only that temporary file. The helper stores shared credentials, trusted CA and endpoint cache under ~/.penecho/mcp. For another client, use --client json and its documented native HTTP MCP format, preserving other entries. Never configure the helper itself as a stdio MCP server. Never print accessToken or disable TLS verification. A certificate is trust; the bearer token authorizes access.
+Use Node.js 18+ for the short-lived discovery helper. Download discoveryCliUrl to ~/.fastlectures/mcp/discover.js (use this computer's home directory on Windows too). Verify its SHA-256 equals discoveryCliSha256 BEFORE executing. Save {hostId,certificatePem,accessToken,addresses} to a private temporary JSON file, import with node <absolute discover.js> --import <file> --client <codex|claude>, then delete only that temporary file. The helper stores shared credentials, trusted CA and endpoint cache under ~/.fastlectures/mcp. For another client, use --client json and its documented native HTTP MCP format, preserving other entries. Never configure the helper itself as a stdio MCP server. Never print accessToken or disable TLS verification. A certificate is trust; the bearer token authorizes access.
 
-Finish certificate trust using this client's supported CA configuration. Codex supports CODEX_CA_CERTIFICATE and Claude Code supports NODE_EXTRA_CA_CERTS; these are environment variables of the actual client process, not per-server HTTP environment fields. Configure persistent trust for the actual launch method or use an already trusted OS certificate store supported by that client. A saved MCP entry alone does not prove the running client trusts this CA. Reload the MCP client and verify initialize, tools/list and penecho_list_canvases.
+Finish certificate trust using this client's supported CA configuration. Codex supports CODEX_CA_CERTIFICATE and Claude Code supports NODE_EXTRA_CA_CERTS; these are environment variables of the actual client process, not per-server HTTP environment fields. Configure persistent trust for the actual launch method or use an already trusted OS certificate store supported by that client. A saved MCP entry alone does not prove the running client trusts this CA. Reload the MCP client and verify initialize, tools/list and fastlectures_list_canvases.
 
 When the cached endpoint fails, run node <absolute discover.js> --host-id ${direct.hostId} --client <client> again: it probes the cache, rediscovers the trusted host only when needed, updates the matching configuration, and exits. Do not poll or keep a remote-client process alive. Use the client's supported MCP refresh/reconnect after an endpoint change; MCP does not universally execute discovery commands or hot-reload changed URLs. Report the actual verified result.
 
-Install a small PenEcho bootstrap skill in this Agent's supported local skill format if available: trigger on PenEcho, echo, canvas or spatial-workspace requests, including requests to follow Canvas drawings or handwriting; When the user refers to Canvas drawings, handwriting, circles, arrows or annotations (e.g. “请按照我画的内容来执行”, “请按照我写的来进行操作”, “follow what I drew/wrote”), decide whether the requested action depends on visual information missing from the available context. These phrases are routing cues, not mandatory screenshot triggers. Reuse already understood drawings, supplied images or readable feedback captures when sufficient; do not re-view or recapture unchanged content on every turn or edit. Ordinary source edits and fully specified text instructions need no image. If execution depends on unseen, changed or unclear ink or spatial relationships, inspect the relevant image; source/JSON alone cannot establish those visual details. Only when existing image evidence is insufficient, call penecho_capture_canvas with quality:"basic" and the relevant selection, region, object or viewport target; use target:"canvas" for whole-Canvas context. Request detail only if needed to read the marks. Use the intended document/session; never silently switch documents. If capture fails or handwriting is ambiguous, resolve that specific gap before dependent edits. Read source as needed for implementation. Discover PenEcho tools and read penecho://guidance/skill; on connection failure run the saved discovery command above and refresh the MCP connection using this client's supported mechanism. Preserve a unique stable sessionKey for this logical conversation, its client name and returned documentId. New conversations use different keys. Call penecho_start_session with the same key and documentId after reconnect; PenEcho restores the original Canvas even when it was closed, and creates a replacement only if the document is definitively missing. New conversations without a target use the most recently enabled browser. Never redirect an existing conversation merely because another browser connected. After reconnect verify the returned documentId and recovery result before continuing edits. Do not claim a failed connection succeeded.`;
+Install a small FastLectures bootstrap skill in this Agent's supported local skill format if available: trigger on FastLectures, echo, canvas or spatial-workspace requests, including requests to follow Canvas drawings or handwriting; When the user refers to Canvas drawings, handwriting, circles, arrows or annotations (e.g. “请按照我画的内容来执行”, “请按照我写的来进行操作”, “follow what I drew/wrote”), decide whether the requested action depends on visual information missing from the available context. These phrases are routing cues, not mandatory screenshot triggers. Reuse already understood drawings, supplied images or readable feedback captures when sufficient; do not re-view or recapture unchanged content on every turn or edit. Ordinary source edits and fully specified text instructions need no image. If execution depends on unseen, changed or unclear ink or spatial relationships, inspect the relevant image; source/JSON alone cannot establish those visual details. Only when existing image evidence is insufficient, call fastlectures_capture_canvas with quality:"basic" and the relevant selection, region, object or viewport target; use target:"canvas" for whole-Canvas context. Request detail only if needed to read the marks. Use the intended document/session; never silently switch documents. If capture fails or handwriting is ambiguous, resolve that specific gap before dependent edits. Read source as needed for implementation. Discover FastLectures tools and read fastlectures://guidance/skill; on connection failure run the saved discovery command above and refresh the MCP connection using this client's supported mechanism. Preserve a unique stable sessionKey for this logical conversation, its client name and returned documentId. New conversations use different keys. Call fastlectures_start_session with the same key and documentId after reconnect; FastLectures restores the original Canvas even when it was closed, and creates a replacement only if the document is definitively missing. New conversations without a target use the most recently enabled browser. Never redirect an existing conversation merely because another browser connected. After reconnect verify the returned documentId and recovery result before continuing edits. Do not claim a failed connection succeeded.`;
     return "";
   }
   function mcpConnect(reconnecting=false) {
@@ -24969,12 +24974,12 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     mcpRuntime.browserId=mcpRuntime.browserId||canvasClientId();
     const generation=mcpRuntime.generation;
     if(!reconnecting&&typeof canvasDocumentsReady==="function")void canvasDocumentsReady().then(()=>{if(generation!==mcpRuntime.generation||!mcpRuntime.wanted)return;const doc=canvasDocumentsCurrent();mcpRuntime.feedback=doc.feedback;mcpRuntime.feedbackSequence=doc.feedbackSequence;canvasDocumentsRender();}).catch(error=>{if(generation===mcpRuntime.generation&&mcpRuntime.wanted)canvasDocumentsReport(error,()=>canvasDocumentsReady());});
-    const socket=window.PenEchoCloudMcpSocket
-      ?new window.PenEchoCloudMcpSocket()
-      :new WebSocket(`${location.protocol==="https:"?"wss:":"ws:"}//${location.host}${window.PENECHO_CONFIG?.runtime==="cloud"?"/api/v1/remote-canvas/mcp":"/api/mcp/canvas"}`);
+    const socket=window.FastLecturesCloudMcpSocket
+      ?new window.FastLecturesCloudMcpSocket()
+      :new WebSocket(`${location.protocol==="https:"?"wss:":"ws:"}//${location.host}${window.FASTLECTURES_CONFIG?.runtime==="cloud"?"/api/v1/remote-canvas/mcp":"/api/mcp/canvas"}`);
     mcpRuntime.socket=socket;mcpRuntime.lastPong=Date.now();mcpHeartbeat(socket);
     socket.addEventListener("availabilitychange",()=>{if(socket===mcpRuntime.socket)mcpRenderSettings();});
-    socket.addEventListener("open",()=>{if(socket!==mcpRuntime.socket)return;socket.send(JSON.stringify({type:"hello",canvasId:mcpRuntime.browserId,title:state.currentSnapshotName||"PenEcho Canvas"}));mcpRenderSettings();});
+    socket.addEventListener("open",()=>{if(socket!==mcpRuntime.socket)return;socket.send(JSON.stringify({type:"hello",canvasId:mcpRuntime.browserId,title:state.currentSnapshotName||"FastLectures Canvas"}));mcpRenderSettings();});
     socket.addEventListener("message",event=>{
       if(socket!==mcpRuntime.socket)return;let message;try{message=JSON.parse(event.data);}catch{return;}
       if(message.type==="dispose-session"){mcpDisposeSession(message.sessionId);return;}
@@ -24996,12 +25001,12 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
           canvasAgentAssertToolExecution(execution);
           if(["mcp_present_widget","mcp_draw","mcp_plot","mcp_patch_file","mcp_edit_canvas","mcp_place_image"].includes(message.name)&&message.arguments?.presentation?.intent!=="inspect"&&message.arguments?.action!=="show"&&!result.reused){
             const region=mcpContentUpdateRegion(result,message.arguments||{})||previousRegion;
-            window.PenEchoStudioNavigator?.noteMcpContentUpdate?.(result.documentId,region);
+            window.FastLecturesStudioNavigator?.noteMcpContentUpdate?.(result.documentId,region);
           }
           if(mutation){const session=mcpRuntime.sessions.get(message.arguments?.sessionId);if(session)session.updatedAt=Date.now();}
           socket.send(JSON.stringify({type:"result",requestId:message.requestId,ok:true,result:{...result,browserElapsedMs:Math.round(performance.now()-started)}}));
         }catch(error){if(socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:"result",requestId:message.requestId,ok:false,error:{code:error.code||"CANVAS_TOOL_FAILED",message:String(error.message||error),...(error.details?{details:error.details}:{})}}));}
-        finally{mcpRuntime.queued--;mcpRuntime.controllers.delete(message.requestId);if(mutation&&socket===mcpRuntime.socket){mcpEndMutation();mcpRenderSettings();}if(socket===mcpRuntime.socket)await window.PenEchoStudioNavigator?.flushMcpFollow?.();}
+        finally{mcpRuntime.queued--;mcpRuntime.controllers.delete(message.requestId);if(mutation&&socket===mcpRuntime.socket){mcpEndMutation();mcpRenderSettings();}if(socket===mcpRuntime.socket)await window.FastLecturesStudioNavigator?.flushMcpFollow?.();}
       });
     });
     socket.addEventListener("close",()=>{if(socket===mcpRuntime.socket)mcpDisconnect(true);});
@@ -25049,16 +25054,16 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
       :root{color-scheme:light dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#24272d;background:#fafafa}*{box-sizing:border-box}body{margin:0;padding:24px;font-size:15px;line-height:1.5;height:100vh;display:flex;flex-direction:column}header{display:flex;gap:16px;align-items:flex-start;border-bottom:1px solid #d9dbde;padding-bottom:18px;flex-shrink:0;max-height:32vh;overflow:auto}h1{font-size:22px;line-height:1.25;margin:0;font-weight:600;overflow-wrap:anywhere}#identity{flex:1;min-width:0}#client{font-size:12px;color:#626973}#status{font-size:12px;white-space:nowrap;color:#0f766e}#summary{margin:18px 0;overflow-wrap:anywhere;max-height:25vh;overflow:auto;flex-shrink:0}main{display:grid;grid-template-columns:1fr 1fr;gap:24px;min-height:0;overflow:auto;flex:1}section{min-width:0}h2{font-size:13px;font-weight:600;margin:0 0 10px;color:#626973}ol,ul{margin:0;padding:0;list-style:none}li{padding:8px 0;border-bottom:1px solid #e8e9eb;overflow-wrap:anywhere}#steps li{display:flex;gap:10px;align-items:baseline}.mark{font-size:12px;flex:0 0 20px;color:#626973}.done .mark{color:#0f766e}.working{font-weight:600}.error .mark{color:#be3434}#events li{font-size:13px}footer{margin-top:18px;font-size:12px;color:#626973}@media(max-width:580px){main{grid-template-columns:1fr}body{padding:18px}header{flex-wrap:wrap}}@media(prefers-color-scheme:dark){:root{color:#e8e9ec;background:#222326}header,li{border-color:#42454b}#client,h2,.mark,footer{color:#adb2bb}#status,.done .mark{color:#70cdb7}}
       </style></head><body><header><div id="identity"><div id="client"></div><h1 id="title"></h1></div><span id="status"></span></header><p id="summary"></p><main><section><h2>${state.language==="zh"?"工作步骤":"Work plan"}</h2><ol id="steps"></ol></section><section><h2>${state.language==="zh"?"最新进展":"Latest progress"}</h2><ul id="events"></ul></section></main><footer>${state.language==="zh"?"外部 AI 提供的计划、进展与结果":"Plans, progress and results shared by your AI"}</footer><script>
-      function render(d){for(const k of ['title','client','summary'])document.getElementById(k).textContent=d[k]||'';document.getElementById('status').textContent=d.statusLabel||d.status;const steps=document.getElementById('steps');steps.replaceChildren();(d.steps||[]).forEach((s,i)=>{const li=document.createElement('li'),mark=document.createElement('span'),label=document.createElement('span');li.className=s.status||'';mark.className='mark';mark.textContent=s.status==='done'?'✓':String(i+1);label.textContent=s.label;li.append(mark,label);steps.append(li)});const events=document.getElementById('events');events.replaceChildren();(d.events||[]).slice(-8).forEach(e=>{const li=document.createElement('li');li.textContent=e.text;events.append(li)})}render(${json});addEventListener('message',e=>{if(e.source===parent&&e.data?.type==='penecho-mcp-progress')render(e.data.progress)});
+      function render(d){for(const k of ['title','client','summary'])document.getElementById(k).textContent=d[k]||'';document.getElementById('status').textContent=d.statusLabel||d.status;const steps=document.getElementById('steps');steps.replaceChildren();(d.steps||[]).forEach((s,i)=>{const li=document.createElement('li'),mark=document.createElement('span'),label=document.createElement('span');li.className=s.status||'';mark.className='mark';mark.textContent=s.status==='done'?'✓':String(i+1);label.textContent=s.label;li.append(mark,label);steps.append(li)});const events=document.getElementById('events');events.replaceChildren();(d.events||[]).slice(-8).forEach(e=>{const li=document.createElement('li');li.textContent=e.text;events.append(li)})}render(${json});addEventListener('message',e=>{if(e.source===parent&&e.data?.type==='fastlectures-mcp-progress')render(e.data.progress)});
       <\/script></body></html>`;
   }
   function syncMcpWidgetProgress(widget) {
     if(!widget.mcpProgress||!widget.hostReady||widget.renderActive===false||widget.mcpSentVersion===widget.contentVersion)return;
-    widget.frame?.contentWindow?.postMessage({type:"penecho-mcp-progress",progress:widget.mcpProgress},widget.hostOrigin||location.origin);
+    widget.frame?.contentWindow?.postMessage({type:"fastlectures-mcp-progress",progress:widget.mcpProgress},widget.hostOrigin||location.origin);
     widget.mcpSentVersion=widget.contentVersion;
   }
   async function mcpCreateWidget(item,execution) {
-    const result=await canvasAgentCreate({baseRevision:state.userRevision,items:[{type:"widget",widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",...item}]},
+    const result=await canvasAgentCreate({baseRevision:state.userRevision,items:[{type:"widget",widgetType:"html_widget",pluginId:"general",sourceFormat:"fastlectures-mcp+html",...item}]},
       {...execution,widgetContentViewport:{width:item.contentWidth||item.width,height:item.contentHeight||item.height}});
     return canvasAgentObject(result.receipts[0].objectId).item;
   }
@@ -25107,7 +25112,7 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
   }
   async function mcpInspectHtml(args,execution) {
     const size=mcpPresentationSize({...args,presentation:{...args.presentation,intent:"inspect"}}),id=`mcp-preview-${canvasClientId()}`,
-      widget={id,widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:0,y:0,w:size.width,h:size.height,contentW:size.width,contentH:size.height,contentVersion:0,refreshSeconds:0,mcpEphemeral:true,mcpAssetDocumentId:mcpRuntime.sessions.get(args.sessionId)?.documentId,internalAgent:mcpRuntime.sessions.get(args.sessionId)?.internalAgent===true};
+      widget={id,widgetType:"html_widget",pluginId:"general",sourceFormat:"fastlectures-mcp+html",title:args.title,html:args.html,x:0,y:0,w:size.width,h:size.height,contentW:size.width,contentH:size.height,contentVersion:0,refreshSeconds:0,mcpEphemeral:true,mcpAssetDocumentId:mcpRuntime.sessions.get(args.sessionId)?.documentId,internalAgent:mcpRuntime.sessions.get(args.sessionId)?.internalAgent===true};
     mcpRuntime.previews.set(id,widget);
     try {
       canvasAgentAssertToolExecution(execution);mountWidget(widget);
@@ -25151,7 +25156,7 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
         const command={...context,tool:"html_widget",pluginId:"general",html:args.html,title:args.title,x:widget.x,y:widget.y,w:widget.w,h:widget.h};
         await canvasAgentReplaceWidget({baseRevision:state.userRevision,objectId:widget.id,expectedHash,command},execution);
         // Source updates preserve the user's footprint. Explicit geometry edits use
-        // penecho_edit_canvas and its revision/collision checks.
+        // fastlectures_edit_canvas and its revision/collision checks.
       }else{
         const plan=mcpPlanPlacement(size.width,size.height,session,presentation);
         widget=await mcpCreateWidget({title:args.title,html:args.html,width:size.width,height:size.height,contentWidth:size.contentWidth,contentHeight:size.contentHeight,placement:plan.placement},{...execution,preserveView:true});
@@ -25175,7 +25180,7 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     if(name==="mcp_capture_widget"){
       const artifact=session.artifacts.get(args.artifactId);if(!artifact)throw Error("Preview not found in this session. Present the Widget first.");
       const object=canvasAgentObject(artifact.objectId);if(!object)throw Error("Preview was removed.");
-      if(object.kind!=="widget")throw Error("This tool captures Widgets only. Read user annotations with penecho_inbox.");
+      if(object.kind!=="widget")throw Error("This tool captures Widgets only. Read user annotations with fastlectures_inbox.");
       return mcpCaptureWidget(object.item,args,execution);
     }
     if(name==="mcp_inspect_session")return {sessionId:session.sessionId,boardObjectId:board?.id||null,...mcpProgressData(session),attention:mcpAttentionState(session),artifacts:[...session.artifacts].map(([artifactId,value])=>{const object=canvasAgentObject(value.objectId);return {artifactId,title:value.title,presentation:value.presentation,kind:value.kind||"widget",objectId:value.objectId,...(value.objectIds?{objectIds:value.objectIds,elements:(value.elements||[]).map(([id,entry])=>{const child=canvasAgentObject(entry.objectId);return {id,objectId:entry.objectId,kind:entry.kind,...(child?{bounds:canvasAgentBox(child)}:{removed:true})};})}:{}),...(object?{bounds:value.objectIds?mcpTaskBounds(session,value.objectIds):canvasAgentBox(object)}:{removed:true})};}),revision:state.userRevision};
@@ -25183,9 +25188,9 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     throw Error(`Unsupported MCP Canvas operation: ${name}`);
   }
   mcpEl("mcpReconnectCancel")?.addEventListener("click",mcpCancelReconnect);
-  addEventListener("penecho:open-cloud-mcp",()=>{if(!mcpRuntime.wanted)mcpConnect();});
-  addEventListener("penecho:close-mcp",()=>mcpCancelReconnect());
-  addEventListener("penecho:show-mcp-settings",()=>{openSettings();selectSettingsPage("mcp");window.PenEchoMcpSettings?.select("cloud");});
+  addEventListener("fastlectures:open-cloud-mcp",()=>{if(!mcpRuntime.wanted)mcpConnect();});
+  addEventListener("fastlectures:close-mcp",()=>mcpCancelReconnect());
+  addEventListener("fastlectures:show-mcp-settings",()=>{openSettings();selectSettingsPage("mcp");window.FastLecturesMcpSettings?.select("cloud");});
   mcpEl("mcpToolbarToggle")?.addEventListener("click",mcpToolbarClick);
   mcpEl("mcpEnabled")?.addEventListener("click",event=>{
     if(mcpRuntime.wanted||mcpRuntime.socket)return mcpCancelReconnect();
@@ -25573,15 +25578,15 @@ var canvasDocumentIdentity = (() => {
   }
 
   function normalizeProcessor(value) {
-    if (!isRecord(value)) return { kind: "penecho" };
+    if (!isRecord(value)) return { kind: "fastlectures" };
     const kind = ownValue(value, "kind");
-    if (kind !== "external") return { kind: "penecho" };
+    if (kind !== "external") return { kind: "fastlectures" };
     const bindingKey = ownValue(value, "bindingKey");
     const client = ownValue(value, "client");
     if (bindingKey !== MISSING && client !== MISSING && validId(bindingKey) && boundedString(client, 1, MAX_CLIENT_LENGTH)) {
       return { kind: "external", bindingKey, client };
     }
-    return { kind: "penecho" };
+    return { kind: "fastlectures" };
   }
 
   function normalizeMetadata(value) {
@@ -25984,8 +25989,8 @@ var canvasDocumentIdentity = (() => {
     const internalByKey = new Map();
     for (const raw of arrayTail(ownValue(value, "internalSessions"), MAX_WORKSPACE_SESSIONS)) {
       const key = ownValue(raw, "sessionKey");
-      if (typeof key !== "string" || !/^agent-[a-f0-9]{64}$/.test(key) || ownValue(raw,"client") !== "PenEcho Agent") continue;
-      const session = documentId ? normalizeSession(raw,new Map([[key,"PenEcho Agent"]]),documentId) : null;
+      if (typeof key !== "string" || !/^agent-[a-f0-9]{64}$/.test(key) || ownValue(raw,"client") !== "FastLectures Agent") continue;
+      const session = documentId ? normalizeSession(raw,new Map([[key,"FastLectures Agent"]]),documentId) : null;
       if(session)internalByKey.set(key,session);
     }
     const internalSessions = [...internalByKey.values()];
@@ -26141,36 +26146,36 @@ var canvasDocumentIdentity = (() => {
   // One visible Canvas; inactive documents contain data, never hidden iframe trees.
   // Ordinary saves carry this extension in bundle V2. This is not version history.
   var canvasDocuments = { records:new Map(), activeId:null, ready:null, db:null, switching:false, epoch:0, error:null, retry:null, receipts:new Map(), write:Promise.resolve() };
-  const CANVAS_DOCUMENT_EXTENSION = "penechoDocument", CANVAS_WORKSPACE_EXTENSION = "penechoWorkspace", CANVAS_DOCUMENT_LIMIT = 64;
+  const CANVAS_DOCUMENT_EXTENSION = "fastlecturesDocument", CANVAS_WORKSPACE_EXTENSION = "fastlecturesWorkspace", CANVAS_DOCUMENT_LIMIT = 64;
   const CANVAS_IMAGE_ASSET_TYPE="image-attachment", CANVAS_IMAGE_ASSET_LIMIT=64, CANVAS_IMAGE_ASSET_BYTES=16000000;
   function canvasImageAssets(doc=canvasDocumentsCurrent()) {
     return (canvasDocumentsIsActive(doc)?state.currentSnapshotPreservedAssets:doc.stored?.item?.preservedAssets)||[];
   }
   function canvasImageAssetMetadata(asset) {
-    return {assetId:asset.metadata.resourceId,source:`penecho-asset:${asset.metadata.resourceId}`,name:asset.metadata.name,mediaType:asset.contentType,bytes:asset.metadata.bytes,width:asset.metadata.width,height:asset.metadata.height};
+    return {assetId:asset.metadata.resourceId,source:`fastlectures-asset:${asset.metadata.resourceId}`,name:asset.metadata.name,mediaType:asset.contentType,bytes:asset.metadata.bytes,width:asset.metadata.width,height:asset.metadata.height};
   }
   function canvasImageAsset(doc,source) {
-    const id=/^penecho-asset:([a-f0-9]{64})$/.exec(source)?.[1];
+    const id=/^fastlectures-asset:([a-f0-9]{64})$/.exec(source)?.[1];
     const asset=id&&canvasImageAssets(doc).find(a=>a.kind==="resource"&&a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE&&a.metadata.resourceId===id);
     if(!asset)throw canvasDocumentsError("RESOURCE_NOT_FOUND","Image attachment is not in this Canvas. Upload it to this session first.");
     return asset;
   }
   function canvasImageAssetsForHtml(html,doc=canvasDocumentsCurrent()) {
-    const sources=[...new Set(String(html||"").match(/penecho-asset:[a-f0-9]{64}/g)||[])],result={};
+    const sources=[...new Set(String(html||"").match(/fastlectures-asset:[a-f0-9]{64}/g)||[])],result={};
     let total=0;
     for(const source of sources){const asset=canvasImageAsset(doc,source),data=`data:${asset.contentType};base64,${asset.dataBase64}`;
       if(!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(data)||data.length>800000||(total+=data.length)>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("INVALID_IMAGE","The Widget image attachments exceed the supported limits.");
       result[source]=data;
     }
     let expanded=String(html||"").length;
-    for(const source of String(html||"").match(/penecho-asset:[a-f0-9]{64}/g)||[])if((expanded+=result[source].length-source.length)>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("ASSET_LIMIT","Widget image expansion exceeds the supported limit.");
+    for(const source of String(html||"").match(/fastlectures-asset:[a-f0-9]{64}/g)||[])if((expanded+=result[source].length-source.length)>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("ASSET_LIMIT","Widget image expansion exceeds the supported limit.");
     return result;
   }
   async function canvasImageSource(doc,source) {
     let blob;
     if(typeof source!=="string")throw canvasDocumentsError("INVALID_IMAGE","An image source is required.");
-    if(source.startsWith("penecho-asset:")){const asset=canvasImageAsset(doc,source);blob=dataUrlBlob(`data:${asset.contentType};base64,${asset.dataBase64}`);}
-    else if(source.startsWith("penecho-ref:")){const match=/^penecho-ref:objects\/([^/]+)\/image$/.exec(source),object=match&&canvasDocumentsObject(doc,decodeURIComponent(match[1]));if(object?.kind!=="image")throw canvasDocumentsError("RESOURCE_NOT_FOUND","Use an image reference from this Canvas.");blob=object.item.blob;}
+    if(source.startsWith("fastlectures-asset:")){const asset=canvasImageAsset(doc,source);blob=dataUrlBlob(`data:${asset.contentType};base64,${asset.dataBase64}`);}
+    else if(source.startsWith("fastlectures-ref:")){const match=/^fastlectures-ref:objects\/([^/]+)\/image$/.exec(source),object=match&&canvasDocumentsObject(doc,decodeURIComponent(match[1]));if(object?.kind!=="image")throw canvasDocumentsError("RESOURCE_NOT_FOUND","Use an image reference from this Canvas.");blob=object.item.blob;}
     else {if(source.length>800000||!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(source))throw canvasDocumentsError("INVALID_IMAGE","Use a bounded PNG, JPEG or WebP Data URL.");blob=dataUrlBlob(source);}
     if(!blob||!["image/png","image/jpeg","image/webp"].includes(blob.type)||blob.size>MAX_IMAGE_SOURCE_BYTES)throw canvasDocumentsError("INVALID_IMAGE","Image attachment exceeds the 800000-byte Data URL limit. Resize it before upload.");
     const signature=new Uint8Array(await blob.slice(0,12).arrayBuffer()),matches=blob.type==="image/png"?[137,80,78,71,13,10,26,10].every((value,index)=>signature[index]===value):blob.type==="image/jpeg"?signature[0]===255&&signature[1]===216&&signature[2]===255:[82,73,70,70].every((value,index)=>signature[index]===value)&&[87,69,66,80].every((value,index)=>signature[index+8]===value);
@@ -26220,7 +26225,7 @@ var canvasDocumentIdentity = (() => {
       if(canvasDocumentsIsActive(doc)){state.images.push(record);retained=true;}else {const {image,...stored}=record;doc.stored.item.images.push(stored);}
       canvasDocumentsEndEdit(doc,"image",record.id);
       if(!args.region&&session&&canvasDocumentsIsActive(doc))mcpQueueView(session,record);
-      return {applied:true,objectId:record.id,source:args.source.startsWith("data:")?`penecho-ref:objects/${encodeURIComponent(record.id)}/image`:args.source,revision:doc.revision};
+      return {applied:true,objectId:record.id,source:args.source.startsWith("data:")?`fastlectures-ref:objects/${encodeURIComponent(record.id)}/image`:args.source,revision:doc.revision};
     }finally{if(!retained)decoded.image.close();}
   }
   function canvasDocumentsCopy(en,zh) { return state.language === "zh" ? zh : en; }
@@ -26246,7 +26251,7 @@ var canvasDocumentIdentity = (() => {
     return record;
   }
   function canvasDocumentsMetadata(doc) {
-    return {version:1,documentId:doc.id,title:doc.title,context:doc.context||"",bindings:doc.bindings||[],locators:doc.locators||[],processor:doc.processor||{kind:"penecho"}};
+    return {version:1,documentId:doc.id,title:doc.title,context:doc.context||"",bindings:doc.bindings||[],locators:doc.locators||[],processor:doc.processor||{kind:"fastlectures"}};
   }
   function canvasDocumentsCurrent() {
     if (canvasDocuments.activeId && canvasDocuments.records.has(canvasDocuments.activeId)) return canvasDocuments.records.get(canvasDocuments.activeId);
@@ -26256,7 +26261,7 @@ var canvasDocumentIdentity = (() => {
     return doc;
   }
   function canvasDocumentsRecord(meta,stored=null) {
-    return {id:meta.documentId,title:meta.title||canvasDocumentsCopy("Untitled Canvas","未命名画布"),context:meta.context||"",bindings:meta.bindings||[],locators:meta.locators||[],processor:{kind:"penecho"},stored,
+    return {id:meta.documentId,title:meta.title||canvasDocumentsCopy("Untitled Canvas","未命名画布"),context:meta.context||"",bindings:meta.bindings||[],locators:meta.locators||[],processor:{kind:"fastlectures"},stored,
       revision:1,savedRevision:0,feedback:[],feedbackSequence:0,messages:[],messageSequence:0,changes:[],changeSequence:0,sessions:[],internalSessions:[],unseen:0,undo:[],redo:[],receipts:new Map()};
   }
   function canvasDocumentsUnseen(value) { return Number.isSafeInteger(value) && value >= 0 ? value : 0; }
@@ -26292,7 +26297,7 @@ var canvasDocumentIdentity = (() => {
   }
   async function canvasDocumentsDb() {
     if(canvasDocuments.db)return canvasDocuments.db;
-    const request=indexedDB.open("penecho-workspace-documents",1);
+    const request=indexedDB.open("fastlectures-workspace-documents",1);
     request.onupgradeneeded=()=>request.result.createObjectStore("documents",{keyPath:"id"});
     canvasDocuments.db=await canvasDocumentsBound(requestResult(request));return canvasDocuments.db;
   }
@@ -26353,7 +26358,7 @@ var canvasDocumentIdentity = (() => {
     if(canvasDocumentsIsActive(doc)) { if(doc.unseen){doc.unseen=0;canvasDocumentsRender();await canvasDocumentsPersist(doc);} return {documentId:id,active:true}; }
     if(canvasDocuments.switching||snapshotLoadInProgress||typeof snapshotSaveInProgress!=="undefined"&&snapshotSaveInProgress)throw canvasDocumentsError("CANVAS_BUSY",canvasDocumentsCopy("A Canvas is opening or saving. Retry after it finishes.","画布正在打开或保存，完成后请重试。"));
     if(state.drawing||state.widgetGesture||state.imageGesture||state.selectionGesture)throw canvasDocumentsError("CANVAS_BUSY",canvasDocumentsCopy("Finish the current gesture, then retry switching Canvas.","请完成当前操作，再重试切换画布。"));
-    if(typeof canvasAgent!=="undefined"&&(canvasAgent.running||canvasAgent.requestPending))throw canvasDocumentsError("CANVAS_BUSY",canvasDocumentsCopy("PenEcho Agent is working on this Canvas. Wait or use Stop, then retry switching.","PenEcho Agent 正在处理当前画布。请等待完成或点击停止，再重试切换。"));
+    if(typeof canvasAgent!=="undefined"&&(canvasAgent.running||canvasAgent.requestPending))throw canvasDocumentsError("CANVAS_BUSY",canvasDocumentsCopy("FastLectures Agent is working on this Canvas. Wait or use Stop, then retry switching.","FastLectures Agent 正在处理当前画布。请等待完成或点击停止，再重试切换。"));
     if(typeof canvasAgent!=="undefined"&&(canvasAgent.attachments?.length||canvasAgent.inkPresent))throw canvasDocumentsError("CANVAS_BUSY",canvasDocumentsCopy("Send or remove the Agent's attachments or handwriting before switching, then retry. Your draft is kept.","请先发送或移除 Agent 中的附件、手写输入，再重试切换。草稿已保留。"));
     canvasDocuments.switching=true;canvasDocumentsRender();
     let decoded=null;
@@ -26392,7 +26397,7 @@ var canvasDocumentIdentity = (() => {
       canvasAgentCanvasDidChange(doc.locator||{id:doc.id,location:"workspace"},{clearProject:true});
       if(typeof canvasAgentInput!=="undefined"){canvasAgentInput.value=doc.agentDraft||"";canvasAgentResizeInput();}
       doc.unseen=0;canvasDocuments.error=null;canvasDocuments.retry=null;render();canvasAgentSyncAutomaticAIStatus();mcpRenderCanvasStatus();
-      window.PenEchoStudioNavigator?.updateDocument?.();await canvasDocumentsPersist(doc);return {documentId:id,active:true};
+      window.FastLecturesStudioNavigator?.updateDocument?.();await canvasDocumentsPersist(doc);return {documentId:id,active:true};
     } finally {if(decoded?.size)releaseSnapshotTileCanvases(decoded);canvasDocuments.switching=false;canvasDocumentsRender();}
   }
   function canvasDocumentsApplyView(view) {
@@ -26412,7 +26417,7 @@ var canvasDocumentIdentity = (() => {
   }
   function canvasDocumentsSaveMetadata({copy=false}={}) {
     const doc=canvasDocumentsCurrent(),metadata=canvasDocumentsMetadata(doc);
-    if(copy){metadata.documentId=canvasDocumentsId();metadata.bindings=[];metadata.locators=[];metadata.processor={kind:"penecho"};}
+    if(copy){metadata.documentId=canvasDocumentsId();metadata.bindings=[];metadata.locators=[];metadata.processor={kind:"fastlectures"};}
     return {...snapshotCanvasObjectExtensions(),[CANVAS_DOCUMENT_EXTENSION]:metadata,[CANVAS_WORKSPACE_EXTENSION]:copy?{version:1}:canvasDocumentsWorkspaceData(doc)};
   }
   async function canvasDocumentsDidSave(item,location,storedId,tileEntries=[]) {
@@ -26463,7 +26468,7 @@ var canvasDocumentIdentity = (() => {
     const item=object.item,name=parts[2];
     if(name==="geometry.json")return json(canvasDocumentsBounds(object));
     if(object.kind==="text"&&name==="content.txt")return String(item.text||"");
-    if(object.kind==="image"&&name==="image.json")return json({id:item.id,source:`penecho-ref:objects/${encodeURIComponent(item.id)}/image`,naturalW:item.naturalW,naturalH:item.naturalH,sourceName:item.sourceName||""});
+    if(object.kind==="image"&&name==="image.json")return json({id:item.id,source:`fastlectures-ref:objects/${encodeURIComponent(item.id)}/image`,naturalW:item.naturalW,naturalH:item.naturalH,sourceName:item.sourceName||""});
     if(object.kind==="widget") {
       if(name==="widget.html"&&item.widgetType!=="diagram_source")return String(item.html||"");
       if(name==="widget.source")return String(item.widgetType==="diagram_source"?item.source||"":item.copyText||"");
@@ -26712,7 +26717,7 @@ var canvasDocumentIdentity = (() => {
       if(!widget)canvasDocumentsCapacity(doc,"widget");
       const presentation=mcpPresentation(args,previous),size=mcpPresentationSize(args,doc);
       const plan=widget?null:canvasDocumentsPlace(doc,size.width,size.height,session,presentation);
-      const record=canvasDocumentsWidgetRecord({id:widget?.id||canvasDocumentsObjectId(doc,"widget"),widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:widget?.x??plan.placement.x,y:widget?.y??plan.placement.y,w:widget?.w||size.width,h:widget?.h||size.height,contentW:widget?.contentW||size.contentWidth||size.width,contentH:widget?.contentH||size.contentHeight||size.height,refreshSeconds:0});
+      const record=canvasDocumentsWidgetRecord({id:widget?.id||canvasDocumentsObjectId(doc,"widget"),widgetType:"html_widget",pluginId:"general",sourceFormat:"fastlectures-mcp+html",title:args.title,html:args.html,x:widget?.x??plan.placement.x,y:widget?.y??plan.placement.y,w:widget?.w||size.width,h:widget?.h||size.height,contentW:widget?.contentW||size.contentWidth||size.width,contentH:widget?.contentH||size.contentHeight||size.height,refreshSeconds:0});
       if(!record)throw canvasDocumentsError("INVALID_WIDGET","Widget source is invalid. Correct it and retry.");
       canvasAgentAssertToolExecution(execution);canvasDocumentsBeginEdit(doc);
       if(widget)Object.assign(widget,record);else{widget=record;item.widgets.push(widget);session.layout=plan.layout;}
@@ -26762,7 +26767,7 @@ var canvasDocumentIdentity = (() => {
     item.images=item.images.filter(i=>!exclude.has(i.id));item.textBoxes=item.textBoxes.filter(t=>!exclude.has(t.id));
     for(const entry of records)item[entry.kind==="text"?"textBoxes":"images"].push(entry.record);
     // Store the same new-text foreground rule without touching the visible Canvas.
-    if(!previous&&records.some(entry=>entry.kind==="text"))item.bundleExtensions={...snapshotExtensionObject(item.bundleExtensions),penechoObjectOrder:{version:1,frontKind:"text-box",placedKind:"text-box"}};
+    if(!previous&&records.some(entry=>entry.kind==="text"))item.bundleExtensions={...snapshotExtensionObject(item.bundleExtensions),fastlecturesObjectOrder:{version:1,frontKind:"text-box",placedKind:"text-box"}};
     const objectIds=records.map(r=>r.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,worldPerPixel,presentation:mcpPresentation(args,previous),elements:[...elements]});if(plan)session.layout=plan.layout;
     canvasDocumentsEndEdit(doc,kind);return {artifactId:args.artifactId,objectId:objectIds[0],objectIds,kind,revision:doc.revision,feedbackCursor:doc.feedbackSequence,visible:false};
   }
@@ -26854,12 +26859,12 @@ var canvasDocumentIdentity = (() => {
     canvasAgentAssertToolExecution(execution);
     if(activeId!==canvasDocuments.activeId||epoch!==canvasDocuments.epoch)throw canvasDocumentsError("CANVAS_BUSY","The Canvas changed while preparing this operation.");
     let session=mcpRuntime.sessions.get(key);
-    if(session&&(session.closed||!session.internalAgent||session.documentId!==activeId||session.client!=="PenEcho Agent"))throw canvasDocumentsError("BINDING_CONFLICT","This conversation belongs to a different Canvas.");
+    if(session&&(session.closed||!session.internalAgent||session.documentId!==activeId||session.client!=="FastLectures Agent"))throw canvasDocumentsError("BINDING_CONFLICT","This conversation belongs to a different Canvas.");
     if(!session){
       const doc=canvasDocuments.records.get(activeId);
       const conflict=[...canvasDocuments.records.values()].find(other=>other.id!==activeId&&(other.internalSessions||[]).some(saved=>saved.sessionKey===key));
       if(conflict)throw canvasDocumentsError("BINDING_CONFLICT","This conversation belongs to a different Canvas.");
-      session=canvasDocumentsSession(doc,{sessionId:key,sessionKey:key,client:"PenEcho Agent",title:"PenEcho Agent",target:"current"},{internalAgent:true});
+      session=canvasDocumentsSession(doc,{sessionId:key,sessionKey:key,client:"FastLectures Agent",title:"FastLectures Agent",target:"current"},{internalAgent:true});
       // Retain recent identities without consuming external MCP binding slots.
       const prior=[...mcpRuntime.sessions.values()].filter(s=>s.internalAgent&&s.documentId===activeId);
       if(prior.length>=64){doc.internalSessions=canvasDocumentsWorkspaceData(doc).internalSessions||[];for(const old of prior.slice(0,prior.length-63)){mcpRuntime.sessions.delete(old.sessionId);mcpRuntime.pendingView?.delete(old.sessionId);}}
@@ -26963,7 +26968,7 @@ var canvasDocumentIdentity = (() => {
       if(name==="mcp_patch_file") {
         const path=canvasDocumentsPath(args.path),source=canvasDocumentsFile(doc,path),contentHash=await canvasAgentHash(source);
         if(contentHash!==args.expectedHash)throw canvasDocumentsError("SOURCE_CONFLICT","This file changed after reading. Read it again and retry with its new hash.",{currentHash:contentHash});
-        const content=globalThis.PenEchoCanvasFilePatch.applyCanvasFilePatch(source,args.patch,path);
+        const content=globalThis.FastLecturesCanvasFilePatch.applyCanvasFilePatch(source,args.patch,path);
         result={...await canvasDocumentsApplyFile(doc,{...args,content},execution),sourcePath:path};
       }
       else if(name==="mcp_edit_canvas")result=await canvasDocumentsEdit(doc,args,execution);
@@ -26991,7 +26996,7 @@ var canvasDocumentIdentity = (() => {
             const captured=artifactId?await canvasDocumentsCaptureArtifact(doc,session,{...args,artifactId},execution):await canvasDocumentsExecute("mcp_capture_canvas",{sessionId:session.sessionId,target:result.objectId?"object":"viewport",objectId:result.objectId,quality:args.quality},execution);
             result={...result,...captured,pixelVerified:true};
           } catch(error) {
-            result={...result,pixelVerified:false,captureFailure:{code:error.code||"CAPTURE_FAILED",message:String(error.message),retryTool:"penecho_capture_canvas",retryArguments:{sessionId:session.sessionId,...(args.artifactId?{target:"artifact",artifactId:args.artifactId}:result.objectId?{target:"object",objectId:result.objectId}:{target:"viewport"})}}};
+            result={...result,pixelVerified:false,captureFailure:{code:error.code||"CAPTURE_FAILED",message:String(error.message),retryTool:"fastlectures_capture_canvas",retryArguments:{sessionId:session.sessionId,...(args.artifactId?{target:"artifact",artifactId:args.artifactId}:result.objectId?{target:"object",objectId:result.objectId}:{target:"viewport"})}}};
           }
         }
         if(args.completion&&!result.captureFailure) {
@@ -27043,7 +27048,7 @@ var canvasDocumentIdentity = (() => {
     const text=String(options.textOverride===undefined?canvasAgentInput.value:options.textOverride).trim();
     if(!text)return false;
     if(canvasAgent.attachments.length||canvasAgent.inkPresent) {
-      canvasDocumentsReport(canvasDocumentsCopy("External instructions currently support text and Canvas references. Place attachments on the Canvas, or select PenEcho Agent to send them.","外部指令目前支持文字和画布引用。请把附件放到画布上，或选择 PenEcho Agent 发送。"));return false;
+      canvasDocumentsReport(canvasDocumentsCopy("External instructions currently support text and Canvas references. Place attachments on the Canvas, or select FastLectures Agent to send them.","外部指令目前支持文字和画布引用。请把附件放到画布上，或选择 FastLectures Agent 发送。"));return false;
     }
     if(text.length>16000){canvasDocumentsReport(canvasDocumentsCopy("This instruction is too long. Shorten it and retry.","这条指令过长，请精简后重试。"));return false;}
     if(doc.messages.filter(m=>!["done","cancelled"].includes(m.status)).length>=100){canvasDocumentsReport(canvasDocumentsCopy("The external inbox is full. Finish or cancel pending messages before retrying.","外部待办已满。请先处理或取消待办，再重试。"));return false;}
@@ -27063,7 +27068,7 @@ var canvasDocumentIdentity = (() => {
   function canvasDocumentsRender() {
     const root=document.getElementById("canvasWorkspace"),doc=canvasDocuments.records.get(canvasDocuments.activeId);
     if(doc)doc.title=(typeof currentCanvasDisplayName==="function"?currentCanvasDisplayName():state.currentSnapshotName)||doc.title;
-    window.PenEchoStudioNavigator?.workspaceChanged?.();
+    window.FastLecturesStudioNavigator?.workspaceChanged?.();
     if(!root||!doc)return;
     root.hidden=false;
     const close=document.getElementById("canvasWorkspaceClose");
@@ -27099,7 +27104,7 @@ var canvasDocumentIdentity = (() => {
   document.getElementById("canvasWorkspaceRetry")?.addEventListener("click",()=>{const retry=canvasDocuments.retry;if(retry)canvasDocumentsUiAction(retry);});
 // Studio-only navigator for recent Agent conversations and saved canvases.
   {
-    const STUDIO_NAVIGATOR_TAB_KEY = "penecho-studio-navigator-tab",
+    const STUDIO_NAVIGATOR_TAB_KEY = "fastlectures-studio-navigator-tab",
       STUDIO_EDGE_SWIPE_START_PX = 28,
       STUDIO_EDGE_SWIPE_COMMIT_PX = 56,
       STUDIO_EDGE_SWIPE_CANCEL_PX = 36,
@@ -27161,7 +27166,7 @@ var canvasDocumentIdentity = (() => {
       studioEdgeSwipe = null;
 
     // Sidebar-only browser metadata; never part of a Canvas snapshot or server write.
-    const STUDIO_CANVAS_OPENED_KEY = "penecho-studio-canvas-last-opened";
+    const STUDIO_CANVAS_OPENED_KEY = "fastlectures-studio-canvas-last-opened";
     let studioCanvasOpened = readStudioCanvasOpened(), studioLastOpenedKey = "";
     function readStudioCanvasOpened() {
       try {
@@ -28274,8 +28279,8 @@ var canvasDocumentIdentity = (() => {
       }
     });
     studioNavigatorCompactMedia?.addEventListener?.("change", handleStudioNavigatorCompactChange);
-    window.addEventListener("penecho:languagechange", renderStudioNavigator);
-    window.PenEchoStudioNavigator = Object.freeze({
+    window.addEventListener("fastlectures:languagechange", renderStudioNavigator);
+    window.FastLecturesStudioNavigator = Object.freeze({
       render:renderStudioNavigator,
       renderWork:()=>{if(studioNavigatorActiveTab==="all")renderStudioWorkHistory();},
       renderAgent:()=>{studioNavigatorActiveTab==="agent"?renderStudioAgentHistory():studioNavigatorActiveTab==="all"&&renderStudioWorkHistory();},
@@ -28301,7 +28306,7 @@ var canvasDocumentIdentity = (() => {
     setStudioNavigatorTab(studioNavigatorActiveTab, { persist:false });
     syncStudioNavigatorTheme(state.theme);
   }
-  const KEYBOARD_SHORTCUT_STORAGE_KEY = "penecho-keyboard-shortcuts-v1";
+  const KEYBOARD_SHORTCUT_STORAGE_KEY = "fastlectures-keyboard-shortcuts-v1";
   const KEYBOARD_SHORTCUT_COMMANDS = Object.freeze([
     { id:"focus-agent", group:"essential", labelKey:"shortcutFocusAgent", descriptionKey:"shortcutFocusAgentHelp", defaultChord:"Tab" },
     { id:"save-canvas", group:"essential", labelKey:"saveCanvas", descriptionKey:"shortcutSaveCanvasHelp", defaultChord:"Mod+s" },
@@ -28626,7 +28631,7 @@ var canvasDocumentIdentity = (() => {
   });
   settingsShortcutResetAll?.addEventListener("click", keyboardShortcutResetAll);
   window.addEventListener("keydown", handleKeyboardShortcutKeydown, true);
-  window.addEventListener("penecho:languagechange", renderKeyboardShortcuts);
+  window.addEventListener("fastlectures:languagechange", renderKeyboardShortcuts);
   window.addEventListener("storage", (event) => {
     if (event.key !== KEYBOARD_SHORTCUT_STORAGE_KEY) return;
     keyboardShortcutBindings = keyboardShortcutLoadBindings();
@@ -28634,7 +28639,7 @@ var canvasDocumentIdentity = (() => {
     renderKeyboardShortcuts();
   });
   renderKeyboardShortcuts();
-  window.PenEchoKeyboardShortcuts = Object.freeze({
+  window.FastLecturesKeyboardShortcuts = Object.freeze({
     bindings:() => ({ ...keyboardShortcutBindings }),
     reset:keyboardShortcutResetAll,
     open:() => { selectSettingsPage("shortcuts"); return openSettings(); },
@@ -28644,11 +28649,11 @@ var canvasDocumentIdentity = (() => {
 // click into its document, and inactive front shells block underlying Widgets.
 
   function widgetInteractionPresentation() {
-    try { return localStorage.getItem("penecho.widgetInteractionPresentation") || "maximized"; }
+    try { return localStorage.getItem("fastlectures.widgetInteractionPresentation") || "maximized"; }
     catch { return "maximized"; }
   }
   function switchWidgetPresentation(widget, maximized) {
-    try { localStorage.setItem("penecho.widgetInteractionPresentation", maximized ? "maximized" : "canvas"); } catch {}
+    try { localStorage.setItem("fastlectures.widgetInteractionPresentation", maximized ? "maximized" : "canvas"); } catch {}
     setWidgetMaximized(widget, maximized);
     requestInteractionLayerRender();
   }
@@ -28964,7 +28969,7 @@ var canvasDocumentIdentity = (() => {
     if (!state.trackpadGesture) return;
     event.preventDefault();
     state.trackpadGesture = null;
-    void window.PenEchoStudioNavigator?.flushMcpFollow?.();
+    void window.FastLecturesStudioNavigator?.flushMcpFollow?.();
   }
   function canvasFitViewportSize() {
     const metrics = canvasViewportMetrics();
@@ -29024,7 +29029,7 @@ var canvasDocumentIdentity = (() => {
       state.wheelZoom = !state.wheelZoom;
       wheelZoomSetting.setAttribute('aria-checked', String(state.wheelZoom));
       wheelZoomSetting.classList.toggle('on', state.wheelZoom);
-      localStorage.setItem('penecho-wheel-zoom', String(state.wheelZoom));
+      localStorage.setItem('fastlectures-wheel-zoom', String(state.wheelZoom));
     });
   }
   window.addEventListener('keydown', (event) => {
@@ -29126,7 +29131,7 @@ var canvasDocumentIdentity = (() => {
     hideEraserToolMenu();
     document.body.classList.toggle("canvas-view-mode", enabled);
     view.classList.toggle("view-mode", enabled);
-    window.PenEchoStudioNavigator?.syncCanvasView?.(enabled);
+    window.FastLecturesStudioNavigator?.syncCanvasView?.(enabled);
     canvasViewButton.setAttribute("aria-pressed", String(enabled));
     canvasViewActions.hidden = !enabled;
     const inactiveSurfaces = view.querySelectorAll([
@@ -29168,7 +29173,7 @@ var canvasDocumentIdentity = (() => {
     requestAnimationFrame(fit);
   }
   window.addEventListener("keydown", (event) => {
-    if (!state.viewMode || document.querySelector(".penecho-cloud-overlay") || canvasNavigationTextTarget(event.target)) return;
+    if (!state.viewMode || document.querySelector(".fastlectures-cloud-overlay") || canvasNavigationTextTarget(event.target)) return;
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -29690,7 +29695,7 @@ var canvasDocumentIdentity = (() => {
     event.preventDefault();
     event.stopPropagation();
     setCanvasNavigationLocked(!state.navigationLocked);
-    void window.PenEchoStudioNavigator?.flushMcpFollow?.();
+    void window.FastLecturesStudioNavigator?.flushMcpFollow?.();
   });
   function enterAIDraftHandMode() {
     if (state.mode !== "select" && state.aiDraftReturnMode === null) state.aiDraftReturnMode = state.mode;
@@ -29902,7 +29907,7 @@ var canvasDocumentIdentity = (() => {
         : ["eraser", "area-eraser"].includes(state.eraserMode) ? state.eraserMode : "eraser";
     return selectCanvasToolMode(target, { showHint:true });
   }
-  window.addEventListener("penecho:pencil-action", (event) => {
+  window.addEventListener("fastlectures:pencil-action", (event) => {
     performCanvasPencilAction(event.detail?.action);
   });
   document.querySelectorAll("[data-mode]").forEach((button) => {
@@ -30246,7 +30251,7 @@ var canvasDocumentIdentity = (() => {
   };
   document.querySelector("#autoDelayRange").oninput = (event) => {
     state.autoDelayMs = Math.round(Math.max(0, Math.min(10, Number(event.target.value))) * 1000);
-    localStorage.setItem("penecho-auto-delay-ms", String(state.autoDelayMs));
+    localStorage.setItem("fastlectures-auto-delay-ms", String(state.autoDelayMs));
     updateAutoControl();
     schedule();
     keepAutoDelayControlOpen();
@@ -30399,7 +30404,7 @@ var canvasDocumentIdentity = (() => {
   document.querySelectorAll("[data-language]").forEach((button) => {
     button.onclick = () => {
       state.language = button.dataset.language;
-      localStorage.setItem("penecho-language", state.language);
+      localStorage.setItem("fastlectures-language", state.language);
       applyLanguage();
     };
   });
@@ -30411,7 +30416,7 @@ var canvasDocumentIdentity = (() => {
   });
   document.querySelector("#gridToggle").onclick = () => {
     state.gridVisible = !state.gridVisible;
-    localStorage.setItem("penecho-grid", String(state.gridVisible));
+    localStorage.setItem("fastlectures-grid", String(state.gridVisible));
     updateGridButton();
     requestRender();
   };
@@ -30509,7 +30514,7 @@ var canvasDocumentIdentity = (() => {
   document.querySelector("#newCanvasClose").onclick = () => {
     pendingCanvasTransition?.onCancel?.();
     pendingCanvasTransition = null;
-    window.PenEchoStudioNavigator?.cancelPendingConversation?.();
+    window.FastLecturesStudioNavigator?.cancelPendingConversation?.();
     document.querySelector("#newCanvasDialog").close("cancel");
   };
   document.querySelector("#textHelpClose").onclick = closeTextHelp;
@@ -30522,7 +30527,7 @@ var canvasDocumentIdentity = (() => {
     else {
       pendingCanvasTransition?.onCancel?.();
       pendingCanvasTransition = null;
-      window.PenEchoStudioNavigator?.cancelPendingConversation?.();
+      window.FastLecturesStudioNavigator?.cancelPendingConversation?.();
     }
   });
   document.querySelector("#historyName").addEventListener("keydown", (event) => {
@@ -30651,7 +30656,7 @@ var canvasDocumentIdentity = (() => {
   settingsConnectionQuickList?.addEventListener("click", handleConnectionAction);
   document.getElementById("settingsHostedList")?.addEventListener("click", handleConnectionAction);
   document.getElementById("settingsHostedRefresh")?.addEventListener("click", () => void loadCanvasSettings());
-  window.addEventListener("penecho:cloud-account-changed", () => void loadHostedModels({ accountChanged:true }));
+  window.addEventListener("fastlectures:cloud-account-changed", () => void loadHostedModels({ accountChanged:true }));
   void loadHostedModels();
   settingsEffortToggle?.addEventListener("click", () => settingsEffortOptions.hidden ? showSettingsEffortOptions() : hideSettingsEffortOptions());
   settingsEffort?.addEventListener("pointerdown", showSettingsEffortOptions);
@@ -30669,7 +30674,7 @@ var canvasDocumentIdentity = (() => {
     if (!settingsEffortCombobox?.contains(event.target)) hideSettingsEffortOptions();
     if (!document.querySelector("#settingsApiModelCombobox")?.contains(event.target)) hideApiModelOptions();
   });
-  if (window.penechoDesktop) document.querySelector(".settings-links")?.remove();
+  if (window.fastlecturesDesktop) document.querySelector(".settings-links")?.remove();
   settingsProvider?.addEventListener("change", () => {
     updateSettingsProviderFields();
     selectDefaultConnectionEffort();
@@ -30838,7 +30843,7 @@ var canvasDocumentIdentity = (() => {
     else requestAnimationLayerRender();
   });
 
-  window.PenEchoCommunityCanvas = Object.freeze({
+  window.FastLecturesCommunityCanvas = Object.freeze({
     widgetArtifact:communityWidgetArtifact,
     canvasArtifact:communityCanvasArtifact,
     suggestMetadata:suggestCommunityMetadata,
@@ -30849,7 +30854,7 @@ var canvasDocumentIdentity = (() => {
     lineageForArtifact:communityLineageForArtifact,
     markPublishedOrigin:markPublishedCommunityOrigin,
   });
-  window.PenEchoCloudProjects = Object.freeze({
+  window.FastLecturesCloudProjects = Object.freeze({
     currentExecutionScope:canvasAgentCloudExecutionScope,
     currentCanvasId:() => state.currentSnapshotLocation === "cloud" && /^[0-9a-f-]{36}$/i.test(String(state.currentSnapshotId || "")) ? state.currentSnapshotId : null,
     saveEcho:saveEchoToCloud,
@@ -30857,13 +30862,32 @@ var canvasDocumentIdentity = (() => {
     openCanvas:openCloudCanvas,
     confirmExternalOpen:confirmExternalCanvasOpen,
   });
-  window.penechoDesktop?.onShowConnections?.(() => {
+  window.fastlecturesDesktop?.onShowConnections?.(() => {
     selectSettingsPage("connections");
     openSettings();
   });
   setPluginTemplate("simple");
   applyLanguage();
   setWidgetShadowEnabled(state.widgetShadowEnabled);
+  // Auth gate: when account auth is enabled, ensure the user is authenticated
+  // before initializing the canvas. The server also redirects, but this is a
+  // client-side safety net for direct access.
+  const fastlecturesConfig = window.FASTLECTURES_CONFIG || {};
+  if (fastlecturesConfig.authEnabled && typeof window.FASTLECTURES_AUTH !== "undefined") {
+    (async function() {
+      try {
+        await window.FASTLECTURES_AUTH.bootstrap();
+        if (!window.FASTLECTURES_AUTH.authenticated) {
+          location.replace("/login.html");
+          return;
+        }
+      } catch {
+        location.replace("/login.html");
+        return;
+      }
+    })();
+    return;
+  }
   applyTheme(state.theme);
   applyStudioPalette(state.studioPalette);
   applyPageScale(state.pageScale);
@@ -30874,13 +30898,13 @@ var canvasDocumentIdentity = (() => {
   // A Cloud deep link already identifies its document. Do not prefetch a
   // remembered Server Library (including every preview) on the opening path.
   // Opening Library itself owns its refresh through openHistoryPanel().
-  if (window.PENECHO_CONFIG?.runtime !== "viewer"
-    && !(window.PENECHO_CONFIG?.runtime === "cloud" && window.PENECHO_CONFIG?.remoteCanvasNativeReads === true)) refreshSnapshots().catch(() => {});
+  if (window.FASTLECTURES_CONFIG?.runtime !== "viewer"
+    && !(window.FASTLECTURES_CONFIG?.runtime === "cloud" && window.FASTLECTURES_CONFIG?.remoteCanvasNativeReads === true)) refreshSnapshots().catch(() => {});
   fit();
   setNavigating(true);
   scheduleAIOrbIdle();
-  if(window.PENECHO_CONFIG?.runtime!=="viewer")void canvasDocumentsReady().catch(error=>canvasDocumentsReport(error,()=>canvasDocumentsReady()));
+  if(window.FASTLECTURES_CONFIG?.runtime!=="viewer")void canvasDocumentsReady().catch(error=>canvasDocumentsReport(error,()=>canvasDocumentsReady()));
   requestAnimationFrame(() => {
-    if (window.PENECHO_CONFIG?.runtime !== "viewer") void loadCanvasSettings().finally(maybeStartOnboarding);
+    if (window.FASTLECTURES_CONFIG?.runtime !== "viewer") void loadCanvasSettings().finally(maybeStartOnboarding);
   });
 })();

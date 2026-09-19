@@ -1,11 +1,11 @@
 "use strict";
 
 /* Read-only Canvas viewer bootstrap. Only the Cloud serves pages with
-   PENECHO_CONFIG.viewer = true (the public /canvas/view/:itemId shell);
+   FASTLECTURES_CONFIG.viewer = true (the public /canvas/view/:itemId shell);
    the regular local app never enters this mode. */
 
 (() => {
-  // The viewer shell is served at /canvas/view/:itemId on PenEcho Cloud.
+  // The viewer shell is served at /canvas/view/:itemId on FastLectures Cloud.
   // Everything else (including the regular local app) never enters this mode.
   const match = location.pathname.match(/^\/canvas\/view\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/?$/i);
   if (!match) return;
@@ -46,10 +46,10 @@
     },
   };
   function viewerLanguage() {
-    const canvasLanguage = window.PenEchoI18n?.currentLanguage?.();
+    const canvasLanguage = window.FastLecturesI18n?.currentLanguage?.();
     if (canvasLanguage === "en" || canvasLanguage === "zh") return canvasLanguage;
     try {
-      const stored = localStorage.getItem("penecho-language");
+      const stored = localStorage.getItem("fastlectures-language");
       if (stored === "en" || stored === "zh") return stored;
     } catch { /* navigator language remains a safe fallback */ }
     return /^zh\b/i.test(navigator.language || "") ? "zh" : "en";
@@ -57,7 +57,7 @@
   let copy = COPY[viewerLanguage()];
 
   document.documentElement.classList.add("viewer-mode");
-  window.PenEchoViewerFetch?.install({ itemId });
+  window.FastLecturesViewerFetch?.install({ itemId });
 
   const topbar = document.createElement("div");
   topbar.className = "viewer-topbar";
@@ -66,7 +66,7 @@
   brand.href = config.communityUrl || "/community.html";
   brand.title = copy.backTitle;
   brand.setAttribute("aria-label", copy.backTitle);
-  brand.innerHTML = '<img src="penecho-mark.png" alt=""><span>PenEcho</span>';
+  brand.innerHTML = '<img src="fastlectures-mark.png" alt=""><span>FastLectures</span>';
   const actions = document.createElement("div");
   actions.className = "viewer-actions";
   topbar.append(brand, actions);
@@ -155,7 +155,7 @@
   async function waitForCanvasBridge(timeoutMs = 20000) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      if (window.PenEchoCommunityCanvas?.viewCanvas && window.PenEchoCommunityCanvas?.importWidget) return window.PenEchoCommunityCanvas;
+      if (window.FastLecturesCommunityCanvas?.viewCanvas && window.FastLecturesCommunityCanvas?.importWidget) return window.FastLecturesCommunityCanvas;
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
     throw new Error("The viewer could not start.");
@@ -166,7 +166,7 @@
     status.innerHTML = `<div>${copy[copyKey] || ""}${config.previewUrl ? `<img src="${config.previewUrl}" alt="">` : ""}</div>`;
   }
 
-  window.addEventListener("penecho:languagechange", applyViewerLanguage);
+  window.addEventListener("fastlectures:languagechange", applyViewerLanguage);
 
   renderActions();
 
@@ -182,7 +182,7 @@
       const payload = await response.json();
       const artifact = payload?.artifact && payload.artifact.format ? payload.artifact : payload;
       const bridge = await waitForCanvasBridge();
-      if (artifact?.format === "penecho-widget") await bridge.importWidget(artifact, null, { fitViewport:true });
+      if (artifact?.format === "fastlectures-widget") await bridge.importWidget(artifact, null, { fitViewport:true });
       else await bridge.viewCanvas(artifact);
       document.getElementById("handToolBtn")?.click();
       status.hidden = true;

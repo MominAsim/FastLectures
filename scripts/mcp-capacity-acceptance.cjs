@@ -7,7 +7,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function until(predicate,label){const deadline=Date.now()+10000;while(!predicate()){if(Date.now()>=deadline)throw Error('Timed out: '+label);await sleep(5);}}
 async function parallel(count,concurrency,fn){let next=0,failure;const result=Array(count);await Promise.all(Array.from({length:Math.min(count,concurrency)},async()=>{while(next<count&&!failure){const index=next++;try{result[index]=await fn(index);}catch(error){failure=error;}}}));if(failure)throw failure;return result;}
 async function runCapacityAcceptance(){
- const started=Date.now(),directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'penecho-capacity-'));const report={isolated:true,noModelCalls:true,noCanvasCalls:true,startedAt:new Date(started).toISOString(),checks:[],passed:false};
+ const started=Date.now(),directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'fastlectures-capacity-'));const report={isolated:true,noModelCalls:true,noCanvasCalls:true,startedAt:new Date(started).toISOString(),checks:[],passed:false};
  let clock=1000,status,sequence=0,holding=false,port;const held=[],disposals=new Set(),requests=new Set(),pendingResponses=[];
  const service=createDirectHttpService({stateDirectory:directory,preferredPort:0,getHostnames:()=>[],getAddresses:()=>[],announce:()=>({close(){}}),now:()=>clock,disposeOwner:owner=>disposals.add(owner),callTool:async(owner,name,args,{signal})=>holding?new Promise(resolve=>held.push({resolve,signal,owner})):({ok:true})});
  const check=(name,condition,details={})=>{report.checks.push({name,passed:!!condition,...details});if(!condition)throw Error('Check failed: '+name);};
@@ -38,7 +38,7 @@ async function runCapacityAcceptance(){
 }
 function checkResponse(response,expected,label){if(response.status!==expected)throw Error(`${label} returned ${response.status}, expected ${expected}`);}
 async function main(argv=process.argv.slice(2)){
- let output;for(let index=0;index<argv.length;index++){if(argv[index]==='--help'){console.log('Isolated PenEcho MCP capacity acceptance: 256 sessions, 8 requests/session, 32 global requests. No live Canvas, full PenEcho runtime, or model calls.\nUsage: node scripts/mcp-capacity-acceptance.cjs [--output REPORT.json]');return 0;}if(argv[index]==='--output'&&argv[index+1])output=path.resolve(argv[++index]);else throw Error('Unknown or incomplete option');}
+ let output;for(let index=0;index<argv.length;index++){if(argv[index]==='--help'){console.log('Isolated FastLectures MCP capacity acceptance: 256 sessions, 8 requests/session, 32 global requests. No live Canvas, full FastLectures runtime, or model calls.\nUsage: node scripts/mcp-capacity-acceptance.cjs [--output REPORT.json]');return 0;}if(argv[index]==='--output'&&argv[index+1])output=path.resolve(argv[++index]);else throw Error('Unknown or incomplete option');}
  const report=await runCapacityAcceptance();if(output){fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(report,null,2)+'\n',{mode:0o600});}console.log(JSON.stringify(report,null,2));return report.passed?0:1;
 }
 module.exports={runCapacityAcceptance,main};

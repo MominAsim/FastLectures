@@ -1,6 +1,6 @@
-# Contributing to PenEcho
+# Contributing to FastLectures
 
-Thank you for improving PenEcho.
+Thank you for improving FastLectures.
 
 ## Development Setup
 
@@ -12,10 +12,10 @@ Thank you for improving PenEcho.
    npm link
    ```
 
-3. Run `penecho configure` and choose API, Codex CLI, or Claude CLI. Codex and Claude modes require their installed CLI to be authenticated first.
-4. Run `penecho` and open `http://localhost:3888`, or use this computer's LAN IP from another device on the same trusted network.
+3. Run `fastlectures configure` and choose API, Codex CLI, or Claude CLI. Codex and Claude modes require their installed CLI to be authenticated first.
+4. Run `fastlectures` and open `http://localhost:3888`, or use this computer's LAN IP from another device on the same trusted network.
 
-The default development configuration is the same global `~/.penecho/config.env` used by the installed package. For an isolated test setup, use `penecho configure --config ./local.env` and `penecho --config ./local.env`. Project `.env` files are not loaded automatically.
+The default development configuration is the same global `~/.fastlectures/config.env` used by the installed package. For an isolated test setup, use `fastlectures configure --config ./local.env` and `fastlectures --config ./local.env`. Project `.env` files are not loaded automatically.
 
 ## Before Submitting Changes
 
@@ -38,9 +38,9 @@ For browser-facing changes, verify desktop and mobile layouts and test stylus/mo
 
 ## Contribution Licensing
 
-PenEcho is offered under `AGPL-3.0-only` and may also be offered under separate commercial terms. To keep both paths possible, every copyrightable contribution is subject to the [PenEcho Contributor License Agreement](CONTRIBUTOR-LICENSE-AGREEMENT.md).
+FastLectures is offered under `AGPL-3.0-only` and may also be offered under separate commercial terms. To keep both paths possible, every copyrightable contribution is subject to the [FastLectures Contributor License Agreement](CONTRIBUTOR-LICENSE-AGREEMENT.md).
 
-You retain ownership of your contribution. You grant the Project Owner a non-exclusive license to include it in the public AGPL project and in commercially licensed PenEcho editions. Any accepted contribution used in a commercial edition must also remain available in the canonical repository under `AGPL-3.0-only`.
+You retain ownership of your contribution. You grant the Project Owner a non-exclusive license to include it in the public AGPL project and in commercially licensed FastLectures editions. Any accepted contribution used in a commercial edition must also remain available in the canonical repository under `AGPL-3.0-only`.
 
 By opening a pull request and confirming the contributor-agreement checkbox, you accept those terms. Do not submit code owned by an employer or another party unless you have permission to grant these rights.
 

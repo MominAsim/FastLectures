@@ -1,13 +1,13 @@
 {
-  "name": "penecho",
+  "name": "fastlectures",
   "version": "1.3.1",
   "config": {
     "forge": "./forge.config.js",
     "desktopVersion": "1.3.1"
   },
   "description": "Turn research, files, and canvas context into editable visual work with AI",
-  "author": "PenEcho contributors",
-  "productName": "PenEcho",
+  "author": "FastLectures contributors",
+  "productName": "FastLectures",
   "main": "desktop/main.js",
   "license": "AGPL-3.0-only",
   "keywords": [
@@ -21,7 +21,7 @@
     "agent"
   ],
   "bin": {
-    "penecho": "cli.js"
+    "fastlectures": "cli.js"
   },
   "files": [
     "cli.js",
@@ -58,9 +58,9 @@
     "public/style.css",
     "public/mathjax-config.js",
     "public/page-scale.js",
-    "public/penecho-mark.png",
-    "public/penecho-readme-header.png",
-    "public/penecho-architecture.webp",
+    "public/fastlectures-mark.png",
+    "public/fastlectures-readme-header.png",
+    "public/fastlectures-architecture.webp",
     "public/locales/",
     "public/plugins/**/*.md",
     "public/plugins/**/*.css",
@@ -69,7 +69,7 @@
     "docs/architecture.md",
     "docs/mcp-setup.md",
     "docs/mcp-agent-instructions.md",
-    "skills/penecho-mcp/",
+    "skills/fastlectures-mcp/",
     "docs/canvas-agent-deepseek-harness-spec.md",
     "docs/canvas-agent-visual-explorer.md",
     "docs/visual-explainer.md",
@@ -83,11 +83,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/penecho/penecho.git"
+    "url": "git+https://github.com/fastlectures/fastlectures.git"
   },
-  "homepage": "https://github.com/penecho/penecho#readme",
+  "homepage": "https://github.com/fastlectures/fastlectures#readme",
   "bugs": {
-    "url": "https://github.com/penecho/penecho/issues"
+    "url": "https://github.com/fastlectures/fastlectures/issues"
   },
   "scripts": {
     "start": "node cli.js",
@@ -100,7 +100,7 @@
     "check:visual-explainer-vendor": "node scripts/build-visual-explainer-vendor.js --check",
     "preinstall": "node src/cli/node-version.js",
     "prepack": "npm run build:client && npm run build:visual-explainer-vendor",
-    "check": "npm run check:harness-backports && npm run check:client && npm run check:visual-explainer-vendor && node --check cli.js && node --check server.js && node --check scripts/build-client.js && node --check scripts/build-visual-explainer-vendor.js && node --check src/cli/main.js && node --check src/cli/node-version.js && node --check src/cli/configure-ui.js && node --check src/cli/update.js && node --check src/server/main.js && node --check src/server/model-evaluation.js && node --check src/server/public-fetch.js && node --check src/server/cloud-connector.js && node --check src/server/activity-timeout.js && node --check src/server/api-config.js && node --check src/server/api-stream.js && node --check src/server/widget-patch.js && node --check src/server/typeset.js && node --check src/server/canvas-agent/http.js && node --check src/server/canvas-agent/request-trace.js && node --check src/server/canvas-agent/protocol.mjs && node --check src/server/canvas-agent/decision-admission.mjs && node --check src/server/canvas-agent/cli-adapter.mjs && node --check src/server/canvas-agent/codex-native-host.mjs && node --check src/server/canvas-agent/runtime.mjs && node --check src/providers/reasoning-effort.js && node --check src/providers/kimi-cli.js && node --check src/providers/kimi-acp.js && node --check src/providers/codex-cli.js && node --check src/providers/claude-cli.js && node --check tools/electron/run-forge.js && node --check tools/mobile/build-mobile.js && node --check desktop/main.js && node --check desktop/canvas-preload.js && node --check desktop/cli-installer.js && node --check desktop/update-manager.js && node --check desktop/settings-contract.js && node --check public/access.js && node --check public/cloud-connect.js && node --check public/draw.js && node --check public/selection.js && node --check public/tour.js && node --check public/mixed-text.js && node --check public/animation.js && node --check public/plugins.js && node --check public/summon.js && node --check public/page-scale.js && node --check public/widget-host.js && node --check public/visual-explainer-runtime.js && node --check public/vendor/penecho-dom-renderer.js && node --check public/app.js && node --test",
+    "check": "npm run check:harness-backports && npm run check:client && npm run check:visual-explainer-vendor && node --check cli.js && node --check server.js && node --check scripts/build-client.js && node --check scripts/build-visual-explainer-vendor.js && node --check src/cli/main.js && node --check src/cli/node-version.js && node --check src/cli/configure-ui.js && node --check src/cli/update.js && node --check src/server/main.js && node --check src/server/model-evaluation.js && node --check src/server/public-fetch.js && node --check src/server/cloud-connector.js && node --check src/server/activity-timeout.js && node --check src/server/api-config.js && node --check src/server/api-stream.js && node --check src/server/widget-patch.js && node --check src/server/typeset.js && node --check src/server/canvas-agent/http.js && node --check src/server/canvas-agent/request-trace.js && node --check src/server/canvas-agent/protocol.mjs && node --check src/server/canvas-agent/decision-admission.mjs && node --check src/server/canvas-agent/cli-adapter.mjs && node --check src/server/canvas-agent/codex-native-host.mjs && node --check src/server/canvas-agent/runtime.mjs && node --check src/providers/reasoning-effort.js && node --check src/providers/kimi-cli.js && node --check src/providers/kimi-acp.js && node --check src/providers/codex-cli.js && node --check src/providers/claude-cli.js && node --check tools/electron/run-forge.js && node --check tools/mobile/build-mobile.js && node --check desktop/main.js && node --check desktop/canvas-preload.js && node --check desktop/cli-installer.js && node --check desktop/update-manager.js && node --check desktop/settings-contract.js && node --check public/access.js && node --check public/cloud-connect.js && node --check public/draw.js && node --check public/selection.js && node --check public/tour.js && node --check public/mixed-text.js && node --check public/animation.js && node --check public/plugins.js && node --check public/summon.js && node --check public/page-scale.js && node --check public/widget-host.js && node --check public/visual-explainer-runtime.js && node --check public/vendor/fastlectures-dom-renderer.js && node --check public/app.js && node --test",
     "test": "node --test",
     "icons": "node scripts/generate-icons.js",
     "desktop": "node tools/electron/run-forge.js start",

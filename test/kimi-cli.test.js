@@ -23,7 +23,7 @@ const {
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=";
 
 function temporaryDirectory() {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-kimi-test-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-kimi-test-"));
   test.after(() => fs.rmSync(directory, { recursive:true, force:true }));
   return directory;
 }
@@ -35,8 +35,8 @@ function fakeKimi(source) {
 }
 
 test("Kimi arguments use the non-interactive stream-json command and isolated agent", () => {
-  assert.deepEqual(buildKimiArgs({ model:"kimi-code/k3", prompt:"draw", agentFile:"/tmp/penecho-agent.md" }), [
-    "--prompt", "draw", "--output-format", "stream-json", "--agent-file", "/tmp/penecho-agent.md", "--model", "kimi-code/k3",
+  assert.deepEqual(buildKimiArgs({ model:"kimi-code/k3", prompt:"draw", agentFile:"/tmp/fastlectures-agent.md" }), [
+    "--prompt", "draw", "--output-format", "stream-json", "--agent-file", "/tmp/fastlectures-agent.md", "--model", "kimi-code/k3",
   ]);
 });
 
@@ -46,7 +46,7 @@ test("Kimi text transcript removes only CLI block rendering", () => {
   assert.equal(normalizeKimiTranscript("Progress: still working"), "Progress: still working");
 });
 
-test("Kimi PenEcho Agent extracts a complete Harness JSON value from surrounding text", () => {
+test("Kimi FastLectures Agent extracts a complete Harness JSON value from surrounding text", () => {
   const decision='{"type":"tool_call","name":"canvas_capture","arguments":{"note":"literal } and \\\" quote"}}';
   assert.equal(extractKimiCanvasAgentJson(`说明文字\n\`\`\`JSON\n${decision}\n\`\`\`\n完成`),decision);
   assert.equal(extractKimiCanvasAgentJson(`progress {"percent":100}\n${decision}\ntrailing status`),decision);
@@ -99,7 +99,7 @@ process.exit(7);
   );
 });
 
-test("PenEcho Agent Kimi uses the disposable no-tools CLI path instead of ACP", async () => {
+test("FastLectures Agent Kimi uses the disposable no-tools CLI path instead of ACP", async () => {
   const executable = fakeKimi(`
 const fs=require("fs"),args=process.argv.slice(2);
 if(args.includes("acp"))process.exit(8);
@@ -110,11 +110,11 @@ process.stderr.write("private thinking delta");
 process.stdout.write('• 已完成，结果如下：\\n  '+fence+'json\\n  {"type":"final",\\n');
 setTimeout(()=>process.stdout.write('  "text":"isolated"}\\n  '+fence+'\\n  处理完成\\n\\n'),10);
 `);
-  const { callPenEchoCli } = await import("../src/server/canvas-agent/cli-adapter.mjs");
+  const { callFastLecturesCli } = await import("../src/server/canvas-agent/cli-adapter.mjs");
   let activityCount=0;
-  const result = await callPenEchoCli({
+  const result = await callFastLecturesCli({
     connection:{ provider:"kimi-cli", cliPath:executable, cliModel:"kimi-code/k3", effort:"medium" },
-    systemPrompt:"PenEcho Agent system",
+    systemPrompt:"FastLectures Agent system",
     prompt:'{"availableTools":[]}',
     atlasImage:null,
     onActivity:()=>activityCount++,
@@ -123,7 +123,7 @@ setTimeout(()=>process.stdout.write('  "text":"isolated"}\\n  '+fence+'\\n  处�
   assert.ok(activityCount >= 3);
 });
 
-test("PenEcho Agent Kimi counts thinking as activity without exposing it in diagnostics", async () => {
+test("FastLectures Agent Kimi counts thinking as activity without exposing it in diagnostics", async () => {
   const executable = fakeKimi(`
 process.stderr.write("PRIVATE_CHAIN_OF_THOUGHT");
 setInterval(()=>{},1000);
@@ -153,7 +153,7 @@ test("Kimi child environment keeps runtime settings and drops API secrets", () =
   assert.equal(clean.OPENAI_API_KEY, undefined);
 });
 
-test("Kimi effort maps PenEcho levels onto low, high, and max", () => {
+test("Kimi effort maps FastLectures levels onto low, high, and max", () => {
   assert.equal(mapKimiEffort("none"), "low");
   assert.equal(mapKimiEffort("low"), "low");
   assert.equal(mapKimiEffort("medium"), "high");
@@ -171,7 +171,7 @@ if(!fs.existsSync(marker)){
   process.stdout.write(JSON.stringify({role:"assistant",content:"",tool_calls:[{type:"function",function:{name:"Bash"}}]})+"\\n");
   setInterval(()=>{},1000);
 }else{
-  if(!prompt.includes("ERROR: PenEcho rejected your Kimi/CLI built-in tool call (Bash)")||!prompt.includes("HARNESS REQUEST.availableTools"))process.exit(4);
+  if(!prompt.includes("ERROR: FastLectures rejected your Kimi/CLI built-in tool call (Bash)")||!prompt.includes("HARNESS REQUEST.availableTools"))process.exit(4);
   process.stdout.write(JSON.stringify({type:"message",role:"assistant",content:[{type:"text",text:'{"type":"final","text":"recovered"}'}]})+"\\n");
 }
 `);

@@ -52,31 +52,31 @@
   },
   "samples": [
     {
-      "name": "penecho_start_session",
+      "name": "fastlectures_start_session",
       "ms": 2.4039169999999928,
       "error": false,
       "bytes": 588
     },
     {
-      "name": "penecho_present_widget",
+      "name": "fastlectures_present_widget",
       "ms": 110.79129200000001,
       "error": false,
       "bytes": 618
     },
     {
-      "name": "penecho_patch_file",
+      "name": "fastlectures_patch_file",
       "ms": 9.030041000000011,
       "error": false,
       "bytes": 440
     },
     {
-      "name": "penecho_read_file",
+      "name": "fastlectures_read_file",
       "ms": 12.071875000000006,
       "error": false,
       "bytes": 454
     },
     {
-      "name": "penecho_inbox",
+      "name": "fastlectures_inbox",
       "ms": 3.1773749999999836,
       "error": false,
       "bytes": 290

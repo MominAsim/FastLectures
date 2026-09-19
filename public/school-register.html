@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#05050a">
+  <title>School Registration | FastLectures</title>
+  <link rel="stylesheet" href="auth.css">
+  <link rel="stylesheet" href="admin.css">
+  <style>
+    .pricing-card { background: var(--surface-2); border-radius: var(--radius); padding: 1.5rem; margin: 1rem 0; }
+    .pricing-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--ink); }
+    .pricing-amount { font-size: 2rem; font-weight: 700; color: var(--accent); margin: 0.5rem 0; }
+    .pricing-note { color: var(--muted); font-size: 0.9rem; }
+    .toggle-switch { display: flex; align-items: center; gap: 1rem; cursor: pointer; }
+    .toggle-option { flex: 1; text-align: center; }
+    .toggle-option.active { color: var(--accent); font-weight: 600; }
+    .role-card { border: 2px solid var(--line); border-radius: var(--radius); padding: 1rem; cursor: pointer; transition: all 0.2s; }
+    .role-card:hover { border-color: var(--accent); }
+    .role-card.active { border-color: var(--accent); background: var(--surface-2); }
+    .role-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="auth-layout">
+    <header class="auth-header">
+      <a class="auth-brand" href="/login.html" aria-label="Back to sign in">
+        <svg class="auth-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6c-.8-.9-2-1.5-3.4-1.6H6.6C5 3 3.6 2.4 2.4 3.6 1.3 5 1 6.5 1.6 8l2.3 12.8c.2 1.2 1.2 2.1 2.5 2.2h9.2c1.3.1 2.3-1 2.5-2.2L22.4 8c.6-1.5.3-3-.8-4.4zm-8 12.4L9.5 10.6 8 17 6 9l-1.5 8H2l5.5-22h13L19 17z"/></svg>
+        <span class="auth-name">FastLectures</span>
+      </a>
+    </header>
+    <main class="auth-card">
+      <h1 class="auth-title">Create Your Account</h1>
+      <p class="auth-subtitle">Choose how you'd like to register</p>
+
+      <div id="role-selection" class="role-toggle">
+        <div class="role-option">
+          <div class="role-card" id="school-role" onclick="setRole('school')">
+            <div class="role-icon">🏫</div>
+            <div class="role-title">School Account</div>
+            <div class="role-desc">Register your school, add unlimited teachers and students</div>
+          </div>
+        </div>
+        <div class="role-option">
+          <div class="role-card" id="student-role" onclick="setRole('student')">
+            <div class="role-icon">🎓</div>
+            <div class="role-title">Student Account</div>
+            <div class="role-desc">Individual account for personal learning</div>
+          </div>
+        </div>
+      </div>
+
+      <form id="register-form" novalidate style="display: none;">
+        <input type="hidden" id="account-type" name="account_type">
+
+        <div id="school-fields" class="field-group" style="display: none;">
+          <div class="field">
+            <label for="school-name">School Name</label>
+            <input id="school-name" type="text" name="name" required placeholder="Example: Lincoln High School">
+            <p class="field-hint">Required for school accounts</p>
+          </div>
+          <div class="field">
+            <label for="school-email">School Email</label>
+            <input id="school-email" type="email" name="email" required placeholder="admin@lincolnhs.edu">
+            <p class="field-hint">Must be a valid school email address</p>
+          </div>
+          <div class="field">
+            <label for="school-address">School Address</label>
+            <textarea id="school-address" name="address" rows="2" placeholder="123 Education Lane, City, State 12345"></textarea>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="admin-name">Your Name</label>
+          <input id="admin-name" type="text" name="name" required placeholder="John Smith">
+        </div>
+
+        <div class="field">
+          <label for="admin-email">Your Email</label>
+          <input id="admin-email" type="email" name="email" required placeholder="john@lincolnhs.edu">
+        </div>
+
+        <div class="field">
+          <label for="register-password">Password</label>
+          <input id="register-password" type="password" name="password" required minlength="10">
+          <p id="password-hint" class="field-hint"></p>
+        </div>
+
+        <div id="pricing-info" class="pricing-card" style="display: none;">
+          <div class="pricing-title">Pricing Information</div>
+          <div id="pricing-amount" class="pricing-amount"></div>
+          <div id="pricing-note" class="pricing-note"></div>
+        </div>
+
+        <div id="register-error" class="auth-error" role="alert" hidden></div>
+        <div id="register-success" class="notice info" hidden>
+          Account created! Please check your email for verification instructions.
+        </div>
+
+        <button id="register-submit" class="btn-primary" type="submit">Create Account</button>
+      </form>
+
+      <p class="auth-alt">
+        <a href="/login.html">Already have an account? Sign in</a>
+      </p>
+    </main>
+    <footer class="auth-footer"><p>By registering, you agree to our Terms of Service.</p></footer>
+  </div>
+
+  <script>
+    let currentRole = 'student';
+
+    function setRole(role) {
+      currentRole = role;
+      document.getElementById('role-selection').style.display = 'none';
+      document.getElementById('register-form').style.display = 'block';
+      document.getElementById('account-type').value = role;
+
+      const schoolFields = document.getElementById('school-fields');
+      const pricingInfo = document.getElementById('pricing-info');
+      const pricingAmount = document.getElementById('pricing-amount');
+      const pricingNote = document.getElementById('pricing-note');
+
+      schoolFields.style.display = role === 'school' ? 'block' : 'none';
+
+      if (role === 'school') {
+        pricingAmount.textContent = '$14 per student';
+        pricingNote.textContent = 'Schools get $2 rebate per student account created';
+      } else {
+        pricingAmount.textContent = '$20 per student';
+        pricingNote.textContent = 'Individual student accounts';
+      }
+      pricingInfo.style.display = 'block';
+
+      document.getElementById('school-email').required = role === 'school';
+
+      document.querySelectorAll('.role-card').forEach(card => {
+        card.classList.toggle('active', role === card.id.replace('-role', ''));
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+      const form = document.getElementById("register-form");
+      const password = document.getElementById("register-password");
+      const passwordHint = document.getElementById("password-hint");
+      const error = document.getElementById("register-error");
+      const success = document.getElementById("register-success");
+      const submit = document.getElementById("register-submit");
+
+      // Password strength indicator
+      password.addEventListener("input", function() {
+        const issues = [];
+        if (this.value.length < 10) issues.push("at least 10 characters");
+        if (!/[a-z]/.test(this.value)) issues.push("a lowercase letter");
+        if (!/[A-Z]/.test(this.value)) issues.push("an uppercase letter");
+        if (!/[0-9]/.test(this.value)) issues.push("a number");
+        if (issues.length) {
+          passwordHint.textContent = "Password should have: " + issues.join(", ");
+          passwordHint.style.color = "var(--danger)";
+        } else {
+          passwordHint.textContent = "Strong password";
+          passwordHint.style.color = "var(--success)";
+        }
+      });
+
+      form.addEventListener("submit", async function(e) {
+        e.preventDefault();
+        error.hidden = true;
+        success.hidden = true;
+        submit.disabled = true;
+        submit.textContent = "Creating account...";
+
+        try {
+          const formData = new FormData(form);
+          const data = Object.fromEntries(formData.entries());
+
+          // Validate school email for school accounts
+          if (data.account_type === 'school') {
+            const schoolEmail = data.email.toLowerCase();
+            if (!schoolEmail.endsWith('@edu') && !schoolEmail.includes('@school') && !schoolEmail.endsWith('.edu') && !schoolEmail.includes('@school.')) {
+              throw new Error("School email must be a valid educational domain (ends with .edu or contains @school)");
+            }
+          }
+
+          const response = await fetch('/api/schools/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.error || 'Registration failed');
+          }
+
+          form.reset();
+          success.hidden = false;
+          submit.disabled = false;
+          submit.textContent = "Account Created!";
+
+          // Store user info
+          if (result.user) {
+            localStorage.setItem('fastlectures_user', JSON.stringify(result.user));
+          }
+        } catch (err) {
+          error.textContent = err.message;
+          error.hidden = false;
+          submit.disabled = false;
+          submit.textContent = "Create Account";
+        }
+      });
+    });
+
+    // Initialize role selection
+    document.querySelectorAll('.role-card').forEach(card => {
+      card.classList.add('active');
+    });
+  </script>
+</body>
+</html>

@@ -60,10 +60,10 @@ function isKimiPresetEndpoint(value) {
 
 function kimiPresetUpdates(configuration) {
   const env = configuration?.env || {},
-    desktopProvider = String(env.PENECHO_DESKTOP_PROVIDER || "").toLowerCase();
+    desktopProvider = String(env.FASTLECTURES_DESKTOP_PROVIDER || "").toLowerCase();
   if (configuration?.provider !== "api" || desktopProvider !== "kimi") return {};
-  const requestedProduct = String(env.PENECHO_KIMI_PRODUCT || "code"),
-    requestedRegion = String(env.PENECHO_KIMI_REGION || "global"),
+  const requestedProduct = String(env.FASTLECTURES_KIMI_PRODUCT || "code"),
+    requestedRegion = String(env.FASTLECTURES_KIMI_REGION || "global"),
     product = KIMI_PRODUCTS.has(requestedProduct) ? requestedProduct : "code",
     region = KIMI_REGIONS.has(requestedRegion) ? requestedRegion : "global",
     requestedFormat = String(env.AI_API_FORMAT || "openai").toLowerCase(),
@@ -72,8 +72,8 @@ function kimiPresetUpdates(configuration) {
     currentUrl = String(env.AI_API_URL || "").trim().replace(/\/+$/, ""),
     currentModel = String(env.AI_API_MODEL || "").trim(),
     updates = {};
-  if (requestedProduct !== product) updates.PENECHO_KIMI_PRODUCT = product;
-  if (requestedRegion !== region) updates.PENECHO_KIMI_REGION = region;
+  if (requestedProduct !== product) updates.FASTLECTURES_KIMI_PRODUCT = product;
+  if (requestedRegion !== region) updates.FASTLECTURES_KIMI_REGION = region;
   if (requestedFormat !== format) updates.AI_API_FORMAT = format;
   if ((!currentUrl || isKimiPresetEndpoint(currentUrl)) && currentUrl !== canonicalUrl) updates.AI_API_URL = canonicalUrl;
   if ((!currentModel || KIMI_PRESET_MODELS.has(currentModel)) && currentModel !== KIMI_MODELS[product]) {
@@ -94,25 +94,25 @@ function normalizeSettings(input, options = {}) {
   if (!["127.0.0.1", "0.0.0.0"].includes(host)) throw new Error("Choose local-only or LAN listening.");
   const port = number(input.port ?? 3888, "Port", 0, 65535, true);
   const timeout = number(input.timeout ?? 180, "Model timeout", 10, 600, true);
-  const canvasAgentTurnLimit = number(input.canvasAgentTurnLimit ?? DEFAULT_CANVAS_AGENT_TURN_LIMIT, "PenEcho Agent rounds per request", MIN_CANVAS_AGENT_TURN_LIMIT, Infinity, true);
+  const canvasAgentTurnLimit = number(input.canvasAgentTurnLimit ?? DEFAULT_CANVAS_AGENT_TURN_LIMIT, "FastLectures Agent rounds per request", MIN_CANVAS_AGENT_TURN_LIMIT, Infinity, true);
   const autoDelay = number(input.autoDelay ?? 5, "Auto AI delay", 0, 10);
   if (!Number.isInteger(autoDelay * 10)) throw new Error("Auto AI delay must have at most one decimal place.");
   const canvasAgentAutoOpen = input.canvasAgentAutoOpen === undefined ? true : input.canvasAgentAutoOpen;
-  if (typeof canvasAgentAutoOpen !== "boolean") throw new Error("PenEcho Agent auto-open must be true or false.");
+  if (typeof canvasAgentAutoOpen !== "boolean") throw new Error("FastLectures Agent auto-open must be true or false.");
   const traceLimit = number(input.traceLimit ?? 100, "Request record limit", 1, 1000, true);
   const updates = {
     AI_PROVIDER:provider === "kimi" ? "api" : provider,
-    PENECHO_DESKTOP_PROVIDER:provider,
+    FASTLECTURES_DESKTOP_PROVIDER:provider,
     AI_EFFORT:effort,
     AI_TIMEOUT_SECONDS:String(timeout),
-    PENECHO_CANVAS_AGENT_TURN_LIMIT:String(canvasAgentTurnLimit),
-    PENECHO_AI_IMAGE_FORMAT:imageFormat,
+    FASTLECTURES_CANVAS_AGENT_TURN_LIMIT:String(canvasAgentTurnLimit),
+    FASTLECTURES_AI_IMAGE_FORMAT:imageFormat,
     AUTO_AI_DELAY_SECONDS:String(autoDelay),
-    PENECHO_CANVAS_AGENT_AUTO_OPEN:String(canvasAgentAutoOpen),
+    FASTLECTURES_CANVAS_AGENT_AUTO_OPEN:String(canvasAgentAutoOpen),
     HOST:host,
     PORT:String(port),
-    PENECHO_REQUEST_TRACE:input.requestTrace === true ? "true" : "false",
-    PENECHO_REQUEST_TRACE_LIMIT:String(traceLimit),
+    FASTLECTURES_REQUEST_TRACE:input.requestTrace === true ? "true" : "false",
+    FASTLECTURES_REQUEST_TRACE_LIMIT:String(traceLimit),
     KIMI_CLI_TIMEOUT_SECONDS:null,
     CODEX_CLI_TIMEOUT_SECONDS:null,
     CLAUDE_CLI_TIMEOUT_SECONDS:null,
@@ -129,7 +129,7 @@ function normalizeSettings(input, options = {}) {
       if (product === "platform" && format !== "openai") throw new Error("Kimi Open Platform uses the OpenAI-compatible API format.");
       if (isKimiPresetEndpoint(apiUrl)) apiUrl = kimiEndpoint(product, region, format);
       if (KIMI_PRESET_MODELS.has(apiModel)) apiModel = KIMI_MODELS[product];
-      Object.assign(updates, { PENECHO_KIMI_PRODUCT:product, PENECHO_KIMI_REGION:region });
+      Object.assign(updates, { FASTLECTURES_KIMI_PRODUCT:product, FASTLECTURES_KIMI_REGION:region });
     }
     apiKey = text(input.apiKey ?? "", "API key", 4096, true);
     if (!apiKey && !options.hasSavedApiKey) throw new Error("API key is required.");
@@ -161,10 +161,10 @@ function normalizeSettings(input, options = {}) {
 function publicSettings(configuration, options = {}) {
   const sourceEnv = configuration.env || {},
     env = { ...sourceEnv, ...kimiPresetUpdates(configuration) },
-    desktopProvider = String(env.PENECHO_DESKTOP_PROVIDER || "").toLowerCase(),
+    desktopProvider = String(env.FASTLECTURES_DESKTOP_PROVIDER || "").toLowerCase(),
     provider = configuration.provider === "api" && desktopProvider === "kimi" ? "kimi" : configuration.provider || "api",
-    configuredKimiProduct = String(env.PENECHO_KIMI_PRODUCT || "code"),
-    configuredKimiRegion = String(env.PENECHO_KIMI_REGION || "global"),
+    configuredKimiProduct = String(env.FASTLECTURES_KIMI_PRODUCT || "code"),
+    configuredKimiRegion = String(env.FASTLECTURES_KIMI_REGION || "global"),
     kimiProduct = KIMI_PRODUCTS.has(configuredKimiProduct) ? configuredKimiProduct : "code",
     kimiRegion = KIMI_REGIONS.has(configuredKimiRegion) ? configuredKimiRegion : "global",
     requestedFormat = String(env.AI_API_FORMAT || "openai").toLowerCase(),
@@ -191,14 +191,14 @@ function publicSettings(configuration, options = {}) {
     claudePath:String(env.CLAUDE_CLI_PATH || ""),
     effort:String(env.AI_EFFORT || "medium"),
     timeout:String(env.AI_TIMEOUT_SECONDS || "180"),
-    canvasAgentTurnLimit:String(env.PENECHO_CANVAS_AGENT_TURN_LIMIT || DEFAULT_CANVAS_AGENT_TURN_LIMIT),
-    imageFormat:String(env.PENECHO_AI_IMAGE_FORMAT || "webp"),
+    canvasAgentTurnLimit:String(env.FASTLECTURES_CANVAS_AGENT_TURN_LIMIT || DEFAULT_CANVAS_AGENT_TURN_LIMIT),
+    imageFormat:String(env.FASTLECTURES_AI_IMAGE_FORMAT || "webp"),
     autoDelay:String(env.AUTO_AI_DELAY_SECONDS || "5"),
-    canvasAgentAutoOpen:!/^(?:0|false|no|off)$/i.test(String(env.PENECHO_CANVAS_AGENT_AUTO_OPEN || "true")),
+    canvasAgentAutoOpen:!/^(?:0|false|no|off)$/i.test(String(env.FASTLECTURES_CANVAS_AGENT_AUTO_OPEN || "true")),
     host:String(env.HOST || "0.0.0.0"),
     port:String(env.PORT || "3888"),
-    requestTrace:/^(?:1|true|yes|on)$/i.test(String(env.PENECHO_REQUEST_TRACE || "false")),
-    traceLimit:String(env.PENECHO_REQUEST_TRACE_LIMIT || "100"),
+    requestTrace:/^(?:1|true|yes|on)$/i.test(String(env.FASTLECTURES_REQUEST_TRACE || "false")),
+    traceLimit:String(env.FASTLECTURES_REQUEST_TRACE_LIMIT || "100"),
     configFile:configuration.configFile,
     stateDir:configuration.stateDir,
   };

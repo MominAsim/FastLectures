@@ -1,8 +1,8 @@
-# PenEcho Agent 编排与性能改进（2026-09-09）
+# FastLectures Agent 编排与性能改进（2026-09-09）
 
 ## 实测范围与结论
 
-只读统计本机最近 **40 条 PenEcho Agent 请求**，范围为
+只读统计本机最近 **40 条 FastLectures Agent 请求**，范围为
 2026-09-03 15:49:39 UTC 至 2026-09-08 12:06:06 UTC。
 手写暂停触发的 Main Canvas AI 与 Agent 分开统计，本次未修改 Main Canvas AI。
 明细见 [脱敏元数据](canvas-agent-performance-2026-09-09.json)。
@@ -67,7 +67,7 @@ GLM Flash 的 983.901 秒样本用了 15 个模型步骤，其中第 2 步
 
 1. [73edce1ae：复用已证明深冻结的消息身份](https://github.com/deepseek-ai/deepseek-harness/commit/73edce1ae7ad0cbf8813d4d65b288317a16a7f5c)。
    WeakSet 由 Harness agent 所有；新消息与每次 header 仍深冻结，signal 保持可取消。
-   不建立 PenEcho 层模型上下文缓存，也不改写历史。
+   不建立 FastLectures 层模型上下文缓存，也不改写历史。
 2. [7bab91d24：保留 Anthropic 实际返回的模型信息](https://github.com/deepseek-ai/deepseek-harness/commit/7bab91d247e4a7a2e84c68e1883359f5dc718e6a)。
    请求模型身份与上游解析后的模型分开保存，避免别名导致 replay 验证失败、
    丢失原生签名或退化回放；Completions 的模型语义不变。
@@ -75,7 +75,7 @@ GLM Flash 的 983.901 秒样本用了 15 个模型步骤，其中第 2 步
 完整来源、许可证与移除条件位于
 [`src/server/canvas-agent/vendor/README.md`](../src/server/canvas-agent/vendor/README.md)。
 生成器校验锁定包的 SHA-256，离线生成两个 MIT 模块，不改 node_modules、
-不增加第三方依赖。NOTICE 明确保留 MIT 原文及本地改编许可；PenEcho 集成
+不增加第三方依赖。NOTICE 明确保留 MIT 原文及本地改编许可；FastLectures 集成
 代码仍按项目 AGPL-3.0-only。
 
 ## 验证与实际限制
@@ -91,7 +91,7 @@ GLM Flash 的 983.901 秒样本用了 15 个模型步骤，其中第 2 步
   修改前还存在冷提示词预算失败，本次已修复。
 - 生成产物一致性、模块导入、语法与 diff 空白检查通过；npm pack dry-run
   确认运行模块、生成器和 MIT 许可/来源文件均进入发布包。
-- 未启动或重启 PenEcho，未发出真实付费模型请求，未部署或同步 Cloud。
+- 未启动或重启 FastLectures，未发出真实付费模型请求，未部署或同步 Cloud。
   运行中旧进程不会自动采用代码；真实耗时改善尚需加载新代码后用同任务复测。
   服务端改动覆盖该宿主的本地与 Linked Device 调用；未做 Cloud 线上联调。
 

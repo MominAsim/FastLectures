@@ -69,10 +69,10 @@ jobs:
       - name: Import distribution certificate and provisioning profile
         shell: bash
         run: |
-          CERTIFICATE_PATH="$RUNNER_TEMP/penecho-ios.p12"
-          PROFILE_PATH="$RUNNER_TEMP/penecho-ios.mobileprovision"
-          PROFILE_PLIST="$RUNNER_TEMP/penecho-ios-profile.plist"
-          KEYCHAIN_PATH="$RUNNER_TEMP/penecho-ios-signing.keychain-db"
+          CERTIFICATE_PATH="$RUNNER_TEMP/fastlectures-ios.p12"
+          PROFILE_PATH="$RUNNER_TEMP/fastlectures-ios.mobileprovision"
+          PROFILE_PLIST="$RUNNER_TEMP/fastlectures-ios-profile.plist"
+          KEYCHAIN_PATH="$RUNNER_TEMP/fastlectures-ios-signing.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
           printf '%s' "$IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64" | /usr/bin/base64 -D > "$CERTIFICATE_PATH"
           printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | /usr/bin/base64 -D > "$PROFILE_PATH"
@@ -98,20 +98,20 @@ jobs:
       - name: Verify signed IPA
         shell: bash
         run: |
-          IPA="$(find release/mobile -maxdepth 1 -type f -name 'PenEcho-*-ios.ipa' -print -quit)"
+          IPA="$(find release/mobile -maxdepth 1 -type f -name 'FastLectures-*-ios.ipa' -print -quit)"
           if [[ -z "$IPA" ]]; then
             echo "::error::Signed IPA was not produced"
             exit 1
           fi
-          VERIFY_ROOT="$RUNNER_TEMP/penecho-ios-verify"
+          VERIFY_ROOT="$RUNNER_TEMP/fastlectures-ios-verify"
           ditto -x -k "$IPA" "$VERIFY_ROOT"
           APP="$(find "$VERIFY_ROOT/Payload" -maxdepth 1 -type d -name '*.app' -print -quit)"
           codesign --verify --deep --strict --verbose=2 "$APP"
           codesign -dv --verbose=4 "$APP"
       - uses: actions/upload-artifact@v4
         with:
-          name: penecho-ios
-          path: release/mobile/PenEcho-*-ios.ipa
+          name: fastlectures-ios
+          path: release/mobile/FastLectures-*-ios.ipa
           if-no-files-found: error
       - name: Restore App Store Connect API key
         if: env.UPLOAD_TESTFLIGHT == 'true'
@@ -125,5 +125,5 @@ jobs:
         if: env.UPLOAD_TESTFLIGHT == 'true'
         shell: bash
         run: |
-          IPA="$(find release/mobile -maxdepth 1 -type f -name 'PenEcho-*-ios.ipa' -print -quit)"
+          IPA="$(find release/mobile -maxdepth 1 -type f -name 'FastLectures-*-ios.ipa' -print -quit)"
           xcrun altool --upload-app --type ios --file "$IPA" --apiKey "$APPLE_API_KEY_ID" --apiIssuer "$APPLE_API_ISSUER"

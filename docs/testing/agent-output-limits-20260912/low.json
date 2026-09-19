@@ -20,7 +20,7 @@
     {
       "type": "tool_use",
       "chars": 0,
-      "name": "penecho_present_widget",
+      "name": "fastlectures_present_widget",
       "inputKeys": [
         "artifactId",
         "title",
@@ -33,7 +33,7 @@
     {
       "type": "tool_use",
       "chars": 0,
-      "name": "penecho_present_widget",
+      "name": "fastlectures_present_widget",
       "inputKeys": [
         "artifactId",
         "title",

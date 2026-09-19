@@ -25,7 +25,7 @@ const functionSource = (source, name) => {
 
 const canvasRuntimeSource = read("src/client/app/canvas-runtime.js");
 const agentRuntimeSource = read("src/client/app/canvas-agent-runtime.js");
-const visualExplorerSourceFormat = "penecho-visual-explorer+html";
+const visualExplorerSourceFormat = "fastlectures-visual-explorer+html";
 
 function clientFunctions(overrides = {}) {
   const source = [
@@ -99,7 +99,7 @@ test("browser source fingerprint matches server widgetSourceHash for HTML, diagr
       source:"nodes:\r\n  - id: one\r\n",
       copyText:"",
       copyLabel:"",
-      sourceFormat:"penecho-diagram+yaml",
+      sourceFormat:"fastlectures-diagram+yaml",
       frameworkVersion:"",
     })],
   ];

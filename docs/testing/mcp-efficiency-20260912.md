@@ -77,9 +77,9 @@
 
 最终外部 ZCode：**4 次工具调用、0 错误、0 重试**：start_session → present_widget → read_file → patch_file(capture + completion)。MCP 握手确认协议 2025-11-25、19 个工具。日志工具耗时分别 30 / 34 / 8 / 76 ms；整轮约 31.9 秒，主要是 5 次模型请求（含最终回复），不是 MCP 网络时间。
 
-该轮服务端 usage：input 116,233、output 5,204、cache read 112,768 Token。它们是整轮累计值，包含 ZCode 自己的系统说明和其他工具，不能当作 PenEcho 单次 prompt 大小。该配置是文本模型，截图不进入模型视觉输入；像素和按钮交互由主任务使用真实浏览器另行核验。
+该轮服务端 usage：input 116,233、output 5,204、cache read 112,768 Token。它们是整轮累计值，包含 ZCode 自己的系统说明和其他工具，不能当作 FastLectures 单次 prompt 大小。该配置是文本模型，截图不进入模型视觉输入；像素和按钮交互由主任务使用真实浏览器另行核验。
 
-内置 PenEcho Agent：同一 DeepSeek Flash 连接，**3 次工具调用**完成创建→读取→patch+done。界面确认版本 B；真实按钮点击、Undo/Redo通过。
+内置 FastLectures Agent：同一 DeepSeek Flash 连接，**3 次工具调用**完成创建→读取→patch+done。界面确认版本 B；真实按钮点击、Undo/Redo通过。
 
 测试中另发现并修复：源码 patch 回执缺少顶层 objectId，导致组合截图退回整个 viewport，遇到尚未就绪的 Widget 时多一次截图往返。现在返回准确对象并复用 Widget 等待/截图路径；修复后最终 ZCode 4 次调用一次通过。
 

@@ -33,7 +33,7 @@ test("semantic version comparison handles stable and prerelease npm versions", (
 
 test("npm latest-version lookup uses the registry latest endpoint and validates its response", async () => {
   const calls = [];
-  const latest = await fetchLatestNpmVersion("penecho", {
+  const latest = await fetchLatestNpmVersion("fastlectures", {
     timeoutMs:1000,
     fetchImpl:async (url, options) => {
       calls.push({ url, options });
@@ -41,18 +41,18 @@ test("npm latest-version lookup uses the registry latest endpoint and validates 
     },
   });
   assert.equal(latest, "0.6.0");
-  assert.equal(calls[0].url, "https://registry.npmjs.org/penecho/latest");
+  assert.equal(calls[0].url, "https://registry.npmjs.org/fastlectures/latest");
   assert.equal(calls[0].options.redirect, "error");
-  assert.equal(calls[0].options.headers["User-Agent"], "penecho/1.3.1");
+  assert.equal(calls[0].options.headers["User-Agent"], "fastlectures/1.3.1");
   await assert.rejects(
-    fetchLatestNpmVersion("penecho", { timeoutMs:1000, attempts:1, fetchImpl:async () => ({ ok:true, status:200, json:async () => ({ version:"invalid" }) }) }),
-    /invalid PenEcho version/,
+    fetchLatestNpmVersion("fastlectures", { timeoutMs:1000, attempts:1, fetchImpl:async () => ({ ok:true, status:200, json:async () => ({ version:"invalid" }) }) }),
+    /invalid FastLectures version/,
   );
 });
 
 test("npm latest-version lookup retries one transient failure", async () => {
   let calls = 0;
-  const latest = await fetchLatestNpmVersion("penecho", {
+  const latest = await fetchLatestNpmVersion("fastlectures", {
     timeoutMs:1000,
     retryDelayMs:1,
     fetchImpl:async () => {
@@ -69,7 +69,7 @@ test("update checks run for interactive starts but skip noninteractive and expli
   const interactive = { ui:{ interactive:true }, env:{}, packageRoot:process.cwd() };
   assert.equal(updateCheckAllowed({ output:capture().stream, input:{ isTTY:false }, env:{} }), false);
   assert.equal(updateCheckAllowed(interactive), true);
-  assert.equal(updateCheckAllowed({ ...interactive, env:{ PENECHO_SKIP_UPDATE_CHECK:"1" } }), false);
+  assert.equal(updateCheckAllowed({ ...interactive, env:{ FASTLECTURES_SKIP_UPDATE_CHECK:"1" } }), false);
 });
 
 test("an up-to-date check visibly reports the current version", async () => {
@@ -81,7 +81,7 @@ test("an up-to-date check visibly reports the current version", async () => {
     updateChecker:async () => "0.0.0",
   });
   assert.equal(result.checked, true);
-  assert.match(output.text(), /Checking latest PenEcho version/);
+  assert.match(output.text(), /Checking latest FastLectures version/);
   assert.match(output.text(), /is the latest version/);
 });
 
@@ -99,11 +99,11 @@ test("available updates default to yes, install globally, stop the service, and 
   assert.equal(result.updated, true);
   assert.equal(result.restarted, false);
   assert.deepEqual(events, ["check", "install:99.0.0", "stop"]);
-  assert.match(output.text(), /Checking latest PenEcho version/);
-  assert.match(output.text(), /newer PenEcho version.*v99\.0\.0/i);
-  assert.match(output.text(), /Updating PenEcho/);
+  assert.match(output.text(), /Checking latest FastLectures version/);
+  assert.match(output.text(), /newer FastLectures version.*v99\.0\.0/i);
+  assert.match(output.text(), /Updating FastLectures/);
   assert.match(output.text(), /installed successfully/);
-  assert.match(output.text(), /Run `penecho` again/);
+  assert.match(output.text(), /Run `fastlectures` again/);
   assert.doesNotMatch(output.text(), /Restarting/);
   assert.equal(errors.text(), "");
 });
@@ -123,7 +123,7 @@ test("Windows global updates launch the npm cmd shim through the command process
   });
   assert.equal(await installing, true);
   assert.equal(calls[0].command, commandProcessor);
-  assert.deepEqual(calls[0].args, ["/d", "/s", "/c", "npm.cmd", "install", "--global", "penecho@9.8.7"]);
+  assert.deepEqual(calls[0].args, ["/d", "/s", "/c", "npm.cmd", "install", "--global", "fastlectures@9.8.7"]);
   assert.equal(calls[0].options.shell, false);
 
 });
@@ -141,7 +141,7 @@ test("declining or failing an update keeps the current service running", async (
   });
   assert.equal(declined.restarted, false);
   assert.equal(installed, false);
-  assert.match(declinedOutput.text(), /Continuing with PenEcho/);
+  assert.match(declinedOutput.text(), /Continuing with FastLectures/);
 
   const failedErrors = capture();
   const failed = await maybeUpdateOnStart([], {
@@ -165,7 +165,7 @@ test("offline or invalid update checks never block startup", async () => {
     updateChecker:async () => { throw new Error("offline"); },
   });
   assert.deepEqual(result, { checked:false, restarted:false });
-  assert.match(output.text(), /Checking latest PenEcho version/);
+  assert.match(output.text(), /Checking latest FastLectures version/);
   assert.match(output.text(), /check unavailable/);
   assert.match(output.text(), /offline/);
 });

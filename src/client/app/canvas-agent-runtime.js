@@ -89,14 +89,14 @@
     canvasAgentWidgetPickerContext = canvasAgentWidgetPickerLayer?.getContext("2d"),
     canvasAgentInkContext = canvasAgentInkCanvas?.getContext("2d");
   const CANVAS_AGENT_PROTOCOL_VERSION = 1,
-    CANVAS_AGENT_SESSION_KEY = "penecho-canvas-agent-session-v1",
-    CANVAS_AGENT_CLIENT_KEY = "penecho-canvas-agent-client-v1",
-    CANVAS_AGENT_POSITION_KEY = "penecho-canvas-agent-position-v1",
-    CANVAS_AGENT_HEIGHT_KEY = "penecho-canvas-agent-height-v1",
-    CANVAS_AGENT_WIDTH_KEY = "penecho-canvas-agent-width-v2",
-    CANVAS_AGENT_HISTORY_KEY = "penecho-canvas-agent-history-v1",
-    CANVAS_AGENT_SEARCH_ENABLED_KEY = "penecho-canvas-agent-search-enabled-v1",
-    CANVAS_AGENT_PROJECT_KEY = "penecho-canvas-agent-project-v1",
+    CANVAS_AGENT_SESSION_KEY = "fastlectures-canvas-agent-session-v1",
+    CANVAS_AGENT_CLIENT_KEY = "fastlectures-canvas-agent-client-v1",
+    CANVAS_AGENT_POSITION_KEY = "fastlectures-canvas-agent-position-v1",
+    CANVAS_AGENT_HEIGHT_KEY = "fastlectures-canvas-agent-height-v1",
+    CANVAS_AGENT_WIDTH_KEY = "fastlectures-canvas-agent-width-v2",
+    CANVAS_AGENT_HISTORY_KEY = "fastlectures-canvas-agent-history-v1",
+    CANVAS_AGENT_SEARCH_ENABLED_KEY = "fastlectures-canvas-agent-search-enabled-v1",
+    CANVAS_AGENT_PROJECT_KEY = "fastlectures-canvas-agent-project-v1",
     CANVAS_AGENT_PROJECT_UPLOAD_LIMIT = 32 * 1024 * 1024,
     CANVAS_AGENT_IMAGE_MEDIA_TYPES = new Set(["image/png","image/jpeg","image/webp","image/gif"]),
     CANVAS_AGENT_IMAGE_EXTENSION_TYPES = new Map([[".png","image/png"],[".jpg","image/jpeg"],[".jpeg","image/jpeg"],[".webp","image/webp"],[".gif","image/gif"]]),
@@ -262,8 +262,8 @@
     promptSuggestions:[],
     inkPresent:false,
     inkStroke:null,
-    searchConfigured:Boolean(window.PENECHO_CONFIG?.canvasAgentSearchConfigured),
-    searchEnabled:Boolean(window.PENECHO_CONFIG?.canvasAgentSearchConfigured) && localStorage.getItem(CANVAS_AGENT_SEARCH_ENABLED_KEY) !== "false",
+    searchConfigured:Boolean(window.FASTLECTURES_CONFIG?.canvasAgentSearchConfigured),
+    searchEnabled:Boolean(window.FASTLECTURES_CONFIG?.canvasAgentSearchConfigured) && localStorage.getItem(CANVAS_AGENT_SEARCH_ENABLED_KEY) !== "false",
     sessionSearchConfigured:false,
     sessionSearchEnabled:false,
     projectId:localStorage.getItem(CANVAS_AGENT_PROJECT_KEY) || "",
@@ -321,20 +321,20 @@
   } catch {}
 
   function canvasAgentAvailable() {
-    const config = window.PENECHO_CONFIG;
+    const config = window.FASTLECTURES_CONFIG;
     return config?.runtime !== "viewer" && (config?.canvasAgent !== false || config?.browserCanvasEditing === true);
   }
   function canvasAgentExecutionAvailable() {
-    const runtime = window.PENECHO_CONFIG?.runtime;
-    return runtime !== "viewer" && (window.PENECHO_CONFIG?.canvasAgent !== false || window.PENECHO_CONFIG?.hostedCanvasAgent === true && canvasAgentUsesCloudHost());
+    const runtime = window.FASTLECTURES_CONFIG?.runtime;
+    return runtime !== "viewer" && (window.FASTLECTURES_CONFIG?.canvasAgent !== false || window.FASTLECTURES_CONFIG?.hostedCanvasAgent === true && canvasAgentUsesCloudHost());
   }
   function canvasAgentCloudSavedCanvasId() {
     const id=String(state.currentSnapshotId||"");
-    return window.PENECHO_CONFIG?.runtime === "cloud" && state.currentSnapshotLocation === "cloud"
+    return window.FASTLECTURES_CONFIG?.runtime === "cloud" && state.currentSnapshotLocation === "cloud"
       && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id) ? id : "";
   }
   function canvasAgentCloudCanvasId() {
-    if (window.PENECHO_CONFIG?.runtime !== "cloud") return "";
+    if (window.FASTLECTURES_CONFIG?.runtime !== "cloud") return "";
     const saved = canvasAgentCloudSavedCanvasId();
     if (saved) return saved;
     const document = canvasDocumentsCurrent();
@@ -349,14 +349,14 @@
     // Detach before close: late frames and close handlers belong to the old Canvas.
     canvasAgent.socket=null;
     canvasAgent.socketCloudCanvasId="";
-    canvasAgentInvalidateSubmitExecution(Object.assign(Error("PenEcho Agent Canvas changed."),{code:"SESSION_CHANGED"}));
+    canvasAgentInvalidateSubmitExecution(Object.assign(Error("FastLectures Agent Canvas changed."),{code:"SESSION_CHANGED"}));
     canvasAgentDropSessionIdentity();
     canvasAgent.requestPending=false;
     canvasAgentSetRunning(false);
-    try { socket?.close(1000,"PenEcho Agent Canvas changed"); } catch {}
+    try { socket?.close(1000,"FastLectures Agent Canvas changed"); } catch {}
   }
   function canvasAgentUsesCloudHost(connectionId = null) {
-    return window.PENECHO_CONFIG?.runtime === "cloud" && window.PENECHO_CONFIG?.hostedCanvasAgent === true
+    return window.FASTLECTURES_CONFIG?.runtime === "cloud" && window.FASTLECTURES_CONFIG?.hostedCanvasAgent === true
       && /^hosted:[0-9a-f-]{36}$/i.test(connectionId ?? selectedAiConnectionId());
   }
   function canvasAgentContextProjectId() {
@@ -783,7 +783,7 @@
     return "controlled";
   }
   function canvasAgentProjectRootApi() {
-    return window.PENECHO_CONFIG?.runtime==="cloud"
+    return window.FASTLECTURES_CONFIG?.runtime==="cloud"
       ? { roots:"/api/canvas-agent/roots", entries:"/api/canvas-agent/roots", select:"/api/canvas-agent/projects/from-root" }
       : { roots:"/api/canvas-agent/host-roots", entries:"/api/canvas-agent/host-roots", select:"/api/canvas-agent/projects/from-host-root" };
   }
@@ -806,7 +806,7 @@
     return [...(dataTransfer?.items||[])].filter(item=>item.kind==="file").map(item=>item.getAsFile()).filter(file=>file instanceof Blob);
   }
   async function canvasAgentDesktopClipboardFiles() {
-    const desktop=window.penechoDesktop,plural=typeof desktop?.readClipboardFiles==="function";
+    const desktop=window.fastlecturesDesktop,plural=typeof desktop?.readClipboardFiles==="function";
     if(!plural&&typeof desktop?.readClipboardFile!=="function")return [];
     const payload=await (plural?desktop.readClipboardFiles():desktop.readClipboardFile());
     if(!payload?.ok){if(payload?.code==="too_many")throw Error(t("canvasAgentAttachmentLimit"));if(payload?.code==="too_large")throw Error(t("canvasAgentUploadTooLarge"));if(payload?.code==="empty")throw Error(t("canvasAgentUploadEmpty"));return [];}
@@ -1194,10 +1194,10 @@
     return `/api/v1/hosted/canvases/${encodeURIComponent(scope.canvasId)}/files/${encodeURIComponent(scope.conversationId)}${fileId ? `/${encodeURIComponent(fileId)}` : ""}${scope.draft ? "?draft=1" : ""}`;
   }
   async function canvasAgentUploadCloudFile(file) {
-    if(window.PENECHO_CONFIG?.hostedDocumentFiles!==true)throw Error(t("canvasAgentCloudFilesHelp"));
+    if(window.FASTLECTURES_CONFIG?.hostedDocumentFiles!==true)throw Error(t("canvasAgentCloudFilesHelp"));
     if(!/\.(pdf|docx|xlsx|csv|txt|md|json)$/i.test(file.name)||file.size>8*1024*1024)throw Error(t("canvasAgentCloudFileFormats"));
     const scope=canvasAgentCloudFileScope(),body=await canvasAgentProjectRequest(canvasAgentCloudFilesPath(scope),{
-      method:"POST",headers:{"content-type":"application/x-penecho-document","x-document-name":encodeURIComponent(file.name)},body:file,
+      method:"POST",headers:{"content-type":"application/x-fastlectures-document","x-document-name":encodeURIComponent(file.name)},body:file,
     });
     const current=canvasAgentCloudFileScope();
     if(current.canvasId!==scope.canvasId||current.draft!==scope.draft||current.conversationId!==scope.conversationId||!canvasAgentUsesCloudHost()) {
@@ -1250,7 +1250,7 @@
     const source=value&&typeof value==="object"?value:{message:value}, nested=source.error&&typeof source.error==="object"?source.error:null,
       code=canvasAgentHistoryText(source.code||source.name||nested?.code||nested?.name||"",128).replace(/[\0-\x1f\x7f]/g,"").trim(),
       fallback=typeof value==="string"?value:"",
-      message=canvasAgentHistoryText(source.message||nested?.message||fallback||"PenEcho Agent failed.",CANVAS_AGENT_ERROR_MESSAGE_LIMIT).trim()||"PenEcho Agent failed.";
+      message=canvasAgentHistoryText(source.message||nested?.message||fallback||"FastLectures Agent failed.",CANVAS_AGENT_ERROR_MESSAGE_LIMIT).trim()||"FastLectures Agent failed.";
     return {code,message};
   }
   function canvasAgentErrorKind(value) {
@@ -1259,7 +1259,7 @@
     if(/CONCURRENC|CAPACITY|SERVER_BUSY/.test(code)||/concurrenc|too many simultaneous|server is busy|service is busy/.test(message))return "busy";
     if(/TIMEOUT|ETIMEDOUT/.test(code)||/timed? out|timeout/.test(message))return "timeout";
     if(/RATE_LIMIT|TOO_MANY_REQUESTS|RESOURCE_EXHAUSTED|QUOTA/.test(code)||code==="429"||/rate limit|too many requests|quota exceeded|\b(?:http )?429\b/.test(message))return "rate_limit";
-    if(/CONTEXT_LENGTH|REQUEST_TOO_LARGE|PAYLOAD_TOO_LARGE|TOKEN_LIMIT/.test(code)||/context (?:length|window)|too many tokens|request (?:is )?too large|message is too large|more attachment data than penecho can safely process|maximum token/.test(message))return "request_too_large";
+    if(/CONTEXT_LENGTH|REQUEST_TOO_LARGE|PAYLOAD_TOO_LARGE|TOKEN_LIMIT/.test(code)||/context (?:length|window)|too many tokens|request (?:is )?too large|message is too large|more attachment data than fastlectures can safely process|maximum token/.test(message))return "request_too_large";
     if(/UNAUTHENTICATED|UNAUTHORIZED|AUTHENTICATION_FAILED|INVALID_API_KEY|API_KEY_INVALID|LOGIN_REQUIRED/.test(code)||code==="401"||/\bunauthorized\b|\bunauthenticated\b|authentication failed|invalid api key|please (?:log|sign) in|not logged in|\b(?:http )?401\b/.test(message))return "authentication";
     if(/MODEL_NOT_FOUND|MODEL_UNAVAILABLE|UNKNOWN_MODEL/.test(code)||/model .*?(?:not found|unavailable|does not exist|not supported)/.test(message))return "model_unavailable";
     if(code==="400"||/\bhttp 400\b/.test(message))return "request_rejected";
@@ -1289,9 +1289,9 @@
     return `${text.slice(0,end)}…`;
   }
   function canvasAgentVisibleAssistantText(value) {
-    const text=String(value||""),opening=/<p(?:h)?enecho_canvas_title>/.exec(text);
+    const text=String(value||""),opening=/<(?:fastlectures|phenecho|p(?:h)?enecho)_canvas_title>/.exec(text);
     if(!opening)return canvasAgentMessageText(text);
-    const start=opening.index,titleStart=start+opening[0].length,closing=/<\/p(?:h)?enecho_canvas_title>/.exec(text.slice(titleStart));
+    const start=opening.index,titleStart=start+opening[0].length,closing=/<\/(?:fastlectures|phenecho|p(?:h)?enecho)_canvas_title>/.exec(text.slice(titleStart));
     if(!closing)return canvasAgentMessageText(text);
     const end=titleStart+closing.index,before=text.slice(0,start),after=text.slice(end+closing[0].length),left=before.match(/(?:\r?\n[ \t]*)+$/)?.[0]||"",right=after.match(/^(?:[ \t]*\r?\n)+/)?.[0]||"",lineBreak=left.includes("\r\n")||right.includes("\r\n")?"\r\n":"\n",breaks=Math.min(2,Math.max((left.match(/\n/g)||[]).length,(right.match(/\n/g)||[]).length));
     return canvasAgentMessageText(!before.trim()?after.slice(right.length):!after.trim()?before.slice(0,before.length-left.length):left&&right?`${before.slice(0,before.length-left.length)}${lineBreak.repeat(breaks)}${after.slice(right.length)}`:`${before}${after}`);
@@ -1516,7 +1516,7 @@
       empty.className="canvas-agent-history-empty";
       empty.textContent=t("canvasAgentHistoryEmpty");
       canvasAgentHistoryList.append(empty);
-      window.PenEchoStudioNavigator?.renderAgent?.();
+      window.FastLecturesStudioNavigator?.renderAgent?.();
       return;
     }
     for (const conversation of histories) {
@@ -1533,7 +1533,7 @@
       button.addEventListener("click",()=>current?canvasAgentHideHistoryPopover():void canvasAgentViewStoredConversation(conversation.id));
       canvasAgentHistoryList.append(button);
     }
-    window.PenEchoStudioNavigator?.renderAgent?.();
+    window.FastLecturesStudioNavigator?.renderAgent?.();
   }
   function canvasAgentHideHistoryPopover() {
     canvasAgentHistoryPopover.hidden=true;
@@ -1636,16 +1636,16 @@
       const reject=canvasAgent.connectReject;
       canvasAgent.connectPromise=null;
       canvasAgent.connectResolve=canvasAgent.connectReject=null;
-      reject(Object.assign(Error("PenEcho Agent session changed."),{code:"SESSION_CHANGED"}));
+      reject(Object.assign(Error("FastLectures Agent session changed."),{code:"SESSION_CHANGED"}));
     }
     for (const controller of canvasAgent.toolControllers.values()) {
-      controller.abort(Error("PenEcho Agent session changed."));
+      controller.abort(Error("FastLectures Agent session changed."));
     }
     canvasAgent.toolControllers.clear();
     canvasAgent.toolResultCache.clear();
     canvasAgent.activeToolExecution=null;
   }
-  function canvasAgentInvalidateSubmitExecution(reason=Error("PenEcho Agent session changed.")) {
+  function canvasAgentInvalidateSubmitExecution(reason=Error("FastLectures Agent session changed.")) {
     const execution=canvasAgent.activeSubmitExecution;
     if (!execution) return;
     canvasAgent.activeSubmitExecution=null;
@@ -1653,7 +1653,7 @@
     if(canvasAgent.requestPending)canvasAgentRequestDidNotSend();
   }
   function canvasAgentBeginSubmitExecution(connectionId) {
-    canvasAgentInvalidateSubmitExecution(Error("A newer PenEcho Agent submission replaced this request."));
+    canvasAgentInvalidateSubmitExecution(Error("A newer FastLectures Agent submission replaced this request."));
     const execution={
       connectionId:String(connectionId||""),
       controller:new AbortController(),
@@ -1675,11 +1675,11 @@
       && execution.generation===canvasAgent.sessionGeneration;
   }
   function canvasAgentAssertSubmitExecution(execution) {
-    if (!canvasAgentSubmitExecutionCurrent(execution)) throw Error("PenEcho Agent session changed before the message could be sent.");
+    if (!canvasAgentSubmitExecutionCurrent(execution)) throw Error("FastLectures Agent session changed before the message could be sent.");
   }
   function canvasAgentBindSubmitExecution(execution) {
     canvasAgentAssertSubmitExecution(execution);
-    if (!canvasAgent.sessionReady || !canvasAgent.sessionId || canvasAgent.socket?.readyState!==WebSocket.OPEN) throw Error("PenEcho Agent is not connected.");
+    if (!canvasAgent.sessionReady || !canvasAgent.sessionId || canvasAgent.socket?.readyState!==WebSocket.OPEN) throw Error("FastLectures Agent is not connected.");
     execution.socket=canvasAgent.socket;
     execution.sessionId=canvasAgent.sessionId;
     execution.generation=canvasAgent.sessionGeneration;
@@ -1696,7 +1696,7 @@
       && !execution.controller.signal.aborted;
   }
   function canvasAgentAssertToolExecution(execution) {
-    if (!canvasAgentToolExecutionCurrent(execution)) throw canvasAgentToolError("SESSION_EXPIRED","The PenEcho Agent session changed before this tool could finish.");
+    if (!canvasAgentToolExecutionCurrent(execution)) throw canvasAgentToolError("SESSION_EXPIRED","The FastLectures Agent session changed before this tool could finish.");
   }
   function canvasAgentCanvasIdentity({id,location}={}) {
     return id&&location?`${location}:${id}`:`draft:${canvasClientId()}`;
@@ -1742,7 +1742,7 @@
       void canvasAgentStartNewConversation(selectedAiConnectionId(),{resetProjection:false}).catch(canvasAgentReportAsyncError);
     } else canvasAgentDropSessionIdentity();
     canvasAgentSyncPromptSuggestions();
-    if (!window.PenEchoStudioNavigator?.isMcpDocked?.()) {
+    if (!window.FastLecturesStudioNavigator?.isMcpDocked?.()) {
       if (state.canvasAgentAutoOpen && (canvasAgentPanel.hidden || !document.body.classList.contains("canvas-agent-open"))) openCanvasAgent({focus:false});
     }
   }
@@ -1758,7 +1758,7 @@
   }
   function canvasAgentCanvasDidPersist(location,id) {
     canvasAgentReconcileCloudCanvas();
-    if (window.PENECHO_CONFIG?.runtime === "cloud") {
+    if (window.FASTLECTURES_CONFIG?.runtime === "cloud") {
       canvasAgentUpdateConnectionButton();
       if (canvasAgentPanel.dataset.status === "unavailable" && canvasAgentExecutionAvailable()) canvasAgentSetStatus(t("canvasAgentReadyConnect"),"ready");
     }
@@ -1766,7 +1766,7 @@
     const previousKey=state.canvasAgentCanvasKey, nextKey=canvasAgentCanvasIdentity({location,id});
     if (previousKey===nextKey) {
       if(!canvasAgent.projectId)canvasAgentWriteHistoryForCanvas(nextKey,canvasAgentHistoryForCanvas(nextKey));
-      window.PenEchoStudioNavigator?.renderAgent?.();
+      window.FastLecturesStudioNavigator?.renderAgent?.();
       return;
     }
     if(canvasAgent.projectId){state.canvasAgentCanvasKey=nextKey;canvasAgentRenderHistoryList();return;}
@@ -1780,7 +1780,7 @@
     canvasAgentRenderHistoryList();
   }
   function canvasAgentSendEnvelope(type, payload = {}) {
-    if (!canvasAgent.socket || canvasAgent.socket.readyState !== WebSocket.OPEN) throw Error("PenEcho Agent is not connected.");
+    if (!canvasAgent.socket || canvasAgent.socket.readyState !== WebSocket.OPEN) throw Error("FastLectures Agent is not connected.");
     canvasAgent.outgoingSeq++;
     canvasAgent.socket.send(JSON.stringify({
       version:CANVAS_AGENT_PROTOCOL_VERSION,
@@ -2010,7 +2010,7 @@
       canvasAgent.panelPosition = null;
     }
     canvasAgentSyncToolbarLayout(theme);
-    window.PenEchoStudioNavigator?.syncTheme?.(theme);
+    window.FastLecturesStudioNavigator?.syncTheme?.(theme);
   }
   function canvasAgentResetHeightClasses() {
     for (const name of [...canvasAgentPanel.classList]) if (/^canvas-agent-height-\d+$/.test(name)) canvasAgentPanel.classList.remove(name);
@@ -2294,8 +2294,8 @@
     return (extension||"FILE").slice(0,5).toUpperCase();
   }
   async function canvasAgentOpenProjectFile(attachment) {
-    if(!attachment?.projectId||typeof window.penechoDesktop?.openProjectFile!=="function")return false;
-    const result=await window.penechoDesktop.openProjectFile(attachment.projectId).catch(()=>({ok:false,code:"open_failed"}));
+    if(!attachment?.projectId||typeof window.fastlecturesDesktop?.openProjectFile!=="function")return false;
+    const result=await window.fastlecturesDesktop.openProjectFile(attachment.projectId).catch(()=>({ok:false,code:"open_failed"}));
     if(result?.ok)return true;
     canvasAgentSetStatus(t(result?.code==="unavailable"?"canvasAgentOpenFileUnavailable":"canvasAgentOpenFileFailed"),"error");
     return false;
@@ -2309,7 +2309,7 @@
     name.textContent=String(attachment?.name||"File");
     name.title=name.textContent;
     preview.append(type,name);
-    if(attachment?.projectId&&typeof window.penechoDesktop?.openProjectFile==="function"){
+    if(attachment?.projectId&&typeof window.fastlecturesDesktop?.openProjectFile==="function"){
       preview.classList.add("openable");
       preview.tabIndex=0;
       preview.setAttribute("role","button");
@@ -2372,7 +2372,7 @@
     canvasAgentRenderAttachments();
   }
   function canvasAgentSyncAttachmentButton() {
-    const cloudFiles=canvasAgentUsesCloudHost()&&window.PENECHO_CONFIG?.hostedDocumentFiles===true;
+    const cloudFiles=canvasAgentUsesCloudHost()&&window.FASTLECTURES_CONFIG?.hostedDocumentFiles===true;
     canvasAgentAttach.title=cloudFiles?t("canvasAgentCloudFileFormats"):t("canvasAgentAttach");
     canvasAgentFileInput.accept=cloudFiles?"image/*,.pdf,.docx,.xlsx,.csv,.txt,.md,.json":"";
     canvasAgentAttach.disabled=canvasAgent.attachmentBusy||canvasAgent.projectUploadBusy;
@@ -2420,7 +2420,7 @@
     }
     const pending=unique.filter(item=>!canvasAgent.attachments.some(attachment=>attachment.fingerprint===item.fingerprint));
     if(!pending.length){canvasAgentFileInput.value="";return false;}
-    if(canvasAgentUsesCloudHost()&&window.PENECHO_CONFIG?.hostedDocumentFiles!==true&&pending.some(item=>!item.image)){
+    if(canvasAgentUsesCloudHost()&&window.FASTLECTURES_CONFIG?.hostedDocumentFiles!==true&&pending.some(item=>!item.image)){
       canvasAgentFileInput.value="";
       canvasAgentSetStatus(t("canvasAgentCloudFilesHelp"),"error");
       return false;
@@ -2963,7 +2963,7 @@
     return icon;
   }
   function canvasAgentEvaluationClientMetadata() {
-    const config=window.PENECHO_CONFIG||{},runtime=String(config.runtime||"device"),source=`${navigator.userAgent||""} ${navigator.platform||""}`;
+    const config=window.FASTLECTURES_CONFIG||{},runtime=String(config.runtime||"device"),source=`${navigator.userAgent||""} ${navigator.platform||""}`;
     const browserPlatform=/android/i.test(source)?"android":/iphone|ipad|ipod/i.test(source)?"ios":/windows/i.test(source)?"windows":/macintosh|mac os|macintel/i.test(source)?"macos":/linux/i.test(source)?"linux":"unknown";
     const configuredPlatform=String(config.clientPlatform||"").toLowerCase(),platform=new Set(["darwin","win32","linux"]).has(configuredPlatform)?({darwin:"macos",win32:"windows",linux:"linux"})[configuredPlatform]:browserPlatform==="unknown"&&runtime==="cloud"?"web":browserPlatform;
     const client=["ios","android"].includes(platform)?"mobile":runtime==="cloud"?"cloud":config.desktopApp===true?"desktop":"web",version=String(config.clientVersion||(runtime==="cloud"?"cloud":"unknown")).trim();
@@ -3090,7 +3090,7 @@
     let decodedBytes=-1;
     try{decodedBytes=atob(match?.[2]||"").length;}catch{}
     if(!match||String(attachment?.mediaType||"")!==match[1]||decodedBytes!==bytes||!Number.isSafeInteger(bytes)||bytes<=0||bytes>maxBytes||!Number.isSafeInteger(width)||width<1||width>CANVAS_AGENT_DETAIL_CAPTURE_POLICY.maxLongEdge||!Number.isSafeInteger(height)||height<1||height>CANVAS_AGENT_DETAIL_CAPTURE_POLICY.maxLongEdge||match[2].length>Math.ceil(maxBytes*4/3)+4)return null;
-    const name=String(attachment.name||"penecho-canvas-capture").replace(/[^\w.-]+/g,"-").replace(/^[.-]+/,"").slice(0,180)||"penecho-canvas-capture";
+    const name=String(attachment.name||"fastlectures-canvas-capture").replace(/[^\w.-]+/g,"-").replace(/^[.-]+/,"").slice(0,180)||"fastlectures-canvas-capture";
     return {id:canvasClientId(),kind:"canvas_capture",name,mediaType:match[1],bytes,width,height,dataUrl:match[0]};
   }
   function canvasAgentRenderErrorElement(target) {
@@ -3285,20 +3285,20 @@
     if(name==="load_widget_contract"&&widgetContractKey)return t(widgetContractKey);
     if(name==="load_project_plugin"&&projectPluginKey)return t(projectPluginKey);
     const key = {
-      penecho_list_files:"canvasAgentToolInspect",
-      penecho_read_file:"canvasAgentToolRead",
-      penecho_get_guidance:"canvasAgentToolRead",
-      penecho_present_widget:"canvasAgentToolCreate",
-      penecho_draw:"canvasAgentToolCreate",
-      penecho_plot:"canvasAgentToolCreate",
-      penecho_patch_file:"canvasAgentToolPatchWidget",
-      penecho_edit_canvas:"canvasAgentToolEdit",
-      penecho_capture_canvas:"canvasAgentToolCapture",
-      penecho_capture_widget:"canvasAgentToolCapture",
-      penecho_inspect_session:"canvasAgentToolInspect",
-      penecho_read_feedback:"canvasAgentToolRead",
-      penecho_read_messages:"canvasAgentToolRead",
-      penecho_ack_messages:"canvasAgentToolEdit",
+      fastlectures_list_files:"canvasAgentToolInspect",
+      fastlectures_read_file:"canvasAgentToolRead",
+      fastlectures_get_guidance:"canvasAgentToolRead",
+      fastlectures_present_widget:"canvasAgentToolCreate",
+      fastlectures_draw:"canvasAgentToolCreate",
+      fastlectures_plot:"canvasAgentToolCreate",
+      fastlectures_patch_file:"canvasAgentToolPatchWidget",
+      fastlectures_edit_canvas:"canvasAgentToolEdit",
+      fastlectures_capture_canvas:"canvasAgentToolCapture",
+      fastlectures_capture_widget:"canvasAgentToolCapture",
+      fastlectures_inspect_session:"canvasAgentToolInspect",
+      fastlectures_read_feedback:"canvasAgentToolRead",
+      fastlectures_read_messages:"canvasAgentToolRead",
+      fastlectures_ack_messages:"canvasAgentToolEdit",
       canvas_inspect:"canvasAgentToolInspect",
       canvas_read:"canvasAgentToolRead",
       canvas_capture:"canvasAgentToolCapture",
@@ -3332,9 +3332,9 @@
       name==="bash"?quoted(args?.command):
       ["glob","grep"].includes(name)?quoted(args?.pattern):
       fileReader?compact(args?.file_path):
-      ["penecho_read_file","penecho_patch_file"].includes(name)?compact(args?.path):
-      name==="penecho_get_guidance"?compact(args?.id):
-      ["penecho_present_widget","penecho_draw","penecho_plot"].includes(name)?compact(args?.title):
+      ["fastlectures_read_file","fastlectures_patch_file"].includes(name)?compact(args?.path):
+      name==="fastlectures_get_guidance"?compact(args?.id):
+      ["fastlectures_present_widget","fastlectures_draw","fastlectures_plot"].includes(name)?compact(args?.title):
       name==="read_database"?[compact(args?.file_path),quoted(args?.query)].filter(Boolean).join(" · "):
       name==="list_directory"?compact(args?.path||"."):
       ["canvas_create","canvas_edit"].includes(name)?compact(args?.summary):
@@ -3505,7 +3505,7 @@
     if (envelope.type === "ready") {
       const selection=canvasAgent.pendingSelection;
       if(selection && (selection.connectionId!==selectedAiConnectionId() || selection.scope!==aiConnectionScope(selection.connectionId.startsWith("hosted:")))) {
-        canvasAgent.connectReject?.(Object.assign(Error("PenEcho Agent selection changed."),{code:"SESSION_CHANGED"}));
+        canvasAgent.connectReject?.(Object.assign(Error("FastLectures Agent selection changed."),{code:"SESSION_CHANGED"}));
         return;
       }
       canvasAgent.lastTurnError=null;
@@ -3574,15 +3574,15 @@
       canvasAgentSetStatus(canvasAgentErrorSummary(error),"error");
       if(pendingHandshakeError){
         canvasAgent.sessionReady=Boolean(canvasAgent.sessionId);
-        canvasAgent.connectReject?.(Object.assign(Error(envelope.payload?.message || "PenEcho Agent failed"),{code:error.code}));
+        canvasAgent.connectReject?.(Object.assign(Error(envelope.payload?.message || "FastLectures Agent failed"),{code:error.code}));
         canvasAgent.connectResolve=canvasAgent.connectReject=null;
-      }else if (envelope.payload?.fatal) canvasAgent.connectReject?.(Object.assign(Error(envelope.payload?.message || "PenEcho Agent failed"),{code:error.code}));
+      }else if (envelope.payload?.fatal) canvasAgent.connectReject?.(Object.assign(Error(envelope.payload?.message || "FastLectures Agent failed"),{code:error.code}));
     }
   }
   function canvasAgentSocketUrl(connectionId = selectedAiConnectionId()) {
     const path=canvasAgentUsesCloudHost(connectionId)
       ? `/api/v1/hosted/canvases/${canvasAgentCloudCanvasId()}/agent${canvasAgentCloudSavedCanvasId() ? "" : "?draft=1"}`
-      : window.PENECHO_CONFIG?.runtime === "cloud" ? "/api/v1/remote-canvas/canvas-agent" : "/api/canvas-agent/socket";
+      : window.FASTLECTURES_CONFIG?.runtime === "cloud" ? "/api/v1/remote-canvas/canvas-agent" : "/api/canvas-agent/socket";
     return `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${path}`;
   }
   function canvasAgentRestoreScopedSession(scope, connectionId) {
@@ -3597,14 +3597,14 @@
   function canvasAgentWaitForReady(start,{handshakeId,provider}={}) {
     if (canvasAgent.connectPromise) return canvasAgent.connectPromise;
     const expectedHandshakeId=String(handshakeId||"");
-    if (!expectedHandshakeId) return Promise.reject(Error("PenEcho Agent handshake is missing."));
+    if (!expectedHandshakeId) return Promise.reject(Error("FastLectures Agent handshake is missing."));
     const connectionId=selectedAiConnectionId(), scope=aiConnectionScope(connectionId.startsWith("hosted:"));
     const generation=canvasAgent.sessionGeneration, conversationId=canvasAgent.currentConversation?.id;
     let wrapped;
     const pending=Promise.resolve().then(async()=>{
       for(let attempt=0;attempt<2;attempt++){
         await validateAiConnectionSelection(connectionId,scope);
-        if (canvasAgent.connectPromise !== wrapped || canvasAgent.sessionGeneration !== generation || canvasAgent.currentConversation?.id !== conversationId) throw Object.assign(Error("PenEcho Agent session changed."),{code:"SESSION_CHANGED"});
+        if (canvasAgent.connectPromise !== wrapped || canvasAgent.sessionGeneration !== generation || canvasAgent.currentConversation?.id !== conversationId) throw Object.assign(Error("FastLectures Agent session changed."),{code:"SESSION_CHANGED"});
         canvasAgentRestoreScopedSession(scope,connectionId);
         canvasAgent.pendingSelection = { connectionId, scope };
         canvasAgent.pendingHandshakeId=expectedHandshakeId;
@@ -3728,7 +3728,7 @@
   async function canvasAgentConnect(options) {
     canvasAgentReconcileCloudCanvas();
     const cloudCanvasId=canvasAgentCloudCanvasId();
-    const assertCloudCanvas=()=>{if(cloudCanvasId!==canvasAgentCloudCanvasId())throw Object.assign(Error("PenEcho Agent Canvas changed."),{code:"SESSION_CHANGED"});};
+    const assertCloudCanvas=()=>{if(cloudCanvasId!==canvasAgentCloudCanvasId())throw Object.assign(Error("FastLectures Agent Canvas changed."),{code:"SESSION_CHANGED"});};
     if (!canvasAgentExecutionAvailable()) throw Object.assign(Error(t("canvasAgentNoConnections")),{code:"CANVAS_AGENT_NO_CONNECTION"});
     const {submitExecution=null}=options||{};
     await canvasAgentEnsureProjects();
@@ -3742,7 +3742,7 @@
       canvasAgent.resumeToken="";
       canvasAgent.sessionReady=false;
       // Keep the same conversation; the next hello carries its bounded history.
-      try { previousSocket.close(1000,"PenEcho Agent execution host changed"); } catch {}
+      try { previousSocket.close(1000,"FastLectures Agent execution host changed"); } catch {}
     }
     if (canvasAgent.socket?.readyState === WebSocket.OPEN && canvasAgent.sessionId) {
       if (canvasAgent.sessionReady&&canvasAgent.connectionId === connectionId&&canvasAgentSessionContextMatches()) return;
@@ -3770,12 +3770,12 @@
       const socket = new WebSocket(canvasAgentSocketUrl());
       canvasAgent.socket = socket;
       canvasAgent.socketCloudCanvasId=canvasAgentUsesCloudHost(connectionId)?cloudCanvasId:"";
-      if(previousSocket&&previousSocket!==socket){try{previousSocket.close(1000,"PenEcho Agent session replaced");}catch{}}
+      if(previousSocket&&previousSocket!==socket){try{previousSocket.close(1000,"FastLectures Agent session replaced");}catch{}}
       socket.addEventListener("open",()=>{
         canvasAgentReconcileCloudCanvas();
         if(socket!==canvasAgent.socket){socket.close();return;}
         const selection=canvasAgent.pendingSelection;
-        if(selection && (selection.connectionId!==selectedAiConnectionId() || selection.scope!==aiConnectionScope(selection.connectionId.startsWith("hosted:")))) { socket.close(1000,"PenEcho Agent selection changed"); return; }
+        if(selection && (selection.connectionId!==selectedAiConnectionId() || selection.scope!==aiConnectionScope(selection.connectionId.startsWith("hosted:")))) { socket.close(1000,"FastLectures Agent selection changed"); return; }
         canvasAgent.outgoingSeq = 0;
         canvasAgent.incomingSeq = 0;
         const conversationHistory=canvasAgentContinuationHistory();
@@ -3796,15 +3796,15 @@
       socket.addEventListener("message",event=>{canvasAgentReconcileCloudCanvas();if(socket===canvasAgent.socket)void canvasAgentHandleMessage(event);});
       socket.addEventListener("close",()=>{
         if (socket !== canvasAgent.socket) return;
-        if (!canvasAgentUsesCloudHost(canvasAgent.connectionId)) window.PenEchoLinkedDevice?.invalidate();
+        if (!canvasAgentUsesCloudHost(canvasAgent.connectionId)) window.FastLecturesLinkedDevice?.invalidate();
         const wasPending = Boolean(canvasAgent.connectReject),hadActiveTurn=canvasAgent.requestPending||canvasAgent.running;
         canvasAgent.sessionEngine="";
         canvasAgent.sessionModel="";
         canvasAgent.sessionChannel="";
         canvasAgent.activeEvaluationContext=null;
-        canvasAgentInvalidateSubmitExecution(Error("PenEcho Agent connection closed."));
+        canvasAgentInvalidateSubmitExecution(Error("FastLectures Agent connection closed."));
         canvasAgentBeginSessionTransition();
-        canvasAgent.connectReject?.(Error("PenEcho Agent connection closed."));
+        canvasAgent.connectReject?.(Error("FastLectures Agent connection closed."));
         canvasAgent.connectResolve = canvasAgent.connectReject = null;
         canvasAgent.connectPromise = null;
         canvasAgent.socket = null;
@@ -3817,7 +3817,7 @@
         canvasAgentSyncTriggerState();
         canvasAgentResumeAutomaticAI();
         if(hadActiveTurn&&!canvasAgent.lastTurnError){
-          const error=canvasAgentNormalizeError({code:"CONNECTION_CLOSED",message:"PenEcho Agent connection closed."});
+          const error=canvasAgentNormalizeError({code:"CONNECTION_CLOSED",message:"FastLectures Agent connection closed."});
           canvasAgent.lastTurnError=error;
           canvasAgentErrorRow(error,{eventKey:`connection:${Date.now()}`});
           canvasAgentSetStatus(canvasAgentErrorSummary(error),"error");
@@ -3883,7 +3883,7 @@
       canvas_internal_patch_visual_explainer:["objectId","artifactId","baseRevision","expectedHash","changeId","plan","command","summary"],
     }[name];
     const extras=Object.keys(args||{}).filter(key=>!allowed?.includes(key));
-    if(!allowed||extras.length)throw canvasAgentToolError("INVALID_ARGUMENT",extras.length?`Unexpected ${name} argument: ${extras[0]}.`:`Unknown PenEcho Agent tool: ${name}.`);
+    if(!allowed||extras.length)throw canvasAgentToolError("INVALID_ARGUMENT",extras.length?`Unexpected ${name} argument: ${extras[0]}.`:`Unknown FastLectures Agent tool: ${name}.`);
   }
   function canvasAgentAssertRevision(baseRevision) {
     if (!Number.isSafeInteger(baseRevision) || baseRevision !== state.userRevision) {
@@ -4031,7 +4031,7 @@
         digest,
         ...(typeof canvasDocumentsCurrent==="function"?{taskContext:canvasDocumentsCurrent().context||""}:{}),
         capture:{target:"canvas",...metadata},
-        image:{mediaType:match[1],data:match[2],name:`penecho-initial-canvas.${extension}`},
+        image:{mediaType:match[1],data:match[2],name:`fastlectures-initial-canvas.${extension}`},
       };
     }
     throw canvasAgentToolError("INITIAL_STATE_CHANGED","The Canvas changed while its initial state was being prepared. Try sending again.");
@@ -4227,10 +4227,10 @@
         const placed=canvasAgentPlacementBox(record.w,record.h,raw.placement,reserved);record.x=Math.round(placed.x);record.y=Math.round(placed.y);reserved.push(canvasAgentBox({kind:"text",item:record}));prepared.push({type,kind:"text",record,placed});
       } else if (type === "widget") {
         const widgetType=String(raw.widgetType||"");
-        if(!["html_widget","diagram_source"].includes(widgetType))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE",`Widget type ${widgetType||"(missing)"} is unavailable to PenEcho Agent.`);
+        if(!["html_widget","diagram_source"].includes(widgetType))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE",`Widget type ${widgetType||"(missing)"} is unavailable to FastLectures Agent.`);
         const pluginId=String(raw.pluginId || (widgetType === "diagram_source"?"flowchart":"general")),frameworkVersion=String(raw.frameworkVersion||"").trim();
-        if(widgetType === "diagram_source"||pluginId === "flowchart"||frameworkVersion.startsWith("penecho-professional-diagrams"))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE","PenEcho Agent may edit an existing Professional Diagram, but it cannot create a new Professional Diagram.");
-        if(!canvasAgentWidgetPluginAllowed(pluginId,widgetType))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE",`Plugin ${pluginId} is unavailable, disabled, or not available to PenEcho Agent.`);
+        if(widgetType === "diagram_source"||pluginId === "flowchart"||frameworkVersion.startsWith("fastlectures-professional-diagrams"))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE","FastLectures Agent may edit an existing Professional Diagram, but it cannot create a new Professional Diagram.");
+        if(!canvasAgentWidgetPluginAllowed(pluginId,widgetType))throw canvasAgentToolError("CAPABILITY_UNAVAILABLE",`Plugin ${pluginId} is unavailable, disabled, or not available to FastLectures Agent.`);
         const width=Math.max(execution?.widgetContentViewport?1:300,Math.min(SIZE,Number(raw.width)||Math.max(600,Math.min(1200,visible.w*.7)))),height=Math.max(execution?.widgetContentViewport?1:200,Math.min(SIZE,Number(raw.height)||Math.max(400,Math.min(800,visible.h*.7)))),placed=canvasAgentPlacementBox(width,height,raw.placement,reserved),
           record=widgetRecord({tool:widgetType,widgetType,pluginId,x:placed.x,y:placed.y,w:width,h:height,contentW:execution?.widgetContentViewport?.width??width,contentH:execution?.widgetContentViewport?.height??height,title:String(raw.title||"Canvas widget"),refreshSeconds:Number.isFinite(Number(raw.refreshSeconds))?Number(raw.refreshSeconds):0,html:typeof raw.html === "string"?raw.html:"",source:typeof raw.source === "string"?raw.source:"",sourceFormat:raw.sourceFormat,diagramKind:raw.diagramKind,frameworkVersion:raw.frameworkVersion,copyText:raw.copyText,copyLabel:raw.copyLabel});
         if(!record)throw canvasAgentToolError("INVALID_WIDGET","Widget content or geometry was rejected. Read the plugin capability contract and retry.");
@@ -4288,7 +4288,7 @@
     canvasAgentAssertRevision(args.baseRevision);canvasAgentMutationIdle(execution);
     const object=canvasAgentObject(String(args.objectId||""));
     if(!object||object.kind!=="widget")throw canvasAgentToolError("OBJECT_NOT_FOUND","Visual Explainer Widget was not found.",{objectId:args.objectId});
-    if(object.item.widgetType!=="html_widget"||object.item.pluginId!=="general"||object.item.sourceFormat!==VISUAL_EXPLAINER_SOURCE_FORMAT)throw canvasAgentToolError("KIND_MISMATCH","The target is not a PenEcho Visual Explainer Widget.",{objectId:args.objectId});
+    if(object.item.widgetType!=="html_widget"||object.item.pluginId!=="general"||object.item.sourceFormat!==VISUAL_EXPLAINER_SOURCE_FORMAT)throw canvasAgentToolError("KIND_MISMATCH","The target is not a FastLectures Visual Explainer Widget.",{objectId:args.objectId});
     const previousDiagnostics=object.item.visualDiagnostics?structuredClone(object.item.visualDiagnostics):await visualExplainerWaitForDiagnostics(object.item,1200),
       generated=visualExplainerWidgetItem(args.plan,{title:args.title||object.item.title}),currentEdit=widgetEditContext(object.item,"agent"),expectedHash=await canvasAgentHash(currentEdit),
       command={tool:"html_widget",widgetType:"html_widget",pluginId:"general",title:generated.title,refreshSeconds:0,html:generated.html,sourceFormat:generated.sourceFormat,frameworkVersion:generated.frameworkVersion,copyText:generated.copyText,copyLabel:generated.copyLabel,x:object.item.x,y:object.item.y,w:object.item.w,h:object.item.h};
@@ -4444,7 +4444,7 @@
     } else canvasAgentAssertRevision(args.baseRevision);
     const command = args.command;
     if (!command || command.pluginId !== object.item.pluginId || !["html_widget","diagram_source"].includes(command.tool)) throw Error("Patched widget command is invalid.");
-    if(!canvasAgentWidgetPluginAllowed(command.pluginId,command.tool))throw Error("The Widget plugin is unavailable, disabled, or not available to PenEcho Agent.");
+    if(!canvasAgentWidgetPluginAllowed(command.pluginId,command.tool))throw Error("The Widget plugin is unavailable, disabled, or not available to FastLectures Agent.");
     const record = widgetRecord({...command,...(sourceOnly?{x:object.item.x,y:object.item.y,w:object.item.w,h:object.item.h}:{}),id:object.item.id,widgetType:command.tool,contentW:object.item.contentW,contentH:object.item.contentH});
     if (!record) throw Error("Patched widget content was rejected by Canvas validation.");
     const sourceHash=sourceOnly?await canvasAgentHash(canvasAgentWidgetSourceState(widgetEditContext(record,"agent"))):null;
@@ -4522,7 +4522,7 @@
   function canvasAgentRevert(args,execution) {
     canvasAgentAssertToolExecution(execution);
     const latest=canvasAgent.latestChange;
-    if(!latest||String(args.changeId||"")!==latest.changeId)throw canvasAgentToolError("REVERT_NOT_LATEST","Only the latest PenEcho Agent change can be reverted.",{latestChangeId:latest?.changeId||null});
+    if(!latest||String(args.changeId||"")!==latest.changeId)throw canvasAgentToolError("REVERT_NOT_LATEST","Only the latest FastLectures Agent change can be reverted.",{latestChangeId:latest?.changeId||null});
     if(state.userRevision!==latest.revision||state.history.at(-1)!==latest.historyEntry)throw canvasAgentToolError("REVERT_CONFLICT","Canvas changed after this Agent change, so it can no longer be reverted safely.",{changeRevision:latest.revision,currentRevision:state.userRevision});
     const previousRevision=state.userRevision;state.userRevision++;undo();canvasAgent.latestChange=null;requestRender();canvasAgentSyncState();return{ok:true,revertedChangeId:latest.changeId,previousRevision,revision:state.userRevision};
   }
@@ -4568,7 +4568,7 @@
       else if (name === "canvas_internal_widget") result = await canvasAgentInternalWidget(args,execution);
       else if (name === "canvas_internal_replace_widget") result = await canvasAgentReplaceWidget(args,execution);
       else if (name === "canvas_internal_patch_visual_explainer") result = await canvasAgentPatchVisualExplainer(args,execution);
-      else throw Error(`Unknown PenEcho Agent tool: ${name}.`);
+      else throw Error(`Unknown FastLectures Agent tool: ${name}.`);
       }
       canvasAgentAssertToolExecution(execution);
       const envelope={ok:true,result};
@@ -4666,7 +4666,7 @@
   }
   function canvasAgentPrepareOpenState() {
     if(settings.connections.length)canvasAgentUpdateConnectionButton();
-    if(!settings.connections.length || window.PENECHO_CONFIG?.browserCanvasEditing)void loadCanvasSettings();
+    if(!settings.connections.length || window.FASTLECTURES_CONFIG?.browserCanvasEditing)void loadCanvasSettings();
     if(canvasAgentWorkbenchNeedsSync())syncStudioWorkbench();
   }
   function canvasAgentFinishDockedOpen(focus,connect) {
@@ -4743,7 +4743,7 @@
     // inspector keeps its persisted width class while closed, so the slide can
     // begin on the click frame instead of waiting for layout reads below.
     document.body.classList.add("canvas-agent-open");
-    window.PenEchoStudioNavigator?.agentWillOpen?.();
+    window.FastLecturesStudioNavigator?.agentWillOpen?.();
     if(animate&&docked){
       canvasAgentScheduleDockedOpenWork(focus,connect);
       return;
@@ -4835,7 +4835,7 @@
     canvasAgentSyncAssistantActions();
     if (!canvasAgentExecutionAvailable()) canvasAgentSetStatus(t("canvasAgentNoConnections"),"unavailable");
     else if (canvasAgentPanel.dataset.status === "unavailable") canvasAgentSetStatus(t("canvasAgentReadyConnect"));
-    if (window.PENECHO_CONFIG?.browserCanvasEditing) {
+    if (window.FASTLECTURES_CONFIG?.browserCanvasEditing) {
       renderHostedModels();
       for (const [oldKey, key] of [["canvasWelcomeTitle", "canvasBrowserWelcomeTitle"], ["canvasWelcomeBody", "canvasBrowserWelcomeBody"]]) {
         const element = document.querySelector(`[data-i18n="${oldKey}"]`);
@@ -4844,7 +4844,7 @@
     }
   }
   canvasAgentSyncRuntimeAvailability();
-  window.addEventListener("penecho:capabilities-changed", canvasAgentSyncRuntimeAvailability);
+  window.addEventListener("fastlectures:capabilities-changed", canvasAgentSyncRuntimeAvailability);
   canvasAgentToggle.addEventListener("click",()=>canvasAgentPanel.hidden||!document.body.classList.contains("canvas-agent-open") ? openCanvasAgent({focus:false}) : closeCanvasAgent());
   canvasAgentClose.addEventListener("click",closeCanvasAgent);
   canvasAgentProjectButton.addEventListener("click",()=>{
@@ -4895,7 +4895,7 @@
   });
   canvasAgentHistoryManage.addEventListener("click",()=>{
     canvasAgentHideHistoryPopover();
-    window.PenEchoStudioNavigator?.open?.("agent");
+    window.FastLecturesStudioNavigator?.open?.("agent");
   });
   canvasAgentHistoryList.addEventListener("keydown",event=>{
     if(!["ArrowDown","ArrowUp","Home","End"].includes(event.key))return;
@@ -5149,7 +5149,7 @@
     if (outsideEditable) return;
     const files=canvasAgentClipboardFiles(event.clipboardData);
     let hasDesktopFile=false;
-    if(!files.length&&typeof window.penechoDesktop?.hasClipboardFile==="function")try{hasDesktopFile=window.penechoDesktop.hasClipboardFile()===true;}catch{}
+    if(!files.length&&typeof window.fastlecturesDesktop?.hasClipboardFile==="function")try{hasDesktopFile=window.fastlecturesDesktop.hasClipboardFile()===true;}catch{}
     if (!files.length&&!hasDesktopFile) return;
     event.preventDefault();
     event.stopImmediatePropagation();

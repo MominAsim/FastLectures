@@ -22,7 +22,7 @@ const PACKAGE_ROOT = path.resolve(__dirname, "../..");
 const PACKAGE_JSON = require("../../package.json");
 const DEFAULT_PORT = 3888;
 const DEFAULT_TIMEOUT_SECONDS = 180;
-const UAT_CLOUD_ORIGIN = "https://internaltest.penecho.ai";
+const UAT_CLOUD_ORIGIN = "https://internaltest.fastlectures.ai";
 const MAX_COMMAND_OUTPUT = 1024 * 1024;
 const REQUIRED_ASSETS = [
   "server.js",
@@ -114,7 +114,7 @@ function parseArgs(argv = []) {
       throw new Error(`Unknown command: ${argument}`);
     }
   }
-  if (result.uat && result.command !== "start") throw new Error("--uat is only supported when starting PenEcho.");
+  if (result.uat && result.command !== "start") throw new Error("--uat is only supported when starting FastLectures.");
   return result;
 }
 
@@ -154,10 +154,10 @@ function resolveConfiguration(args, options = {}) {
     cwd = path.resolve(options.cwd || process.cwd()),
     home = path.resolve(options.home || os.homedir()),
     packageRoot = path.resolve(options.packageRoot || PACKAGE_ROOT),
-    defaultStateDir = sourceEnv.PENECHO_STATE_DIR ? path.resolve(cwd, sourceEnv.PENECHO_STATE_DIR) : path.join(home, ".penecho"),
+    defaultStateDir = sourceEnv.FASTLECTURES_STATE_DIR ? path.resolve(cwd, sourceEnv.FASTLECTURES_STATE_DIR) : path.join(home, ".fastlectures"),
     configFile = args.config ? path.resolve(cwd, args.config) : path.join(defaultStateDir, "config.env"),
     fileEnv = loadEnvFile(configFile),
-    configuredStateDir = sourceEnv.PENECHO_STATE_DIR || fileEnv.PENECHO_STATE_DIR,
+    configuredStateDir = sourceEnv.FASTLECTURES_STATE_DIR || fileEnv.FASTLECTURES_STATE_DIR,
     stateDir = configuredStateDir ? path.resolve(cwd, configuredStateDir) : defaultStateDir;
   const env = { ...fileEnv, ...sourceEnv };
   // Only consume migrated stores here; the server owns the one-time import.
@@ -169,7 +169,7 @@ function resolveConfiguration(args, options = {}) {
       Object.assign(env, connectionEnvironment(readConnectionStore(connectionFile).connections[0]));
     }
   } catch (error) {
-    if (error.code !== "ENOENT") throw new Error("Cannot read connections.json. Restore or repair the connection store before starting PenEcho; the existing file has been preserved.");
+    if (error.code !== "ENOENT") throw new Error("Cannot read connections.json. Restore or repair the connection store before starting FastLectures; the existing file has been preserved.");
   }
   const providerBaseline = Object.fromEntries(Object.keys(connectionEnvironment(null)).map(key => [key, env[key] ?? ""]));
   if (args.provider) env.AI_PROVIDER = args.provider;
@@ -192,13 +192,13 @@ function resolveConfiguration(args, options = {}) {
   if (args.provider) connectionOverride.AI_PROVIDER = args.provider;
   if (args.model !== null) connectionOverride[{ "kimi-cli":"KIMI_CLI_MODEL", "codex-cli":"CODEX_CLI_MODEL", "claude-cli":"CLAUDE_CLI_MODEL" }[provider]] = args.model;
   if (args.effort !== null) connectionOverride.AI_EFFORT = args.effort;
-  env.PENECHO_CONNECTION_OVERRIDE = JSON.stringify(connectionOverride);
+  env.FASTLECTURES_CONNECTION_OVERRIDE = JSON.stringify(connectionOverride);
   if (args.uat) {
-    env.PENECHO_CLOUD_ENV = "uat";
-    env.PENECHO_CLOUD_ORIGIN = UAT_CLOUD_ORIGIN;
-    env.PENECHO_CLOUD_STATE_DIR = path.join(stateDir, "cloud-uat");
+    env.FASTLECTURES_CLOUD_ENV = "uat";
+    env.FASTLECTURES_CLOUD_ORIGIN = UAT_CLOUD_ORIGIN;
+    env.FASTLECTURES_CLOUD_STATE_DIR = path.join(stateDir, "cloud-uat");
   }
-  env.PENECHO_STATE_DIR = stateDir;
+  env.FASTLECTURES_STATE_DIR = stateDir;
   return {
     env,
     serverEnv:{ ...env, ...providerBaseline },
@@ -247,7 +247,7 @@ function apiConfigurationIssues(env) {
     } catch { issues.push("AI_API_URL"); }
   }
   if (format && !["openai", "anthropic"].includes(format.toLowerCase())) issues.push("AI_API_FORMAT");
-  if (env.PENECHO_AI_IMAGE_FORMAT && !["webp", "png"].includes(String(env.PENECHO_AI_IMAGE_FORMAT).trim().toLowerCase())) issues.push("PENECHO_AI_IMAGE_FORMAT");
+  if (env.FASTLECTURES_AI_IMAGE_FORMAT && !["webp", "png"].includes(String(env.FASTLECTURES_AI_IMAGE_FORMAT).trim().toLowerCase())) issues.push("FASTLECTURES_AI_IMAGE_FORMAT");
   return [...new Set(issues)];
 }
 
@@ -259,7 +259,7 @@ function safeApiDiagnostic(value, key) {
 
 function connectionTestTimeoutError(message) {
   const error = new Error(message);
-  error.code = "PENECHO_CONNECTION_TEST_TIMEOUT";
+  error.code = "FASTLECTURES_CONNECTION_TEST_TIMEOUT";
   return error;
 }
 
@@ -269,7 +269,7 @@ async function testApiConnection(env, options = {}) {
   const apiUrl = apiEnvValue(env, "URL"), format = apiEnvValue(env, "FORMAT").toLowerCase(), model = apiEnvValue(env, "MODEL"), key = apiEnvValue(env, "KEY"),
     api = resolveApiConfig(apiUrl, format || undefined);
   if (!api) throw new Error("AI_API_URL and AI_API_FORMAT do not describe a compatible OpenAI or Anthropic endpoint.");
-  const effort = normalizedApiEffort(api.format, env.AI_EFFORT), mapping = reasoningEffortMapping({ provider:"api", apiFormat:api.format, apiPreset:env.PENECHO_API_PRESET, apiUrl, model, effort }), reasoning = apiReasoningParameters({ apiFormat:api.format, apiPreset:env.PENECHO_API_PRESET, apiUrl, model, effort }), testImage = configuredTestImage(env), [imageHeader, imageData] = testImage.split(",", 2), imageType = imageHeader.slice(5).split(";", 1)[0];
+  const effort = normalizedApiEffort(api.format, env.AI_EFFORT), mapping = reasoningEffortMapping({ provider:"api", apiFormat:api.format, apiPreset:env.FASTLECTURES_API_PRESET, apiUrl, model, effort }), reasoning = apiReasoningParameters({ apiFormat:api.format, apiPreset:env.FASTLECTURES_API_PRESET, apiUrl, model, effort }), testImage = configuredTestImage(env), [imageHeader, imageData] = testImage.split(",", 2), imageType = imageHeader.slice(5).split(";", 1)[0];
   const request = api.format === "anthropic"
     ? {
         headers: { "Content-Type":"application/json", "x-api-key":key, "anthropic-version":"2023-06-01" },
@@ -491,12 +491,12 @@ function saveConfiguration(configuration, updates = {}) {
   }
   const defaults = {
     AI_TIMEOUT_SECONDS:String(saved.AI_TIMEOUT_SECONDS || configuration.env.AI_TIMEOUT_SECONDS || saved.CODEX_CLI_TIMEOUT_SECONDS || saved.CLAUDE_CLI_TIMEOUT_SECONDS || configuration.env.CODEX_CLI_TIMEOUT_SECONDS || configuration.env.CLAUDE_CLI_TIMEOUT_SECONDS || DEFAULT_TIMEOUT_SECONDS),
-    PENECHO_AI_IMAGE_FORMAT:String(configuration.env.PENECHO_AI_IMAGE_FORMAT || "webp"),
+    FASTLECTURES_AI_IMAGE_FORMAT:String(configuration.env.FASTLECTURES_AI_IMAGE_FORMAT || "webp"),
     AUTO_AI_DELAY_SECONDS:String(configuration.env.AUTO_AI_DELAY_SECONDS || "5"),
     HOST:String(configuration.env.HOST || "0.0.0.0"),
     PORT:String(configuration.env.PORT || configuration.port || DEFAULT_PORT),
-    PENECHO_REQUEST_TRACE:String(configuration.env.PENECHO_REQUEST_TRACE || "false"),
-    PENECHO_REQUEST_TRACE_LIMIT:String(configuration.env.PENECHO_REQUEST_TRACE_LIMIT || "100"),
+    FASTLECTURES_REQUEST_TRACE:String(configuration.env.FASTLECTURES_REQUEST_TRACE || "false"),
+    FASTLECTURES_REQUEST_TRACE_LIMIT:String(configuration.env.FASTLECTURES_REQUEST_TRACE_LIMIT || "100"),
   };
   for (const [name, value] of Object.entries(defaults)) if (saved[name] === undefined) saved[name] = value;
   for (const [name, value] of Object.entries(updates)) {
@@ -521,7 +521,7 @@ const CONFIG_TEST_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAA
 const CONFIG_TEST_WEBP = "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA4AAAAvAAAAAAcQEf0PRET/Aw==";
 
 function configuredTestImage(env) {
-  return String(env.PENECHO_AI_IMAGE_FORMAT || "webp").trim().toLowerCase() === "png" ? CONFIG_TEST_IMAGE : CONFIG_TEST_WEBP;
+  return String(env.FASTLECTURES_AI_IMAGE_FORMAT || "webp").trim().toLowerCase() === "png" ? CONFIG_TEST_IMAGE : CONFIG_TEST_WEBP;
 }
 
 function cliTestError(error) {
@@ -531,7 +531,7 @@ function cliTestError(error) {
 }
 
 function apiConnectionTestLabel(env, format) {
-  const preset = String(env.PENECHO_API_PRESET || "").trim().toLowerCase();
+  const preset = String(env.FASTLECTURES_API_PRESET || "").trim().toLowerCase();
   if (preset.startsWith("kimi-")) return "Kimi";
   if (preset.startsWith("minimax-")) return "MiniMax";
   return format === "openai" ? "OpenAI-compatible" : format;
@@ -565,11 +565,11 @@ async function prepareCodexConnectionTest(configuration, options, resetTimeout, 
     home = path.resolve(configuration.home || configuration.env.HOME || configuration.env.USERPROFILE || os.homedir()),
     stateDir = configuration.stateDir
       ? path.resolve(configuration.stateDir)
-      : configuration.env.PENECHO_STATE_DIR
-        ? path.resolve(cwd, configuration.env.PENECHO_STATE_DIR)
-        : path.join(home, ".penecho"),
+      : configuration.env.FASTLECTURES_STATE_DIR
+        ? path.resolve(cwd, configuration.env.FASTLECTURES_STATE_DIR)
+        : path.join(home, ".fastlectures"),
     managedExecutable = managedCliPath("codex-cli", { home, stateDir, platform:options.platform }),
-    managedConfiguration = { ...configuration, home, stateDir, env:{ ...configuration.env, PENECHO_STATE_DIR:stateDir, CODEX_CLI_PATH:managedExecutable } },
+    managedConfiguration = { ...configuration, home, stateDir, env:{ ...configuration.env, FASTLECTURES_STATE_DIR:stateDir, CODEX_CLI_PATH:managedExecutable } },
     managedPreflight = await runCodexPreflight(managedConfiguration, { runner:options.runner });
   assertNotTimedOut();
   if (managedPreflight.ok) {
@@ -590,7 +590,7 @@ async function prepareCodexConnectionTest(configuration, options, resetTimeout, 
   let installed;
   try {
     await options.onCliUpgrade?.({ phase:"start" });
-    installed = await installer("codex-cli", { home, stateDir, env:{ ...configuration.env, PENECHO_STATE_DIR:stateDir }, platform:options.platform });
+    installed = await installer("codex-cli", { home, stateDir, env:{ ...configuration.env, FASTLECTURES_STATE_DIR:stateDir }, platform:options.platform });
   } finally {
     await options.onCliUpgrade?.({ phase:"complete" });
   }
@@ -599,7 +599,7 @@ async function prepareCodexConnectionTest(configuration, options, resetTimeout, 
     ...configuration,
     home,
     stateDir,
-    env:{ ...configuration.env, PENECHO_STATE_DIR:stateDir, CODEX_CLI_PATH:installed.executable || managedExecutable },
+    env:{ ...configuration.env, FASTLECTURES_STATE_DIR:stateDir, CODEX_CLI_PATH:installed.executable || managedExecutable },
   };
   preflight = await runCodexPreflight(selectedConfiguration, { runner:options.runner });
   if (!preflight.ok) throw new Error(preflight.error);
@@ -650,14 +650,14 @@ async function testConfiguredProvider(configuration, options = {}) {
     }
     const common = {
       effort:reasoningEffortMapping({ provider, model:activeConfiguration.env[provider === "kimi-cli" ? "KIMI_CLI_MODEL" : provider === "codex-cli" ? "CODEX_CLI_MODEL" : "CLAUDE_CLI_MODEL"], effort:normalizedEffort(activeConfiguration.env.AI_EFFORT) || "medium" }).requested,
-      prompt:"Inspect the attached PenEcho connection-test image and reply with OK only. Do not use tools.",
+      prompt:"Inspect the attached FastLectures connection-test image and reply with OK only. Do not use tools.",
       atlasImage,
       signal:controller.signal,
       env:activeConfiguration.env,
     };
     if (provider === "kimi-cli") await (options.kimiCaller || callKimiCli)({ ...common, executable:activeConfiguration.env.KIMI_CLI_PATH || "kimi", model:normalizedEffort(activeConfiguration.env.KIMI_CLI_MODEL) || null });
     else if (provider === "codex-cli") await (options.codexCaller || callCodexCli)({ ...common, executable:activeConfiguration.env.CODEX_CLI_PATH || "codex", model:normalizedEffort(activeConfiguration.env.CODEX_CLI_MODEL) || null });
-    else await (options.claudeCaller || callClaudeCli)({ ...common, executable:activeConfiguration.env.CLAUDE_CLI_PATH || "claude", model:normalizedEffort(activeConfiguration.env.CLAUDE_CLI_MODEL) || null, systemPrompt:"You are running a PenEcho connection test. Do not use tools. Reply with OK only." });
+    else await (options.claudeCaller || callClaudeCli)({ ...common, executable:activeConfiguration.env.CLAUDE_CLI_PATH || "claude", model:normalizedEffort(activeConfiguration.env.CLAUDE_CLI_MODEL) || null, systemPrompt:"You are running a FastLectures connection test. Do not use tools. Reply with OK only." });
     return `${preflight.version}; the selected ${provider === "kimi-cli" ? "Kimi" : provider === "codex-cli" ? "Codex" : "Claude"} model, image input, and reasoning effort responded successfully.`;
   } catch (error) {
     if (controller.signal.aborted) throw connectionTestTimeoutError(`Connection test timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
@@ -671,21 +671,21 @@ async function runDoctor(args, configuration, options = {}) {
   const report = (ok, message) => { output.write(`[${ok ? "ok" : "fail"}] ${message}\n`); if (!ok) ready = false; };
   report(isSupportedNodeVersion(), `Node.js ${process.versions.node} (${MINIMUM_NODE_VERSION}+ required)`);
   const missingAssets = checkAssets(configuration.packageRoot);
-  report(missingAssets.length === 0, missingAssets.length ? `Missing PenEcho assets: ${missingAssets.join(", ")}` : "PenEcho assets are present");
+  report(missingAssets.length === 0, missingAssets.length ? `Missing FastLectures assets: ${missingAssets.join(", ")}` : "FastLectures assets are present");
   const port = await (options.portChecker || checkPortAvailable)(configuration.port, configuration.env.HOST || "0.0.0.0");
   report(port.ok, port.ok ? `Port ${configuration.port} is available` : `Port ${configuration.port} is unavailable (${port.error})`);
   try { report(true, `Unified model timeout is ${configuredTimeoutSeconds(configuration.env)} seconds`); }
   catch (error) { report(false, error.message); }
-  report(true, `Reasoning effort is ${configuration.env.AI_EFFORT || "medium (PenEcho default)"}`);
+  report(true, `Reasoning effort is ${configuration.env.AI_EFFORT || "medium (FastLectures default)"}`);
   if (configuration.provider === "kimi-cli") report(true, `Model is ${configuration.env.KIMI_CLI_MODEL || "the Kimi Code CLI configured default"}`);
-  if (configuration.provider === "codex-cli") report(true, `Model is ${configuration.env.CODEX_CLI_MODEL || "the Codex CLI default for PenEcho's isolated session"}`);
+  if (configuration.provider === "codex-cli") report(true, `Model is ${configuration.env.CODEX_CLI_MODEL || "the Codex CLI default for FastLectures's isolated session"}`);
   if (configuration.provider === "claude-cli") report(true, `Model is ${configuration.env.CLAUDE_CLI_MODEL || "the Claude CLI default"}`);
 
   if (!configuration.provider) {
     report(false, `AI_PROVIDER must be ${PROVIDER_OPTIONS}`);
   } else if (configuration.provider === "api") {
     const issues = apiConfigurationIssues(configuration.env);
-    report(issues.length === 0, issues.length ? `API configuration is incomplete: ${issues.join(", ")}. Run \`penecho\` and open Settings → Connections.` : "API configuration is ready (no paid request was made)");
+    report(issues.length === 0, issues.length ? `API configuration is incomplete: ${issues.join(", ")}. Run \`fastlectures\` and open Settings → Connections.` : "API configuration is ready (no paid request was made)");
   } else if (configuration.provider === "kimi-cli") {
     const kimi = await runKimiPreflight(configuration, { runner:options.runner });
     report(kimi.ok, kimi.ok ? `${kimi.version}; executable is ready (authentication is checked when Kimi handles the first request)` : kimi.error);
@@ -724,7 +724,7 @@ async function runPostStartUpdate(server, argv, options, output, errorOutput) {
 
 function schedulePostStartUpdate(server, argv, options, output, errorOutput) {
   const task = () => runPostStartUpdate(server, argv, options, output, errorOutput).catch(error => {
-    errorOutput.write(`PenEcho update check failed: ${error.message}\n`);
+    errorOutput.write(`FastLectures update check failed: ${error.message}\n`);
     return { checked:false, restarted:false };
   });
   if (options.awaitUpdateCheck) return task();
@@ -752,12 +752,12 @@ async function runPostStartCliPreflight(server, configuration, options, output, 
   const result = await resolveCliPreflight(configuration, options), label = cliDisplayLabel(configuration.provider), item = cliDefinition(configuration.provider);
   if (result.ok) {
     applyResolvedCli(configuration, server, result);
-    const source = result.source === "managed" ? "PenEcho-managed" : result.source === "system" ? "system" : "configured";
-    output.write(`PenEcho is using the ${source} ${label} (${result.version}).\n`);
+    const source = result.source === "managed" ? "FastLectures-managed" : result.source === "system" ? "system" : "configured";
+    output.write(`FastLectures is using the ${source} ${label} (${result.version}).\n`);
     return result;
   }
   const recovery = cliRecovery(configuration.provider, result.issue, options.platform);
-  errorOutput.write(`PenEcho ${item.label} check warning: ${result.error}\n${recovery.action}:\n  ${recovery.command}\nPenEcho has started, but ${item.label} requests may fail until this is resolved. Run \`penecho doctor --${item.doctor}\` for full diagnostics.\n`);
+  errorOutput.write(`FastLectures ${item.label} check warning: ${result.error}\n${recovery.action}:\n  ${recovery.command}\nFastLectures has started, but ${item.label} requests may fail until this is resolved. Run \`fastlectures doctor --${item.doctor}\` for full diagnostics.\n`);
   return result;
 }
 
@@ -765,7 +765,7 @@ function schedulePostStartCliPreflight(server, configuration, options, output, e
   if (!configuration.provider?.endsWith("-cli")) return Promise.resolve(null);
   const task = runPostStartCliPreflight(server, configuration, options, output, errorOutput).catch(error => {
     const item = cliDefinition(configuration.provider), recovery = cliRecovery(configuration.provider, "execution", options.platform);
-    errorOutput.write(`PenEcho ${item.label} check warning: ${error.message}\n${recovery.action}:\n  ${recovery.command}\nPenEcho has started, but ${item.label} requests may fail until this is resolved.\n`);
+    errorOutput.write(`FastLectures ${item.label} check warning: ${error.message}\n${recovery.action}:\n  ${recovery.command}\nFastLectures has started, but ${item.label} requests may fail until this is resolved.\n`);
     return { ok:false, issue:"execution", error:error.message };
   });
   if (typeof server?.setCliResolutionTask === "function") server.setCliResolutionTask(configuration.provider, task);
@@ -775,16 +775,16 @@ function schedulePostStartCliPreflight(server, configuration, options, output, e
 
 
 function helpText() {
-  return `PenEcho ${PACKAGE_JSON.version}
+  return `FastLectures ${PACKAGE_JSON.version}
 
 Usage:
-  penecho [options]
-  penecho doctor [--api|--kimi|--codex|--claude] [--config FILE]
-  penecho mcp connect --host-id ID
-  penecho mcp discover [--import FILE] [--host-id ID] [--client codex|claude|hermes|json]
+  fastlectures [options]
+  fastlectures doctor [--api|--kimi|--codex|--claude] [--config FILE]
+  fastlectures mcp connect --host-id ID
+  fastlectures mcp discover [--import FILE] [--host-id ID] [--client codex|claude|hermes|json]
 
 Options:
-  --config <file>   Read general settings from this file instead of ~/.penecho/config.env
+  --config <file>   Read general settings from this file instead of ~/.fastlectures/config.env
   --api             Use API mode for this launch (set up in Settings → Connections)
   --kimi            Use the authenticated Kimi Code CLI
   --codex           Use the authenticated Codex CLI
@@ -795,18 +795,18 @@ Options:
   -h, --help        Show help
   -v, --version     Show version
 
-Run penecho, then manage AI connections in Settings → Connections.
+Run fastlectures, then manage AI connections in Settings → Connections.
 If no usable connection exists, the connection settings open automatically.
 Saved AI connections live in the state directory's connections.json.
 Doctor checks configuration and CLI readiness without making a model request.
-Use penecho mcp connect --help or penecho mcp discover --help for MCP options.
+Use fastlectures mcp connect --help or fastlectures mcp discover --help for MCP options.
 
 Examples:
-  penecho
-  penecho --port 3999
-  penecho --config ./team.env
-  penecho --codex --model gpt-5.6-sol --effort xhigh
-  penecho doctor
+  fastlectures
+  fastlectures --port 3999
+  fastlectures --config ./team.env
+  fastlectures --codex --model gpt-5.6-sol --effort xhigh
+  fastlectures doctor
 `;
 }
 
@@ -814,14 +814,14 @@ async function main(argv = process.argv.slice(2), options = {}) {
   if(argv[0]==="mcp"&&argv[1]==="connect")return require("../server/mcp/session-client.js").main(argv.slice(2),options);
   if(argv[0]==="mcp"&&argv[1]==="discover")return require("../server/mcp/discovery-client.js").main(argv.slice(2),options);
   if (argv[0] === "mcp" && argv.slice(1).some(argument => /^--(?:remote|host-id|fingerprint|invitation)(?:=|$)/.test(argument))) {
-    (options.errorOutput || process.stderr).write("PenEcho: Invitation-based LAN MCP has been removed. Use `penecho mcp connect --host-id ID`.\n");
+    (options.errorOutput || process.stderr).write("FastLectures: Invitation-based LAN MCP has been removed. Use `fastlectures mcp connect --host-id ID`.\n");
     return 1;
   }
   if (argv[0] === "mcp") { require("../server/mcp/stdio.js").main(argv.slice(1)); return 0; }
   const output = options.output || process.stdout, errorOutput = options.errorOutput || process.stderr;
   let args;
   try { args = parseArgs(argv); }
-  catch (error) { errorOutput.write(`PenEcho: ${error.message}\nRun \`penecho --help\` for usage.\n`); return 1; }
+  catch (error) { errorOutput.write(`FastLectures: ${error.message}\nRun \`fastlectures --help\` for usage.\n`); return 1; }
   if (args.help) { output.write(helpText()); return 0; }
   if (args.version) { output.write(`${PACKAGE_JSON.version}\n`); return 0; }
   if (!isSupportedNodeVersion()) {
@@ -829,21 +829,21 @@ async function main(argv = process.argv.slice(2), options = {}) {
     return 1;
   }
   if (args.command === "start") {
-    output.write(`PenEcho v${PACKAGE_JSON.version}\n`);
-    if (args.uat) output.write(`PenEcho Cloud target: UAT (${UAT_CLOUD_ORIGIN})\n`);
+    output.write(`FastLectures v${PACKAGE_JSON.version}\n`);
+    if (args.uat) output.write(`FastLectures Cloud target: UAT (${UAT_CLOUD_ORIGIN})\n`);
   }
   let configuration;
   try { configuration = resolveConfiguration(args, options); }
-  catch (error) { errorOutput.write(`PenEcho configuration error: ${error.message}\n`); return 1; }
+  catch (error) { errorOutput.write(`FastLectures configuration error: ${error.message}\n`); return 1; }
 
   if (args.command === "doctor") return (await runDoctor(args, configuration, options)) ? 0 : 1;
 
   // Connection setup belongs to the Canvas UI and must never gate startup.
-  if (args.command === "configure") configuration.env.PENECHO_OPEN_CONNECTIONS = "true";
-  configuration.env.PENECHO_CONFIG_FILE = configuration.configFile;
+  if (args.command === "configure") configuration.env.FASTLECTURES_OPEN_CONNECTIONS = "true";
+  configuration.env.FASTLECTURES_CONFIG_FILE = configuration.configFile;
   Object.assign(configuration.serverEnv, {
-    PENECHO_CONFIG_FILE:configuration.configFile,
-    PENECHO_OPEN_CONNECTIONS:configuration.env.PENECHO_OPEN_CONNECTIONS || "",
+    FASTLECTURES_CONFIG_FILE:configuration.configFile,
+    FASTLECTURES_OPEN_CONNECTIONS:configuration.env.FASTLECTURES_OPEN_CONNECTIONS || "",
   });
   applyConfiguration(configuration.serverEnv);
   let startedServer;
@@ -866,7 +866,7 @@ async function main(argv = process.argv.slice(2), options = {}) {
 
 if (require.main === module) {
   main().then(code => { if (code) process.exitCode = code; }).catch(error => {
-    console.error(`PenEcho: ${error.message}`);
+    console.error(`FastLectures: ${error.message}`);
     process.exitCode = 1;
   });
 }

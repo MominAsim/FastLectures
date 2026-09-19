@@ -169,7 +169,7 @@ function makeTimers() {
 const deviceStatus = (device) => ({
   account:{ name:"Test User", credits:10 },
   accountSession:{ signedIn:true },
-  device:{ configured:true, enabled:true, connected:false, state:"connecting", id:"dev-1", name:"My PenEcho", ...device },
+  device:{ configured:true, enabled:true, connected:false, state:"connecting", id:"dev-1", name:"My FastLectures", ...device },
   browserSignIn:{ pending:false },
 });
 
@@ -180,7 +180,7 @@ const signedOutStatus = (device = {}) => ({
   browserSignIn:{ pending:false },
 });
 
-function boot({ status, remoteCloudStatus = null, cloudOrigin = "https://internaltest.penecho.ai", runtime, language = "en", communityItem, communityArtifact, lineage = null, library, communityFavorites = [], widgetFavorites = [], localFavoriteItems = [], cloudFavoriteSaveError = null, cloudFavoriteFeedError = null, serverDesktopApp = false, rendererDesktopBridge = false, publishItem, canvasShareArtifact, widgetShareArtifact, widgetArtifactPromise = null, widgetArtifactError = null, navigatorOverrides = {}, withCrafts = false, sessionStorageEntries = {} } = {}) {
+function boot({ status, remoteCloudStatus = null, cloudOrigin = "https://internaltest.fastlectures.ai", runtime, language = "en", communityItem, communityArtifact, lineage = null, library, communityFavorites = [], widgetFavorites = [], localFavoriteItems = [], cloudFavoriteSaveError = null, cloudFavoriteFeedError = null, serverDesktopApp = false, rendererDesktopBridge = false, publishItem, canvasShareArtifact, widgetShareArtifact, widgetArtifactPromise = null, widgetArtifactError = null, navigatorOverrides = {}, withCrafts = false, sessionStorageEntries = {} } = {}) {
   const timers = makeTimers();
   const documentListeners = new Map();
   const document = {
@@ -317,7 +317,7 @@ function boot({ status, remoteCloudStatus = null, cloudOrigin = "https://interna
       if (favoriteFeedError) return Promise.resolve({
         ok:false,
         status:favoriteFeedError.status || 403,
-        json:async () => ({ error:favoriteFeedError.code || "cloud_request_not_authorized", message:favoriteFeedError.message || "PenEcho Cloud rejected this request." }),
+        json:async () => ({ error:favoriteFeedError.code || "cloud_request_not_authorized", message:favoriteFeedError.message || "FastLectures Cloud rejected this request." }),
       });
       const query = new URL(target, "http://canvas.test").searchParams, kind = query.get("kind") || "all",
         limit = Number(query.get("limit")) || 20, offset = Number(query.get("cursor")) || 0,
@@ -358,10 +358,10 @@ function boot({ status, remoteCloudStatus = null, cloudOrigin = "https://interna
     disconnect() { this.active = false; }
   }
   const windowObject = {
-    PENECHO_CONFIG:{ accessSessionToken:"test-session", cloudOrigin, cloudEnvironment:cloudOrigin.includes("internaltest") ? "uat" : "prod", desktopApp:serverDesktopApp, ...(runtime ? { runtime } : {}) },
-    PENECHO_REMOTE_CLOUD_STATUS:remoteCloudStatus,
-    ...(rendererDesktopBridge ? { penechoDesktop:{} } : {}),
-    PenEchoCommunityCanvas:{
+    FASTLECTURES_CONFIG:{ accessSessionToken:"test-session", cloudOrigin, cloudEnvironment:cloudOrigin.includes("internaltest") ? "uat" : "prod", desktopApp:serverDesktopApp, ...(runtime ? { runtime } : {}) },
+    FASTLECTURES_REMOTE_CLOUD_STATUS:remoteCloudStatus,
+    ...(rendererDesktopBridge ? { fastlecturesDesktop:{} } : {}),
+    FastLecturesCommunityCanvas:{
       importWidget:async (artifact, item, options = null) => { imported.push({ kind:"widget", artifact, item, ...(options ? { options } : {}) }); },
       importCanvas:async (artifact, item) => { imported.push({ kind:"canvas", artifact, item }); },
       widgetArtifact:async () => {
@@ -376,7 +376,7 @@ function boot({ status, remoteCloudStatus = null, cloudOrigin = "https://interna
       canvasArtifact:async () => canvasShareArtifact || ({ name:"", communityPreview:{ contentType:"image/webp", dataBase64:"AA==", width:800, height:500 } }),
       lineageForArtifact:() => lineage,
     },
-    PenEchoCloudProjects:{ openCanvas:async (id) => { openedLocal.push(id); return true; } },
+    FastLecturesCloudProjects:{ openCanvas:async (id) => { openedLocal.push(id); return true; } },
     addEventListener(type, handler) {
       if (!windowListeners.has(type)) windowListeners.set(type, []);
       windowListeners.get(type).push(handler);
@@ -402,7 +402,7 @@ function boot({ status, remoteCloudStatus = null, cloudOrigin = "https://interna
   const statusCalls = () => fetchCalls.filter((call) => call.url === "/api/cloud/status").length;
   return {
     document, cloudButton, shareButton, craftsButton, craftsPopover, craftsClose, craftsList, craftsSearch, craftsCount, craftsRefreshStatus, craftsFilters, craftsFilterAll, craftsFilterWidgets, craftsFilterCanvases, craftsViewSwitch, craftsViewList, craftsViewGrid, craftsEchoesLink, timers, fetchCalls, statusCalls, alerts, clipboardWrites, imported, opened, openedLocal, favoriteStates, favoriteReferences, window:windowObject,
-    overlay:() => document.querySelector(".penecho-cloud-overlay"),
+    overlay:() => document.querySelector(".fastlectures-cloud-overlay"),
     setStatus(next) { statusPayload = next; },
     setStatusError(error) { statusError = error; },
     setCloudFavoriteFeedError(next) { favoriteFeedError = next; },
@@ -436,9 +436,9 @@ function boot({ status, remoteCloudStatus = null, cloudOrigin = "https://interna
 
 test("Remote Canvas registers the public Craft copy for later Echo publication using the browser session", async () => {
   const item = { id:"123e4567-e89b-42d3-a456-426614174000", kind:"widget", name:"Remote Craft" };
-  const artifact = { format:"penecho-widget", formatVersion:1, widget:{ id:"widget-1", title:"Remote Craft" } };
+  const artifact = { format:"fastlectures-widget", formatVersion:1, widget:{ id:"widget-1", title:"Remote Craft" } };
   const run = boot({ runtime:"cloud", status:deviceStatus({}), communityItem:item, communityArtifact:artifact });
-  await run.window.PenEchoCommunityUI.takeFurther(item.id);
+  await run.window.FastLecturesCommunityUI.takeFurther(item.id);
 
   assert.deepEqual(run.imported, [{ kind:"widget", artifact, item }]);
   assert.deepEqual(run.fetchCalls.map((call) => call.url), [
@@ -464,8 +464,8 @@ test("Remote Canvas updates the Cloud header when the gate response arrives afte
   const run = boot({ runtime:"cloud", status:deviceStatus({ connected:true }) });
   assert.equal(run.cloudButton.querySelector(".cloud-account-label").textContent, "Cloud");
 
-  run.window.PENECHO_REMOTE_CLOUD_STATUS = { accountName:"Late User", deviceOnline:true, deviceReady:true };
-  await run.window.dispatch("penecho:remote-cloud-status");
+  run.window.FASTLECTURES_REMOTE_CLOUD_STATUS = { accountName:"Late User", deviceOnline:true, deviceReady:true };
+  await run.window.dispatch("fastlectures:remote-cloud-status");
 
   assert.equal(run.cloudButton.querySelector(".cloud-account-label").textContent, "Late");
   assert.equal(run.cloudButton.dataset.state, "connected");
@@ -536,7 +536,7 @@ function selectCloudSection(overlay, section) {
 
 async function publishCraftFromShareDialog(run, kind, { continuationText="Continue with the next useful detail.", beforePublish = null } = {}) {
   if (kind === "canvas") run.shareButton.click();
-  else await run.window.dispatch("penecho:community-widget-action", { detail:{ action:"share", widgetId:"widget-1" } });
+  else await run.window.dispatch("fastlectures:community-widget-action", { detail:{ action:"share", widgetId:"widget-1" } });
   await run.flush();
   const overlay = run.overlay();
   assert.ok(overlay?.isConnected, `expected the ${kind} share dialog to open`);
@@ -607,7 +607,7 @@ test("a continuation contribution is optional but its parent lineage is preserve
 });
 
 test("the optional next-Crafter Echo prompt always opens empty", async () => {
-  const draftKey = "penecho.community.publish.canvas.Draft identity";
+  const draftKey = "fastlectures.community.publish.canvas.Draft identity";
   const sessionStorageEntries = {
     [draftKey]:JSON.stringify({
       name:"Recovered title",
@@ -732,15 +732,15 @@ test("sharing while signed out explains the requirement and opens Cloud sign-in"
 
   const overlay = run.overlay();
   assert.ok(overlay?.isConnected, "the Cloud Center opens instead of an unusable publication form");
-  assert.ok(overlay.textContent.includes("Please sign in to PenEcho Cloud before sharing."));
+  assert.ok(overlay.textContent.includes("Please sign in to FastLectures Cloud before sharing."));
   assert.ok(flatten(overlay).some((node) => node.tagName === "BUTTON" && node.textContent === "Sign in with browser"));
   assert.ok(!overlay.textContent.includes("Preserve this moment"));
 });
 
-test("publication uses one consolidated PenEcho agreement link in browsers and desktop apps", async () => {
+test("publication uses one consolidated FastLectures agreement link in browsers and desktop apps", async () => {
   for (const options of [
-    { cloudOrigin:"https://internaltest.penecho.ai" },
-    { cloudOrigin:"https://penecho.ai", rendererDesktopBridge:true },
+    { cloudOrigin:"https://internaltest.fastlectures.ai" },
+    { cloudOrigin:"https://fastlectures.ai", rendererDesktopBridge:true },
   ]) {
     const run = boot({ status:deviceStatus(), ...options });
     await run.flush();
@@ -772,12 +772,12 @@ test("publication uses one consolidated PenEcho agreement link in browsers and d
 });
 
 test("a linked device remains visible and controllable when the Cloud account is signed out", async () => {
-  const run = boot({ status:signedOutStatus({ configured:true, enabled:true, connected:true, state:"connected", id:"dev-1", name:"My PenEcho" }) });
+  const run = boot({ status:signedOutStatus({ configured:true, enabled:true, connected:true, state:"connected", id:"dev-1", name:"My FastLectures" }) });
   await run.flush();
   const overlay = await openCloudCenter(run);
   selectCloudSection(overlay, "device");
 
-  assert.ok(overlay.textContent.includes("My PenEcho"));
+  assert.ok(overlay.textContent.includes("My FastLectures"));
   assert.ok(overlay.textContent.includes("Connected"));
   assert.ok(flatten(overlay).some((node) => node.tagName === "BUTTON" && node.textContent === "Disconnect"));
   assert.ok(flatten(overlay).some((node) => node.tagName === "BUTTON" && node.textContent === "Remove this link"));
@@ -796,7 +796,7 @@ test("Cloud Center re-renders from Connecting to Connected through the retained 
   await run.flush();
   assert.equal(run.overlay(), overlay, "overlay must stay the same instance");
   selectCloudSection(overlay, "device");
-  assert.ok(overlay.textContent.includes("My PenEcho"));
+  assert.ok(overlay.textContent.includes("My FastLectures"));
   assert.ok(overlay.textContent.includes("Connected"));
   assert.equal(run.cloudButton.dataset.state, "connected");
 });
@@ -812,7 +812,7 @@ test("a newly enabled device automatically changes from Connecting to Connected"
   linkDevice.click();
   await run.flush();
 
-  assert.ok(overlay.textContent.includes("My PenEcho"));
+  assert.ok(overlay.textContent.includes("My FastLectures"));
   assert.ok(overlay.textContent.includes("Connecting"));
   assert.equal(run.timers.count(), 1, "only the bounded post-pair connection watcher is active");
 
@@ -821,7 +821,7 @@ test("a newly enabled device automatically changes from Connecting to Connected"
   await run.flush();
 
   assert.equal(run.overlay(), overlay);
-  assert.ok(overlay.textContent.includes("My PenEcho"));
+  assert.ok(overlay.textContent.includes("My FastLectures"));
   assert.ok(overlay.textContent.includes("Connected"));
   assert.equal(run.cloudButton.dataset.state, "connected");
   assert.equal(run.timers.count(), 1, "the visible device page keeps monitoring after Relay connects");
@@ -838,14 +838,14 @@ test("a re-enabled device automatically changes from Connecting to Connected", a
   run.setStatus(deviceStatus());
   enableLink.click();
   await run.flush();
-  assert.ok(overlay.textContent.includes("My PenEcho"));
+  assert.ok(overlay.textContent.includes("My FastLectures"));
   assert.ok(overlay.textContent.includes("Connecting"));
   assert.equal(run.timers.count(), 1);
 
   run.setStatus(deviceStatus({ connected:true, state:"connected" }));
   await run.timers.advance(2_000);
   await run.flush();
-  assert.ok(overlay.textContent.includes("My PenEcho"));
+  assert.ok(overlay.textContent.includes("My FastLectures"));
   assert.ok(overlay.textContent.includes("Connected"));
   assert.equal(run.timers.count(), 1);
 });
@@ -892,7 +892,7 @@ test("Projects signed-out state routes account sign-in through the dedicated Acc
   await run.flush();
 
   assert.ok(run.fetchCalls.some((call) => call.url === "/api/cloud/sign-in/start"));
-  assert.deepEqual(run.opened, [["about:blank", "penecho-cloud-sign-in", "popup,width=760,height=760"]]);
+  assert.deepEqual(run.opened, [["about:blank", "fastlectures-cloud-sign-in", "popup,width=760,height=760"]]);
 });
 
 test("browser sign-in detects Electron from the renderer bridge instead of the host server flag", async () => {
@@ -904,7 +904,7 @@ test("browser sign-in detects Electron from the renderer bridge instead of the h
   assert.ok(remoteSignIn, "a browser or mobile WebView connected to an Electron host stays on the browser flow");
   remoteSignIn.click();
   await remoteClient.flush();
-  assert.deepEqual(remoteClient.opened, [["about:blank", "penecho-cloud-sign-in", "popup,width=760,height=760"]]);
+  assert.deepEqual(remoteClient.opened, [["about:blank", "fastlectures-cloud-sign-in", "popup,width=760,height=760"]]);
 
   const electronRenderer = boot({ status:signedOutStatus(), rendererDesktopBridge:true });
   await electronRenderer.flush();
@@ -914,27 +914,27 @@ test("browser sign-in detects Electron from the renderer bridge instead of the h
   assert.ok(electronSignIn, "the Electron preload bridge selects the system-browser flow");
   electronSignIn.click();
   await electronRenderer.flush();
-  assert.deepEqual(electronRenderer.opened, [["https://internaltest.penecho.ai/auth/local", "_blank", "noopener"]]);
+  assert.deepEqual(electronRenderer.opened, [["https://internaltest.fastlectures.ai/auth/local", "_blank", "noopener"]]);
 });
 
 test("browser sign-in callback closes on confirmed login but not on a failed or already-signed-in callback", async () => {
   const failed = boot({ status:signedOutStatus() });
   await failed.flush();
   const failedOverlay = await openCloudCenter(failed);
-  await failed.window.dispatch("message", { origin:"http://127.0.0.1:3888", data:{ type:"penecho:cloud-sign-in-result", ok:false } });
+  await failed.window.dispatch("message", { origin:"http://127.0.0.1:3888", data:{ type:"fastlectures:cloud-sign-in-result", ok:false } });
   assert.equal(failed.overlay(), failedOverlay, "a failed callback must leave Cloud Center available for retry");
 
   const completed = boot({ status:signedOutStatus() });
   await completed.flush();
   await openCloudCenter(completed);
   completed.setStatus(deviceStatus());
-  await completed.window.dispatch("message", { origin:"http://127.0.0.1:3888", data:{ type:"penecho:cloud-sign-in-result", ok:true } });
+  await completed.window.dispatch("message", { origin:"http://127.0.0.1:3888", data:{ type:"fastlectures:cloud-sign-in-result", ok:true } });
   assert.equal(completed.overlay(), null, "a callback closes only after the local status confirms the account session");
 
   const existing = boot({ status:deviceStatus() });
   await existing.flush();
   const existingOverlay = await openCloudCenter(existing);
-  await existing.window.dispatch("message", { origin:"http://127.0.0.1:3888", data:{ type:"penecho:cloud-sign-in-result", ok:true } });
+  await existing.window.dispatch("message", { origin:"http://127.0.0.1:3888", data:{ type:"fastlectures:cloud-sign-in-result", ok:true } });
   assert.equal(existing.overlay(), existingOverlay, "a stale callback cannot close a dialog opened by an existing session");
 });
 
@@ -1013,7 +1013,7 @@ test("Cloud Center keeps cached Projects and Favorites usable while background r
 });
 
 test("Cloud Center shows local favorites without waiting for a slow Cloud page", async () => {
-  const local = { id:"local-fast", name:"Local fast Widget", artifactSha256:"7".repeat(64), artifact:{ format:"penecho-widget", formatVersion:1, widget:{ title:"Local fast Widget" } }, createdAt:Date.now(), cloudId:"already-uploaded" },
+  const local = { id:"local-fast", name:"Local fast Widget", artifactSha256:"7".repeat(64), artifact:{ format:"fastlectures-widget", formatVersion:1, widget:{ title:"Local fast Widget" } }, createdAt:Date.now(), cloudId:"already-uploaded" },
     run = boot({ status:deviceStatus(), localFavoriteItems:[local] });
   await run.flush();
   run.freezeCommunityFavorites([]);
@@ -1037,7 +1037,7 @@ test("Cloud Center ignores a stale forced-refresh error after a newer status suc
   await run.flush();
 
   run.setStatus(deviceStatus({ connected:true, state:"connected" }));
-  await run.window.dispatch("message", { origin:"http://127.0.0.1:3888", data:{ type:"penecho:cloud-sign-in-result", ok:true } });
+  await run.window.dispatch("message", { origin:"http://127.0.0.1:3888", data:{ type:"fastlectures:cloud-sign-in-result", ok:true } });
   assert.equal(run.cloudButton.dataset.state, "connected");
 
   run.releaseAccountError();
@@ -1045,7 +1045,7 @@ test("Cloud Center ignores a stale forced-refresh error after a newer status suc
   assert.deepEqual(run.alerts, []);
   assert.equal(run.cloudButton.dataset.state, "connected");
   selectCloudSection(overlay, "device");
-  assert.ok(overlay.textContent.includes("My PenEcho"));
+  assert.ok(overlay.textContent.includes("My FastLectures"));
   assert.ok(overlay.textContent.includes("Connected"));
 });
 
@@ -1076,13 +1076,13 @@ test("Cloud Center uses History-style vertical navigation with Account and Link 
   assert.deepEqual(tabs.map((tab) => tab.getAttribute("data-cloud-section")), ["account", "device", "mcp", "projects", "favorites"]);
   assert.equal(tabs.find(tab=>tab.getAttribute("data-cloud-section")==="projects").getAttribute("aria-selected"), "true");
   assert.ok(tabs[0].textContent.includes("Test User"), "the Account entry exposes the signed-in name");
-  assert.ok(tabs[1].textContent.includes("My PenEcho"), "the Link device entry exposes the configured device name");
+  assert.ok(tabs[1].textContent.includes("My FastLectures"), "the Link device entry exposes the configured device name");
   const tablist = flatten(overlay).find((node) => node.getAttribute("role") === "tablist");
   assert.equal(tablist.getAttribute("aria-orientation"), "vertical");
   const explore = flatten(overlay).find((node) => node.tagName === "A" && node.className.includes("cloud-explore-link"));
   assert.ok(explore, "Echoes remains a Cloud navigation link");
   assert.equal(explore.textContent, "Echoes ↗");
-  assert.equal(explore.getAttribute("href"), "https://internaltest.penecho.ai/community.html");
+  assert.equal(explore.getAttribute("href"), "https://internaltest.fastlectures.ai/community.html");
   assert.equal(explore.getAttribute("target"), "_blank");
   assert.equal(explore.getAttribute("rel"), "noopener");
   const navigation = flatten(overlay).find((node) => node.className.includes("cloud-navigation"));
@@ -1169,7 +1169,7 @@ test("Cloud Center keeps the concise account and device copy bilingual", async (
   selectCloudSection(englishOverlay, "account");
   assert.equal(flatten(englishOverlay).filter((node) => node.tagName === "BUTTON" && node.textContent === "Sign in with browser").length, 1, "the Account page has one sign-in action");
 
-  const production = boot({ status:signedOutStatus(), cloudOrigin:"https://penecho.ai", language:"en" });
+  const production = boot({ status:signedOutStatus(), cloudOrigin:"https://fastlectures.ai", language:"en" });
   await production.flush();
   const productionOverlay = await openCloudCenter(production);
   selectCloudSection(productionOverlay, "account");
@@ -1201,7 +1201,7 @@ test("Cloud Center opens project Canvases in the current local Canvas", async ()
   row.click();
   await run.flush();
   assert.deepEqual(run.openedLocal, [canvasId]);
-  assert.deepEqual(run.opened, [], "opening a Canvas must not navigate to PenEcho Cloud");
+  assert.deepEqual(run.opened, [], "opening a Canvas must not navigate to FastLectures Cloud");
 });
 
 test("Cloud-hosted Canvas thumbnails use the immutable revision as their cache key", async () => {
@@ -1224,7 +1224,7 @@ test("local mutable image proxies revalidate instead of caching stale Canvas and
 
 test("Cloud Center opens favorite Canvases in the current local Canvas", async () => {
   const canvas = { id:"123e4567-e89b-42d3-a456-426614174004", kind:"canvas", name:"Plan", author:{ name:"Ada" } };
-  const canvasArtifact = { version:2, bundleVersion:2, mode:"snapshot", manifest:{ format:"penecho-raster-tiles" } };
+  const canvasArtifact = { version:2, bundleVersion:2, mode:"snapshot", manifest:{ format:"fastlectures-raster-tiles" } };
   const run = boot({ status:deviceStatus(), communityItem:canvas, communityArtifact:canvasArtifact, communityFavorites:[canvas] });
   await run.flush();
   let overlay = await openCloudCenter(run);
@@ -1276,7 +1276,7 @@ test("the toolbar Favorites picker proxies community Widget thumbnails with the 
 });
 
 test("the toolbar Favorites picker shows local rows while its first Cloud page is pending", async () => {
-  const local = { id:"local-picker-fast", name:"Local picker Widget", artifactSha256:"6".repeat(64), artifact:{ format:"penecho-widget", formatVersion:1, widget:{ title:"Local picker Widget" } }, createdAt:Date.now(), cloudId:"already-uploaded" },
+  const local = { id:"local-picker-fast", name:"Local picker Widget", artifactSha256:"6".repeat(64), artifact:{ format:"fastlectures-widget", formatVersion:1, widget:{ title:"Local picker Widget" } }, createdAt:Date.now(), cloudId:"already-uploaded" },
     run = boot({ status:deviceStatus(), localFavoriteItems:[local], withCrafts:true });
   await run.flush();
   run.freezeCommunityFavorites([]);
@@ -1341,7 +1341,7 @@ test("the toolbar Favorites picker stops automatic Cloud retries and clears Retr
     id:`local-favorite-${index + 1}`,
     name:`Local Widget ${index + 1}`,
     artifactSha256:String(index + 1).padStart(64, "a"),
-    artifact:{ format:"penecho-widget", formatVersion:1, widget:{ id:`widget-${index + 1}`, title:`Local Widget ${index + 1}` } },
+    artifact:{ format:"fastlectures-widget", formatVersion:1, widget:{ id:`widget-${index + 1}`, title:`Local Widget ${index + 1}` } },
     thumbnail:"AA==",
     cloudId:null,
     createdAt:index + 1,
@@ -1349,8 +1349,8 @@ test("the toolbar Favorites picker stops automatic Cloud retries and clears Retr
   const run = boot({
     status:deviceStatus(),
     localFavoriteItems,
-    cloudFavoriteFeedError:{ status:403, message:"PenEcho Cloud rejected this request while the account session remains valid." },
-    cloudFavoriteSaveError:{ status:403, message:"PenEcho Cloud rejected this request." },
+    cloudFavoriteFeedError:{ status:403, message:"FastLectures Cloud rejected this request while the account session remains valid." },
+    cloudFavoriteSaveError:{ status:403, message:"FastLectures Cloud rejected this request." },
     withCrafts:true,
   });
   const feedCalls = () => run.fetchCalls.filter((call) => call.url.startsWith("/api/cloud/favorites/feed?")).length;
@@ -1385,7 +1385,7 @@ test("Remote Canvas toolbar Favorites keeps a failed retry manual and uses the C
     runtime:"cloud",
     status:deviceStatus({ connected:true }),
     remoteCloudStatus:{ accountName:"Remote User", deviceOnline:true, deviceReady:true },
-    cloudFavoriteFeedError:{ status:403, message:"PenEcho Cloud rejected this request." },
+    cloudFavoriteFeedError:{ status:403, message:"FastLectures Cloud rejected this request." },
     withCrafts:true,
   });
   const feedCalls = () => run.fetchCalls.filter((call) => call.url.startsWith("/api/v1/favorites/feed?")).length;
@@ -1415,7 +1415,7 @@ test("Remote Canvas toolbar Favorites keeps a failed retry manual and uses the C
 test("the toolbar Favorites picker shows Widgets and opens favorite Canvases as a new Canvas", async () => {
   const canvas = { id:"123e4567-e89b-42d3-a456-426614174026", kind:"canvas", name:"Roadmap", description:"Release plan", artifactSha256:"d".repeat(64) },
     widget = { id:"123e4567-e89b-42d3-a456-426614174027", kind:"widget", name:"Timer", artifactSha256:"e".repeat(64) },
-    canvasArtifact = { format:"penecho-canvas-bundle", version:2 },
+    canvasArtifact = { format:"fastlectures-canvas-bundle", version:2 },
     run = boot({ status:deviceStatus(), communityItem:canvas, communityArtifact:canvasArtifact, communityFavorites:[canvas, widget], withCrafts:true });
   await run.flush();
 
@@ -1515,7 +1515,7 @@ test("the toolbar Favorites picker switches between list and grid views without 
   assert.equal(run.craftsViewList.getAttribute("aria-pressed"), "true");
   assert.equal(run.craftsViewGrid.getAttribute("aria-pressed"), "false");
   assert.equal(run.craftsList.classList.contains("is-grid"), false);
-  assert.equal(run.craftsEchoesLink.getAttribute("href"), "https://internaltest.penecho.ai/community.html");
+  assert.equal(run.craftsEchoesLink.getAttribute("href"), "https://internaltest.fastlectures.ai/community.html");
 
   run.craftsViewGrid.click();
   assert.equal(run.craftsViewGrid.getAttribute("aria-pressed"), "true");
@@ -1616,7 +1616,7 @@ test("adding a local favorite preserves its logical Widget identity and selected
     sourceWidgetId:"123e4567-e89b-42d3-a456-426614174104",
     name:"Local timer",
     artifactSha256:"b".repeat(64),
-    artifact:{ format:"penecho-widget", formatVersion:1, widget:{ title:"Local timer" } },
+    artifact:{ format:"fastlectures-widget", formatVersion:1, widget:{ title:"Local timer" } },
     cloudId:null,
   };
   const run = boot({ status:signedOutStatus(), localFavoriteItems:[favorite], withCrafts:true });
@@ -1644,7 +1644,7 @@ test("adding a local favorite preserves its logical Widget identity and selected
 
 test("adding a community favorite preserves the community favorite reference", async () => {
   const item = { id:"123e4567-e89b-42d3-a456-426614174005", kind:"widget", name:"Community timer", artifactSha256:"d".repeat(64) },
-    artifact = { format:"penecho-widget", formatVersion:1, widget:{ title:"Community timer" } },
+    artifact = { format:"fastlectures-widget", formatVersion:1, widget:{ title:"Community timer" } },
     run = boot({ status:deviceStatus(), communityItem:item, communityArtifact:artifact, communityFavorites:[item] });
   await run.flush();
   const overlay = await openCloudCenter(run);
@@ -1673,11 +1673,11 @@ test("Remote Canvas favorites a Widget through Cloud without calling the linked 
     run = boot({
       runtime:"cloud",
       status:deviceStatus(),
-      widgetShareArtifact:{ format:"penecho-widget", formatVersion:1, widget:{ id:"widget-1", title:"Cloud timer" } },
+      widgetShareArtifact:{ format:"fastlectures-widget", formatVersion:1, widget:{ id:"widget-1", title:"Cloud timer" } },
     });
   await run.flush();
 
-  await run.window.dispatch("penecho:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", sourceWidgetId } });
+  await run.window.dispatch("fastlectures:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", sourceWidgetId } });
   await run.flush();
 
   assert.ok(run.fetchCalls.some((call) => call.url === "/api/v1/favorites" && call.options.method === "POST"));
@@ -1688,7 +1688,7 @@ test("Remote Canvas favorites a Widget through Cloud without calling the linked 
   ]);
   assert.deepEqual(plain(run.favoriteReferences), [{ widgetId:"widget-1", reference:{ cloudFavoriteId, communityItemId:null } }]);
 
-  await run.window.dispatch("penecho:community-widget-action", { detail:{
+  await run.window.dispatch("fastlectures:community-widget-action", { detail:{
     action:"favorite",
     widgetId:"widget-1",
     favorite:true,
@@ -1711,7 +1711,7 @@ test("unfavoriting an older Canvas instance resolves the latest favorite by sour
     run = boot({ status:signedOutStatus(), localFavoriteItems:[favorite] });
   await run.flush();
 
-  await run.window.dispatch("penecho:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", favorite:true, favoriteArtifactSha256:oldSha, sourceWidgetId } });
+  await run.window.dispatch("fastlectures:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", favorite:true, favoriteArtifactSha256:oldSha, sourceWidgetId } });
   await run.flush();
 
   assert.ok(run.fetchCalls.some((call) => call.url === `/api/favorites/${oldSha}`), "the saved snapshot locator is checked first");
@@ -1727,7 +1727,7 @@ test("favoriting a Widget works on LAN HTTP without Web Crypto", async () => {
   });
   await run.flush();
 
-  await run.window.dispatch("penecho:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", sourceWidgetId } });
+  await run.window.dispatch("fastlectures:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", sourceWidgetId } });
   await run.flush();
 
   assert.deepEqual(run.alerts, []);
@@ -1736,7 +1736,7 @@ test("favoriting a Widget works on LAN HTTP without Web Crypto", async () => {
     { widgetId:"widget-1", favorite:true, busy:false, artifactSha256:"b".repeat(64) },
   ]);
   const request = run.fetchCalls.find((call) => call.url === "/api/favorites" && call.options.method === "PUT");
-  assert.ok(request, "the local PenEcho service hashes and stores the favorite");
+  assert.ok(request, "the local FastLectures service hashes and stores the favorite");
   assert.equal(JSON.parse(request.options.body).artifact.widget.title, "LAN Widget");
   assert.equal(JSON.parse(request.options.body).sourceWidgetId, sourceWidgetId);
   assert.doesNotMatch(cloudScript, /crypto\.subtle\.digest/);
@@ -1751,7 +1751,7 @@ test("Cloud quota failure leaves the newly saved local favorite intact and expla
   });
   await run.flush();
 
-  await run.window.dispatch("penecho:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", sourceWidgetId } });
+  await run.window.dispatch("fastlectures:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", sourceWidgetId } });
   await run.flush();
 
   assert.deepEqual(run.alerts, ["Cloud storage is full. Saved locally only."], "the user sees one concise local-only result");
@@ -1771,7 +1771,7 @@ test("clicking an already-favorite Widget removes the server-identified favorite
     run = boot({ status:signedOutStatus(), widgetShareArtifact:artifact, localFavoriteItems:[existing] });
   await run.flush();
 
-  await run.window.dispatch("penecho:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", favorite:true, favoriteArtifactSha256:"a".repeat(64), sourceWidgetId } });
+  await run.window.dispatch("fastlectures:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", favorite:true, favoriteArtifactSha256:"a".repeat(64), sourceWidgetId } });
   await run.flush();
 
   assert.deepEqual(run.alerts, []);
@@ -1786,7 +1786,7 @@ test("Widget favorite busy state clears after a failed snapshot", async () => {
   const run = boot({ status:signedOutStatus(), widgetArtifactError:new Error("snapshot failed") });
   await run.flush();
 
-  await run.window.dispatch("penecho:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1" } });
+  await run.window.dispatch("fastlectures:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1" } });
   await run.flush();
 
   assert.deepEqual(run.alerts, ["snapshot failed"]);
@@ -1803,9 +1803,9 @@ test("Widget favorite ignores repeat activation while its snapshot is still savi
   const run = boot({ status:signedOutStatus(), widgetArtifactPromise });
   await run.flush();
 
-  const first = run.window.dispatch("penecho:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", sourceWidgetId } });
+  const first = run.window.dispatch("fastlectures:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", sourceWidgetId } });
   await run.flush();
-  const second = run.window.dispatch("penecho:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", sourceWidgetId } });
+  const second = run.window.dispatch("fastlectures:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", sourceWidgetId } });
   await run.flush();
 
   assert.deepEqual(run.favoriteStates, [{ widgetId:"widget-1", favorite:undefined, busy:true }]);
@@ -1825,7 +1825,7 @@ test("stale repeat favorite requests stay selected and never turn an existing Wi
     run = boot({ status:signedOutStatus(), localFavoriteItems:[existing], widgetShareArtifact:{ widget:{ id:"widget-1", title:"LAN Widget" } } });
   await run.flush();
 
-  await run.window.dispatch("penecho:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", favorite:false, sourceWidgetId } });
+  await run.window.dispatch("fastlectures:community-widget-action", { detail:{ action:"favorite", widgetId:"widget-1", favorite:false, sourceWidgetId } });
   await run.flush();
 
   assert.deepEqual(run.favoriteStates, [
@@ -1880,7 +1880,7 @@ test("published Canvas closes the publication form and opens a link-first result
   assert.equal(publication.modelTrainingAccepted, true, "the consolidated agreement satisfies the existing server contract");
   assert.ok(overlay.textContent.includes("Published to Echoes"));
   assert.doesNotMatch(overlay.textContent, /Publish this stroke|Auto-fill with current AI/);
-  assert.match(cloudCss, /\.penecho-cloud-dialog\.publish-success\s*\{[^}]*--penecho-dialog-surface:\s*color-mix\(in srgb, var\(--studio-panel, #ffffff\) 88%, transparent\)[^}]*max-width:\s*560px/);
+  assert.match(cloudCss, /\.fastlectures-cloud-dialog\.publish-success\s*\{[^}]*--fastlectures-dialog-surface:\s*color-mix\(in srgb, var\(--studio-panel, #ffffff\) 88%, transparent\)[^}]*max-width:\s*560px/);
   const actions = flatten(overlay).filter((node) => node.tagName === "BUTTON" || node.tagName === "A");
   const linkIndex = actions.findIndex((node) => node.textContent === "Share as link");
   const imageIndex = actions.findIndex((node) => node.textContent === "Share as image");
@@ -1890,8 +1890,8 @@ test("published Canvas closes the publication form and opens a link-first result
   await run.flush();
   assert.equal(shareCalls.length, 1);
   assert.equal(shareCalls[0].title, "Roadmap");
-  assert.equal(shareCalls[0].text, "View and Echo this Canvas on PenEcho.");
-  assert.equal(shareCalls[0].url, "https://internaltest.penecho.ai/community/123e4567-e89b-42d3-a456-426614174021");
+  assert.equal(shareCalls[0].text, "View and Echo this Canvas on FastLectures.");
+  assert.equal(shareCalls[0].url, "https://internaltest.fastlectures.ai/community/123e4567-e89b-42d3-a456-426614174021");
   assert.ok(overlay.textContent.includes("Link shared."));
 });
 
@@ -1912,7 +1912,7 @@ test("published image sharing copies a responsive linked image embed and prevent
   assert.equal(shareLink.disabled, true);
   assert.equal(shareImage.disabled, true);
   assert.equal(clipboardWrites.length, 1);
-  assert.equal(clipboardWrites[0], '<a href="https://internaltest.penecho.ai/community/123e4567-e89b-42d3-a456-426614174023" target="_blank" rel="noopener noreferrer"><img src="https://internaltest.penecho.ai/api/v1/community/items/123e4567-e89b-42d3-a456-426614174023/social-card.png" alt="Launch &quot;plan&quot; &lt;safe&gt; — PenEcho Echoes" width="1200" height="630" loading="lazy" decoding="async" style="max-width:100%;height:auto"></a>');
+  assert.equal(clipboardWrites[0], '<a href="https://internaltest.fastlectures.ai/community/123e4567-e89b-42d3-a456-426614174023" target="_blank" rel="noopener noreferrer"><img src="https://internaltest.fastlectures.ai/api/v1/community/items/123e4567-e89b-42d3-a456-426614174023/social-card.png" alt="Launch &quot;plan&quot; &lt;safe&gt; — FastLectures Echoes" width="1200" height="630" loading="lazy" decoding="async" style="max-width:100%;height:auto"></a>');
   releaseCopy();
   await run.flush();
   assert.equal(shareLink.disabled, false);
@@ -1924,7 +1924,7 @@ test("published Widget exposes the same bilingual link and image actions", async
   const item = { id:"123e4567-e89b-42d3-a456-426614174022", kind:"widget", name:"计时器" };
   const run = boot({ status:deviceStatus(), language:"zh-CN", publishItem:item, widgetShareArtifact:{ widget:{ id:"widget-1", title:"计时器" }, communityPreview:{ contentType:"image/webp", dataBase64:"AA==", width:800, height:500 } } });
   await run.flush();
-  await run.window.dispatch("penecho:community-widget-action", { detail:{ action:"share", widgetId:"widget-1" } });
+  await run.window.dispatch("fastlectures:community-widget-action", { detail:{ action:"share", widgetId:"widget-1" } });
   await run.flush();
   const form = run.overlay(), controls = flatten(form);
   const title = controls.find((node) => node.tagName === "INPUT" && node.getAttribute("placeholder") === "组件名称");
@@ -1945,8 +1945,8 @@ test("published Widget exposes the same bilingual link and image actions", async
   assert.ok(shareLink && shareImage);
   shareImage.click();
   await run.flush();
-  assert.match(run.clipboardWrites.at(-1), /<a href="https:\/\/internaltest\.penecho\.ai\/community\/123e4567-e89b-42d3-a456-426614174022"/);
-  assert.match(run.clipboardWrites.at(-1), /<img src="https:\/\/internaltest\.penecho\.ai\/api\/v1\/community\/items\/123e4567-e89b-42d3-a456-426614174022\/social-card\.png"/);
+  assert.match(run.clipboardWrites.at(-1), /<a href="https:\/\/internaltest\.fastlectures\.ai\/community\/123e4567-e89b-42d3-a456-426614174022"/);
+  assert.match(run.clipboardWrites.at(-1), /<img src="https:\/\/internaltest\.fastlectures\.ai\/api\/v1\/community\/items\/123e4567-e89b-42d3-a456-426614174022\/social-card\.png"/);
   assert.ok(result.textContent.includes("带链接的图片嵌入代码已复制。"));
 });
 
@@ -1956,7 +1956,7 @@ test("share and widget-favorite flows do not embed user-facing English outside C
   assert.doesNotMatch(shareSource, /Preserve this moment|Generating preview|Use no more than 8 tags|Enter a name before publishing|Craft published safely|Copy link|Preview ready\.|Could not generate the preview/);
   assert.doesNotMatch(shareSource, /creativecommons\.org|opensource\.org|public-craft-training|Public Craft ML License/);
   assert.match(shareSource, /new URL\("\/terms\.html#public-crafts",`\$\{cloudOrigin\(\)\}\/`\)/);
-  assert.doesNotMatch(favoriteSource, /This PenEcho version does not support widget favorites|"Untitled Widget"/);
+  assert.doesNotMatch(favoriteSource, /This FastLectures version does not support widget favorites|"Untitled Widget"/);
   assert.match(shareSource, /CATEGORIES\.map\(value => el\("option", \{ value, text:cloudT\(CATEGORY_LABEL_KEYS\[value\]\) \}\)\)/);
   assert.match(favoriteSource, /throw new Error\(cloudT\("favoriteUnsupported"\)\)/);
 });
@@ -1995,28 +1995,28 @@ test("Cloud Center uses a compact workbench shell and restores 44px coarse-point
   assert.match(cloudScript, /variant:"cloud-center"/);
   assert.match(cloudScript, /dataset\.peSurface = "manager"/);
   assert.match(cloudScript, /dataset\.peLayout = "nav-content"/);
-  assert.match(cloudScript, /isCloudCenter \? "penecho-workbench-dialog"/);
-  assert.match(cloudScript, /class:`cloud-dialog-titlebar\$\{isCloudCenter \? " penecho-workbench-header" : ""\}`/);
-  assert.match(cloudScript, /class:`cloud-dialog-mark\$\{isCloudCenter \? " penecho-workbench-icon" : ""\}`/);
+  assert.match(cloudScript, /isCloudCenter \? "fastlectures-workbench-dialog"/);
+  assert.match(cloudScript, /class:`cloud-dialog-titlebar\$\{isCloudCenter \? " fastlectures-workbench-header" : ""\}`/);
+  assert.match(cloudScript, /class:`cloud-dialog-mark\$\{isCloudCenter \? " fastlectures-workbench-icon" : ""\}`/);
   assert.match(cloudScript, /lineIcon\(\["M7 18\.5h10\.5/);
-  assert.match(cloudScript, /class:"cloud-navigation penecho-workbench-navigation"/);
+  assert.match(cloudScript, /class:"cloud-navigation fastlectures-workbench-navigation"/);
   assert.match(cloudScript, /layout\.replaceChildren\(navigation, workspace\)/);
-  assert.match(cloudCss, /\.penecho-cloud-dialog \.cloud-dialog-close\s*\{[^}]*flex:\s*0 0 2\.25rem[^}]*min-width:\s*2\.25rem/);
-  assert.match(cloudCss, /\.penecho-cloud-panel p a\s*\{[^}]*min-height:\s*2rem/);
+  assert.match(cloudCss, /\.fastlectures-cloud-dialog \.cloud-dialog-close\s*\{[^}]*flex:\s*0 0 2\.25rem[^}]*min-width:\s*2\.25rem/);
+  assert.match(cloudCss, /\.fastlectures-cloud-panel p a\s*\{[^}]*min-height:\s*2rem/);
   assert.match(cloudCss, /\.cloud-project-web-link\s*\{[^}]*min-height:\s*2rem/);
   assert.match(cloudCss, /\.cloud-account-button\s*\{[^}]*min-height:\s*2\.25rem[^}]*min-width:\s*2\.25rem/);
-  const overlayStyle = cloudCss.match(/\.penecho-cloud-overlay\s*\{([^}]+)\}/)[1];
+  const overlayStyle = cloudCss.match(/\.fastlectures-cloud-overlay\s*\{([^}]+)\}/)[1];
   assert.doesNotMatch(overlayStyle, /backdrop-filter:/, "The scrim must not become a backdrop root around the Cloud window");
-  assert.match(cloudCss, /\.penecho-cloud-overlay::before\s*\{[^}]*background:\s*var\(--penecho-dialog-backdrop,[^}]*backdrop-filter:\s*var\(--penecho-dialog-backdrop-filter/);
-  assert.match(cloudCss, /\.penecho-cloud-dialog\.cloud-center\s*\{[^}]*background:\s*var\(--penecho-large-dialog-surface,[^}]*62%, transparent\)\)[^}]*box-shadow:\s*var\(--penecho-large-dialog-shadow,[^}]*0 28px 80px[^}]*backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter, saturate\(1\.15\) blur\(20px\)\)/);
-  assert.match(cloudCss, /\.penecho-cloud-dialog\.cloud-center\s*\{[^}]*height:\s*min\(760px, calc\(100svh - 40px\)\)[^}]*max-width:\s*1120px/);
-  assert.match(cloudCss, /\.penecho-cloud-dialog\.cloud-center\s*\{[^}]*background:\s*var\(--penecho-large-dialog-surface,[^}]*62%, transparent\)\)[^}]*box-shadow:\s*var\(--penecho-large-dialog-shadow,[^}]*0 28px 80px[^}]*backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter, saturate\(1\.15\) blur\(20px\)\)/);
-  assert.match(cloudCss, /\.penecho-cloud-dialog\.share > \.cloud-dialog-titlebar\s*\{[^}]*background:\s*var\(--penecho-workbench-navigation-surface,[^}]*68%, transparent\)\)[^}]*backdrop-filter:\s*var\(--penecho-workbench-navigation-filter,[^}]*blur\(24px\) saturate\(1\.14\)\)/);
-  assert.match(cloudCss, /\.penecho-cloud-dialog\.share > \.penecho-cloud-body\s*\{[^}]*background:\s*var\(--penecho-workbench-content-surface,[^}]*62%, transparent\)\)/);
+  assert.match(cloudCss, /\.fastlectures-cloud-overlay::before\s*\{[^}]*background:\s*var\(--fastlectures-dialog-backdrop,[^}]*backdrop-filter:\s*var\(--fastlectures-dialog-backdrop-filter/);
+  assert.match(cloudCss, /\.fastlectures-cloud-dialog\.cloud-center\s*\{[^}]*background:\s*var\(--fastlectures-large-dialog-surface,[^}]*62%, transparent\)\)[^}]*box-shadow:\s*var\(--fastlectures-large-dialog-shadow,[^}]*0 28px 80px[^}]*backdrop-filter:\s*var\(--fastlectures-large-dialog-surface-filter, saturate\(1\.15\) blur\(20px\)\)/);
+  assert.match(cloudCss, /\.fastlectures-cloud-dialog\.cloud-center\s*\{[^}]*height:\s*min\(760px, calc\(100svh - 40px\)\)[^}]*max-width:\s*1120px/);
+  assert.match(cloudCss, /\.fastlectures-cloud-dialog\.cloud-center\s*\{[^}]*background:\s*var\(--fastlectures-large-dialog-surface,[^}]*62%, transparent\)\)[^}]*box-shadow:\s*var\(--fastlectures-large-dialog-shadow,[^}]*0 28px 80px[^}]*backdrop-filter:\s*var\(--fastlectures-large-dialog-surface-filter, saturate\(1\.15\) blur\(20px\)\)/);
+  assert.match(cloudCss, /\.fastlectures-cloud-dialog\.share > \.cloud-dialog-titlebar\s*\{[^}]*background:\s*var\(--fastlectures-workbench-navigation-surface,[^}]*68%, transparent\)\)[^}]*backdrop-filter:\s*var\(--fastlectures-workbench-navigation-filter,[^}]*blur\(24px\) saturate\(1\.14\)\)/);
+  assert.match(cloudCss, /\.fastlectures-cloud-dialog\.share > \.fastlectures-cloud-body\s*\{[^}]*background:\s*var\(--fastlectures-workbench-content-surface,[^}]*62%, transparent\)\)/);
   assert.match(cloudCss, /\.cloud-center \.cloud-dialog-mark\s*\{[^}]*flex:\s*0 0 20px[^}]*background:\s*transparent/);
-  assert.match(cloudCss, /\.penecho-cloud-layout\s*\{[^}]*grid-template-columns:\s*var\(--penecho-workbench-navigation-w\) minmax\(0, 1fr\)/);
-  assert.match(cloudCss, /\.cloud-navigation\s*\{[^}]*background:\s*var\(--penecho-workbench-navigation-surface,[^}]*68%, transparent\)\)[^}]*border-right:\s*1px solid var\(--ai-line\)[^}]*display:\s*flex[^}]*backdrop-filter:\s*var\(--penecho-workbench-navigation-filter,[^}]*blur\(24px\) saturate\(1\.14\)\)/);
-  assert.match(cloudCss, /\.cloud-workspace\s*\{[^}]*background:\s*var\(--penecho-workbench-content-surface,[^}]*62%, transparent\)\)/);
+  assert.match(cloudCss, /\.fastlectures-cloud-layout\s*\{[^}]*grid-template-columns:\s*var\(--fastlectures-workbench-navigation-w\) minmax\(0, 1fr\)/);
+  assert.match(cloudCss, /\.cloud-navigation\s*\{[^}]*background:\s*var\(--fastlectures-workbench-navigation-surface,[^}]*68%, transparent\)\)[^}]*border-right:\s*1px solid var\(--ai-line\)[^}]*display:\s*flex[^}]*backdrop-filter:\s*var\(--fastlectures-workbench-navigation-filter,[^}]*blur\(24px\) saturate\(1\.14\)\)/);
+  assert.match(cloudCss, /\.cloud-workspace\s*\{[^}]*background:\s*var\(--fastlectures-workbench-content-surface,[^}]*62%, transparent\)\)/);
   assert.match(cloudCss, /\.cloud-section-tabs\s*\{[^}]*flex-direction:\s*column/);
   assert.match(cloudCss, /\.cloud-section-tabs\s*\{[^}]*gap:\s*4px/);
   assert.match(cloudCss, /\.cloud-section-tab-device\s*\{[^}]*margin-top:\s*auto/);
@@ -2025,7 +2025,7 @@ test("Cloud Center uses a compact workbench shell and restores 44px coarse-point
   assert.match(cloudCss, /@media \(min-width:\s*821px\)[\s\S]*?\.cloud-section-tab:where\([\s\S]*?\[data-cloud-section="projects"\][\s\S]*?--pe-menu-item-h:\s*30px/);
   assert.match(cloudCss, /@media \(min-width:\s*821px\)[\s\S]*?\.cloud-nav-icon\s*\{[^}]*width:\s*14px[^}]*height:\s*14px[^}]*margin-top:\s*0/);
   assert.match(cloudCss, /@media \(min-width:\s*821px\)[\s\S]*?\.cloud-nav-copy strong\s*\{[^}]*font-size:\s*12\.5px[^}]*font-weight:\s*500[^}]*line-height:\s*var\(--pe-menu-item-h\)/);
-  assert.match(cloudCss, /\.cloud-workspace > \.penecho-cloud-panel\s*\{[^}]*max-width:\s*55rem/);
+  assert.match(cloudCss, /\.cloud-workspace > \.fastlectures-cloud-panel\s*\{[^}]*max-width:\s*55rem/);
   assert.match(cloudCss, /\.cloud-section-tab\s*\{[^}]*color:\s*var\(--pe-ink, var\(--ai-ink\)\)[^}]*min-height:\s*var\(--pe-menu-item-h\)/);
   assert.match(cloudCss, /\.cloud-section-tab\.active\s*\{[^}]*background:\s*var\(--pe-selected, var\(--ai-accent-soft\)\)[^}]*color:\s*var\(--pe-accent-label, var\(--ai-ink\)\)/);
   assert.match(cloudCss, /\.cloud-section-tab\.active \.cloud-nav-icon\s*\{[^}]*color:\s*var\(--ai-accent\)/);
@@ -2047,7 +2047,7 @@ test("Cloud Center uses a compact workbench shell and restores 44px coarse-point
   assert.match(cloudCss, /\.cloud-center \.cloud-field input, \.cloud-center \.cloud-field select\s*\{[^}]*height:\s*2rem[^}]*min-height:\s*2rem/);
   assert.match(cloudCss, /\.cloud-center \.cloud-button\s*\{[^}]*background:\s*transparent[^}]*min-height:\s*2rem[^}]*padding:\s*\.25rem \.55rem/);
   assert.match(cloudCss, /\.cloud-row-action\s*\{[^}]*background:\s*transparent[^}]*border-color:\s*transparent/);
-  assert.match(cloudCss, /@media \(pointer: coarse\)[\s\S]*?\.cloud-account-button,[\s\S]*?\.penecho-cloud-panel p a \{ min-height: 2\.75rem; \}/);
+  assert.match(cloudCss, /@media \(pointer: coarse\)[\s\S]*?\.cloud-account-button,[\s\S]*?\.fastlectures-cloud-panel p a \{ min-height: 2\.75rem; \}/);
   assert.match(cloudCss, /@media \(pointer: coarse\)[\s\S]*?\.cloud-field input,[\s\S]*?\.cloud-project-create-form input \{ height: 2\.75rem; min-height: 2\.75rem; \}/);
 });
 
@@ -2064,15 +2064,15 @@ test("Cloud Center exposes accessible loading, error, and focus-preservation con
 });
 
 test("Cloud text fields avoid the generic hard focus outline", () => {
-  const genericFocus = cloudCss.match(/\.penecho-cloud-dialog :is\(([^)]*)\):focus-visible\s*\{[^}]*\}/)?.[0] || "";
+  const genericFocus = cloudCss.match(/\.fastlectures-cloud-dialog :is\(([^)]*)\):focus-visible\s*\{[^}]*\}/)?.[0] || "";
   assert.doesNotMatch(genericFocus, /\binput\b|\btextarea\b/);
   assert.match(cloudCss, /\.cloud-field input:focus, \.cloud-field select:focus, \.cloud-field textarea:focus\s*\{[^}]*outline:\s*none/);
   assert.match(cloudCss, /\.cloud-published-url:focus\s*\{[^}]*border-color:\s*var\(--ai-accent\)[^}]*outline:\s*none/);
 });
 
 test("Cloud Center keeps narrow layouts and theme contrast token-driven", () => {
-  assert.match(cloudCss, /\.penecho-cloud-layout > \*, \.penecho-cloud-panel > \*, \.cloud-workspace > \*\s*\{\s*min-width:\s*0/);
-  assert.match(cloudCss, /@media \(max-width:\s*760px\)[\s\S]*?\.penecho-cloud-layout\s*\{[^}]*grid-template-columns:\s*1fr[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\)/);
+  assert.match(cloudCss, /\.fastlectures-cloud-layout > \*, \.fastlectures-cloud-panel > \*, \.cloud-workspace > \*\s*\{\s*min-width:\s*0/);
+  assert.match(cloudCss, /@media \(max-width:\s*760px\)[\s\S]*?\.fastlectures-cloud-layout\s*\{[^}]*grid-template-columns:\s*1fr[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\)/);
   assert.match(cloudCss, /@media \(max-width:\s*760px\)[\s\S]*?\.cloud-section-tabs\s*\{[^}]*flex-direction:\s*row[^}]*overflow-x:\s*auto/);
   assert.match(cloudCss, /@media \(max-width:\s*820px\)[\s\S]*?\.cloud-nav-heading\s*\{[^}]*display:\s*none/);
   assert.match(cloudCss, /@media \(max-width:\s*760px\)[\s\S]*?\.cloud-project-toolbar\s*\{[^}]*grid-template-columns:\s*1fr/);
@@ -2082,11 +2082,11 @@ test("Cloud Center keeps narrow layouts and theme contrast token-driven", () => 
   assert.match(cloudCss, /\.cloud-canvas-row:hover \.cloud-canvas-open,[\s\S]*?color:\s*var\(--cloud-link\)/);
   assert.match(cloudCss, /\.cloud-project-web-link\s*\{[^}]*color:\s*var\(--cloud-link\)/);
   assert.match(cloudCss, /\.cloud-button\.primary:hover:not\(:disabled\), \.cloud-button\.primary:focus-visible\s*\{[^}]*color:\s*var\(--ai-primary-ink\)/);
-  assert.match(cloudCss, /\.penecho-cloud-dialog\s*\{[^}]*color-scheme:\s*light[^}]*--ai-bg:\s*color-mix\(in srgb, var\(--studio-shell, #f2f3f5\) 76%, var\(--studio-panel, #ffffff\)\)[^}]*--ai-surface:\s*var\(--studio-panel, #ffffff\)[^}]*--ai-accent:\s*var\(--studio-accent, #4f46e5\)[^}]*--ai-primary:\s*var\(--studio-accent-strong, #4338ca\)/);
-  assert.match(cloudCss, /\.cloud-center \.cloud-dialog-titlebar\s*\{[^}]*background:\s*var\(--penecho-workbench-navigation-surface,[^}]*68%, transparent\)\)/);
+  assert.match(cloudCss, /\.fastlectures-cloud-dialog\s*\{[^}]*color-scheme:\s*light[^}]*--ai-bg:\s*color-mix\(in srgb, var\(--studio-shell, #f2f3f5\) 76%, var\(--studio-panel, #ffffff\)\)[^}]*--ai-surface:\s*var\(--studio-panel, #ffffff\)[^}]*--ai-accent:\s*var\(--studio-accent, #4f46e5\)[^}]*--ai-primary:\s*var\(--studio-accent-strong, #4338ca\)/);
+  assert.match(cloudCss, /\.cloud-center \.cloud-dialog-titlebar\s*\{[^}]*background:\s*var\(--fastlectures-workbench-navigation-surface,[^}]*68%, transparent\)\)/);
   assert.match(cloudCss, /\.cloud-share-canvas\s*\{\s*color:\s*var\(--studio-accent-strong, #4338ca\)/);
   assert.match(cloudCss, /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*?animation:\s*none/);
-  assert.doesNotMatch(cloudCss, /body\[data-theme="(?:studio|research|arcane|scifi)"\] \.penecho-cloud-dialog/);
+  assert.doesNotMatch(cloudCss, /body\[data-theme="(?:studio|research|arcane|scifi)"\] \.fastlectures-cloud-dialog/);
 });
 
 test("Cloud sign-in CTAs keep explicit foreground and background colors for hover and focus", () => {

@@ -1,20 +1,20 @@
-# PenEcho MCP 实现与验收
+# FastLectures MCP 实现与验收
 
 ## 当前默认架构：会话级小型 CLI → HTTPS
 
-PenEcho 启动 HTTPS，优先监听 3922，被占用时回退可用端口并通过 DNS-SD 广播。叶证书包含本机名字及私网地址；发现候选必须通过 CA、hostname/IP、hostId 和授权验证。浏览器独立 opt-in，新对话默认最近启用的浏览器。
+FastLectures 启动 HTTPS，优先监听 3922，被占用时回退可用端口并通过 DNS-SD 广播。叶证书包含本机名字及私网地址；发现候选必须通过 CA、hostname/IP、hostId 和授权验证。浏览器独立 opt-in，新对话默认最近启用的浏览器。
 
-AI 的标准 stdio 配置启动 `session-client.js`（打包为 `client.js`）。CLI 先试上次成功的 IP＋端口（首次使用 initialUrl），失败后重读共享 endpoint 缓存，最后按需发现一次；空闲 HTTP 释放后重连也走完整流程。`discovery-client.js` 单独负责导入/发现；重连不改 AI 配置。跨进程锁合并发现，每个登录用户共享 `.penecho/mcp/hosts/<hostId>`，没有 Gateway、开机服务或常驻发现进程。
+AI 的标准 stdio 配置启动 `session-client.js`（打包为 `client.js`）。CLI 先试上次成功的 IP＋端口（首次使用 initialUrl），失败后重读共享 endpoint 缓存，最后按需发现一次；空闲 HTTP 释放后重连也走完整流程。`discovery-client.js` 单独负责导入/发现；重连不改 AI 配置。跨进程锁合并发现，每个登录用户共享 `.fastlectures/mcp/hosts/<hostId>`，没有 Gateway、开机服务或常驻发现进程。
 
-`http-client-config.js` 原子更新 PenEcho 的 stdio 或兼容 HTTP 条目，保留其他服务/scope，检测并发修改。CLI 自己加载 CA；默认 stdio 不需要修改 AI 全局证书环境。保存配置与真实连接分别验证。
+`http-client-config.js` 原子更新 FastLectures 的 stdio 或兼容 HTTP 条目，保留其他服务/scope，检测并发修改。CLI 自己加载 CA；默认 stdio 不需要修改 AI 全局证书环境。保存配置与真实连接分别验证。
 
 当前 Settings 默认不带进程闲置退出参数。30 分钟只释放 HTTP，保留 stdin，在途工作受保护。EOF/signals 退出并尽力 DELETE。AI host 决定子进程启动/重启，通用协议不保证死进程自动重启。进程内保留的绑定支持 HTTP 重建；跨进程需要 AI 使用原 client/sessionKey/documentId 调用 start_session。64 个打开文档和 64 个注册浏览器上限不变。
 
 Windows 生命周期脚本 `scripts/mcp-codex-session-lifecycle.cjs` 默认测试 40 个真实 Codex 任务、1 分钟 HTTP 空闲释放及原任务自动恢复，不调用模型；使用隔离 CODEX_HOME，不修改日常配置。只有显式 `--idle-exit-ms` 才测试真正退出进程，手动 reload 恢复单独记录，不能计入自动恢复。当前 Windows / 真实 Edge 验收见 [自动验收记录](mcp-acceptance.md)。此前真正退出 CLI 的诊断得到自动恢复 0/2、手动 reload 恢复原模拟文档 2/2，因此默认仅释放 HTTP。
 
-`penecho_start_session` 的 title 必填，instanceId/canvasId 可省。新对话可使用最新注册的授权浏览器；显式目标仍使用准确 ID。稳定 client + sessionKey 保持 documentId；重连恢复原对话，不改投当前最新文档。已关闭的持久文档可后台恢复，restore 默认 true，show 默认 false；仅明确 DOCUMENT_NOT_FOUND 时允许替代新建，restore:false 禁止替代，权限/存储失败不得降级成 missing。
+`fastlectures_start_session` 的 title 必填，instanceId/canvasId 可省。新对话可使用最新注册的授权浏览器；显式目标仍使用准确 ID。稳定 client + sessionKey 保持 documentId；重连恢复原对话，不改投当前最新文档。已关闭的持久文档可后台恢复，restore 默认 true，show 默认 false；仅明确 DOCUMENT_NOT_FOUND 时允许替代新建，restore:false 禁止替代，权限/存储失败不得降级成 missing。
 
-入口仍为设置 → MCP 服务。设置展示配置、信任及重载要求，浏览器授权与服务器运行分开。用法见 [设置文档](mcp-setup.md)、[配置提示词](mcp-agent-instructions.md) 和 [可选工作流](../skills/penecho-mcp/SKILL.md)。页面呈现规则保持不变：新 Widget/plot 默认 page 1200×800，显式 base 480×360，源码更新保留几何。
+入口仍为设置 → MCP 服务。设置展示配置、信任及重载要求，浏览器授权与服务器运行分开。用法见 [设置文档](mcp-setup.md)、[配置提示词](mcp-agent-instructions.md) 和 [可选工作流](../skills/fastlectures-mcp/SKILL.md)。页面呈现规则保持不变：新 Widget/plot 默认 page 1200×800，显式 base 480×360，源码更新保留几何。
 
 ## 当前轻量 CLI 验证（2026-09-10）
 
@@ -22,14 +22,14 @@ Windows 生命周期脚本 `scripts/mcp-codex-session-lifecycle.cjs` 默认测�
 - 隔离真实 HTTPS：同一 CLI 经历空闲释放 → 旧 IP 失效 → 使用其他进程更新的缓存 → 再次空闲 → 缓存失效 → 发现新端点；两次均恢复原文档和客户端可见句柄，未退出 CLI。
 - 本机安装的真实 Codex app-server、两个任务、测试 HTTP 空闲 150ms：等待 850ms 后旧 HTTP owner 均释放、两个 CLI PID 不变；同一任务继续调用，无需 reload，恢复两个原始模拟文档 ID，使用新的 HTTP owner。未调用模型或真实浏览器；进程与临时文件已清理。
 - Settings 默认命令不带闲置退出参数，自动配置迁移可移除旧参数；Copy setup prompt 和 portable skill 保留旧关键词与 one-shot 示例。隔离 Electron 检查了宽/窄屏和 200% 缩放，手动区自动展开、复制可用、无区域横向溢出；生成文件和 diff 检查通过。
-- Windows Codex 0.149.0 的 40 个真实任务通过 SSH 验收：40 个独立真实文档、HTTP 空闲 60 秒后自动恢复 40/40、无需 reload、串线 0、结束残留客户端进程 0。测试页面刷新加载 64 上限；完整 PenEcho 主进程未重启。详细发现/并发/限额结果见自动验收记录。
+- Windows Codex 0.149.0 的 40 个真实任务通过 SSH 验收：40 个独立真实文档、HTTP 空闲 60 秒后自动恢复 40/40、无需 reload、串线 0、结束残留客户端进程 0。测试页面刷新加载 64 上限；完整 FastLectures 主进程未重启。详细发现/并发/限额结果见自动验收记录。
 
 ## 前一轮原生 HTTPS 验证（2026-09-10；不代表新的 CLI 验收）
 
 - `node --test test/mcp-*.test.js test/canvas-documents.test.js test/canvas-fit-viewport.test.js`：307/307 通过。覆盖 TLS 信任、共享证书、独立协议 owner、发现缓存、配置冲突、重启绑定、关闭 Canvas 恢复、并发隔离、闲置与压力回收，以及 legacy 回归。
 - 安装的 Codex 0.153.0 隔离验证：两个 task 独立 owner；同 task 复用；过期 404 后自动 initialize 并重试原调用成功；app-server 正常退出发送 DELETE，服务 session/socket 均清零。未发模型请求，未修改真实客户端配置；`thread/unsubscribe` 没有立即发 DELETE。
 - HTTP 协议会话 256；总并发 32、单会话并发 8；TCP 512、空闲 keep-alive 约 5 秒。画布业务句柄总计 4096、每协议 owner 16；两层闲置 30 分钟回收，容量压力仅回收闲置至少 60 秒且无在途工作的候选。浏览器接收 dispose-session 后释放临时句柄，保留文档和作品绑定。完整分层限制见设置文档。
-- 客户端生成文件检查与 diff whitespace 检查通过。当前运行的完整 PenEcho 未重启；新建浏览器验证标签页停在访问码页面，未完成本次新增状态的完整视觉验收。Windows 已检查公共启动路径和平台目录处理，尚未运行 Windows 应用验收。
+- 客户端生成文件检查与 diff whitespace 检查通过。当前运行的完整 FastLectures 未重启；新建浏览器验证标签页停在访问码页面，未完成本次新增状态的完整视觉验收。Windows 已检查公共启动路径和平台目录处理，尚未运行 Windows 应用验收。
 - 主任务负责架构、UI、集成审查；两个子任务请求模型为 Astra / low，分别负责 HTTP 服务和发现/配置。模型分工依据工具调用参数，未另行验证运行时模型身份。
 
 ## 历史实现记录与 legacy 兼容
@@ -38,7 +38,7 @@ Windows 生命周期脚本 `scripts/mcp-codex-session-lifecycle.cjs` 默认测�
 
 ## 设计来源映射
 
-来源为 `/Users/heack/workspace/penecho_design/penecho-design-language.html`，通过当前 Canvas 已有组件、样式和行为实现。
+来源为 `/Users/heack/workspace/fastlectures_design/fastlectures-design-language.html`，通过当前 Canvas 已有组件、样式和行为实现。
 
 | 项目区域 | 目录章节或示例 | 应用规则 |
 | --- | --- | --- |
@@ -80,13 +80,13 @@ Windows 生命周期脚本 `scripts/mcp-codex-session-lifecycle.cjs` 默认测�
 
 ### 用户画布反馈
 
-`penecho_inbox` 默认 `mode:"read", limit:10, capture:false`，分别返回 messages / feedback 分页。messageAfter 和 feedbackAfter 独立，不自动确认消息。需要像素时显式 capture:true；quality 默认 basic，可选 detail。内部反馈在文字确认、笔画结束、图片导入时记录，保留会话基线与未读游标；失败同游标重试。
+`fastlectures_inbox` 默认 `mode:"read", limit:10, capture:false`，分别返回 messages / feedback 分页。messageAfter 和 feedbackAfter 独立，不自动确认消息。需要像素时显式 capture:true；quality 默认 basic，可选 detail。内部反馈在文字确认、笔画结束、图片导入时记录，保留会话基线与未读游标；失败同游标重试。
 
 截图包含新增 dirty 附近的当前设计和用户层，使用 120 个画布单位的边距；相距过远的标注自动分批，不受用户后来平移视野的影响。当前笔画未结束时拒绝截图，避免读取半截标注；没有反馈或 capture:false 时不截图。它不是历史快照或 OCR。后续修改前先读反馈，不自动唤醒停止工作的客户端。
 
 已参考主 Canvas AI 的 planViewportImage/prepareOutboundAtlas（有界画幅、服务端无损 WebP）；MCP 直接复用已有 Canvas Agent 的 canvasAgentCapture/canvasAgentCompressedCanvas，有明确传输预算，避免重复服务端编码。basic 策略为最长边 1024、总像素 520000、WebP 初始质量 .72、编码图像最多 700 KiB（base64 前）；超限继续降采样，PNG 回退也受同一上限约束。服务端再次检查字节与尺寸。
 
-本轮 32 项针对性测试通过，覆盖浏览器、传输、独立游标、呈现后基线、PNG 回退和超限失败。隔离局域网 Electron 验收实际文字、笔画、图片输入及默认截图，文字样本 856×606、14620 字节；这些是单次样本，不是性能保证。截图位于 `/var/folders/wq/vmfzmn0j33199mp1lzkmgs080000gn/T/penecho-mcp-browser-eRn8Hb`，已人工查看；全部测试端口已释放。
+本轮 32 项针对性测试通过，覆盖浏览器、传输、独立游标、呈现后基线、PNG 回退和超限失败。隔离局域网 Electron 验收实际文字、笔画、图片输入及默认截图，文字样本 856×606、14620 字节；这些是单次样本，不是性能保证。截图位于 `/var/folders/wq/vmfzmn0j33199mp1lzkmgs080000gn/T/fastlectures-mcp-browser-eRn8Hb`，已人工查看；全部测试端口已释放。
 
 MCP 状态入口上移，避让新缩放工具条；宽、窄、200% 缩放和 Agent 展开时已检查可见性。技能补充主动提供有用预览、方案选择与图文解释，稳定更新作品，普通呈现不截图；选择仍通过聊天或原生 Canvas 标注表达，Widget 按钮尚无 MCP 回传事件。自动任务排版与成组视野已实现，见下节。
 
@@ -94,13 +94,13 @@ MCP 状态入口上移，避让新缩放工具条；宽、窄、200% 缩放和 A
 
 ## MCP request logging
 
-MCP interactions with third-party clients use the existing Settings request-recording switch (`PENECHO_REQUEST_TRACE`). When enabled, records live under `logs/mcp-requests`, parallel to AI request records under `logs/requests`. With the desktop state directory this is `~/.penecho/logs/mcp-requests`; `~/.penecho/mcp/instances` contains connection-discovery records, not interaction logs. The switch follows the existing system-settings restart behavior. Disabled recording does not collect request payloads or create trace files.
+MCP interactions with third-party clients use the existing Settings request-recording switch (`FASTLECTURES_REQUEST_TRACE`). When enabled, records live under `logs/mcp-requests`, parallel to AI request records under `logs/requests`. With the desktop state directory this is `~/.fastlectures/logs/mcp-requests`; `~/.fastlectures/mcp/instances` contains connection-discovery records, not interaction logs. The switch follows the existing system-settings restart behavior. Disabled recording does not collect request payloads or create trace files.
 
 Interaction logs group calls by external session, preserving complete incoming arguments, returned text, browser RPCs, errors, timings, and asynchronous queued-update outcomes. Long text and source bodies are retained without the diagnostic summary's truncation. Images and screenshots are also saved as real binary files that can be opened directly. Credential redaction remains enabled. Existing historical logs cannot recover text or image bodies that were previously omitted; full records begin with calls handled by the updated service.
 
 Each `session-<hash>` directory has identifying metadata in `session.json` and timestamped `request-<timestamp>-<hash>` call directories. Read `request.json` / `response.json` (or their `.txt` copies) for full payloads; `trace.json` remains a compact timing/status summary. `*-source-*.html` / `.txt` contain source bodies, `*-image-*` files contain decoded image bytes, and `*-images.json` maps those image artifacts. Original data URLs/base64 remain in the full payload. Browser RPC files use `browser-N-` prefixes; failures use `error` files and queued updates use `queued-outcome` files.
 
-Session keys and returned session IDs are scoped to the external client owner; discovery calls without a session are grouped separately for that owner. The configured retention count (`PENECHO_REQUEST_TRACE_LIMIT`) applies to session directories, preserving running calls and pending queued updates until completion. Legacy per-request directories and unrelated files are left untouched. Files are private to the local user and logging failures do not change tool results.
+Session keys and returned session IDs are scoped to the external client owner; discovery calls without a session are grouped separately for that owner. The configured retention count (`FASTLECTURES_REQUEST_TRACE_LIMIT`) applies to session directories, preserving running calls and pending queued updates until completion. Legacy per-request directories and unrelated files are left untouched. Files are private to the local user and logging failures do not change tool results.
 
 ## Canvas live access indicator (2026-09-07)
 
@@ -108,19 +108,19 @@ The bottom-right control distinguishes opted-in waiting, bound sessions (client 
 
 The backend sends native WebSocket ping every 15 seconds, terminating connections with no pong for 45 seconds at the next interval. Browser JSON heartbeat is negotiated with `ready.heartbeat:true`; legacy servers remain compatible. Visible tabs detect stale responses, with visibility-resume grace for throttled background timers. Disconnect, canvas changes and service close clear timers and revoke session bindings.
 
-Astra implemented and reviewed UI/integration; the backend worker was requested as Sol/high. 24 focused tests cover status semantics, heartbeat failure/cleanup and legacy compatibility. The isolated LAN Electron harness additionally verifies real in-flight mutation, session return, unexpected socket close, narrow/zoom/Agent-panel layouts and user-feedback capture. In-flight capture briefly holds the test browser's hash dependency to photograph the real pending operation. No production instance was restarted. Screenshots: `/var/folders/wq/vmfzmn0j33199mp1lzkmgs080000gn/T/penecho-mcp-browser-axEOFu`.
+Astra implemented and reviewed UI/integration; the backend worker was requested as Sol/high. 24 focused tests cover status semantics, heartbeat failure/cleanup and legacy compatibility. The isolated LAN Electron harness additionally verifies real in-flight mutation, session return, unexpected socket close, narrow/zoom/Agent-panel layouts and user-feedback capture. In-flight capture briefly holds the test browser's hash dependency to photograph the real pending operation. No production instance was restarted. Screenshots: `/var/folders/wq/vmfzmn0j33199mp1lzkmgs080000gn/T/fastlectures-mcp-browser-axEOFu`.
 
-## PenEcho-owned task layout and camera
+## FastLectures-owned task layout and camera
 
 New MCP sessions reserve placement state without requiring a session board. New artifacts occupy stable rows in their task area. Placement checks other task areas, existing objects and ink; previous objects and user positions are never repacked. Existing preview updates retain location. Exhausted space returns an actionable error instead of overlapping content. Camera batching waits for a short quiet interval and the mutation queue to finish; only new objects trigger it. Large distant batches are offered one task at a time; very small automatic fitting is deferred for explicit inspection. Pointer/wheel interaction, active editing, hidden pages and navigation lock preserve user camera ownership. The Show new content action frames pending items, and Settings Show frames the whole task. Disconnect clears the owned timer and pending targets.
 
-Design-source map: pending-content control → penecho-design-language.html compact secondary button / status examples → reuse existing Canvas MCP status area and wrap at narrow widths; no new panel. Work areas use session placement metadata and existing Canvas placement/framing primitives. Preplanned absolute creation avoids a duplicate global occupancy scan. No extra model calls or automatic screenshots are needed.
+Design-source map: pending-content control → fastlectures-design-language.html compact secondary button / status examples → reuse existing Canvas MCP status area and wrap at narrow widths; no new panel. Work areas use session placement metadata and existing Canvas placement/framing primitives. Preplanned absolute creation avoids a duplicate global occupancy scan. No extra model calls or automatic screenshots are needed.
 
 Root implemented and reviewed this UI work without delegation. Focused browser/runtime/compression tests pass (24 tests); isolated LAN acceptance covers three-preview placement, user camera pause, explicit resume, two sessions, narrow/zoom button usability and existing feedback capture. Existing saved canvases are not retroactively reorganized; newly started sessions use this layout. Reopen the updated Canvas and reconnect after preserving current work.
 
 ## Lightweight native MCP artifacts
 
-At that stage, adding `penecho_draw` and `penecho_plot` brought the bridge to ten
+At that stage, adding `fastlectures_draw` and `fastlectures_plot` brought the bridge to ten
 public tools. The browser-owned
 `mcp-primitives.js` prepares bounded native text/image records, lays out nodes and
 resolves connector IDs, then commits one history transaction after checking the
@@ -154,7 +154,7 @@ and 13 backend/schema/stdio checks passed. Isolated LAN Electron E2E covered
 labeled rectangles/ellipses, native text, arrows and paths, stable replacement,
 restricted expression rejection, function capture, Undo/Redo, zero new iframes,
 user feedback isolation and existing responsive/settings behavior. Evidence:
-`/var/folders/wq/vmfzmn0j33199mp1lzkmgs080000gn/T/penecho-mcp-browser-okBxLN`.
+`/var/folders/wq/vmfzmn0j33199mp1lzkmgs080000gn/T/fastlectures-mcp-browser-okBxLN`.
 Single-run measured update after content reuse: 16 ms (prior diagnostic run
 2032 ms); drawing plus capture 232 ms; plot plus capture 35 ms. These samples
 are not general performance guarantees. The isolated test instance was closed.
@@ -164,15 +164,15 @@ requested Sol/high; actual provider/model identity was not independently verifie
 ## Persistent multi-document MCP server v1 (2026-09-07)
 
 The public server now separates the opted-in bridge connection (`canvasId`) from
-the persistent work document (`documentId`). `penecho_open_canvas` and
-`penecho_find_canvases` are routed only through the exact active connection named
+the persistent work document (`documentId`). `fastlectures_open_canvas` and
+`fastlectures_find_canvases` are routed only through the exact active connection named
 by `instanceId` and `canvasId`; the server does not search another host.
-`penecho_open_canvas` requires an idempotency key and defaults `show` to false, so
+`fastlectures_open_canvas` requires an idempotency key and defaults `show` to false, so
 opening or creating a document does not steal the current view. Provider
 ambiguity, availability, and cross-storage errors can return bounded structured
 details through HTTP and stdio error results.
 
-`penecho_start_session` accepts optional `documentId` and `takeover`, and forwards
+`fastlectures_start_session` accepts optional `documentId` and `takeover`, and forwards
 the exact optional client and session key. The browser-issued session ID remains
 the routing authority for every later tool call. The server snapshot stores the
 actual `documentId` only when the browser returns one, preserving compatibility
@@ -186,15 +186,15 @@ existing-file unified diff whose headers match the requested virtual path.
 The shared `src/shared/canvas-file-patch.js` parser validates the same strict diff on both server and browser. The server sends exactly one `mcp_patch_file` RPC with `{sessionId,path,patch,expectedHash,requestId,completion?}`. The browser checks the current source hash and applies the patch atomically using fuzz factor zero, retaining a receipt before returning. Completed retries return the cached result; unknown outcomes resend identical arguments and requestId. `SOURCE_CONFLICT` requires a fresh read and new requestId. No source is transferred back for a preparatory round trip.
 
 Canvas edits use strict action-specific arguments. Image replacement accepts a
-bounded PNG/JPEG/WebP data URL or `penecho-ref:objects/<encoded-id>/image`, which
+bounded PNG/JPEG/WebP data URL or `fastlectures-ref:objects/<encoded-id>/image`, which
 the browser resolves only inside the bound document. Source replacement and
 geometry edits are distinct operations. Move, resize, delete, erase, and replace
 also require a current base revision, preventing a stale client from overwriting
 newer user work. The inbox is pull-based:
-`penecho_inbox` mode:read never means receipt; mode:ack explicitly records received/working/done/error for named IDs. There is no push wake,
+`fastlectures_inbox` mode:read never means receipt; mode:ack explicitly records received/working/done/error for named IDs. There is no push wake,
 automatic polling, Git integration, history API, or playback API in this version.
 
-`penecho_capture_canvas` is the explicit bounded screenshot path for existing
+`fastlectures_capture_canvas` is the explicit bounded screenshot path for existing
 Canvas content. It supports canvas, viewport, selection, region, object, and artifact (artifactId required)
 targets with basic/detail quality, validates the returned image MIME type,
 dimensions, encoded byte count, and revision, and reports `pixelVerified:true`
@@ -203,12 +203,12 @@ only after an actual image result. A background document returns structured
 The stdio adapter emits the image as MCP image content.
 
 The browser's opt-in Widget choice contract uses only buttons carrying
-`data-penecho-action="choose"` plus bounded `data-penecho-prompt`. A trusted
+`data-fastlectures-action="choose"` plus bounded `data-fastlectures-prompt`. A trusted
 click queues text, `source:"widget"`, and the exact object/session/client/key in
 the pull inbox. It does not invoke a model, serialize arbitrary forms or
 passwords, or authorize an external action. Status still moves only through
 explicit received/working/done/error acknowledgements. The virtual `context.md`
-is user-editable document context and is appended to the internal PenEcho
+is user-editable document context and is appended to the internal FastLectures
 Agent's local user turn.
 
 The stdio server advertises four user-selected prompts through `prompts/list`
@@ -249,7 +249,7 @@ auto-select a prompt, create a progress board, poll, or wake a stopped client.
 
 Keep the first useful output fast: no required plan, prompt retrieval or capture
 before it. Send short public findings, decisions, blockers and completion through
-`penecho_update_session` at natural work boundaries only when useful information
+`fastlectures_update_session` at natural work boundaries only when useful information
 changed. There is no timer, tool-count quota or idle heartbeat. Read/ack inbox
 messages at these checkpoints when awaiting input or working interactively.
 Routine progress requires no generated diagram or screenshot. Reuse existing
@@ -257,7 +257,7 @@ useful previews and stable artifact IDs; create spatial explanations when they
 help the task. Honor a quieter cadence requested by the user.
 
 `initialize.instructions` and Widget tool guidance include compact Visual
-Explorer principles. The optional `penecho_visual_explorer` prompt provides the
+Explorer principles. The optional `fastlectures_visual_explorer` prompt provides the
 full shared design sections with MCP-specific delivery, loaded once when needed
 for substantial visual authoring. New/reused session responses repeat only the
 short workflow reminder; ordinary updates do not repeat these instructions.
@@ -300,7 +300,7 @@ this change does not wake stopped conversations or guarantee compliance.
 ### Auto configure 更新已有配置
 
 再次点击自动配置时，Codex 通过官方 CLI upsert 写入当前启动信息；Claude 只原子
-替换用户配置中的 PenEcho 条目，保留其他服务及项目级配置。更新失败不先删除旧条目。
+替换用户配置中的 FastLectures 条目，保留其他服务及项目级配置。更新失败不先删除旧条目。
 界面显示“配置已更新”，提示重载 Agent，不将配置保存表述为连接验证成功。
 主任务完成 UI 与集成验收，按 Astra/low 调用的子代理负责配置实现并经主任务复核。
 真实 Codex/Claude CLI 在隔离配置目录验证新建和覆盖；真实浏览器验证按钮更新、
@@ -312,16 +312,16 @@ this change does not wake stopped conversations or guarantee compliance.
 第三步给出关闭设置、检查工具栏 MCP 绿灯、发送给外部 Agent 的简短引导。默认突出
 一条可直接复制的当前任务提示词，原有六个示例保留在默认折叠的“更多示例”。复用
 现有设置步骤、提示词卡片、复制事件与原生 disclosure；主任务直接完成，无额外代理。
-设计来源沿用 penecho_design 的 settings-content、prompt surface 与渐进展开规则。
+设计来源沿用 fastlectures_design 的 settings-content、prompt surface 与渐进展开规则。
 34 项设置回归通过；真实浏览器检查中英文、宽/窄窗口、125% 缩放、一键复制和展开。
 
 ### Live MCP discovery resources
 
 Both stdio and LAN expose `resources/list`, `resources/read`, and an empty
-`resources/templates/list`. `penecho://guidance/discovery` directs clients to the
-current tools, prompts and resource catalogs; `penecho://guidance/skill` supplies
+`resources/templates/list`. `fastlectures://guidance/discovery` directs clients to the
+current tools, prompts and resource catalogs; `fastlectures://guidance/skill` supplies
 live workspace guidance. The optional setup skill is a small bootstrap pointing
-to these resources, with separate PenEcho, echo, canvas and 画布 examples.
+to these resources, with separate FastLectures, echo, canvas and 画布 examples.
 Ordinary server catalog upgrades do not require rewriting remote launch settings:
 the bridge forwards methods without a catalog allow-list or cached tool schema.
 Clients may still need to refresh/reconnect to replace their own tool snapshot.
@@ -336,6 +336,6 @@ The registry exposes all 19 tools. The common six are start_session, present_wid
 
 All content mutations require requestId, including present_widget/draw/plot. Mutations accept output:"concise" (default) or "detailed" and optional completion:{status,summary?,handledMessageIds?}, where status is done/waiting/error. All mutations except upload_image also accept opt-in capture with basic/detail quality. The browser applies content, performs any requested capture, then updates status/explicit acknowledgements in the same RPC. Failed capture preserves applied:true and captureFailure, without marking done. A failed final status/ack stage returns completionFailure rather than repeating the mutation. Source paths/hashes, viewport, identity, revision, image evidence and actionable errors survive concise output; detailed adds diagnostics/timing. An optional inboxSummary is limited to three messages and 600 total text characters, and never acknowledges them.
 
-Session start returns guidanceVersion instead of repeating instructions. penecho_get_guidance defaults to detail:"brief"; detail:"full" retains full source guidance and examples. Reuse returned version/hash. Resources and initialization contain compact operational rules rather than repeated design manuals.
+Session start returns guidanceVersion instead of repeating instructions. fastlectures_get_guidance defaults to detail:"brief"; detail:"full" retains full source guidance and examples. Reuse returned version/hash. Resources and initialization contain compact operational rules rather than repeated design manuals.
 
 Run `node scripts/check-mcp-contract-budget.js` to report reproducible character/4 estimates (not provider-tokenizer counts). Use `--strict` to fail on all budget targets; validation semantics take priority over the 6000/all and 3000/common targets. The script always checks 19 tools, six common tools, and the 250-token public instruction target. Runtime latency must be measured separately from token estimates.

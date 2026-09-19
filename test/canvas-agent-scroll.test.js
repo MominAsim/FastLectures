@@ -27,7 +27,7 @@ function functionSource(name){
   assert.fail(`unterminated function ${name}`);
 }
 
-test("PenEcho Agent keeps a slightly larger bottom follow zone",()=>{
+test("FastLectures Agent keeps a slightly larger bottom follow zone",()=>{
   const threshold=Number(/CANVAS_AGENT_FOLLOW_LATEST_PX = (\d+)/.exec(runtime)?.[1]);
   assert.equal(threshold,48);
   const canvasAgentTranscript={scrollHeight:1000,clientHeight:400,scrollTop:552},
@@ -37,7 +37,7 @@ test("PenEcho Agent keeps a slightly larger bottom follow zone",()=>{
   assert.equal(nearLatest(),false,"the follow zone remains bounded");
 });
 
-test("PenEcho Agent follows instantly unless the user actually left the bottom",()=>{
+test("FastLectures Agent follows instantly unless the user actually left the bottom",()=>{
   const canvasAgent={followLatest:true},canvasAgentTranscript={scrollHeight:1000,clientHeight:400,scrollTop:200},
     scrollLatest=vm.runInNewContext(`(()=>{${functionSource("canvasAgentScrollToLatest")}return canvasAgentScrollToLatest;})()`,{canvasAgent,canvasAgentTranscript});
   assert.equal(scrollLatest(),true);
@@ -51,7 +51,7 @@ test("PenEcho Agent follows instantly unless the user actually left the bottom",
   assert.doesNotMatch(runtime,/canvasAgentTranscript\.addEventListener\("wheel"[\s\S]*?followLatest\s*=\s*false/);
 });
 
-test("PenEcho Agent coalesces layout follow-ups and rechecks user intent",()=>{
+test("FastLectures Agent coalesces layout follow-ups and rechecks user intent",()=>{
   const callbacks=[],canvasAgent={followLatest:true,scrollLatestFrame:0},scrolls=[],
     schedule=vm.runInNewContext(`(()=>{${functionSource("canvasAgentScheduleScrollToLatest")}return canvasAgentScheduleScrollToLatest;})()`,{
       canvasAgent,requestAnimationFrame(callback){callbacks.push(callback);return callbacks.length;},canvasAgentScrollToLatest(){scrolls.push(canvasAgent.followLatest);return canvasAgent.followLatest;},
@@ -66,7 +66,7 @@ test("PenEcho Agent coalesces layout follow-ups and rechecks user intent",()=>{
   assert.equal(callbacks.length,0,"layout changes do not move a conversation the user is reading");
 });
 
-test("PenEcho Agent repairs bottom position after result, completion, and layout changes",()=>{
+test("FastLectures Agent repairs bottom position after result, completion, and layout changes",()=>{
   const handleEvent=functionSource("canvasAgentHandleEvent");
   assert.match(handleEvent,/tool_result[\s\S]*?canvasAgentScheduleHistoryPersist\(0\);[\s\S]*?canvasAgentScrollToLatest\(\)/);
   assert.match(handleEvent,/turn_end[\s\S]*?canvasAgentMarkTurnSummaryCopyable[\s\S]*?canvasAgentSetRunning\(false\)[\s\S]*?canvasAgentScrollToLatest\(\)/);

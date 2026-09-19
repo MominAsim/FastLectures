@@ -1,6 +1,6 @@
 # Visual Explorer design contract regression — 2026-09-12
 
-Baseline: PenEcho 1.2.0, commit `84d4f8d`. Comparison is against the source before this repair, `8b478e4`.
+Baseline: FastLectures 1.2.0, commit `84d4f8d`. Comparison is against the source before this repair, `8b478e4`.
 
 ## Confirmed difference
 
@@ -38,8 +38,8 @@ At the user's explicit request to restore the 1.2.0 requirements, the built-in A
 
 The new Harness integration test captures the actual first model-bound request (using a stub CLI, not a live model), verifies that the full contract appears exactly once, and checks that current tools remain advertised. Targeted tests: 15 passed; existing Agent suite: 88 passed; Cloud mirror/import tests: 2 passed. No visual-quality A/B or desktop rebuild was performed in this follow-up.
 
-These changes require the executing PenEcho runtime to be updated and restarted; they do not change skill files, MCP connection addresses, credentials or client launch configuration. Restart persistent MCP/client processes and test in a new Agent conversation to avoid retained old context. Source commits and Cloud mirror sync are not an installed-app update or deployment.
+These changes require the executing FastLectures runtime to be updated and restarted; they do not change skill files, MCP connection addresses, credentials or client launch configuration. Restart persistent MCP/client processes and test in a new Agent conversation to avoid retained old context. Source commits and Cloud mirror sync are not an installed-app update or deployment.
 
 ## Follow-up: canonical selection conditions
 
-The shared selection text now comes directly from the canonical 1.2.0 paragraph (verified identical to commit 84d4f8d), with only the obsolete native plot invocation replaced by `penecho_plot`. This restores the explicit default even without an infographic request, the concrete examples, and the exclusions for existing-element edits and interaction/simulation/live-data/ordinary-HTML deliverables. Agent and MCP share this text. Sixteen targeted tests pass, including first-request injection and exact selection-paragraph coverage. This remains a source change, not an installed-app update.
+The shared selection text now comes directly from the canonical 1.2.0 paragraph (verified identical to commit 84d4f8d), with only the obsolete native plot invocation replaced by `fastlectures_plot`. This restores the explicit default even without an infographic request, the concrete examples, and the exclusions for existing-element edits and interaction/simulation/live-data/ordinary-HTML deliverables. Agent and MCP share this text. Sixteen targeted tests pass, including first-request injection and exact selection-paragraph coverage. This remains a source change, not an installed-app update.

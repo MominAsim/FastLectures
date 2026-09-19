@@ -131,13 +131,13 @@
     onActivity?.();
     const contentType=String(response.headers.get("content-type")||"").split(";",1)[0].trim().toLowerCase();
     if(contentType!=="application/x-ndjson")return{ok:response.ok,status:response.status,data:await response.json()};
-    if(!response.body)throw new Error("PenEcho returned an empty progress stream.");
+    if(!response.body)throw new Error("FastLectures returned an empty progress stream.");
     const reader=response.body.getReader(),decoder=new TextDecoder();
     let buffer="",terminal=null;
     const consume=(line)=>{
       if(!line.trim())return;
       let event;
-      try{event=JSON.parse(line)}catch{throw new Error("PenEcho returned an invalid progress event.")}
+      try{event=JSON.parse(line)}catch{throw new Error("FastLectures returned an invalid progress event.")}
       if(event?.type==="progress")onProgress?.(event);
       else if(event?.type==="result"||event?.type==="error")terminal=event;
     };
@@ -150,7 +150,7 @@
       if(done)break;
     }
     if(buffer.trim())consume(buffer);
-    if(!terminal)throw new Error("PenEcho progress stream ended before the model response arrived.");
+    if(!terminal)throw new Error("FastLectures progress stream ended before the model response arrived.");
     const status=Number.isInteger(terminal.status)?terminal.status:terminal.type==="result"?200:500;
     return{ok:terminal.type==="result"&&status>=200&&status<300,status,data:terminal.data||{}};
   }
@@ -221,7 +221,7 @@
   }
   async function requestAI(action, packedOverride = null, requestOptions = null) {
     if(typeof canvasDocumentsExternal==="function"&&canvasDocumentsExternal()) {
-      if(action!=="auto") {openCanvasAgent({focus:false});canvasDocumentsReport(canvasDocumentsCopy("An external conversation is selected. Send it an instruction here, or select PenEcho Agent to use Canvas AI.","当前由外部对话处理。请在这里发送指令，或选择 PenEcho Agent 使用画布 AI。"));}
+      if(action!=="auto") {openCanvasAgent({focus:false});canvasDocumentsReport(canvasDocumentsCopy("An external conversation is selected. Send it an instruction here, or select FastLectures Agent to use Canvas AI.","当前由外部对话处理。请在这里发送指令，或选择 FastLectures Agent 使用画布 AI。"));}
       return;
     }
     requestOptions = requestOptions || {};
@@ -435,6 +435,7 @@
         if (widgetLimitReached) setStatusKey("widgetLimitReached");
         else if (data.message) setStatus(data.message);
         else setStatusKey("aiDone");
+        window.dispatchEvent(new CustomEvent("ai-response", { detail:{ text: data.message || "", success: true } }));
       } else {
         if (widgetLimitReached) setStatusKey("widgetLimitReached");
         else if (typeof data.message === "string" && data.message.trim()) setStatus(data.message.trim());
@@ -489,6 +490,7 @@
           action,
           error: timedOut ? "timeout" : Number.isInteger(e.status) ? "http-error" : "request-error",
         });
+        window.dispatchEvent(new CustomEvent("ai-response", { detail:{ text: `${t("aiError")}${message}`, success: false } }));
       }
     } finally {
       timeout.clear();

@@ -13,7 +13,7 @@ const MAX_KIMI_TOOL_RECOVERIES = 2;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 const SESSION_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-const SESSION_BUCKET_PREFIX = "wd_penecho-kimi-acp";
+const SESSION_BUCKET_PREFIX = "wd_fastlectures-kimi-acp";
 const TOOL_ERROR = "Kimi Code CLI repeatedly attempted to invoke its own built-in tools.";
 
 const normalizeKimiToolName = value => require("./kimi-cli.js").normalizeKimiToolName(value);
@@ -27,8 +27,8 @@ function toolNameFromPermission(params) {
   return normalizeKimiToolName(params?.toolCall?.title || params?.tool_call?.title);
 }
 
-let penechoVersion = "0";
-try { penechoVersion = require("../../package.json").version || "0"; } catch {}
+let fastlecturesVersion = "0";
+try { fastlecturesVersion = require("../../package.json").version || "0"; } catch {}
 
 function abortError() { return Object.assign(new Error("Kimi Code CLI request aborted."), { name:"AbortError" }); }
 function acpInfraError(message) { return Object.assign(new Error(message), { acpInfraFailure:true }); }
@@ -114,7 +114,7 @@ class KimiAcpClient {
       const handshake = this._rpc("initialize", {
         protocolVersion:1,
         clientCapabilities:{ fs:{ readTextFile:false, writeTextFile:false } },
-        clientInfo:{ name:"penecho", version:penechoVersion },
+        clientInfo:{ name:"fastlectures", version:fastlecturesVersion },
       });
       const message = await Promise.race([
         handshake,
@@ -183,7 +183,7 @@ class KimiAcpClient {
       }
       return;
     }
-    this._send({ jsonrpc:"2.0", id, error:{ code:-32601, message:`PenEcho does not provide ${method}.` } });
+    this._send({ jsonrpc:"2.0", id, error:{ code:-32601, message:`FastLectures does not provide ${method}.` } });
   }
 
   _onSessionUpdate(params) {

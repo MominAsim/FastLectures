@@ -2,7 +2,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
-  else root.PENECHO_ANIMATION = api;
+  else root.FASTLECTURES_ANIMATION = api;
 })(typeof globalThis === "object" ? globalThis : this, function () {
   const MAX_OBJECTS = 32,
     MAX_MOTIONS = 32,

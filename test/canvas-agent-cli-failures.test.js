@@ -8,7 +8,7 @@ const path = require("node:path");
 
 for (const providerName of ["claude-cli", "kimi-cli"]) {
   test(`${providerName} failures cannot become Harness answers or trigger JSON repair`, async t => {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cli-failure-"));
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cli-failure-"));
     t.after(() => fs.rmSync(directory, { recursive:true, force:true }));
     const executable = path.join(directory, "fake-cli.js"), counter = path.join(directory, "calls.txt");
     const answer = JSON.stringify({ type:"final", text:"This failed response must not be accepted" });
@@ -16,8 +16,8 @@ for (const providerName of ["claude-cli", "kimi-cli"]) {
       ? JSON.stringify({ type:"result", subtype:"success", is_error:true, result:answer })
       : answer;
     fs.writeFileSync(executable, `const fs=require('node:fs');fs.appendFileSync(${JSON.stringify(counter)},'call\\n');process.stdout.write(${JSON.stringify(output + "\n")});process.exitCode=1;`);
-    const { PenEchoCliAdapter } = await import("../src/server/canvas-agent/cli-adapter.mjs");
-    const adapter = new PenEchoCliAdapter({ timeoutMs:() => 5000 });
+    const { FastLecturesCliAdapter } = await import("../src/server/canvas-agent/cli-adapter.mjs");
+    const adapter = new FastLecturesCliAdapter({ timeoutMs:() => 5000 });
     const provider = adapter.replaceConnections([{ id:providerName, provider:providerName, cliPath:executable, cliModel:"test", effort:"medium" }])[0];
     const chunks = [];
     await assert.rejects(async () => {

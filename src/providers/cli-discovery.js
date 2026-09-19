@@ -45,9 +45,9 @@ function pathExecutables(command, options = {}) {
 }
 
 function desktopStateDirectory(home, platform, env) {
-  if (platform === "darwin") return path.join(home, "Library", "Application Support", "PenEcho");
-  if (platform === "win32") return path.join(env.APPDATA || path.join(home, "AppData", "Roaming"), "PenEcho");
-  return path.join(env.XDG_CONFIG_HOME || path.join(home, ".config"), "PenEcho");
+  if (platform === "darwin") return path.join(home, "Library", "Application Support", "FastLectures");
+  if (platform === "win32") return path.join(env.APPDATA || path.join(home, "AppData", "Roaming"), "FastLectures");
+  return path.join(env.XDG_CONFIG_HOME || path.join(home, ".config"), "FastLectures");
 }
 
 function managedCliPaths(provider, options = {}) {

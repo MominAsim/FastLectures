@@ -314,27 +314,27 @@ function boundedContent(value, label) {
 
 function imageSource(value) {
   if (typeof value !== "string" || !value.length || Buffer.byteLength(value, "utf8") > MAX_FILE_BYTES) invalid("source is invalid or too large.");
-  if (/^penecho-ref:objects\/[A-Za-z0-9._~%-]{1,512}\/image$/.test(value)) return value;
-  if (/^penecho-asset:[a-f0-9]{64}$/.test(value)) return value;
+  if (/^fastlectures-ref:objects\/[A-Za-z0-9._~%-]{1,512}\/image$/.test(value)) return value;
+  if (/^fastlectures-asset:[a-f0-9]{64}$/.test(value)) return value;
   const match = /^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
-  if (!match) invalid("source must be a PNG/JPEG/WebP base64 Data URL or an authorized same-document penecho-ref:objects/<id>/image or penecho-asset:<sha256> reference. For files, use the imageUpload transport returned by penecho_start_session; host paths are not upload content. Existing attachment Data URLs remain supported.");
+  if (!match) invalid("source must be a PNG/JPEG/WebP base64 Data URL or an authorized same-document fastlectures-ref:objects/<id>/image or fastlectures-asset:<sha256> reference. For files, use the imageUpload transport returned by fastlectures_start_session; host paths are not upload content. Existing attachment Data URLs remain supported.");
   const bytes = Buffer.from(match[1], "base64");
   if (!bytes.length || bytes.length > MAX_FILE_BYTES || bytes.toString("base64").replace(/=+$/, "") !== match[1].replace(/=+$/, "")) invalid("source is invalid or too large.");
   return value;
 }
 
 const validators = {
-  penecho_get_guidance(input) {
+  fastlectures_get_guidance(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["id","detail"]), "arguments");
     return { id:enumValue(input.id, new Set(GUIDANCE_IDS), "id"),...(input.detail===undefined?{}:{detail:enumValue(input.detail,new Set(["brief","full"]),"detail")}) };
   },
-  penecho_list_canvases(input) {
+  fastlectures_list_canvases(input) {
     object(input, "arguments");
     exactKeys(input, new Set(), "arguments");
     return {};
   },
-  penecho_open_canvas(input) {
+  fastlectures_open_canvas(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["instanceId", "canvasId", "documentId", "locator", "create", "title", "requestId", "show"]), "arguments");
     const output = {
@@ -353,7 +353,7 @@ const validators = {
     if (output.create !== true && output.title !== undefined) invalid("title is valid only with create:true.");
     return output;
   },
-  penecho_find_canvases(input) {
+  fastlectures_find_canvases(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["instanceId", "canvasId", "documentId"]), "arguments");
     return {
@@ -362,7 +362,7 @@ const validators = {
       ...(input.documentId === undefined ? {} : {documentId:string(input.documentId, "documentId", { max:256 })}),
     };
   },
-  penecho_start_session(input) {
+  fastlectures_start_session(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["canvasId", "instanceId", "documentId", "target", "takeover", "title", "client", "sessionKey", "restore", "show"]), "arguments");
     if (input.target !== undefined && input.target !== "current") invalid("target must be current.");
@@ -380,7 +380,7 @@ const validators = {
       ...(input.show === undefined ? {} : {show:bool(input.show, "show", false)}),
     };
   },
-  penecho_list_files(input) {
+  fastlectures_list_files(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId", "path", "region", "offset", "limit"]), "arguments");
     return {
@@ -391,7 +391,7 @@ const validators = {
       limit:input.limit === undefined ? 50 : integer(input.limit, "limit", {min:1,max:MAX_FILES_PER_PAGE}),
     };
   },
-  penecho_read_file(input) {
+  fastlectures_read_file(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId", "path", "startLine", "endLine"]), "arguments");
     const output = { sessionId:string(input.sessionId, "sessionId"), path:virtualPath(input.path) };
@@ -400,7 +400,7 @@ const validators = {
     if (output.endLine !== undefined && output.startLine !== undefined && output.endLine < output.startLine) invalid("endLine must be greater than or equal to startLine.");
     return output;
   },
-  penecho_patch_file(input) {
+  fastlectures_patch_file(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId", "path", "contentHash", "patch", "requestId"]), "arguments");
     return {
@@ -411,12 +411,12 @@ const validators = {
       requestId:string(input.requestId, "requestId", { max:128 }),
     };
   },
-  penecho_upload_image(input) {
+  fastlectures_upload_image(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId", "requestId", "name", "source"]), "arguments");
     return {sessionId:string(input.sessionId,"sessionId"),requestId:string(input.requestId,"requestId",{max:128}),name:string(input.name,"name",{max:200}),source:imageSource(input.source)};
   },
-  penecho_place_image(input) {
+  fastlectures_place_image(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId", "requestId", "source", "width", "height", "region"]), "arguments");
     const output={sessionId:string(input.sessionId,"sessionId"),requestId:string(input.requestId,"requestId",{max:128}),source:imageSource(input.source)};
@@ -424,7 +424,7 @@ const validators = {
     if(input.region!==undefined)output.region=region(input.region);
     return output;
   },
-  penecho_edit_canvas(input) {
+  fastlectures_edit_canvas(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId", "requestId", "action", "objectId", "text", "source", "region", "width", "height", "baseRevision", "strokes"]), "arguments");
     const action = enumValue(input.action, EDIT_ACTIONS, "action");
@@ -459,7 +459,7 @@ const validators = {
     if (action === "replace_image" && (keys.has("width") !== keys.has("height"))) invalid("width and height must be provided together.");
     return output;
   },
-  penecho_capture_canvas(input) {
+  fastlectures_capture_canvas(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId", "target", "objectId", "artifactId", "region", "quality"]), "arguments");
     const target = input.target === undefined ? "viewport" : enumValue(input.target, CAPTURE_TARGETS, "target");
@@ -479,7 +479,7 @@ const validators = {
     if (target !== "region" && output.region !== undefined) invalid("region is valid only for region capture.");
     return output;
   },
-  penecho_inbox(input) {
+  fastlectures_inbox(input) {
     object(input, "arguments");
     const mode = input.mode === undefined ? "read" : enumValue(input.mode, new Set(["read","ack"]), "mode");
     const sessionId = string(input.sessionId,"sessionId");
@@ -495,7 +495,7 @@ const validators = {
     if(input.quality!==undefined && input.capture!==true) invalid("quality requires capture:true.");
     return {sessionId,mode,messageAfter:input.messageAfter===undefined?0:integer(input.messageAfter,"messageAfter",{min:0,max:Number.MAX_SAFE_INTEGER}),...(input.feedbackAfter===undefined?{}:{feedbackAfter:integer(input.feedbackAfter,"feedbackAfter",{min:0,max:Number.MAX_SAFE_INTEGER})}),limit:input.limit===undefined?10:integer(input.limit,"limit",{min:1,max:MAX_MESSAGES_PER_PAGE}),capture:input.capture===true,...(input.quality===undefined?{}:{quality:enumValue(input.quality,CAPTURE_QUALITIES,"quality")})};
   },
-  penecho_update_session(input) {
+  fastlectures_update_session(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId", "title", "status", "summary", "steps", "events"]), "arguments");
     const output = { sessionId:string(input.sessionId, "sessionId") };
@@ -507,7 +507,7 @@ const validators = {
     if (Object.keys(output).length === 1) invalid("At least one session update field is required.");
     return output;
   },
-  penecho_present_widget(input) {
+  fastlectures_present_widget(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId", "artifactId", "title", "html", "width", "height", "capture", "quality", "presentation"]), "arguments");
     const html = typeof input.html === "string" ? input.html : invalid("html is invalid.");
@@ -528,7 +528,7 @@ const validators = {
       ...(input.quality === undefined ? {} : { quality:enumValue(input.quality, new Set(["basic", "detail"]), "quality") }),
     };
   },
-  penecho_draw(input) {
+  fastlectures_draw(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId", "artifactId", "title", "items", "capture", "presentation"]), "arguments");
     if (input.capture !== undefined && typeof input.capture !== "boolean") invalid("capture is invalid.");
@@ -541,7 +541,7 @@ const validators = {
       ...(input.capture === undefined ? {} : { capture:input.capture }),
     };
   },
-  penecho_plot(input) {
+  fastlectures_plot(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId", "artifactId", "title", "expression", "width", "height", "xMin", "xMax", "yMin", "yMax", "color", "capture", "presentation"]), "arguments");
     if (input.capture !== undefined && typeof input.capture !== "boolean") invalid("capture is invalid.");
@@ -563,12 +563,12 @@ const validators = {
       ...(input.capture === undefined ? {} : { capture:input.capture }),
     };
   },
-  penecho_inspect_session(input) {
+  fastlectures_inspect_session(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId"]), "arguments");
     return { sessionId:string(input.sessionId, "sessionId") };
   },
-  penecho_close_session(input) {
+  fastlectures_close_session(input) {
     object(input, "arguments");
     exactKeys(input, new Set(["sessionId"]), "arguments");
     return { sessionId:string(input.sessionId, "sessionId") };
@@ -599,76 +599,76 @@ function presentationSchema({allowSize = true,allowInspect = false} = {}) {
 }
 
 const TOOLS = [
-  {name:"penecho_inbox",description:"Read independent message/feedback pages; preserve both cursors. Only mode:ack marks IDs. Screenshots are opt-in.",inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},mode:{type:"string",enum:["read","ack"],default:"read"},messageAfter:{type:"integer",minimum:0,default:0},feedbackAfter:{type:"integer",minimum:0},limit:{type:"integer",minimum:1,maximum:50,default:10},capture:{type:"boolean",default:false},quality:{type:"string",enum:["basic","detail"]},ids:{type:"array",minItems:1,maxItems:50,uniqueItems:true,items:{type:"string",minLength:1,maxLength:128}},status:{type:"string",enum:[...MESSAGE_STATUSES]},message:{type:"string",maxLength:1000}},allOf:[{if:{properties:{mode:{const:"ack"}},required:["mode"]},then:{required:["ids","status"],properties:{messageAfter:false,feedbackAfter:false,limit:false,capture:false,quality:false}},else:{properties:{ids:false,status:false,message:false}}},{if:{required:["quality"]},then:{required:["capture"],properties:{capture:{const:true}}}}]}},
+  {name:"fastlectures_inbox",description:"Read independent message/feedback pages; preserve both cursors. Only mode:ack marks IDs. Screenshots are opt-in.",inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},mode:{type:"string",enum:["read","ack"],default:"read"},messageAfter:{type:"integer",minimum:0,default:0},feedbackAfter:{type:"integer",minimum:0},limit:{type:"integer",minimum:1,maximum:50,default:10},capture:{type:"boolean",default:false},quality:{type:"string",enum:["basic","detail"]},ids:{type:"array",minItems:1,maxItems:50,uniqueItems:true,items:{type:"string",minLength:1,maxLength:128}},status:{type:"string",enum:[...MESSAGE_STATUSES]},message:{type:"string",maxLength:1000}},allOf:[{if:{properties:{mode:{const:"ack"}},required:["mode"]},then:{required:["ids","status"],properties:{messageAfter:false,feedbackAfter:false,limit:false,capture:false,quality:false}},else:{properties:{ids:false,status:false,message:false}}},{if:{required:["quality"]},then:{required:["capture"],properties:{capture:{const:true}}}}]}},
   {
-    name:"penecho_get_guidance",
+    name:"fastlectures_get_guidance",
     description:"Read task-specific authoring guidance. Visual Explorer always includes the complete design contract; other guides are brief by default, full for complete examples and rules. Reuse unchanged version/hash.",
     annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},
     inputSchema:{type:"object",additionalProperties:false,required:["id"],properties:{id:{type:"string",enum:[...GUIDANCE_IDS]},detail:{type:"string",enum:["brief","full"],default:"brief"}}},
   },
   {
-    name:"penecho_list_canvases",
+    name:"fastlectures_list_canvases",
     annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},
     description:"List opted-in connections and unavailable instances. Choose exact instanceId/canvasId; never guess across hosts.",
     inputSchema:{ type:"object", additionalProperties:false, properties:{} },
   },
-  { name:"penecho_open_canvas", description:"Open an exact saved document or create one. show:true changes the view only on user request. requestId is idempotent.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId","requestId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256},locator:{type:"object",additionalProperties:false,required:["location","id"],properties:{location:{type:"string",enum:[...STORAGE_LOCATIONS]},id:{type:"string",minLength:1,maxLength:512}}},create:{type:"boolean",default:false},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},requestId:{type:"string",minLength:1,maxLength:128},show:{type:"boolean",default:false}},allOf:[{if:{properties:{create:{const:true}},required:["create"]},then:{properties:{documentId:false,locator:false}},else:{anyOf:[{required:["documentId"]},{required:["locator"]}],properties:{title:false}}}]} },
-  { name:"penecho_find_canvases", description:"Find authorized saved documents through one exact browser; return per-provider availability.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256}}} },
+  { name:"fastlectures_open_canvas", description:"Open an exact saved document or create one. show:true changes the view only on user request. requestId is idempotent.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId","requestId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256},locator:{type:"object",additionalProperties:false,required:["location","id"],properties:{location:{type:"string",enum:[...STORAGE_LOCATIONS]},id:{type:"string",minLength:1,maxLength:512}}},create:{type:"boolean",default:false},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},requestId:{type:"string",minLength:1,maxLength:128},show:{type:"boolean",default:false}},allOf:[{if:{properties:{create:{const:true}},required:["create"]},then:{properties:{documentId:false,locator:false}},else:{anyOf:[{required:["documentId"]},{required:["locator"]}],properties:{title:false}}}]} },
+  { name:"fastlectures_find_canvases", description:"Find authorized saved documents through one exact browser; return per-provider availability.", inputSchema:{type:"object",additionalProperties:false,required:["instanceId","canvasId"],properties:{instanceId:{type:"string",minLength:1,maxLength:128},canvasId:{type:"string",minLength:1,maxLength:128},documentId:{type:"string",minLength:1,maxLength:256}}} },
   {
-    name:"penecho_start_session",
+    name:"fastlectures_start_session",
     description:"Use unique stable sessionKey/client; retain sessionId/documentId. New sessions get a background Canvas on the latest opted-in browser; target:current binds the visible document. documentId restores an exact document; existing bindings stay. Only confirmed missing documents permit replacement; restore:false forbids it. show:true changes view.",
     inputSchema:{ type:"object", additionalProperties:false, required:["title"], not:{required:["target","documentId"]}, properties:{ canvasId:{type:"string",minLength:1,maxLength:128}, instanceId:{type:"string",minLength:1,maxLength:128}, documentId:{type:"string",minLength:1,maxLength:256}, target:{type:"string",enum:["current"]}, takeover:{type:"boolean",default:false}, title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS}, client:{type:"string",minLength:1,maxLength:120}, sessionKey:{type:"string",minLength:1,maxLength:128}, restore:{type:"boolean",default:true}, show:{type:"boolean",default:false} } },
   },
-  { name:"penecho_list_files", description:"Page virtual Canvas files, optionally in a region. Paths are virtual, never host paths.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",default:"/",maxLength:1024},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},offset:{type:"integer",minimum:0,default:0},limit:{type:"integer",minimum:1,maximum:MAX_FILES_PER_PAGE,default:50}}} },
-  { name:"penecho_read_file", description:"Read virtual source and contentHash; optional line range. Runtime files are observations, not editable source.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","path"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",minLength:1,maxLength:1024},startLine:{type:"integer",minimum:1},endLine:{type:"integer",minimum:1}}} },
-  { name:"penecho_patch_file", description:"Apply one strict unified diff to the read path/contentHash. Use --- a/<path>, +++ b/<path> and exact @@ hunk counts; no Begin Patch envelopes or line-number prefixes. SOURCE_CONFLICT needs a fresh read and requestId; unknown outcomes need identical retries.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","path","contentHash","patch","requestId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",minLength:1,maxLength:1024},contentHash:{type:"string",minLength:1,maxLength:256},patch:{type:"string",maxLength:MAX_FILE_BYTES},requestId:{type:"string",minLength:1,maxLength:128}}} },
-  { name:"penecho_upload_image", description:"Save an image without placement. Existing chat attachment Data URLs remain supported. For files use configured client.js --upload-image with canvasId/documentId (server converts); source cannot be a filesystem path. Reuse returned source in Widget HTML or place_image. requestId is idempotent.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","requestId","name","source"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},requestId:{type:"string",minLength:1,maxLength:128},name:{type:"string",minLength:1,maxLength:200},source:{type:"string",maxLength:MAX_FILE_BYTES,description:"Full PNG/JPEG/WebP base64 Data URL, at most 800000 UTF-8 bytes including prefix; or authorized same-document penecho-asset:<64 lowercase hex sha256> / penecho-ref:objects/<id>/image. No host paths or remote URLs. The bridge must be installed at ~/.penecho/mcp/client.js (macOS/Linux) or %USERPROFILE%/.penecho/mcp/client.js (Windows), not the skill/application directory. Do not choose another location. The PenEcho MCP configuration and upload commands must use this same fixed path expanded against the current user home; reuse the configured Node executable and host ID. For a file on the agent computer, instead run the configured bridge: node \"<absolute client.js>\" --host-id HOST_ID --upload-image \"<absolute image path>\" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Reuse the configured Node executable, environment and --state-directory when present. Get HOST_ID and ready-to-use upload args from penecho_start_session result.imageUpload. New conversations need no setup history or configuration lookup. HOST_ID identifies the PenEcho server. It is NOT canvasId, documentId or sessionId. Copy it exactly; never guess or derive it. client.js resolves the current HTTPS address/port automatically from its state and discovery; do not inspect source code or manually select a port. Obtain canvasId and documentId from penecho_start_session with target:current; keep that exact Canvas document open/current. The CLI uploads original bytes using the same MCP HTTPS port and authentication; server-side processing needs no client converter or Base64. Maximum input 32 MiB; supports PNG, WebP, JPG/JPEG, GIF, TIFF, AVIF (HEIC/HEIF codec-dependent). Prefer WebP generally, PNG for lossless diagrams/transparency, JPEG for photos. Reuse returned source verbatim in Widget img src/CSS url() or penecho_place_image; never invent an asset hash. Retry uncertain uploads with identical target/file/requestId."}}} },
-  { name:"penecho_place_image", description:"Place an authorized image. Omit region for auto-layout; region positions, width/height size (minimum80). One dimension preserves aspect ratio. Reuse requestId on uncertain outcomes.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","requestId","source"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},requestId:{type:"string",minLength:1,maxLength:128},source:{type:"string",maxLength:MAX_FILE_BYTES},width:{type:"number",minimum:80,maximum:1_000_000_000},height:{type:"number",minimum:80,maximum:1_000_000_000},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}}}} },
-  { name:"penecho_edit_canvas", description:"One idempotent edit. create_text without region uses auto-layout; annotate existing content with evidenced world region. Existing geometry/destructive edits require baseRevision. draw_ink requires world points, #RRGGBB and width1\u201364, at most1024 points in2048\u00d72048. Image sources must be document-owned references or data URLs.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","requestId","action"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},requestId:{type:"string",minLength:1,maxLength:128},action:{type:"string",enum:[...EDIT_ACTIONS]},objectId:{type:"string",minLength:1,maxLength:128},text:{type:"string",maxLength:MAX_FILE_BYTES},source:{description:"replace_image: PNG/JPEG/WebP data URL (800000 bytes), or same-document penecho-ref:objects/<id>/image / penecho-asset:<64 lowercase hex sha256>. No raw Base64, host paths or remote URLs.",type:"string",maxLength:MAX_FILE_BYTES},region:{description:"World coordinates (not screen/scene). move/erase_ink require region. create_text annotations use existing geometry; standalone text omits region. x/y position text; w/h do not size it.",type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},width:{type:"number",exclusiveMinimum:0},height:{type:"number",exclusiveMinimum:0},strokes:{type:"array",minItems:1,maxItems:16,items:{type:"object",additionalProperties:false,required:["points","color","width"],properties:{color:{type:"string",pattern:"^#[0-9a-fA-F]{6}$"},width:{type:"number",minimum:1,maximum:64},points:{type:"array",minItems:1,maxItems:256,items:{type:"object",additionalProperties:false,required:["x","y"],properties:{x:{type:"number",minimum:0,maximum:20000},y:{type:"number",minimum:0,maximum:20000}}}}}}},baseRevision:{description:"Current canvas.json revision for edits to existing content and draw_ink. Forbidden for create_text and show.",type:"integer",minimum:0}},allOf:Object.entries(EDIT_FIELDS).map(([action,{required,optional=[]}])=>({if:{properties:{action:{const:action}},required:["action"]},then:{...(required.length?{required}:{}),properties:Object.fromEntries(EDIT_ARGUMENT_FIELDS.filter(key=>![...required,...optional].includes(key)).map(key=>[key,false])),...(action==="replace_image"?{dependencies:{width:["height"],height:["width"]}}:{})}}))} },
-  { name:"penecho_capture_canvas", description:"Capture unresolved visual evidence only; reuse unchanged images. Hidden documents return CANVAS_NOT_VISIBLE without navigation. target:artifact requires artifactId; object/region require matching selector. Default basic; detail only for legibility.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},target:{type:"string",enum:[...CAPTURE_TARGETS],default:"viewport"},objectId:{type:"string",minLength:1,maxLength:128},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},quality:{type:"string",enum:[...CAPTURE_QUALITIES],default:"basic"}},allOf:[{if:{properties:{target:{const:"object"}},required:["target"]},then:{required:["objectId"]},else:{properties:{objectId:false}}},{if:{properties:{target:{const:"region"}},required:["target"]},then:{required:["region"]},else:{properties:{region:false}}}]} },
+  { name:"fastlectures_list_files", description:"Page virtual Canvas files, optionally in a region. Paths are virtual, never host paths.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",default:"/",maxLength:1024},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},offset:{type:"integer",minimum:0,default:0},limit:{type:"integer",minimum:1,maximum:MAX_FILES_PER_PAGE,default:50}}} },
+  { name:"fastlectures_read_file", description:"Read virtual source and contentHash; optional line range. Runtime files are observations, not editable source.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","path"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",minLength:1,maxLength:1024},startLine:{type:"integer",minimum:1},endLine:{type:"integer",minimum:1}}} },
+  { name:"fastlectures_patch_file", description:"Apply one strict unified diff to the read path/contentHash. Use --- a/<path>, +++ b/<path> and exact @@ hunk counts; no Begin Patch envelopes or line-number prefixes. SOURCE_CONFLICT needs a fresh read and requestId; unknown outcomes need identical retries.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","path","contentHash","patch","requestId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},path:{type:"string",minLength:1,maxLength:1024},contentHash:{type:"string",minLength:1,maxLength:256},patch:{type:"string",maxLength:MAX_FILE_BYTES},requestId:{type:"string",minLength:1,maxLength:128}}} },
+  { name:"fastlectures_upload_image", description:"Save an image without placement. Existing chat attachment Data URLs remain supported. For files use configured client.js --upload-image with canvasId/documentId (server converts); source cannot be a filesystem path. Reuse returned source in Widget HTML or place_image. requestId is idempotent.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","requestId","name","source"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},requestId:{type:"string",minLength:1,maxLength:128},name:{type:"string",minLength:1,maxLength:200},source:{type:"string",maxLength:MAX_FILE_BYTES,description:"Full PNG/JPEG/WebP base64 Data URL, at most 800000 UTF-8 bytes including prefix; or authorized same-document fastlectures-asset:<64 lowercase hex sha256> / fastlectures-ref:objects/<id>/image. No host paths or remote URLs. The bridge must be installed at ~/.fastlectures/mcp/client.js (macOS/Linux) or %USERPROFILE%/.fastlectures/mcp/client.js (Windows), not the skill/application directory. Do not choose another location. The FastLectures MCP configuration and upload commands must use this same fixed path expanded against the current user home; reuse the configured Node executable and host ID. For a file on the agent computer, instead run the configured bridge: node \"<absolute client.js>\" --host-id HOST_ID --upload-image \"<absolute image path>\" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Reuse the configured Node executable, environment and --state-directory when present. Get HOST_ID and ready-to-use upload args from fastlectures_start_session result.imageUpload. New conversations need no setup history or configuration lookup. HOST_ID identifies the FastLectures server. It is NOT canvasId, documentId or sessionId. Copy it exactly; never guess or derive it. client.js resolves the current HTTPS address/port automatically from its state and discovery; do not inspect source code or manually select a port. Obtain canvasId and documentId from fastlectures_start_session with target:current; keep that exact Canvas document open/current. The CLI uploads original bytes using the same MCP HTTPS port and authentication; server-side processing needs no client converter or Base64. Maximum input 32 MiB; supports PNG, WebP, JPG/JPEG, GIF, TIFF, AVIF (HEIC/HEIF codec-dependent). Prefer WebP generally, PNG for lossless diagrams/transparency, JPEG for photos. Reuse returned source verbatim in Widget img src/CSS url() or fastlectures_place_image; never invent an asset hash. Retry uncertain uploads with identical target/file/requestId."}}} },
+  { name:"fastlectures_place_image", description:"Place an authorized image. Omit region for auto-layout; region positions, width/height size (minimum80). One dimension preserves aspect ratio. Reuse requestId on uncertain outcomes.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","requestId","source"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},requestId:{type:"string",minLength:1,maxLength:128},source:{type:"string",maxLength:MAX_FILE_BYTES},width:{type:"number",minimum:80,maximum:1_000_000_000},height:{type:"number",minimum:80,maximum:1_000_000_000},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}}}} },
+  { name:"fastlectures_edit_canvas", description:"One idempotent edit. create_text without region uses auto-layout; annotate existing content with evidenced world region. Existing geometry/destructive edits require baseRevision. draw_ink requires world points, #RRGGBB and width1\u201364, at most1024 points in2048\u00d72048. Image sources must be document-owned references or data URLs.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId","requestId","action"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},requestId:{type:"string",minLength:1,maxLength:128},action:{type:"string",enum:[...EDIT_ACTIONS]},objectId:{type:"string",minLength:1,maxLength:128},text:{type:"string",maxLength:MAX_FILE_BYTES},source:{description:"replace_image: PNG/JPEG/WebP data URL (800000 bytes), or same-document fastlectures-ref:objects/<id>/image / fastlectures-asset:<64 lowercase hex sha256>. No raw Base64, host paths or remote URLs.",type:"string",maxLength:MAX_FILE_BYTES},region:{description:"World coordinates (not screen/scene). move/erase_ink require region. create_text annotations use existing geometry; standalone text omits region. x/y position text; w/h do not size it.",type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},width:{type:"number",exclusiveMinimum:0},height:{type:"number",exclusiveMinimum:0},strokes:{type:"array",minItems:1,maxItems:16,items:{type:"object",additionalProperties:false,required:["points","color","width"],properties:{color:{type:"string",pattern:"^#[0-9a-fA-F]{6}$"},width:{type:"number",minimum:1,maximum:64},points:{type:"array",minItems:1,maxItems:256,items:{type:"object",additionalProperties:false,required:["x","y"],properties:{x:{type:"number",minimum:0,maximum:20000},y:{type:"number",minimum:0,maximum:20000}}}}}}},baseRevision:{description:"Current canvas.json revision for edits to existing content and draw_ink. Forbidden for create_text and show.",type:"integer",minimum:0}},allOf:Object.entries(EDIT_FIELDS).map(([action,{required,optional=[]}])=>({if:{properties:{action:{const:action}},required:["action"]},then:{...(required.length?{required}:{}),properties:Object.fromEntries(EDIT_ARGUMENT_FIELDS.filter(key=>![...required,...optional].includes(key)).map(key=>[key,false])),...(action==="replace_image"?{dependencies:{width:["height"],height:["width"]}}:{})}}))} },
+  { name:"fastlectures_capture_canvas", description:"Capture unresolved visual evidence only; reuse unchanged images. Hidden documents return CANVAS_NOT_VISIBLE without navigation. target:artifact requires artifactId; object/region require matching selector. Default basic; detail only for legibility.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128},target:{type:"string",enum:[...CAPTURE_TARGETS],default:"viewport"},objectId:{type:"string",minLength:1,maxLength:128},region:{type:"object",additionalProperties:false,required:["x","y","w","h"],properties:{x:{type:"number"},y:{type:"number"},w:{type:"number",exclusiveMinimum:0},h:{type:"number",exclusiveMinimum:0}}},quality:{type:"string",enum:[...CAPTURE_QUALITIES],default:"basic"}},allOf:[{if:{properties:{target:{const:"object"}},required:["target"]},then:{required:["objectId"]},else:{properties:{objectId:false}}},{if:{properties:{target:{const:"region"}},required:["target"]},then:{required:["region"]},else:{properties:{region:false}}}]} },
 
 
   {
-    name:"penecho_update_session",
+    name:"fastlectures_update_session",
     description:"Queue public progress/status when useful. Response is acceptance, not paint proof. Prefer mutation completion for final status; no routine progress round trips.",
     inputSchema:{ type:"object", additionalProperties:false, required:["sessionId"], properties:{ sessionId:{type:"string",minLength:1,maxLength:128}, title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS}, status:{type:"string",enum:[...SESSION_STATUSES]}, summary:{type:"string",maxLength:MAX_SUMMARY_CHARS}, steps:{type:"array",maxItems:MAX_STEPS,items:{type:"object",additionalProperties:false,required:["id","label"],properties:{id:{type:"string",minLength:1,maxLength:64},label:{type:"string",minLength:1,maxLength:160},status:{type:"string",enum:[...STEP_STATUSES]}}}}, events:{type:"array",maxItems:MAX_EVENTS_PER_UPDATE,items:{type:"object",additionalProperties:false,required:["id","text"],properties:{id:{type:"string",minLength:1,maxLength:64},text:{type:"string",minLength:1,maxLength:500},kind:{type:"string",enum:[...EVENT_KINDS]}}}} },anyOf:["title","status","summary","steps","events"].map(key=>({required:[key]})) },
   },
   {
-    name:"penecho_present_widget",
+    name:"fastlectures_present_widget",
     description:"Render rich explanations, sequence/flow diagrams (including static diagrams), and product UI as an HTML/CSS/SVG Widget. Create/update stable artifactId, preserving geometry; returned viewport is actual CSS size. relativeTo is a known artifactId. inspect requires capture:true and renders exact dimensions without saving an object. Capture failures may leave applied:true. Format source for patches.",
     inputSchema:{ type:"object", additionalProperties:false, required:["sessionId","artifactId","title","html"], properties:{sessionId:{type:"string",minLength:1,maxLength:128},artifactId:{type:"string",minLength:1,maxLength:128},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},html:{type:"string",minLength:1,maxLength:MAX_HTML_CHARS},width:{type:"number",minimum:300,maximum:4096,description:"CSS width: capped on creation, exact for inspect."},height:{type:"number",minimum:200,maximum:4096,description:"CSS height: independently capped on creation, exact for inspect."},capture:{type:"boolean",default:false},quality:{type:"string",enum:["basic","detail"]},presentation:presentationSchema({allowInspect:true})}, allOf:[{if:{required:["quality"]},then:{required:["capture"],properties:{capture:{const:true}}}},{if:{properties:{presentation:{properties:{intent:{const:"inspect"}},required:["intent"]}},required:["presentation"]},then:{required:["capture"],properties:{capture:{const:true}}}},{if:{properties:{presentation:{required:["size"]}},required:["presentation"]},then:{not:{anyOf:[{required:["width"]},{required:["height"]}]}}}] },
   },
 
   {
-    name:"penecho_draw",
+    name:"fastlectures_draw",
     description:"Create/update a few simple native raster shapes/text or explicitly requested native drawing using stable artifactId. Prefer present_widget for rich explanations and sequence diagrams. Item coordinates are local scene coordinates; omit for auto-layout. Rect/ellipse minimum80. Host places the artifact. No editable vector handles; capture is opt-in.",
     inputSchema:{ type:"object", additionalProperties:false, required:["sessionId","artifactId","title","items"], properties:{ sessionId:{type:"string",minLength:1,maxLength:128}, artifactId:{type:"string",minLength:1,maxLength:128}, title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS}, items:{type:"array",minItems:1,maxItems:MAX_DRAW_ITEMS,items:{type:"object",additionalProperties:false,required:["id","type"],properties:{id:{type:"string",minLength:1,maxLength:64},type:{type:"string",enum:[...DRAW_TYPES]},text:{type:"string",minLength:1,maxLength:1_000},x:{type:"number",minimum:0,maximum:2_400},y:{type:"number",minimum:0,maximum:2_400},width:{type:"number",minimum:8,maximum:1_200},height:{type:"number",minimum:8,maximum:1_200},color:{type:"string",pattern:COLOR_PATTERN.source},fill:{type:"string",pattern:COLOR_PATTERN.source},fontSize:{type:"number",minimum:12,maximum:64},strokeWidth:{type:"number",minimum:1,maximum:12},points:{type:"array",minItems:2,maxItems:MAX_DRAW_POINTS,items:{type:"object",additionalProperties:false,required:["x","y"],properties:{x:{type:"number",minimum:0,maximum:2_400},y:{type:"number",minimum:0,maximum:2_400}}}},from:{type:"string",minLength:1,maxLength:64},to:{type:"string",minLength:1,maxLength:64}},allOf:[{if:{required:["type"],properties:{type:{enum:["rect","ellipse"]}}},then:{properties:{width:{minimum:80},height:{minimum:80}}}}]}}, capture:{type:"boolean",default:false}, presentation:presentationSchema({allowSize:false}) } },
   },
   {
-    name:"penecho_plot",
+    name:"fastlectures_plot",
     description:"Create/update a native raster function plot safely from expression. Stable artifactId; no editable vector handles. Host places it. Capture is opt-in.",
     inputSchema:{ type:"object", additionalProperties:false, required:["sessionId","artifactId","title","expression"], properties:{sessionId:{type:"string",minLength:1,maxLength:128},artifactId:{type:"string",minLength:1,maxLength:128},title:{type:"string",minLength:1,maxLength:MAX_TITLE_CHARS},expression:{type:"string",minLength:1,maxLength:180},width:{type:"number",minimum:300,maximum:1_600},height:{type:"number",minimum:200,maximum:1_200},xMin:{type:"number",minimum:-1_000_000,maximum:1_000_000},xMax:{type:"number",minimum:-1_000_000,maximum:1_000_000},yMin:{type:"number",minimum:-1_000_000,maximum:1_000_000},yMax:{type:"number",minimum:-1_000_000,maximum:1_000_000},color:{type:"string",pattern:COLOR_PATTERN.source},capture:{type:"boolean",default:false},presentation:presentationSchema()}, allOf:[{if:{properties:{presentation:{required:["size"]}},required:["presentation"]},then:{not:{anyOf:[{required:["width"]},{required:["height"]}]}}}] },
   },
 
-  { name:"penecho_inspect_session", description:"Inspect state/attention to diagnose an issue; no pixels or idle polling.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128}}} },
-  { name:"penecho_close_session", description:"Close the bound session; retain its document content.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128}}} },
+  { name:"fastlectures_inspect_session", description:"Inspect state/attention to diagnose an issue; no pixels or idle polling.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128}}} },
+  { name:"fastlectures_close_session", description:"Close the bound session; retain its document content.", inputSchema:{type:"object",additionalProperties:false,required:["sessionId"],properties:{sessionId:{type:"string",minLength:1,maxLength:128}}} },
 ];
 
-const COMMON_TOOL_NAMES = Object.freeze(["penecho_start_session","penecho_present_widget","penecho_read_file","penecho_patch_file","penecho_edit_canvas","penecho_inbox"]);
-const MUTATION_TOOLS = new Set(["penecho_present_widget","penecho_patch_file","penecho_edit_canvas","penecho_upload_image","penecho_place_image","penecho_draw","penecho_plot"]);
+const COMMON_TOOL_NAMES = Object.freeze(["fastlectures_start_session","fastlectures_present_widget","fastlectures_read_file","fastlectures_patch_file","fastlectures_edit_canvas","fastlectures_inbox"]);
+const MUTATION_TOOLS = new Set(["fastlectures_present_widget","fastlectures_patch_file","fastlectures_edit_canvas","fastlectures_upload_image","fastlectures_place_image","fastlectures_draw","fastlectures_plot"]);
 for (const tool of TOOLS) {
-  if(!COMMON_TOOL_NAMES.includes(tool.name))tool._meta={"penecho/usage":"specialized"};
+  if(!COMMON_TOOL_NAMES.includes(tool.name))tool._meta={"fastlectures/usage":"specialized"};
   if(MUTATION_TOOLS.has(tool.name)) Object.assign(tool.inputSchema.properties,{
     output:{type:"string",enum:["concise","detailed"],default:"concise"},
     completion:{type:"object",additionalProperties:false,required:["status"],properties:{status:{type:"string",enum:[...COMPLETION_STATUSES]},summary:{type:"string",maxLength:600},handledMessageIds:{type:"array",maxItems:50,uniqueItems:true,items:{type:"string",minLength:1,maxLength:128}}}},
   });
-  if(["penecho_present_widget","penecho_draw","penecho_plot"].includes(tool.name)) {tool.inputSchema.properties.requestId={type:"string",minLength:1,maxLength:128};tool.inputSchema.required.push("requestId");}
-  if(["penecho_patch_file","penecho_edit_canvas","penecho_place_image","penecho_draw","penecho_plot"].includes(tool.name)) {
+  if(["fastlectures_present_widget","fastlectures_draw","fastlectures_plot"].includes(tool.name)) {tool.inputSchema.properties.requestId={type:"string",minLength:1,maxLength:128};tool.inputSchema.required.push("requestId");}
+  if(["fastlectures_patch_file","fastlectures_edit_canvas","fastlectures_place_image","fastlectures_draw","fastlectures_plot"].includes(tool.name)) {
     tool.inputSchema.properties.capture={type:"boolean",default:false};
     tool.inputSchema.properties.quality={type:"string",enum:[...CAPTURE_QUALITIES]};
     (tool.inputSchema.allOf ||= []).push({if:{required:["quality"]},then:{required:["capture"],properties:{capture:{const:true}}}});
   }
-  if(tool.name==="penecho_capture_canvas") {
+  if(tool.name==="fastlectures_capture_canvas") {
     tool.inputSchema.properties.target.enum=[...CAPTURE_TARGETS];
     tool.inputSchema.allOf.push({if:{properties:{target:{const:"artifact"}},required:["target"]},then:{required:["artifactId"]},else:{properties:{artifactId:false}}});
     tool.inputSchema.properties.artifactId={type:"string",minLength:1,maxLength:128};
@@ -681,13 +681,13 @@ function validateToolArguments(name, input) {
   if (!MUTATION_TOOLS.has(name)) return validate(input);
   object(input,"arguments");
   const {output,completion,...operation}=input;
-  const extendedCapture=["penecho_patch_file","penecho_edit_canvas","penecho_place_image","penecho_draw","penecho_plot"].includes(name);
+  const extendedCapture=["fastlectures_patch_file","fastlectures_edit_canvas","fastlectures_place_image","fastlectures_draw","fastlectures_plot"].includes(name);
   const quality=extendedCapture?operation.quality:undefined;
   if(extendedCapture)delete operation.quality;
-  const newCapture=["penecho_patch_file","penecho_edit_canvas","penecho_place_image"].includes(name);
+  const newCapture=["fastlectures_patch_file","fastlectures_edit_canvas","fastlectures_place_image"].includes(name);
   const capture=newCapture?operation.capture:undefined;
   if(newCapture)delete operation.capture;
-  const artifactMutation=["penecho_present_widget","penecho_draw","penecho_plot"].includes(name);
+  const artifactMutation=["fastlectures_present_widget","fastlectures_draw","fastlectures_plot"].includes(name);
   const requestId=artifactMutation?operation.requestId:undefined;
   if(artifactMutation)delete operation.requestId;
   const result=validate(operation);

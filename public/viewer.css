@@ -1,6 +1,6 @@
 /* Read-only Canvas viewer mode.
    Activated only when html has .viewer-mode (set by viewer.js when
-   PENECHO_CONFIG.viewer is true). Everything interactive is hidden or made
+   FASTLECTURES_CONFIG.viewer is true). Everything interactive is hidden or made
    pointer-transparent; only pan/zoom stays available. */
 
 html.viewer-mode .topbar,

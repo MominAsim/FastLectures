@@ -88,7 +88,7 @@ function discoveryFixture({ search, verify, contractDocument = "PUBLIC_API_GUIDA
 
 async function createNativeRuntimeFixture(t, { publicWebEnabled = true, webSearchEnabled = false, discovery } = {}) {
   const { createCanvasAgentNativeRuntime } = await import("../src/server/canvas-agent/runtime.mjs");
-  const projectRuntimeDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-public-api-native-"));
+  const projectRuntimeDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-public-api-native-"));
   t.after(() => fs.rmSync(projectRuntimeDirectory, { recursive:true, force:true }));
   const session = {
     projectRuntimeDirectory,
@@ -112,7 +112,7 @@ async function createNativeRuntimeFixture(t, { publicWebEnabled = true, webSearc
 }
 
 test("public_api stays out of the cold prompt, loads bounded offline guidance once, and preserves web_read", async t => {
-  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-public-api-cold-"));
+  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-public-api-cold-"));
   t.after(() => fs.rmSync(stateDirectory, { recursive:true, force:true }));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
   const contractDocument = "PUBLIC_API_GUIDANCE_FULL\nUse only the bounded public API discovery flow.";
@@ -200,7 +200,7 @@ test("public_api stays out of the cold prompt, loads bounded offline guidance on
 });
 
 test("public_api verify accepts an arbitrary HTTPS endpoint and keeps runtime verification unverified", async t => {
-  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-public-api-verify-"));
+  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-public-api-verify-"));
   t.after(() => fs.rmSync(stateDirectory, { recursive:true, force:true }));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
   const publicFetchCalls = [];
@@ -279,7 +279,7 @@ test("public_api verify accepts an arbitrary HTTPS endpoint and keeps runtime ve
 });
 
 test("publicWeb capability keeps public_api while disabling web alternatives", async t => {
-  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-public-api-capability-"));
+  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-public-api-capability-"));
   t.after(() => fs.rmSync(stateDirectory, { recursive:true, force:true }));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
   const conn = connection("public-api-capability-cli");
@@ -316,7 +316,7 @@ test("publicWeb capability keeps public_api while disabling web alternatives", a
     /Internet tools are unavailable/,
   );
 
-  const searchStateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-public-api-search-on-"));
+  const searchStateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-public-api-search-on-"));
   t.after(() => fs.rmSync(searchStateDirectory, { recursive:true, force:true }));
   const searchCalls = [];
   const searchHost = new CanvasHarnessHost({
@@ -352,7 +352,7 @@ test("native runtime exposes public_api dynamically and returns first-use guidan
     search:async ({ limit }) => ({ action:"search", results:[{ id:"native-result" }].slice(0, limit) }),
   });
   const { runtime, session } = await createNativeRuntimeFixture(t, { discovery:fixture.discovery });
-  const namespace = runtime.dynamicTools().find(entry => entry.name === "penecho");
+  const namespace = runtime.dynamicTools().find(entry => entry.name === "fastlectures");
   const names = namespace.tools.map(tool => tool.name);
   assert.ok(names.includes("public_api"));
   assert.ok(names.includes("web_read"));
@@ -381,7 +381,7 @@ test("native runtime exposes public_api dynamically and returns first-use guidan
     webSearchEnabled:true,
     discovery:enabledFixture.discovery,
   });
-  const enabledNames = enabledRuntime.dynamicTools().find(entry => entry.name === "penecho").tools.map(tool => tool.name);
+  const enabledNames = enabledRuntime.dynamicTools().find(entry => entry.name === "fastlectures").tools.map(tool => tool.name);
   assert.ok(enabledNames.includes("public_api"));
   assert.ok(enabledNames.includes("web_read"));
   assert.ok(enabledNames.includes("duckduckgo_search"));
@@ -391,7 +391,7 @@ test("native runtime exposes public_api dynamically and returns first-use guidan
     webSearchEnabled:true,
     discovery:fixture.discovery,
   });
-  const disabledNames = disabledRuntime.dynamicTools().find(entry => entry.name === "penecho").tools.map(tool => tool.name);
+  const disabledNames = disabledRuntime.dynamicTools().find(entry => entry.name === "fastlectures").tools.map(tool => tool.name);
   assert.ok(disabledNames.includes("public_api"));
   assert.equal(disabledNames.includes("web_read"), false);
   assert.equal(disabledNames.includes("duckduckgo_search"), false);
@@ -444,7 +444,7 @@ test("native runtime exposes public_api dynamically and returns first-use guidan
 });
 
 test("Codex Native session wires public_api through the host discovery loader", async t => {
-  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-public-api-codex-native-"));
+  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-public-api-codex-native-"));
   t.after(() => fs.rmSync(stateDirectory, { recursive:true, force:true }));
   const { CodexNativeHost } = await import("../src/server/canvas-agent/codex-native-host.mjs");
   const conn = connection("public-api-codex-native");
@@ -465,7 +465,7 @@ test("Codex Native session wires public_api through the host discovery loader", 
     binding:{},
     send:() => {},
   });
-  const nativeTools = host.nativeTools(session).find(entry => entry.name === "penecho");
+  const nativeTools = host.nativeTools(session).find(entry => entry.name === "fastlectures");
   assert.ok(nativeTools.tools.some(tool => tool.name === "public_api"));
   const first = await session.native.tool("public_api").execute(
     { action:"search", query:"weather", limit:1 },
@@ -483,7 +483,7 @@ test("Codex Native session wires public_api through the host discovery loader", 
 test("public API discovery uses a real bounded snapshot and safe verify fetch", async t => {
   const { createPublicApiDiscovery } = await import(pathToFileURL(DISCOVERY_MODULE_PATH).href);
   assert.equal(typeof createPublicApiDiscovery, "function");
-  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-public-api-real-"));
+  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-public-api-real-"));
   t.after(() => fs.rmSync(stateDirectory, { recursive:true, force:true }));
   const fetchCalls = [];
   const publicFetch = async (url, signal, options) => {

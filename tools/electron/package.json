@@ -1,8 +1,8 @@
 {
-  "name": "penecho-desktop-toolchain",
+  "name": "fastlectures-desktop-toolchain",
   "version": "0.7.1",
   "private": true,
-  "description": "Isolated Electron Forge build toolchain for PenEcho",
+  "description": "Isolated Electron Forge build toolchain for FastLectures",
   "engines": {
     "node": ">=22.12.0"
   },

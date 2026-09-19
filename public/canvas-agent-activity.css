@@ -1,4 +1,4 @@
-/* Standalone user-only PenEcho Agent activity; see the companion JS removal seam. */
+/* Standalone user-only FastLectures Agent activity; see the companion JS removal seam. */
 .canvas-agent-activity {
   --canvas-agent-activity-accent: var(--studio-accent, #4f46e5);
   --canvas-agent-activity-accent-strong: var(--studio-accent-strong, #4338ca);
@@ -239,7 +239,7 @@
   font-weight: 400;
 }
 
-/* PenEcho typography contract: this file loads after style.css, so the
+/* FastLectures typography contract: this file loads after style.css, so the
    activity surface closes its own legacy type cascade here. */
 :is(#pe-type-contract, .canvas-agent-activity) {
   --canvas-agent-activity-font: var(--pe-font-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif);

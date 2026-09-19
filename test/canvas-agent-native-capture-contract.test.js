@@ -10,7 +10,7 @@ test("Codex Native adds the explicit Code Mode capture consumption contract at t
   } = await import("../src/server/canvas-agent/codex-native-host.mjs");
   const dynamicTools = [{
     type:"namespace",
-    name:"penecho",
+    name:"fastlectures",
     description:"namespace",
     tools:[
       { type:"function", name:"canvas_capture", description:"Capture evidence.", inputSchema:{ type:"object" } },
@@ -22,7 +22,7 @@ test("Codex Native adds the explicit Code Mode capture consumption contract at t
   assert.notEqual(wrapped[0], dynamicTools[0]);
   assert.equal(wrapped[0].tools[1], dynamicTools[0].tools[1]);
   const description = wrapped[0].tools[0].description;
-  assert.match(description, /tools\.penecho__canvas_capture/);
+  assert.match(description, /tools\.fastlectures__canvas_capture/);
   assert.match(description, /nested result string/);
   assert.match(description, /raw\?\.imageUrl/);
   assert.match(description, /raw\?\.attachment\?\.dataUrl/);

@@ -18,7 +18,7 @@ const SERVER_ERRORS={
   image_codec_unavailable:'The host cannot decode this image codec. Export it as PNG or JPEG and retry.',
   invalid_image:'The image could not be decoded. Export a valid PNG or JPEG and retry.',
   image_too_large:'Reduce the image below 32 MiB and 40 megapixels, then retry.',
-  image_encoder_unavailable:'Restore the host PenEcho image dependencies, then retry.',
+  image_encoder_unavailable:'Restore the host FastLectures image dependencies, then retry.',
   canvas_busy:'The selected Canvas is busy. Retry explicitly after pending work finishes.',
   canvas_disconnected:'Reconnect the original Canvas before explicitly retrying with the same requestId.'
 };
@@ -30,7 +30,7 @@ function rejection(status,body,dispatched){
 function uploadName(file,pathAPI=path){return pathAPI.basename(file);}
 function failure(code,dispatched=false){return Object.assign(Error(code),{code,dispatched});}
 function metadata(body,options){
-  if(!body||body.documentId!==options.documentId||body.canvasId!==options.canvasId||body.requestId!==options.requestId||!/^penecho-asset:[a-f0-9]{64}$/.test(body.source||'')||body.assetId!==body.source.slice(14)||!/^[a-f0-9]{64}$/.test(body.inputSha256||'')||typeof body.name!=='string'||!body.name.length||body.name.length>200||!['image/png','image/jpeg','image/webp'].includes(body.mediaType)||!['bytes','width','height','revision'].every(key=>Number.isSafeInteger(body[key])&&body[key]>=(key==='revision'?0:1)))throw failure('INVALID_RESPONSE',true);
+  if(!body||body.documentId!==options.documentId||body.canvasId!==options.canvasId||body.requestId!==options.requestId||!/^fastlectures-asset:[a-f0-9]{64}$/.test(body.source||'')||body.assetId!==body.source.slice("fastlectures-asset:".length)||!/^[a-f0-9]{64}$/.test(body.inputSha256||'')||typeof body.name!=='string'||!body.name.length||body.name.length>200||!['image/png','image/jpeg','image/webp'].includes(body.mediaType)||!['bytes','width','height','revision'].every(key=>Number.isSafeInteger(body[key])&&body[key]>=(key==='revision'?0:1)))throw failure('INVALID_RESPONSE',true);
   return Object.fromEntries(['source','assetId','name','mediaType','bytes','width','height','documentId','canvasId','requestId','inputSha256','revision','reused'].filter(key=>key!=='reused'||typeof body[key]==='boolean').map(key=>[key,body[key]]));
 }
 function requestUpload(endpoint,credentials,stream,size,options){

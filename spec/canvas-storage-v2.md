@@ -1,13 +1,13 @@
-# PenEcho Canvas Bundle v2
+# FastLectures Canvas Bundle v2
 
-Status: stable for PenEcho 0.8.x. Changes to required fields or existing asset semantics require a new `formatVersion` and a backward-compatible reader.
+Status: stable for FastLectures 0.8.x. Changes to required fields or existing asset semantics require a new `formatVersion` and a backward-compatible reader.
 
 ## Goals
 
 - One self-contained JSON object for server storage, browser sharing, export, and import.
 - No device paths, server object URLs, access tokens, project IDs, or other environment-specific state inside the portable content.
 - Keep independently evolving content separate: raster tiles, preview, widgets, images, and future attachments are individual assets inside one bundle.
-- Match the PenEcho Cloud bundle envelope so the same content can move between the local server and cloud storage without conversion.
+- Match the FastLectures Cloud bundle envelope so the same content can move between the local server and cloud storage without conversion.
 
 ## Portable envelope
 
@@ -23,13 +23,13 @@ Status: stable for PenEcho 0.8.x. Changes to required fields or existing asset s
 }
 ```
 
-`bundleVersion` describes the single-object container. `formatVersion` describes PenEcho canvas semantics. `mode` is `snapshot`; PenEcho Cloud may additionally accept a transport-only `patch` and materialize it to a snapshot before sharing or export. Local writers include `version: 2`; readers also recognize a Cloud bundle that identifies itself only with `bundleVersion: 2`.
+`bundleVersion` describes the single-object container. `formatVersion` describes FastLectures canvas semantics. `mode` is `snapshot`; FastLectures Cloud may additionally accept a transport-only `patch` and materialize it to a snapshot before sharing or export. Local writers include `version: 2`; readers also recognize a Cloud bundle that identifies itself only with `bundleVersion: 2`.
 
 ## Manifest
 
-The manifest follows the existing PenEcho Cloud portable format:
+The manifest follows the existing FastLectures Cloud portable format:
 
-- `format`: `penecho-raster-tiles`.
+- `format`: `fastlectures-raster-tiles`.
 - `formatVersion`: currently `1`.
 - `canvasSize` and `tileSize`.
 - `theme` and `view`.
@@ -62,6 +62,6 @@ Future portable data should use a namespaced entry in `manifest.extensions`, or 
 
 ## Projects and sharing
 
-Projects exist only in PenEcho server storage. `uncategorized` is permanent. Creating, moving, or deleting a project updates external metadata; deleting a project immediately moves its canvases to `uncategorized` and does not rewrite Bundle content. Device-only IndexedDB snapshots do not expose project organization.
+Projects exist only in FastLectures server storage. `uncategorized` is permanent. Creating, moving, or deleting a project updates external metadata; deleting a project immediately moves its canvases to `uncategorized` and does not rewrite Bundle content. Device-only IndexedDB snapshots do not expose project organization.
 
 For export or web sharing, the server can return the latest snapshot Bundle directly. For import, the same Bundle can be posted back with or without its transport metadata. This boundary leaves room for future share links, access-control metadata, revision history, partial upload transport, and additional asset types without changing the portable canvas semantics.

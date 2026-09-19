@@ -340,7 +340,7 @@ function runProcess(launch, args, input, cwd, env, signal, onProgress = null, on
 }
 
 async function callClaudeCli({ executable, model, effort, systemPrompt, prompt, atlasImage, signal, env = process.env, onProgress = null, onText = null, onActivity = null, onUsage = null }) {
-  const workDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-claude-"));
+  const workDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-claude-"));
   let caughtError = null, cleanupReady = Promise.resolve(), deferCleanup = false;
   try {
     await fs.promises.chmod(workDir, 0o700).catch(() => {});

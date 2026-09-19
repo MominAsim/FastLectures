@@ -1,5 +1,5 @@
 ---
-penecho-plugin: 1
+fastlectures-plugin: 1
 id: tech-news
 name: Tech News
 name-zh: 科技新闻
@@ -28,7 +28,7 @@ For the front page fetch JSON `GET https://hn.algolia.com/api/v1/search?tags=fro
 
 ## Runtime rules
 
-Fetch only the declared origin with `credentials:"omit"`. The HTML owns fetching and its timer. Do not use external assets, current-frame navigation, forms, cookies, storage, or secrets. Show loading/error states and last successful update. After every render call `window.parent.postMessage({type:"penecho-widget-updated"}, "*")`.
+Fetch only the declared origin with `credentials:"omit"`. The HTML owns fetching and its timer. Do not use external assets, current-frame navigation, forms, cookies, storage, or secrets. Show loading/error states and last successful update. After every render call `window.parent.postMessage({type:"fastlectures-widget-updated"}, "*")`.
 
 ## One-shot example
 

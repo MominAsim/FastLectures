@@ -2,7 +2,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
-  else root.PENECHO_DRAW = api;
+  else root.FASTLECTURES_DRAW = api;
 })(typeof globalThis === "object" ? globalThis : this, function () {
   const TYPES = new Set(["line", "smooth", "rect", "ellipse", "circle", "arc"]),
     MAX_ITEMS = 64,

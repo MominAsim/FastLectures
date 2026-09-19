@@ -1,8 +1,8 @@
 "use strict";
 (() => {
-  const PLAN_SELECTOR = "script[type='application/json'][data-penecho-visual-explainer]",
-    ROOT_ID = "penecho-visual-explainer",
-    STYLE_ID = "penecho-visual-explainer-style",
+  const PLAN_SELECTOR = "script[type='application/json'][data-fastlectures-visual-explainer]",
+    ROOT_ID = "fastlectures-visual-explainer",
+    STYLE_ID = "fastlectures-visual-explainer-style",
     ANT_KINDS = new Set(["flow","timeline","hierarchy","relationship"]),
     DEFAULT_PALETTE = ["#2563eb","#0891b2","#16a34a","#ea580c","#7c3aed","#dc2626"];
 
@@ -216,7 +216,7 @@
       const finish=ok=>{if(settled)return;settled=true;clearTimeout(timer);if(!ok)try{instance?.destroy?.();}catch{}resolve(ok);};
       const timer=setTimeout(()=>{issues.push({code:"ANTV_RENDER_TIMEOUT",severity:"warning",sectionId:section.id,message:"Infographic rendering timed out; deterministic fallback was used."});try{instance?.destroy?.();}catch{}finish(false);},2200);
       try{
-        instance=new Infographic({container,width:"100%",height:"100%",editable:false});container._penechoInfographic=instance;
+        instance=new Infographic({container,width:"100%",height:"100%",editable:false});container._fastlecturesInfographic=instance;
         instance.on?.("warning",warnings=>issues.push({code:"ANTV_RENDER_WARNING",severity:"warning",sectionId:section.id,message:`AntV reported ${Array.isArray(warnings)?warnings.length:1} warning(s).`}));
         instance.on?.("error",error=>{issues.push({code:"ANTV_RENDER_ERROR",severity:"warning",sectionId:section.id,message:text(error?.message||"AntV could not render this panel.").slice(0,240)});finish(false);});
         instance.on?.("rendered",()=>requestAnimationFrame(()=>{fitInfographicSvg(container);finish(true);}));instance.render(options);
@@ -245,7 +245,7 @@
     parsed.querySelectorAll("a[href]").forEach(link=>{link.target="_blank";link.rel="noopener noreferrer";});
     const meta=parsed.createElement("meta");meta.httpEquiv="Content-Security-Policy";meta.content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https:; style-src 'unsafe-inline' https:; connect-src https:; img-src data: blob: https:; font-src data: https:; media-src data: blob: https:; frame-src 'none'; worker-src blob: https:; object-src 'none'; form-action 'none'; base-uri 'none'";parsed.head.prepend(meta);
     const bridge=parsed.createElement("script"),artifactId=JSON.stringify(artifact.id);
-    bridge.textContent=`(()=>{const artifactId=${artifactId};let timer,snapshotTimer,snapshotRunning=false;const snapshot=()=>{clearTimeout(snapshotTimer);snapshotTimer=setTimeout(async()=>{if(snapshotRunning)return;snapshotRunning=true;let url,canvas;try{const width=Math.max(1,document.documentElement.clientWidth),height=Math.max(1,document.documentElement.clientHeight),clone=document.body.cloneNode(true);clone.querySelectorAll('script').forEach(node=>node.remove());clone.setAttribute('xmlns','http://www.w3.org/1999/xhtml');for(const style of [...document.querySelectorAll('style')].reverse())clone.prepend(style.cloneNode(true));clone.style.cssText+=';width:'+width+'px;height:'+height+'px;overflow:hidden;margin:0';const content=new XMLSerializer().serializeToString(clone),svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+width+'" height="'+height+'"><foreignObject width="100%" height="100%">'+content+'</foreignObject></svg>';url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));const image=await new Promise((resolve,reject)=>{const value=new Image();value.onload=()=>resolve(value);value.onerror=reject;value.src=url});canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;canvas.getContext('2d').drawImage(image,0,0,width,height);const dataUrl=canvas.toDataURL('image/png');if(dataUrl.length<8*1024*1024)parent.postMessage({type:'penecho-visual-artifact-snapshot',artifactId,dataUrl},'*')}catch{}finally{if(url)URL.revokeObjectURL(url);if(canvas)canvas.width=canvas.height=1;snapshotRunning=false}},90)};const send=()=>{clearTimeout(timer);timer=setTimeout(()=>{const page=document.documentElement.getBoundingClientRect(),ports=[...document.querySelectorAll('[data-penecho-port]')].slice(0,32).map(node=>{const rect=node.getBoundingClientRect();return{id:String(node.dataset.penechoPort||''),x:(rect.left+rect.width/2-page.left)/Math.max(1,page.width),y:(rect.top+rect.height/2-page.top)/Math.max(1,page.height)}}).filter(port=>port.id);parent.postMessage({type:'penecho-visual-artifact-ports',artifactId,ports},'*');snapshot()},32)};addEventListener('DOMContentLoaded',send);addEventListener('resize',send);new MutationObserver(send).observe(document.documentElement,{subtree:true,childList:true,attributes:true});addEventListener('message',event=>{if(event.data?.type==='penecho-visual-request-ports')send()});send()})()`;
+    bridge.textContent=`(()=>{const artifactId=${artifactId};let timer,snapshotTimer,snapshotRunning=false;const snapshot=()=>{clearTimeout(snapshotTimer);snapshotTimer=setTimeout(async()=>{if(snapshotRunning)return;snapshotRunning=true;let url,canvas;try{const width=Math.max(1,document.documentElement.clientWidth),height=Math.max(1,document.documentElement.clientHeight),clone=document.body.cloneNode(true);clone.querySelectorAll('script').forEach(node=>node.remove());clone.setAttribute('xmlns','http://www.w3.org/1999/xhtml');for(const style of [...document.querySelectorAll('style')].reverse())clone.prepend(style.cloneNode(true));clone.style.cssText+=';width:'+width+'px;height:'+height+'px;overflow:hidden;margin:0';const content=new XMLSerializer().serializeToString(clone),svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+width+'" height="'+height+'"><foreignObject width="100%" height="100%">'+content+'</foreignObject></svg>';url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));const image=await new Promise((resolve,reject)=>{const value=new Image();value.onload=()=>resolve(value);value.onerror=reject;value.src=url});canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;canvas.getContext('2d').drawImage(image,0,0,width,height);const dataUrl=canvas.toDataURL('image/png');if(dataUrl.length<8*1024*1024)parent.postMessage({type:'fastlectures-visual-artifact-snapshot',artifactId,dataUrl},'*')}catch{}finally{if(url)URL.revokeObjectURL(url);if(canvas)canvas.width=canvas.height=1;snapshotRunning=false}},90)};const send=()=>{clearTimeout(timer);timer=setTimeout(()=>{const page=document.documentElement.getBoundingClientRect(),ports=[...document.querySelectorAll('[data-fastlectures-port]')].slice(0,32).map(node=>{const rect=node.getBoundingClientRect();return{id:String(node.dataset.fastlecturesPort||''),x:(rect.left+rect.width/2-page.left)/Math.max(1,page.width),y:(rect.top+rect.height/2-page.top)/Math.max(1,page.height)}}).filter(port=>port.id);parent.postMessage({type:'fastlectures-visual-artifact-ports',artifactId,ports},'*');snapshot()},32)};addEventListener('DOMContentLoaded',send);addEventListener('resize',send);new MutationObserver(send).observe(document.documentElement,{subtree:true,childList:true,attributes:true});addEventListener('message',event=>{if(event.data?.type==='fastlectures-visual-request-ports')send()});send()})()`;
     parsed.body.append(bridge);return `<!doctype html>\n${parsed.documentElement.outerHTML}`;
   }
   function relationAnchor(root,plan,endpoint,artifactAnchors) {
@@ -274,7 +274,7 @@
       else body.append(renderNative({...region,kind:region.renderer}));
     });
     if(plan.annotations?.length){const notes=element("footer","vex-annotations");plan.annotations.forEach(value=>notes.append(element("div","vex-note",value)));root.append(notes);}else root.append(element("div"));
-    const onMessage=event=>{const data=event.data,frame=(frames.get(String(data?.artifactId||""))||[]).find(value=>value.contentWindow===event.source),allFrames=[...frames.values()].flat();if(data?.type==="penecho-visual-artifact-ports"&&frame){for(const port of Array.isArray(data.ports)?data.ports:[]){if(typeof port?.id!=="string"||!Number.isFinite(port.x)||!Number.isFinite(port.y)||port.x<0||port.x>1||port.y<0||port.y>1)continue;artifactAnchors.set(`${data.artifactId}:${port.id}`,{x:port.x,y:port.y});}drawRelations(root,plan,artifactAnchors);}if(data?.type==="penecho-visual-artifact-snapshot"&&frame&&typeof data.dataUrl==="string"&&data.dataUrl.startsWith("data:image/png;base64,")&&data.dataUrl.length<8*1024*1024){let preview=frame.parentElement.querySelector(".vex-embedded-snapshot");if(!preview){preview=element("img","vex-embedded-snapshot");preview.alt="";frame.before(preview);}preview.src=data.dataUrl;}if(data?.type==="penecho-widget-updated"&&allFrames.some(value=>value.contentWindow===event.source)){event.source.postMessage({type:"penecho-visual-request-ports"},"*");parent.postMessage({type:"penecho-widget-updated"},"*");}};addEventListener("message",onMessage);root._vexMessageCleanup=()=>removeEventListener("message",onMessage);
+    const onMessage=event=>{const data=event.data,frame=(frames.get(String(data?.artifactId||""))||[]).find(value=>value.contentWindow===event.source),allFrames=[...frames.values()].flat();if(data?.type==="fastlectures-visual-artifact-ports"&&frame){for(const port of Array.isArray(data.ports)?data.ports:[]){if(typeof port?.id!=="string"||!Number.isFinite(port.x)||!Number.isFinite(port.y)||port.x<0||port.x>1||port.y<0||port.y>1)continue;artifactAnchors.set(`${data.artifactId}:${port.id}`,{x:port.x,y:port.y});}drawRelations(root,plan,artifactAnchors);}if(data?.type==="fastlectures-visual-artifact-snapshot"&&frame&&typeof data.dataUrl==="string"&&data.dataUrl.startsWith("data:image/png;base64,")&&data.dataUrl.length<8*1024*1024){let preview=frame.parentElement.querySelector(".vex-embedded-snapshot");if(!preview){preview=element("img","vex-embedded-snapshot");preview.alt="";frame.before(preview);}preview.src=data.dataUrl;}if(data?.type==="fastlectures-widget-updated"&&allFrames.some(value=>value.contentWindow===event.source)){event.source.postMessage({type:"fastlectures-visual-request-ports"},"*");parent.postMessage({type:"fastlectures-widget-updated"},"*");}};addEventListener("message",onMessage);root._vexMessageCleanup=()=>removeEventListener("message",onMessage);
     await Promise.all(pending);await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));drawRelations(root,plan,artifactAnchors);const geometry=geometryIssues(root),finalIssues=uniqueIssues([...issues,...geometry]),score=scoreFor(finalIssues,plan.regions),status=finalIssues.some(issue=>issue.severity==="error")?"fail":finalIssues.length?"warn":"pass",signature=finalIssues.map(issue=>`${issue.code}:${issue.sectionId||"all"}`).sort().join("|")||"none";
     return {version:1,status,score,density:"comfortable",deterministicAttempts:1,issues:finalIssues,issueSignature:signature,semanticReplanRecommended:status==="fail"||finalIssues.some(issue=>issue.code==="TEXT_OVERFLOW")};
   }
@@ -294,7 +294,7 @@
     const seen=new Set();return issues.filter(issue=>{const key=[issue.code,issue.sectionId||""].join(":");if(seen.has(key))return false;seen.add(key);return true;}).slice(0,12);
   }
   function destroyInfographics(root) {
-    root.querySelectorAll(".vex-antv").forEach(node=>{try{node._penechoInfographic?.destroy?.();}catch{}});
+    root.querySelectorAll(".vex-antv").forEach(node=>{try{node._fastlecturesInfographic?.destroy?.();}catch{}});
   }
   async function renderPlan(root,plan) {
     if(!Array.isArray(plan?.regions)||!plan.regions.length)throw Error("Unsupported VisualExplainerPlan contract.");
@@ -302,9 +302,9 @@
   }
   let readySent=false;
   function finish(diagnostics) {
-    parent.postMessage({type:"penecho-visual-explainer-diagnostics",diagnostics},"*");
-    if(readySent)parent.postMessage({type:"penecho-widget-updated"},"*");
-    else{readySent=true;dispatchEvent(new Event("penecho-visual-explainer-ready"));}
+    parent.postMessage({type:"fastlectures-visual-explainer-diagnostics",diagnostics},"*");
+    if(readySent)parent.postMessage({type:"fastlectures-widget-updated"},"*");
+    else{readySent=true;dispatchEvent(new Event("fastlectures-visual-explainer-ready"));}
   }
   function observePlanResize(root,plan) {
     if(typeof ResizeObserver!=="function")return null;
@@ -333,7 +333,7 @@
     const source=document.querySelector(PLAN_SELECTOR),root=document.getElementById(ROOT_ID);
     if(!source||!root)return;
     try{const plan=JSON.parse(source.textContent||"");finish(await renderPlan(root,plan));observePlanResize(root,plan);}
-    catch(error){root.className="penecho-visual-loading";root.replaceChildren(element("h1","", "Visual explanation unavailable"),element("p","",text(error?.message||error)));finish({version:1,status:"fail",score:0,density:"comfortable",deterministicAttempts:1,issues:[{code:"PLAN_OR_RENDER_FAILURE",severity:"error",message:text(error?.message||error).slice(0,240)}],issueSignature:"PLAN_OR_RENDER_FAILURE:all",semanticReplanRecommended:true});}
+    catch(error){root.className="fastlectures-visual-loading";root.replaceChildren(element("h1","", "Visual explanation unavailable"),element("p","",text(error?.message||error)));finish({version:1,status:"fail",score:0,density:"comfortable",deterministicAttempts:1,issues:[{code:"PLAN_OR_RENDER_FAILURE",severity:"error",message:text(error?.message||error).slice(0,240)}],issueSignature:"PLAN_OR_RENDER_FAILURE:all",semanticReplanRecommended:true});}
   }
   void main();
 })();

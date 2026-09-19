@@ -1,6 +1,6 @@
 {
-  "appId": "ai.penecho.mobile",
-  "appName": "PenEcho",
+  "appId": "ai.fastlectures.mobile",
+  "appName": "FastLectures",
   "webDir": "web",
   "server": {
     "allowNavigation": ["*"],

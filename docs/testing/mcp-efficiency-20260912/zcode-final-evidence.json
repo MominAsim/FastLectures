@@ -6,7 +6,7 @@
     "durationMs": 201,
     "context": {
       "mcpProtocolVersion": "2025-11-25",
-      "mcpServerName": "penecho",
+      "mcpServerName": "fastlectures",
       "toolCount": 19
     }
   },
@@ -45,7 +45,7 @@
     "status": "started",
     "context": {
       "model": "56265ee6-5ebc-49f0-a14b-24a1b8b54c6d/deepseek-v4.1-flash-expires-on-0910",
-      "toolName": "mcp__penecho__penecho_start_session"
+      "toolName": "mcp__fastlectures__fastlectures_start_session"
     }
   },
   {
@@ -55,7 +55,7 @@
     "durationMs": 30,
     "context": {
       "model": "56265ee6-5ebc-49f0-a14b-24a1b8b54c6d/deepseek-v4.1-flash-expires-on-0910",
-      "toolName": "mcp__penecho__penecho_start_session"
+      "toolName": "mcp__fastlectures__fastlectures_start_session"
     }
   },
   {
@@ -82,7 +82,7 @@
     "status": "started",
     "context": {
       "model": "56265ee6-5ebc-49f0-a14b-24a1b8b54c6d/deepseek-v4.1-flash-expires-on-0910",
-      "toolName": "mcp__penecho__penecho_present_widget"
+      "toolName": "mcp__fastlectures__fastlectures_present_widget"
     }
   },
   {
@@ -92,7 +92,7 @@
     "durationMs": 34,
     "context": {
       "model": "56265ee6-5ebc-49f0-a14b-24a1b8b54c6d/deepseek-v4.1-flash-expires-on-0910",
-      "toolName": "mcp__penecho__penecho_present_widget"
+      "toolName": "mcp__fastlectures__fastlectures_present_widget"
     }
   },
   {
@@ -119,7 +119,7 @@
     "status": "started",
     "context": {
       "model": "56265ee6-5ebc-49f0-a14b-24a1b8b54c6d/deepseek-v4.1-flash-expires-on-0910",
-      "toolName": "mcp__penecho__penecho_read_file"
+      "toolName": "mcp__fastlectures__fastlectures_read_file"
     }
   },
   {
@@ -129,7 +129,7 @@
     "durationMs": 8,
     "context": {
       "model": "56265ee6-5ebc-49f0-a14b-24a1b8b54c6d/deepseek-v4.1-flash-expires-on-0910",
-      "toolName": "mcp__penecho__penecho_read_file"
+      "toolName": "mcp__fastlectures__fastlectures_read_file"
     }
   },
   {
@@ -156,7 +156,7 @@
     "status": "started",
     "context": {
       "model": "56265ee6-5ebc-49f0-a14b-24a1b8b54c6d/deepseek-v4.1-flash-expires-on-0910",
-      "toolName": "mcp__penecho__penecho_patch_file"
+      "toolName": "mcp__fastlectures__fastlectures_patch_file"
     }
   },
   {
@@ -166,7 +166,7 @@
     "durationMs": 76,
     "context": {
       "model": "56265ee6-5ebc-49f0-a14b-24a1b8b54c6d/deepseek-v4.1-flash-expires-on-0910",
-      "toolName": "mcp__penecho__penecho_patch_file"
+      "toolName": "mcp__fastlectures__fastlectures_patch_file"
     }
   },
   {

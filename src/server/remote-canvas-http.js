@@ -2,7 +2,7 @@
 
 const MAX_REMOTE_CANVAS_PATH_BYTES = 20 * 1024;
 const MAX_REMOTE_CANVAS_RESPONSE_BYTES = 96 * 1024 * 1024;
-const SAFE_RESPONSE_HEADERS = new Set(["x-penecho-final-url", "x-penecho-upstream-status"]);
+const SAFE_RESPONSE_HEADERS = new Set(["x-fastlectures-final-url", "x-fastlectures-upstream-status"]);
 
 const CANVAS_ID = "\\d{10,16}-[a-zA-Z0-9-]{8,64}";
 const PROJECT_ID = "project-[a-zA-Z0-9-]{8,64}";
@@ -85,8 +85,8 @@ function remoteCanvasTarget(method, value) {
   if (!new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]).has(requestMethod)) throw Object.assign(new Error("Remote Canvas method is not allowed."), { code:"remote_canvas_method", status:405 });
   const source = String(value || "");
   if (!source || Buffer.byteLength(source, "utf8") > MAX_REMOTE_CANVAS_PATH_BYTES || !source.startsWith("/")) throw Object.assign(new Error("Remote Canvas path is invalid."), { code:"remote_canvas_path", status:400 });
-  const url = new URL(source, "http://penecho.local");
-  if (url.origin !== "http://penecho.local" || url.hash || url.username || url.password) throw Object.assign(new Error("Remote Canvas path is invalid."), { code:"remote_canvas_path", status:400 });
+  const url = new URL(source, "http://fastlectures.local");
+  if (url.origin !== "http://fastlectures.local" || url.hash || url.username || url.password) throw Object.assign(new Error("Remote Canvas path is invalid."), { code:"remote_canvas_path", status:400 });
   const route = ROUTES.find((candidate) => candidate.pattern.test(url.pathname));
   if (!route || !route.methods.has(requestMethod) || url.search && (!route.query || typeof route.query === "function" && !route.query(url.searchParams, requestMethod))) throw Object.assign(new Error("Remote Canvas route is not available."), { code:"remote_canvas_route", status:404 });
   return `${url.pathname}${url.search}`;
@@ -103,7 +103,7 @@ function responseHeaders(response) {
 
 function createRemoteCanvasHttpExecutor({ origin, sessionCookie, fetchImpl = global.fetch }) {
   const localOrigin = new URL(String(origin || ""));
-  if (localOrigin.protocol !== "http:" || localOrigin.hostname !== "127.0.0.1" || localOrigin.pathname !== "/") throw new Error("Remote Canvas executor requires the loopback PenEcho origin.");
+  if (localOrigin.protocol !== "http:" || localOrigin.hostname !== "127.0.0.1" || localOrigin.pathname !== "/") throw new Error("Remote Canvas executor requires the loopback FastLectures origin.");
   const cookie = String(sessionCookie || "");
   if (!cookie) throw new Error("Remote Canvas executor requires a local session cookie.");
   return async function executeRemoteCanvasHttp(input, timeoutMs) {
@@ -124,7 +124,7 @@ function createRemoteCanvasHttpExecutor({ origin, sessionCookie, fetchImpl = glo
           origin:localOrigin.origin,
           cookie,
           ...(hasBody ? { "content-type":"application/json" } : {}),
-          ...(connectionId ? { "x-penecho-connection":connectionId } : {}),
+          ...(connectionId ? { "x-fastlectures-connection":connectionId } : {}),
         },
         body:hasBody ? JSON.stringify(input.request.body) : undefined,
       });
@@ -134,7 +134,7 @@ function createRemoteCanvasHttpExecutor({ origin, sessionCookie, fetchImpl = glo
       const result = { status:response.status, contentType, headers:responseHeaders(response) };
       if (contentType === "application/json") {
         try { result.body = bytes.length ? JSON.parse(bytes.toString("utf8")) : null; }
-        catch { throw Object.assign(new Error("Local PenEcho returned invalid JSON."), { code:"remote_canvas_invalid_response", status:502 }); }
+        catch { throw Object.assign(new Error("Local FastLectures returned invalid JSON."), { code:"remote_canvas_invalid_response", status:502 }); }
       } else if (contentType.startsWith("text/") || ["application/javascript", "image/svg+xml"].includes(contentType)) {
         result.body = bytes.toString("utf8");
       } else {

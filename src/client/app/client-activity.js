@@ -1,8 +1,8 @@
 (() => {
   "use strict";
 
-  const INSTALLATION_KEY = "penecho-anonymous-installation-id-v1";
-  const SENT_KEY = "penecho-client-activity-sent-v1";
+  const INSTALLATION_KEY = "fastlectures-anonymous-installation-id-v1";
+  const SENT_KEY = "fastlectures-client-activity-sent-v1";
   const IDENTIFIER_PATTERN = /^[0-9a-f]{32,64}$/;
 
   function randomInstallationId() {
@@ -39,7 +39,7 @@
   }
 
   function metadata() {
-    const config = window.PENECHO_CONFIG || {};
+    const config = window.FASTLECTURES_CONFIG || {};
     const runtime = String(config.runtime || "device");
     if (runtime === "viewer") return null;
     const platform = browserPlatform();
@@ -51,7 +51,7 @@
       : platform === "unknown" && runtime === "cloud" ? "web" : platform;
     const version = String(config.clientVersion || (runtime === "cloud" ? "cloud" : "unknown")).trim();
     const safeVersion = /^[0-9A-Za-z][0-9A-Za-z._+-]{0,47}$/.test(version) ? version : "unknown";
-    const origin = runtime === "cloud" ? location.origin : String(config.cloudOrigin || "https://penecho.ai");
+    const origin = runtime === "cloud" ? location.origin : String(config.cloudOrigin || "https://fastlectures.ai");
     return { client, platform:reportedPlatform, version:safeVersion, origin };
   }
 

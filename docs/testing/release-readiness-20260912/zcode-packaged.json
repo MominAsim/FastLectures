@@ -1,12 +1,12 @@
 {
   "tools": [
     {
-      "tool": "mcp__penecho__penecho_start_session",
+      "tool": "mcp__fastlectures__fastlectures_start_session",
       "ms": 1260,
       "status": "completed"
     },
     {
-      "tool": "mcp__penecho__penecho_present_widget",
+      "tool": "mcp__fastlectures__fastlectures_present_widget",
       "ms": 176,
       "status": "completed"
     }

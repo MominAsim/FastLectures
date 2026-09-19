@@ -1,5 +1,5 @@
 ---
-penecho-plugin: 1
+fastlectures-plugin: 1
 id: space-weather
 name: Space Weather
 name-zh: 太空天气
@@ -28,7 +28,7 @@ Fetch JSON `GET https://services.swpc.noaa.gov/products/noaa-planetary-k-index.j
 
 ## Runtime rules
 
-Fetch only the declared origin with `credentials:"omit"`. The HTML owns its initial fetch and timer. Do not use external assets, current-frame navigation, forms, cookies, storage, or secrets. Show loading/error states and last successful update. After every render call `window.parent.postMessage({type:"penecho-widget-updated"}, "*")`.
+Fetch only the declared origin with `credentials:"omit"`. The HTML owns its initial fetch and timer. Do not use external assets, current-frame navigation, forms, cookies, storage, or secrets. Show loading/error states and last successful update. After every render call `window.parent.postMessage({type:"fastlectures-widget-updated"}, "*")`.
 
 ## One-shot example
 

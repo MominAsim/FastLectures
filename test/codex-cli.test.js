@@ -18,9 +18,9 @@ function testCodexEnv(directory, overrides = {}) {
   return { ...process.env, CODEX_HOME:codexHome, ...overrides };
 }
 
-test("Windows npm PenEcho discovers the desktop-managed Codex before a stale saved npm wrapper", () => {
-  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-windows-codex-discovery-")),home=path.join(directory,"home"),appData=path.join(home,"AppData","Roaming"),stateDir=path.join(home,".penecho"),
-    privateManaged=path.join(stateDir,"tools","codex","bin","codex.exe"),desktopManaged=path.join(appData,"PenEcho","tools","codex","bin","codex.exe"),configured=path.join(appData,"npm","codex.cmd");
+test("Windows npm FastLectures discovers the desktop-managed Codex before a stale saved npm wrapper", () => {
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-windows-codex-discovery-")),home=path.join(directory,"home"),appData=path.join(home,"AppData","Roaming"),stateDir=path.join(home,".fastlectures"),
+    privateManaged=path.join(stateDir,"tools","codex","bin","codex.exe"),desktopManaged=path.join(appData,"FastLectures","tools","codex","bin","codex.exe"),configured=path.join(appData,"npm","codex.cmd");
   try {
     for(const file of [privateManaged,desktopManaged,configured]){fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,"test");}
     const candidates=cliCandidates("codex-cli",{platform:"win32",home,stateDir,env:{APPDATA:appData,PATH:"",PATHEXT:".COM;.EXE;.BAT;.CMD"},configuredPath:configured});
@@ -87,7 +87,7 @@ test("passes only the required environment to the Codex process", () => {
 });
 
 test("creates an isolated Codex home and copies only Codex authentication", async () => {
-  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-codex-home-test-"));
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-codex-home-test-"));
   const sourceHome = path.join(directory, "source"), workDir = path.join(directory, "work");
   await fs.promises.mkdir(sourceHome, { recursive: true });
   await fs.promises.mkdir(workDir, { recursive: true });
@@ -107,7 +107,7 @@ test("creates an isolated Codex home and copies only Codex authentication", asyn
 });
 
 test("executes a configured Codex-compatible CLI with stdin and an attached image", async () => {
-  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-codex-test-"));
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-codex-test-"));
   const fakeCli = path.join(directory, "fake-codex.js");
   await fs.promises.writeFile(fakeCli, `
 const fs = require("fs");
@@ -132,7 +132,7 @@ process.stdin.on("end", () => {
 });
 
 test("executes a text-only Codex request without creating an image file", async () => {
-  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-codex-text-test-"));
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-codex-text-test-"));
   const fakeCli = path.join(directory, "fake-codex.js");
   await fs.promises.writeFile(fakeCli, `
 const fs = require("fs");
@@ -154,7 +154,7 @@ process.stdin.on("end", () => {
 });
 
 test("writes configured WebP input with the matching extension for Codex", async () => {
-  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-codex-webp-test-"));
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-codex-webp-test-"));
   const fakeCli = path.join(directory, "fake-codex.js"), record = path.join(directory, "record.json");
   await fs.promises.writeFile(fakeCli, `
 const fs = require("fs");
@@ -175,7 +175,7 @@ fs.writeFileSync(output, '{"intent":"none","commands":[]}');
 });
 
 test("returns the final JSON event without waiting for the Codex process to exit", async () => {
-  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-codex-stream-test-"));
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-codex-stream-test-"));
   const fakeCli = path.join(directory, "fake-codex.js"), marker = path.join(directory, "cwd.txt");
   const response = JSON.stringify({ intent:"answer", observedText:"stream", message:"immediate", commands:[] });
   await fs.promises.writeFile(fakeCli, `
@@ -218,7 +218,7 @@ setTimeout(() => {
 });
 
 test("aborts immediately, preserves CLI diagnostics, and cleans up in the background", async () => {
-  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-codex-abort-test-"));
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-codex-abort-test-"));
   const fakeCli = path.join(directory, "fake-codex.js"), marker = path.join(directory, "cwd.txt");
   await fs.promises.writeFile(fakeCli, `
 const fs = require("fs");
@@ -252,7 +252,7 @@ setInterval(() => {}, 1000);
 });
 
 test("fails the request when its temporary directory cannot be removed", async () => {
-  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-codex-cleanup-test-"));
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-codex-cleanup-test-"));
   const fakeCli = path.join(directory, "fake-codex.js"), marker = path.join(directory, "cwd.txt");
   await fs.promises.writeFile(fakeCli, `
 const fs = require("fs");
@@ -261,7 +261,7 @@ fs.writeFileSync(process.argv[process.argv.indexOf("-o") + 1], '{"intent":"none"
 `);
   const remove = fs.promises.rm;
   fs.promises.rm = async target => {
-    if (path.basename(String(target)).startsWith("penecho-codex-")) throw new Error("simulated cleanup failure");
+    if (path.basename(String(target)).startsWith("fastlectures-codex-")) throw new Error("simulated cleanup failure");
     return remove(target, { recursive: true, force: true });
   };
   let workDir;

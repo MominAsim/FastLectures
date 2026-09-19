@@ -1,5 +1,5 @@
 ---
-penecho-plugin: 1
+fastlectures-plugin: 1
 id: github-pulse
 name: GitHub Pulse
 name-zh: GitHub 项目脉搏
@@ -28,8 +28,8 @@ Fetch JSON `GET https://api.github.com/repos/{owner}/{repo}`. Available fields i
 
 ## Runtime rules
 
-Fetch only the declared origin with `credentials:"omit"`. The HTML owns fetching and its timer. Do not use external assets, current-frame navigation, forms, cookies, storage, Authorization headers, or secrets. Show loading/error states and last successful update. After every render call `window.parent.postMessage({type:"penecho-widget-updated"}, "*")`.
+Fetch only the declared origin with `credentials:"omit"`. The HTML owns fetching and its timer. Do not use external assets, current-frame navigation, forms, cookies, storage, Authorization headers, or secrets. Show loading/error states and last successful update. After every render call `window.parent.postMessage({type:"fastlectures-widget-updated"}, "*")`.
 
 ## One-shot example
 
-User writes `penecho/penecho 项目数据` and points right. Produce one `html_widget` there showing repository summary, stars, forks, issues, language, latest activity/release, and GitHub attribution.
+User writes `fastlectures/fastlectures 项目数据` and points right. Produce one `html_widget` there showing repository summary, stars, forks, issues, language, latest activity/release, and GitHub attribution.

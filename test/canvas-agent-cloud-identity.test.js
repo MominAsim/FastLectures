@@ -5,14 +5,14 @@ const A='11111111-1111-4111-8111-111111111111',B='22222222-2222-4222-8222-222222
 function fn(name){const start=source.indexOf(`  function ${name}(`);const asyncStart=source.indexOf(`  async function ${name}(`);const from=start<0?asyncStart:start;assert.ok(from>=0,name);const end=source.indexOf('\n  }',from)+4;return source.slice(from,end);}
 function fixture(extra={}){
  let doc={};
- const context={crypto:require('node:crypto').webcrypto,canvasDocumentsCurrent:()=>doc,replaceDocument:()=>{doc={};},window:{PENECHO_CONFIG:{runtime:'cloud',canvasAgent:false,browserCanvasEditing:true,hostedCanvasAgent:true}},state:{currentSnapshotLocation:'cloud',currentSnapshotId:B},location:{pathname:`/canvas/${A}`,protocol:'https:',host:'cloud.test'},canvasAgent:{socket:null,socketCloudCanvasId:'',currentConversation:{id:'conversation'},toolControllers:new Map(),toolResultCache:new Map(),sessionGeneration:3},selectedAiConnectionId:()=>`hosted:${A}`,t:k=>k,...extra};
+ const context={crypto:require('node:crypto').webcrypto,canvasDocumentsCurrent:()=>doc,replaceDocument:()=>{doc={};},window:{FASTLECTURES_CONFIG:{runtime:'cloud',canvasAgent:false,browserCanvasEditing:true,hostedCanvasAgent:true}},state:{currentSnapshotLocation:'cloud',currentSnapshotId:B},location:{pathname:`/canvas/${A}`,protocol:'https:',host:'cloud.test'},canvasAgent:{socket:null,socketCloudCanvasId:'',currentConversation:{id:'conversation'},toolControllers:new Map(),toolResultCache:new Map(),sessionGeneration:3},selectedAiConnectionId:()=>`hosted:${A}`,t:k=>k,...extra};
  vm.createContext(context);for(const name of ['canvasAgentCloudSavedCanvasId','canvasAgentCloudExecutionScope','canvasAgentCloudFilesPath','canvasAgentCloudCanvasId','canvasAgentUsesCloudHost','canvasAgentExecutionAvailable','canvasAgentUnavailableMessage','canvasAgentCloudFileScope','canvasAgentSocketUrl','canvasAgentReconcileCloudCanvas'])vm.runInContext(fn(name),context);return context;
 }
 test('hosted socket, attachments and availability follow active B, never stale URL A; drafts have independent execution scopes',()=>{
  const c=fixture();assert.equal(c.canvasAgentUsesCloudHost(),true);assert.match(c.canvasAgentSocketUrl(),new RegExp(`/canvases/${B}/agent$`));assert.equal(c.canvasAgentCloudFileScope().canvasId,B);
  for(const state of [{currentSnapshotLocation:'device',currentSnapshotId:B},{currentSnapshotLocation:null,currentSnapshotId:null},{currentSnapshotLocation:'cloud',currentSnapshotId:'draft'}]){Object.assign(c.state,state);assert.equal(c.canvasAgentExecutionAvailable(),true);assert.equal(c.canvasAgentCloudFileScope().draft,true);assert.match(c.canvasAgentSocketUrl(),/agent\?draft=1$/);assert.notEqual(c.canvasAgentCloudCanvasId(),A);assert.notEqual(c.canvasAgentCloudCanvasId(),B);}
  Object.assign(c.state,{currentSnapshotLocation:'cloud',currentSnapshotId:B});assert.equal(c.canvasAgentExecutionAvailable(),true);
- c.window.PENECHO_CONFIG={runtime:'local',canvasAgent:true};assert.equal(c.canvasAgentExecutionAvailable(),true);assert.match(c.canvasAgentSocketUrl(),/\/api\/canvas-agent\/socket$/);
+ c.window.FASTLECTURES_CONFIG={runtime:'local',canvasAgent:true};assert.equal(c.canvasAgentExecutionAvailable(),true);assert.match(c.canvasAgentSocketUrl(),/\/api\/canvas-agent\/socket$/);
 });
 test('changing Cloud owner closes connecting socket, rejects handshake and aborts old tools',async()=>{
  const controller=new AbortController(),calls=[];let rejection;
@@ -31,13 +31,13 @@ test('same Cloud owner and local socket do not lose sessions',()=>{
 
 test('online device and hosted execution coexist and select distinct hosts on the same Cloud Canvas',()=>{
  let selected=`hosted:${A}`;const c=fixture({selectedAiConnectionId:()=>selected});
- Object.assign(c.window.PENECHO_CONFIG,{canvasAgent:true,linkedDeviceOnline:true});
+ Object.assign(c.window.FASTLECTURES_CONFIG,{canvasAgent:true,linkedDeviceOnline:true});
  assert.equal(c.canvasAgentExecutionAvailable(),true);
  assert.match(c.canvasAgentSocketUrl(),new RegExp(`/hosted/canvases/${B}/agent$`));
  selected=A;
  assert.equal(c.canvasAgentExecutionAvailable(),true);
  assert.match(c.canvasAgentSocketUrl(),/remote-canvas\/canvas-agent$/);
- Object.assign(c.window.PENECHO_CONFIG,{canvasAgent:false,linkedDeviceOnline:false});
+ Object.assign(c.window.FASTLECTURES_CONFIG,{canvasAgent:false,linkedDeviceOnline:false});
  assert.equal(c.canvasAgentExecutionAvailable(),false);
  selected=`hosted:${A}`;
  assert.equal(c.canvasAgentExecutionAvailable(),true);

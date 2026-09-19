@@ -17,7 +17,7 @@ const waitFor = async (predicate, timeoutMs = 2000) => {
     if (predicate()) return;
     await new Promise(resolve => setTimeout(resolve, 10));
   }
-  assert.fail("Timed out waiting for Codex Native PenEcho Agent test state.");
+  assert.fail("Timed out waiting for Codex Native FastLectures Agent test state.");
 };
 
 let rawResponseNumber=0;
@@ -30,7 +30,7 @@ function emitRawToolDecision(process,turnId,calls,responseId=`raw-response-${++r
         type:"function_call",
         ...(call.rawItemId?{id:call.rawItemId}:{}),
         call_id:call.rawCallId??call.callId,
-        namespace:call.namespace??"penecho",
+        namespace:call.namespace??"fastlectures",
         name:call.tool,
         arguments:typeof call.arguments==="string"?call.arguments:JSON.stringify(call.arguments||{}),
       },
@@ -63,7 +63,7 @@ class FakeCodexAppServer {
   async start(threadOptions) {
     if (this.startGate) await this.startGate;
     await new Promise(resolve=>setImmediate(resolve));
-    await this.request("initialize", { clientInfo:{ name:"penecho-canvas-agent" }, capabilities:{ experimentalApi:true } });
+    await this.request("initialize", { clientInfo:{ name:"fastlectures-canvas-agent" }, capabilities:{ experimentalApi:true } });
     this.notify("initialized", {});
     const result = await this.request("thread/start", {
       ...threadOptions,
@@ -202,7 +202,7 @@ test("native diagnostics disabled creates no session collector or summary",async
 });
 
 async function createNativeHarness(overrides = {}) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-codex-native-test-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-codex-native-test-"));
   const stateDirectory = overrides.stateDirectory || path.join(directory, "state");
   const processes = [];
   const logs = [];
@@ -267,7 +267,7 @@ test("Codex Native extracts an optional Canvas title from the same completed res
     if(method!=="turn/start")return {};
     setImmediate(()=>{
       process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:turnId}});
-      const answer="<penecho_canvas_title>画布结构优化方案</penecho_canvas_title>\n正常回答";
+      const answer="<fastlectures_canvas_title>画布结构优化方案</fastlectures_canvas_title>\n正常回答";
       process.emitNotification("item/agentMessage/delta",{threadId:process.threadId,turnId,delta:answer});
       process.emitNotification("item/completed",{threadId:process.threadId,turnId,item:{type:"agentMessage",text:answer}});
       process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId,responseId:"same-response-title",usage:null});
@@ -279,8 +279,8 @@ test("Codex Native extracts an optional Canvas title from the same completed res
     events=harness.messages.filter(message=>message.type==="session_event").map(message=>message.payload);
   assert.equal(result.output,"正常回答");
   assert.equal(turnRequest.params.effort,"max");
-  assert.ok(Object.values(turnRequest.params.additionalContext||{}).some(context=>String(context?.value||"").includes("<penecho_canvas_title>title</penecho_canvas_title>")));
-  assert.equal(events.some(event=>String(event.text||"").includes("penecho_canvas_title")),false);
+  assert.ok(Object.values(turnRequest.params.additionalContext||{}).some(context=>String(context?.value||"").includes("<fastlectures_canvas_title>title</fastlectures_canvas_title>")));
+  assert.equal(events.some(event=>String(event.text||"").includes("fastlectures_canvas_title")),false);
   assert.equal(events.find(event=>event.kind==="assistant_message")?.text,"正常回答");
   assert.equal(events.find(event=>event.kind==="turn_end")?.canvasTitle,"画布结构优化方案");
   const laterTurnId="same-response-later-turn",laterMessageStart=harness.messages.length;
@@ -288,7 +288,7 @@ test("Codex Native extracts an optional Canvas title from the same completed res
     if(method!=="turn/start")return {};
     setImmediate(()=>{
       process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:laterTurnId}});
-      const answer="<penecho_canvas_title>后续标题不能显示</penecho_canvas_title>\n后续回答";
+      const answer="<fastlectures_canvas_title>后续标题不能显示</fastlectures_canvas_title>\n后续回答";
       process.emitNotification("item/agentMessage/delta",{threadId:process.threadId,turnId:laterTurnId,delta:answer});
       process.emitNotification("item/completed",{threadId:process.threadId,turnId:laterTurnId,item:{type:"agentMessage",text:answer}});
       process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId:laterTurnId,responseId:"same-response-later",usage:null});
@@ -300,8 +300,8 @@ test("Codex Native extracts an optional Canvas title from the same completed res
     laterEvents=harness.messages.slice(laterMessageStart).filter(message=>message.type==="session_event").map(message=>message.payload);
   assert.equal(laterResult.output,"后续回答");
   assert.equal(laterTurnRequest.params.effort,"medium");
-  assert.equal(Object.values(laterTurnRequest.params.additionalContext||{}).some(context=>String(context?.value||"").includes("<penecho_canvas_title>title</penecho_canvas_title>")),false);
-  assert.equal(laterEvents.some(event=>String(event.text||"").includes("penecho_canvas_title")),false);
+  assert.equal(Object.values(laterTurnRequest.params.additionalContext||{}).some(context=>String(context?.value||"").includes("<fastlectures_canvas_title>title</fastlectures_canvas_title>")),false);
+  assert.equal(laterEvents.some(event=>String(event.text||"").includes("fastlectures_canvas_title")),false);
   assert.equal(laterEvents.find(event=>event.kind==="assistant_message")?.text,"后续回答");
   assert.equal(laterEvents.find(event=>event.kind==="turn_end")?.canvasTitle,undefined);
   const customTurnId="custom-reasoning-turn";
@@ -378,11 +378,11 @@ test("Codex Native connects lazily, starts one strict app-server thread, and reu
   assert.equal(threadOptions.sandbox,"read-only");
   assert.deepEqual(threadOptions.runtimeWorkspaceRoots,[]);
   assert.equal(session.threadId,"thread-1");
-  assert.ok(threadOptions.baseInstructions.includes("PenEcho Agent"));
+  assert.ok(threadOptions.baseInstructions.includes("FastLectures Agent"));
   assert.equal(threadOptions.dynamicTools.length,1);
   assert.equal(threadOptions.dynamicTools[0].type,"namespace");
-  assert.equal(threadOptions.dynamicTools[0].name,"penecho");
-  assert.ok(threadOptions.dynamicTools[0].tools.some(tool=>tool.name==="penecho_read_file"&&tool.inputSchema.type==="object"));
+  assert.equal(threadOptions.dynamicTools[0].name,"fastlectures");
+  assert.ok(threadOptions.dynamicTools[0].tools.some(tool=>tool.name==="fastlectures_read_file"&&tool.inputSchema.type==="object"));
   assert.ok(threadOptions.dynamicTools[0].tools.some(tool=>tool.name==="web_read"));
   const second=await completeTurn("second user turn","second answer");
   assert.equal(first.output,"first answer");
@@ -491,7 +491,7 @@ test("Codex Native clears the usage baseline when a replacement thread starts", 
 });
 
 test(`Codex Native rejects a cached Windows CLI without its host and repairs with pinned ${CODEX_CLI_PINNED_VERSION}`, async t => {
-  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-resolution-host-test-")),stateDirectory=path.join(directory,"state"),cached="C:\\old\\codex.exe",managed="C:\\PenEcho\\tools\\codex\\bin\\codex.exe",
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-resolution-host-test-")),stateDirectory=path.join(directory,"state"),cached="C:\\old\\codex.exe",managed="C:\\FastLectures\\tools\\codex\\bin\\codex.exe",
     connection={id:"codex-host-repair",provider:"codex-cli",name:"Codex",cliPath:cached,cliModel:"gpt-test",effort:"medium"},
     key=createHash("sha256").update(JSON.stringify({provider:connection.provider,cliPath:connection.cliPath})).digest("hex"),resolutionFile=path.join(stateDirectory,"tools","codex","resolution.json"),installCalls=[];
   fs.mkdirSync(path.dirname(resolutionFile),{recursive:true});
@@ -506,12 +506,12 @@ test(`Codex Native rejects a cached Windows CLI without its host and repairs wit
   const session=await harness.connect();
   assert.deepEqual(installCalls,[CODEX_CLI_PINNED_VERSION]);
   assert.deepEqual(harness.processes.map(process=>process.options.connection.cliPath),[managed]);
-  assert.equal(session.cliSource,"penecho-installed");
+  assert.equal(session.cliSource,"fastlectures-installed");
   assert.ok(harness.logs.some(event=>event.type==="codex-native-cli-candidate-rejected"&&/codex-code-mode-host\.exe/.test(event.error)));
 });
 
 test("Codex Native uses a valid resolution.json candidate before every fallback", async t => {
-  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-resolution-valid-test-")),stateDirectory=path.join(directory,"state"),cached="C:\\known-good\\codex.exe",
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-resolution-valid-test-")),stateDirectory=path.join(directory,"state"),cached="C:\\known-good\\codex.exe",
     connection={id:"codex-resolution-valid",provider:"codex-cli",name:"Codex",cliPath:"codex",cliModel:"gpt-test",effort:"medium"},
     key=createHash("sha256").update(JSON.stringify({provider:connection.provider,cliPath:connection.cliPath})).digest("hex"),resolutionFile=path.join(stateDirectory,"tools","codex","resolution.json");
   fs.mkdirSync(path.dirname(resolutionFile),{recursive:true});
@@ -530,7 +530,7 @@ test("Codex Native uses a valid resolution.json candidate before every fallback"
 
 test("Codex Native invalidates resolution caches from an earlier pin before installing the current pin", async () => {
   for (const legacyPinnedVersion of [undefined, "0.149.1"]) {
-    const directory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-stale-resolution-test-")),stateDirectory=path.join(directory,"state"),cached=path.join(directory,"old","codex"),managed=path.join(directory,"managed","codex"),
+    const directory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-stale-resolution-test-")),stateDirectory=path.join(directory,"state"),cached=path.join(directory,"old","codex"),managed=path.join(directory,"managed","codex"),
       connection={id:`codex-stale-resolution-${legacyPinnedVersion ? "pinned" : "missing"}`,provider:"codex-cli",name:"Codex",cliPath:"codex",cliModel:"gpt-test",effort:"medium"},
       key=createHash("sha256").update(JSON.stringify({provider:connection.provider,cliPath:connection.cliPath})).digest("hex"),resolutionFile=path.join(stateDirectory,"tools","codex","resolution.json"),installCalls=[],inspectCalls=[];
     fs.mkdirSync(path.dirname(resolutionFile),{recursive:true});
@@ -546,7 +546,7 @@ test("Codex Native invalidates resolution caches from an earlier pin before inst
       assert.deepEqual(installCalls,[CODEX_CLI_PINNED_VERSION],legacyPinnedVersion||"missing pinnedVersion");
       assert.deepEqual(inspectCalls,[]);
       assert.deepEqual(harness.processes.map(process=>process.options.connection.cliPath),[managed]);
-      assert.equal(session.cliSource,"penecho-installed");
+      assert.equal(session.cliSource,"fastlectures-installed");
       const persisted=JSON.parse(fs.readFileSync(resolutionFile,"utf8"));
       assert.equal(persisted.pinnedVersion,CODEX_CLI_PINNED_VERSION);
     } finally {
@@ -557,7 +557,7 @@ test("Codex Native invalidates resolution caches from an earlier pin before inst
 });
 
 test("Codex Native persists the current pin and reuses it after host reinitialization", async () => {
-  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-current-resolution-test-")),stateDirectory=path.join(directory,"state"),managed=path.join(directory,"managed","codex"),
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-current-resolution-test-")),stateDirectory=path.join(directory,"state"),managed=path.join(directory,"managed","codex"),
     connection={id:"codex-current-resolution",provider:"codex-cli",name:"Codex",cliPath:"codex",cliModel:"gpt-test",effort:"medium"},resolutionFile=path.join(stateDirectory,"tools","codex","resolution.json"),firstInstallCalls=[],secondInstallCalls=[];
   let firstHarness=null,secondHarness=null;
   try {
@@ -567,7 +567,7 @@ test("Codex Native persists the current pin and reuses it after host reinitializ
       installManagedCli:async version=>{firstInstallCalls.push(version);return{executable:managed,version:`codex-cli ${CODEX_CLI_PINNED_VERSION}`}},
     });
     const firstSession=await firstHarness.connect();
-    assert.equal(firstSession.cliSource,"penecho-installed");
+    assert.equal(firstSession.cliSource,"fastlectures-installed");
     assert.deepEqual(firstInstallCalls,[CODEX_CLI_PINNED_VERSION]);
     const persisted=JSON.parse(fs.readFileSync(resolutionFile,"utf8"));
     assert.equal(persisted.version,1);
@@ -578,12 +578,12 @@ test("Codex Native persists the current pin and reuses it after host reinitializ
 
     secondHarness=await createNativeHarness({
       stateDirectory,connection,
-      resolveCliCandidates:()=>[{executable:managed,source:"penecho-managed",privateManaged:true}],
+      resolveCliCandidates:()=>[{executable:managed,source:"fastlectures-managed",privateManaged:true}],
       installManagedCli:async version=>{secondInstallCalls.push(version);throw new Error("current resolution should avoid installation")},
       inspectCliCandidate:async()=>`codex-cli ${CODEX_CLI_PINNED_VERSION}`,
     });
     const secondSession=await secondHarness.connect();
-    assert.equal(secondSession.cliSource,"penecho-managed");
+    assert.equal(secondSession.cliSource,"fastlectures-managed");
     assert.deepEqual(secondInstallCalls,[]);
     assert.deepEqual(secondHarness.processes.map(process=>process.options.connection.cliPath),[managed]);
   } finally {
@@ -594,7 +594,7 @@ test("Codex Native persists the current pin and reuses it after host reinitializ
 });
 
 test(`Codex Native installs pinned ${CODEX_CLI_PINNED_VERSION} before inspecting system candidates`, async t => {
-  const system="C:\\system\\codex.exe",managed="C:\\PenEcho\\tools\\codex\\bin\\codex.exe",events=[];
+  const system="C:\\system\\codex.exe",managed="C:\\FastLectures\\tools\\codex\\bin\\codex.exe",events=[];
   const harness=await createNativeHarness({
     connection:{id:"codex-pinned-first",provider:"codex-cli",name:"Codex",cliPath:system,cliModel:"gpt-test",effort:"medium"},
     resolveCliCandidates:()=>[{executable:system,source:"system"}],
@@ -605,7 +605,7 @@ test(`Codex Native installs pinned ${CODEX_CLI_PINNED_VERSION} before inspecting
   const session=await harness.connect();
   assert.deepEqual(events,[`install:${CODEX_CLI_PINNED_VERSION}`]);
   assert.deepEqual(harness.processes.map(process=>process.options.connection.cliPath),[managed]);
-  assert.equal(session.cliSource,"penecho-installed");
+  assert.equal(session.cliSource,"fastlectures-installed");
 });
 
 test("Codex Native tries the system only after pinned installation fails", async t => {
@@ -624,7 +624,7 @@ test("Codex Native tries the system only after pinned installation fails", async
 });
 
 test("Codex Native falls back to latest only after pinned and system both fail", async t => {
-  const system="C:\\system\\codex.exe",latest="C:\\PenEcho\\tools\\codex\\bin\\codex.exe",installCalls=[];
+  const system="C:\\system\\codex.exe",latest="C:\\FastLectures\\tools\\codex\\bin\\codex.exe",installCalls=[];
   const harness=await createNativeHarness({
     connection:{id:"codex-latest-last",provider:"codex-cli",name:"Codex",cliPath:system,cliModel:"gpt-test",effort:"medium"},
     resolveCliCandidates:()=>[{executable:system,source:"system"}],
@@ -643,7 +643,7 @@ test("Codex Native falls back to latest only after pinned and system both fail",
   const session=await harness.connect();
   assert.deepEqual(installCalls,[CODEX_CLI_PINNED_VERSION,"latest"]);
   assert.deepEqual(harness.processes.map(process=>process.options.connection.cliPath),[system,latest]);
-  assert.equal(session.cliSource,"penecho-latest");
+  assert.equal(session.cliSource,"fastlectures-latest");
 });
 
 test("Codex Native accepts any executable system version after pinned fallback fails", async t => {
@@ -661,10 +661,10 @@ test("Codex Native accepts any executable system version after pinned fallback f
 });
 
 test("Codex Native labels replacement of an existing private CLI as repair", async t => {
-  const managed="C:\\PenEcho\\tools\\codex\\bin\\codex.exe";
+  const managed="C:\\FastLectures\\tools\\codex\\bin\\codex.exe";
   const harness=await createNativeHarness({
     connection:{id:"codex-private-repair",provider:"codex-cli",name:"Codex",cliPath:"codex",cliModel:"gpt-test",effort:"medium"},
-    resolveCliCandidates:()=>[{executable:managed,source:"penecho-managed",privateManaged:true}],
+    resolveCliCandidates:()=>[{executable:managed,source:"fastlectures-managed",privateManaged:true}],
     installManagedCli:async()=>({executable:managed,version:`codex-cli ${CODEX_CLI_PINNED_VERSION}`}),
   });
   t.after(()=>harness.cleanup());
@@ -673,7 +673,7 @@ test("Codex Native labels replacement of an existing private CLI as repair", asy
 });
 
 test("Codex Native CLI preparation does not consume the model response timeout", async t => {
-  const managed="C:\\PenEcho\\tools\\codex\\bin\\codex.exe",
+  const managed="C:\\FastLectures\\tools\\codex\\bin\\codex.exe",
     harness=await createNativeHarness({
       timeoutMs:20,
       connection:{id:"codex-slow-private-install",provider:"codex-cli",name:"Codex",cliPath:"codex",cliModel:"gpt-test",effort:"medium"},
@@ -700,7 +700,7 @@ test("Codex Native CLI preparation does not consume the model response timeout",
   t.after(()=>harness.cleanup());
   const session=await harness.connect(false),result=await harness.host.submit(session,"prepare then answer");
   assert.equal(result.output,"ready");
-  assert.equal(session.cliSource,"penecho-installed");
+  assert.equal(session.cliSource,"fastlectures-installed");
 });
 
 test("Codex Native does not launch duplicate pinned or latest installers across retries", async t => {
@@ -724,7 +724,7 @@ test("Codex Native continues saved conversation context exactly once", async t =
   const priorBacklog=[
     {kind:"user_message",turn:7,text:"Earlier question"},
     {kind:"assistant_message",turn:7,text:"Earlier answer"},
-  ],continuity='<penecho_previous_conversation encoding="json">saved context</penecho_previous_conversation>',session=await harness.host.connect({
+  ],continuity='<fastlectures_previous_conversation encoding="json">saved context</fastlectures_previous_conversation>',session=await harness.host.connect({
     clientId:"native-history-client",connectionId:harness.connection.id,binding:{name:"history"},initialBacklog:priorBacklog,continuity,
     send:(type,payload,identity)=>harness.messages.push({type,payload,identity}),
   });
@@ -793,7 +793,7 @@ test("Codex Native request recording adapts native events and finalizes complete
   assert.equal(entries.length,2);
   assert.ok(completed);
   assert.ok(cancelledTrace);
-  assert.equal(completed.note,"PenEcho Agent server trace; sessionId is a non-resumable debug correlation ID.");
+  assert.equal(completed.note,"FastLectures Agent server trace; sessionId is a non-resumable debug correlation ID.");
   assert.equal(completed.steps.length,1);
   assert.equal(completed.steps[0].response.rawContent,"native answer");
   assert.equal(completed.steps[0].response.usage.last.cachedInputTokens,7);
@@ -931,7 +931,7 @@ test("Codex Native steering without a bound active turn fails clearly", async t 
   const harness=await createNativeHarness();
   t.after(()=>harness.cleanup());
   const session=await harness.connect();
-  await assert.rejects(harness.host.submit(session,"invalid steer",true,[],{},null),/No active Codex Native PenEcho Agent turn/);
+  await assert.rejects(harness.host.submit(session,"invalid steer",true,[],{},null),/No active Codex Native FastLectures Agent turn/);
   assert.equal(harness.processes[0].requests.filter(request=>request.method==="turn/steer").length,0);
 });
 
@@ -977,8 +977,8 @@ test("Codex Native executes a batch in model order even when transport requests 
     setImmediate(async()=>{
       process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:turnId}})
       const calls=[
-        {callId:"first-read",tool:"penecho_read_file",arguments:{path:"canvas.json"}},
-        {callId:"second-read",tool:"penecho_read_file",arguments:{path:"runtime/selection.json"}},
+        {callId:"first-read",tool:"fastlectures_read_file",arguments:{path:"canvas.json"}},
+        {callId:"second-read",tool:"fastlectures_read_file",arguments:{path:"runtime/selection.json"}},
       ]
       emitRawToolDecision(process,turnId,calls)
       const later=process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,...calls[1]})
@@ -1010,19 +1010,19 @@ for(const wrapped of [false,true])for(const externalEdit of [false,true])test(`C
     const turnId="revision-batch"
     setImmediate(async()=>{
       process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:turnId}})
-      const calls=[0,1,2].map(index=>({callId:`write-${index}`,tool:"penecho_edit_canvas",arguments:{requestId:`move-${index}`,baseRevision:10,action:"move",objectId:`text-${index}`,region:{x:10,y:10,w:100,h:100}}}))
+      const calls=[0,1,2].map(index=>({callId:`write-${index}`,tool:"fastlectures_edit_canvas",arguments:{requestId:`move-${index}`,baseRevision:10,action:"move",objectId:`text-${index}`,region:{x:10,y:10,w:100,h:100}}}))
       if(wrapped){
-        process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{type:"custom_tool_call",id:"wrapper-batch",call_id:"wrapper-call",name:"exec",arguments:calls.map(call=>`await tools.penecho__${call.tool}(${JSON.stringify(call.arguments)});`).join('\n')}})
+        process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{type:"custom_tool_call",id:"wrapper-batch",call_id:"wrapper-call",name:"exec",arguments:calls.map(call=>`await tools.fastlectures__${call.tool}(${JSON.stringify(call.arguments)});`).join('\n')}})
         process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId,responseId:"wrapped-batch",usage:null})
       }else emitRawToolDecision(process,turnId,calls)
       const results=await Promise.all(calls.map(call=>process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,...call})))
       assert.deepEqual(results.map(r=>r.success),[true,false,false]);
       if(!externalEdit){
-        const refresh={callId:"refresh-revision",tool:"penecho_read_file",arguments:{path:"canvas.json"}};
+        const refresh={callId:"refresh-revision",tool:"fastlectures_read_file",arguments:{path:"canvas.json"}};
         emitRawToolDecision(process,turnId,[refresh]);
         const refreshed=await process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,...refresh});
         assert.equal(refreshed.success,true);
-        const retry={callId:"explicit-retry",tool:"penecho_edit_canvas",arguments:{requestId:"retry-move",baseRevision:11,action:"move",objectId:"text-1",region:{x:10,y:10,w:100,h:100}}};
+        const retry={callId:"explicit-retry",tool:"fastlectures_edit_canvas",arguments:{requestId:"retry-move",baseRevision:11,action:"move",objectId:"text-1",region:{x:10,y:10,w:100,h:100}}};
         emitRawToolDecision(process,turnId,[retry]);
         const retried=await process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,...retry});
         assert.equal(retried.success,true);
@@ -1064,14 +1064,14 @@ test("Codex Native rejects every call in a malformed multi-tool model step befor
     const turnId = "tool-turn";
     setImmediate(async () => {
       process.emitNotification("turn/started", { threadId:process.threadId, turn:{ id:turnId } });
-      const first={callId:"codex-call-1",namespace:"penecho",tool:"penecho_read_file",arguments:{path:"canvas.json"}},
-        second={callId:"codex-call-2",namespace:"penecho",tool:"penecho_read_file",arguments:"{malformed"};
+      const first={callId:"codex-call-1",namespace:"fastlectures",tool:"fastlectures_read_file",arguments:{path:"canvas.json"}},
+        second={callId:"codex-call-2",namespace:"fastlectures",tool:"fastlectures_read_file",arguments:"{malformed"};
       emitRawToolDecision(process,turnId,[first,second]);
       const calls = [process.serverRequest("item/tool/call", {threadId:process.threadId,turnId,...first})];
       await new Promise(resolve=>setTimeout(resolve,30));
       calls.push(process.serverRequest("item/tool/call", {threadId:process.threadId,turnId,...second}));
       await Promise.all(calls);
-      const corrected={callId:"codex-call-corrected",rawItemId:"codex-call-corrected",rawCallId:"response-call-corrected",namespace:"penecho",tool:"penecho_read_file",arguments:{path:"runtime/selection.json"}};
+      const corrected={callId:"codex-call-corrected",rawItemId:"codex-call-corrected",rawCallId:"response-call-corrected",namespace:"fastlectures",tool:"fastlectures_read_file",arguments:{path:"runtime/selection.json"}};
       emitRawToolDecision(process,turnId,[corrected]);
       await process.serverRequest("item/tool/call", {threadId:process.threadId,turnId,...corrected});
       process.emitNotification("item/agentMessage/delta", { threadId:process.threadId, turnId, delta:"Inspected." });
@@ -1129,7 +1129,7 @@ test("Codex Native interrupts the upstream turn after a terminal shared Canvas t
         return;
       }
       session.canvasTurnBudget.toolCalls=50;
-      const call={callId:"terminal-tool-call",namespace:"penecho",tool:"penecho_read_file",arguments:{path:"canvas.json"}};
+      const call={callId:"terminal-tool-call",namespace:"fastlectures",tool:"fastlectures_read_file",arguments:{path:"canvas.json"}};
       emitRawToolDecision(process,turnId,[call],"terminal-tool-response");
       await process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,...call});
     });
@@ -1162,11 +1162,11 @@ test("Codex Native treats raw item.id and call_id as aliases without allowing do
     setImmediate(async()=>{
       process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:turnId}});
       process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{
-        type:"function_call",id:"raw-item-id",call_id:"raw-call-id",namespace:"penecho",name:"penecho_read_file",arguments:JSON.stringify({path:"canvas.json"}),
+        type:"function_call",id:"raw-item-id",call_id:"raw-call-id",namespace:"fastlectures",name:"fastlectures_read_file",arguments:JSON.stringify({path:"canvas.json"}),
       }});
       const requests=[
-        process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"raw-item-id",namespace:"penecho",tool:"penecho_read_file",arguments:{path:"canvas.json"}}),
-        process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"raw-call-id",namespace:"penecho",tool:"penecho_read_file",arguments:{path:"canvas.json"}}),
+        process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"raw-item-id",namespace:"fastlectures",tool:"fastlectures_read_file",arguments:{path:"canvas.json"}}),
+        process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"raw-call-id",namespace:"fastlectures",tool:"fastlectures_read_file",arguments:{path:"canvas.json"}}),
       ];
       process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId,responseId:"native-alias-response",usage:null});
       await Promise.all(requests);
@@ -1218,15 +1218,15 @@ test("Codex Native matches Code Mode exec wrappers to dynamic tools despite inde
     setImmediate(async()=>{
       process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:turnId}});
       process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{
-        type:"custom_tool_call",id:"ctc-contract",call_id:"call-contract",name:"exec",arguments:'const r=await tools.penecho__penecho_get_guidance({id:"general-html"}); text(r)',
+        type:"custom_tool_call",id:"ctc-contract",call_id:"call-contract",name:"exec",arguments:'const r=await tools.fastlectures__fastlectures_get_guidance({id:"general-html"}); text(r)',
       }});
       process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId,responseId:"code-mode-contract",usage:null});
-      const contract=await process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-independent-contract",namespace:"penecho",tool:"penecho_get_guidance",arguments:{id:"general-html"}});
+      const contract=await process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-independent-contract",namespace:"fastlectures",tool:"fastlectures_get_guidance",arguments:{id:"general-html"}});
       assert.equal(contract.success,true);
       process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{
-        type:"custom_tool_call",id:"ctc-inspect",call_id:"call-inspect",name:"exec",arguments:'const r=await tools.penecho__penecho_read_file({path:"canvas.json"}); text(r)',
+        type:"custom_tool_call",id:"ctc-inspect",call_id:"call-inspect",name:"exec",arguments:'const r=await tools.fastlectures__fastlectures_read_file({path:"canvas.json"}); text(r)',
       }});
-      const inspection=process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-independent-inspect",namespace:"penecho",tool:"penecho_read_file",arguments:{path:"canvas.json"}});
+      const inspection=process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-independent-inspect",namespace:"fastlectures",tool:"fastlectures_read_file",arguments:{path:"canvas.json"}});
       process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId,responseId:"code-mode-inspect",usage:null});
       await inspection;
       process.emitNotification("item/agentMessage/delta",{threadId:process.threadId,turnId,delta:"Code Mode matched."});
@@ -1246,22 +1246,22 @@ test("Codex Native matches Code Mode exec wrappers to dynamic tools despite inde
   assert.equal(process.responseErrors.length,0);
   const diagnostics=traceEvents.filter(event=>event.phase==="diagnostic").map(event=>JSON.parse(event.diagnostic.traceDiagnostic)),boundaries=diagnostics.filter(record=>record.kind==="native-response-boundary");
   assert.deepEqual(boundaries.slice(0,2).map(record=>record.toolCallCount),[1,1]);
-  assert.deepEqual(boundaries.slice(0,2).map(record=>record.rawCalls[0].underlyingToolNames),[["penecho_get_guidance"],["penecho_read_file"]]);
+  assert.deepEqual(boundaries.slice(0,2).map(record=>record.rawCalls[0].underlyingToolNames),[["fastlectures_get_guidance"],["fastlectures_read_file"]]);
 });
 
-test("Codex Native executes a large standard JSON penecho_present_widget carried by Code Mode without changing HTML",async t=>{
+test("Codex Native executes a large standard JSON fastlectures_present_widget carried by Code Mode without changing HTML",async t=>{
   const harness=await createNativeHarness();
   t.after(()=>harness.cleanup());
   const session=await harness.connect(),process=harness.processes[0];
-  await session.native.tool("penecho_get_guidance").execute({id:"general-html"},{callId:"standard-json-contract",signal:new AbortController().signal});
+  await session.native.tool("fastlectures_get_guidance").execute({id:"general-html"},{callId:"standard-json-contract",signal:new AbortController().signal});
   const html=`<!doctype html>\n<style>.q::after{content:'"\\\\';}</style>\n<script>const path="C:\\\\tmp\\\\widget";</script>\n<main>${"standard-json-long-line\n".repeat(400)}</main>`,args={requestId:"standard-json-create",artifactId:"standard-json",title:"Standard JSON",html,width:900,height:600};
   process.requestHandler=async method=>{
     if(method!=="turn/start")return{};
     const turnId="native-standard-json-turn";
     setImmediate(async()=>{
       process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:turnId}});
-      process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{type:"custom_tool_call",id:"ctc-standard-json",call_id:"call-standard-json",name:"exec",arguments:'const html=`...`; const r=await tools.penecho__penecho_present_widget({baseRevision:0,items:[{html}]}); text(r)'}});
-      const executed=process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-independent-standard-json",namespace:"penecho",tool:"penecho_present_widget",arguments:args});
+      process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{type:"custom_tool_call",id:"ctc-standard-json",call_id:"call-standard-json",name:"exec",arguments:'const html=`...`; const r=await tools.fastlectures__fastlectures_present_widget({baseRevision:0,items:[{html}]}); text(r)'}});
+      const executed=process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-independent-standard-json",namespace:"fastlectures",tool:"fastlectures_present_widget",arguments:args});
       process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId,responseId:"standard-json-create",usage:null});
       await executed;
       process.emitNotification("item/agentMessage/delta",{threadId:process.threadId,turnId,delta:"Created with standard JSON."});
@@ -1292,11 +1292,11 @@ test("Codex Native rejects an unavailable sibling tool in a wrapped batch before
     setImmediate(async()=>{
       process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:turnId}});
       process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{
-        type:"custom_tool_call",id:"ctc-multi",call_id:"call-multi",name:"exec",arguments:'const a=await tools.penecho__penecho_read_file({path:"canvas.json"}); const b=await tools.penecho__unavailable_tool({target:"canvas",quality:"basic"}); text([a,b])',
+        type:"custom_tool_call",id:"ctc-multi",call_id:"call-multi",name:"exec",arguments:'const a=await tools.fastlectures__fastlectures_read_file({path:"canvas.json"}); const b=await tools.fastlectures__unavailable_tool({target:"canvas",quality:"basic"}); text([a,b])',
       }});
       const requests=[
-        process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-multi-a",namespace:"penecho",tool:"penecho_read_file",arguments:{path:"canvas.json"}}),
-        process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-multi-b",namespace:"penecho",tool:"unavailable_tool",arguments:{target:"canvas",quality:"basic"}}),
+        process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-multi-a",namespace:"fastlectures",tool:"fastlectures_read_file",arguments:{path:"canvas.json"}}),
+        process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-multi-b",namespace:"fastlectures",tool:"unavailable_tool",arguments:{target:"canvas",quality:"basic"}}),
       ];
       process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId,responseId:"code-mode-multi",usage:null});
       const results=await Promise.all(requests);
@@ -1325,11 +1325,11 @@ test("Codex Native expires an unexecuted Code Mode boundary before matching a la
     const turnId="native-code-mode-expiry-turn";
     setImmediate(async()=>{
       process.emitNotification("turn/started",{threadId:process.threadId,turn:{id:turnId}});
-      process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{type:"custom_tool_call",id:"ctc-failed-exec",call_id:"call-failed-exec",name:"exec",arguments:'tools.penecho__penecho_capture_canvas({target:"canvas"}); tools.penecho__penecho_read_file({path:"canvas.json"})'}});
+      process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{type:"custom_tool_call",id:"ctc-failed-exec",call_id:"call-failed-exec",name:"exec",arguments:'tools.fastlectures__fastlectures_capture_canvas({target:"canvas"}); tools.fastlectures__fastlectures_read_file({path:"canvas.json"})'}});
       process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId,responseId:"failed-exec-boundary",usage:null});
-      process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{type:"custom_tool_call",id:"ctc-corrected-exec",call_id:"call-corrected-exec",name:"exec",arguments:'const r=await tools.penecho__penecho_read_file({path:"canvas.json"}); text(r)'}});
+      process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{type:"custom_tool_call",id:"ctc-corrected-exec",call_id:"call-corrected-exec",name:"exec",arguments:'const r=await tools.fastlectures__fastlectures_read_file({path:"canvas.json"}); text(r)'}});
       process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId,responseId:"corrected-exec-boundary",usage:null});
-      await process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-independent-corrected",namespace:"penecho",tool:"penecho_read_file",arguments:{path:"canvas.json"}});
+      await process.serverRequest("item/tool/call",{threadId:process.threadId,turnId,callId:"exec-independent-corrected",namespace:"fastlectures",tool:"fastlectures_read_file",arguments:{path:"canvas.json"}});
       process.emitNotification("item/agentMessage/delta",{threadId:process.threadId,turnId,delta:"Corrected response matched."});
       process.emitNotification("item/completed",{threadId:process.threadId,turnId,item:{type:"agentMessage",text:"Corrected response matched."}});
       process.emitNotification("rawResponse/completed",{threadId:process.threadId,turnId,responseId:"expiry-final",usage:null});
@@ -1363,10 +1363,10 @@ test("Codex Native web_read executes through the injected SSRF-safe public fetch
     const turnId="web-read-turn";
     setImmediate(async()=>{
       process.emitNotification("rawResponseItem/completed",{threadId:process.threadId,turnId,item:{
-        type:"function_call",call_id:"web-call",namespace:"penecho",name:"web_read",arguments:JSON.stringify({url:"https://example.test/source"}),
+        type:"function_call",call_id:"web-call",namespace:"fastlectures",name:"web_read",arguments:JSON.stringify({url:"https://example.test/source"}),
       }});
       const request=process.serverRequest("item/tool/call",{
-        threadId:process.threadId,turnId,callId:"web-call",namespace:"penecho",tool:"web_read",arguments:{url:"https://example.test/source"},
+        threadId:process.threadId,turnId,callId:"web-call",namespace:"fastlectures",tool:"web_read",arguments:{url:"https://example.test/source"},
       });
       await new Promise(resolve=>setTimeout(resolve,30));
       assert.equal(fetchCalls.length,0,"the tool must wait for the exact raw response boundary");
@@ -1390,7 +1390,7 @@ test("Codex Native tool timeout and disposal finish when a tool ignores AbortSig
   const harness=await createNativeHarness();
   t.after(()=>harness.cleanup());
   const session=await harness.connect(),process=harness.processes[0];
-  const tool=session.native.tool("penecho_read_file");
+  const tool=session.native.tool("fastlectures_read_file");
   tool.timeoutMs=20;
   tool.execute=() => new Promise(()=>{});
   let serverResponse;
@@ -1398,9 +1398,9 @@ test("Codex Native tool timeout and disposal finish when a tool ignores AbortSig
     if(method!=="turn/start")return{};
     const turnId="ignored-abort-turn";
     setImmediate(()=>{
-      emitRawToolDecision(process,turnId,[{callId:"ignored-abort-call",tool:"penecho_read_file",arguments:{path:"canvas.json"}}]);
+      emitRawToolDecision(process,turnId,[{callId:"ignored-abort-call",tool:"fastlectures_read_file",arguments:{path:"canvas.json"}}]);
       serverResponse=process.serverRequest("item/tool/call",{
-        threadId:process.threadId,turnId,callId:"ignored-abort-call",namespace:"penecho",tool:"penecho_read_file",arguments:{path:"canvas.json"},
+        threadId:process.threadId,turnId,callId:"ignored-abort-call",namespace:"fastlectures",tool:"fastlectures_read_file",arguments:{path:"canvas.json"},
       });
     });
     return {turn:{id:turnId}};
@@ -1436,7 +1436,7 @@ test("Codex Native rejects duplicate dynamic tool call ids before a mutation can
     if(method!=="turn/start")return {};
     const turnId="duplicate-call-turn";
     setImmediate(async()=>{
-      const params={threadId:process.threadId,turnId,callId:"repeat-call",namespace:"penecho",tool:"penecho_read_file",arguments:{path:"canvas.json"}};
+      const params={threadId:process.threadId,turnId,callId:"repeat-call",namespace:"fastlectures",tool:"fastlectures_read_file",arguments:{path:"canvas.json"}};
       emitRawToolDecision(process,turnId,[params]);
       await process.serverRequest("item/tool/call",params);
       emitRawToolDecision(process,turnId,[params]);
@@ -1986,7 +1986,7 @@ test("Codex Native thread closure invalidates only the provider thread", async t
   const submitted=harness.host.submit(session,"thread close turn",false,[],{},null);
   await waitFor(()=>session.active?.turnId==="thread-close-turn");
   process.emitNotification("thread/closed",{threadId:process.threadId});
-  await assert.rejects(submitted,/closed the PenEcho Agent thread/);
+  await assert.rejects(submitted,/closed the FastLectures Agent thread/);
   await waitFor(()=>process.closedCount>0);
   assert.equal(harness.host.sessions.has(session.id),true);
   assert.equal(session.threadId,null);
@@ -2013,7 +2013,7 @@ test("Codex Native refuses non-allowlisted app-server interactions", async t => 
 });
 
 test("Codex Native app-server child uses strict wire initialization before ephemeral thread creation", async t => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-codex-process-test-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-codex-process-test-"));
   t.after(() => fs.rmSync(directory, { recursive:true, force:true }));
   const { CodexNativeAppServerProcess } = await import("../src/server/canvas-agent/codex-native-host.mjs");
   class FakeStdin extends EventEmitter {
@@ -2058,7 +2058,7 @@ test("Codex Native app-server child uses strict wire initialization before ephem
   assert.ok(process.workDir.startsWith(`${runtimeDirectory}${path.sep}`));
   if (os.platform() !== "win32") assert.equal(fs.statSync(process.workDir).mode & 0o700, 0o700);
   assert.deepEqual(child.sent.map(message => message.method || `response:${message.id}`), ["initialize", "initialized", "thread/start"]);
-  assert.equal(child.sent[0].params.clientInfo.name, "penecho-canvas-agent");
+  assert.equal(child.sent[0].params.clientInfo.name, "fastlectures-canvas-agent");
   assert.equal(child.sent[0].params.capabilities.experimentalApi, true);
   assert.equal(child.sent[2].params.model, "codex-model");
   assert.equal(child.sent[2].params.ephemeral, true);
@@ -2118,7 +2118,7 @@ test("Codex Native accepts attachment-sized JSONL messages and still rejects unb
   process.stderr=warning;
   process.handleData("x".repeat(48*1024*1024+1));
   assert.equal(failures.length,1);
-  assert.match(failures[0].message,/more attachment data than PenEcho can safely process/);
+  assert.match(failures[0].message,/more attachment data than FastLectures can safely process/);
   assert.doesNotMatch(failures[0].message,/PATH aliases/);
 });
 
@@ -2154,9 +2154,9 @@ test("Codex Native shared guidance returns stable complete documents and version
   const {getAuthoringGuidance,GUIDANCE_IDS}=require("../src/server/mcp/authoring-guidance.js");
   for(const id of GUIDANCE_IDS){
     const args={id},exec={callId:`guidance-${id}`,signal:new AbortController().signal};
-    const first=await session.native.tool("penecho_get_guidance").execute(args,exec);
+    const first=await session.native.tool("fastlectures_get_guidance").execute(args,exec);
     assert.deepEqual(first,getAuthoringGuidance(id));
-    assert.deepEqual(await session.native.tool("penecho_get_guidance").execute(args,{...exec,callId:`repeat-${id}`}),first);
+    assert.deepEqual(await session.native.tool("fastlectures_get_guidance").execute(args,{...exec,callId:`repeat-${id}`}),first);
     assert.equal(first.hash.length,64);
     assert.ok(first.document.length>0);
   }
@@ -2250,8 +2250,8 @@ test("Codex Native excludes Professional and private authoring even when legacy 
   const names=session.native.dynamicTools()[0].tools.map(tool=>tool.name);
   for(const name of ["canvas_create","canvas_patch_widget","load_widget_contract","load_visual_skill"])assert.equal(names.includes(name),false);
   assert.doesNotMatch(session.native.instructions(),/PRIVATE_PLUGIN_FULL_DOCUMENT/);
-  await assert.rejects(session.native.tool("penecho_get_guidance").execute({id:"professional-diagrams"},{callId:"blocked-professional",signal:new AbortController().signal}),/invalid/i);
-  await assert.rejects(session.native.tool("penecho_present_widget").execute({artifactId:"private",title:"Private",html:"<p>x</p>",pluginId:"private-demo"},{callId:"blocked-private",signal:new AbortController().signal}),/unsupported/i);
+  await assert.rejects(session.native.tool("fastlectures_get_guidance").execute({id:"professional-diagrams"},{callId:"blocked-professional",signal:new AbortController().signal}),/invalid/i);
+  await assert.rejects(session.native.tool("fastlectures_present_widget").execute({artifactId:"private",title:"Private",html:"<p>x</p>",pluginId:"private-demo"},{callId:"blocked-private",signal:new AbortController().signal}),/unsupported/i);
   assert.equal(harness.messages.filter(message=>message.type==="tool_request").length,0);
   assert.equal(session.stateDigest.objects[0].id,"professional-1");
 });
@@ -2261,7 +2261,7 @@ test("Codex Native freezes base instructions and retains on-demand guidance resu
   const runtime=await createCanvasAgentNativeRuntime({
     attachments:{saveImages:async()=>[]},
     session:{
-      projectRuntimeDirectory:(()=>{const directory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-native-context-test-"));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));return directory})(),
+      projectRuntimeDirectory:(()=>{const directory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-native-context-test-"));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));return directory})(),
       widgetCapabilities:{professionalEnabled:false,privatePlugins:[{id:"private-demo",document:"PRIVATE_PLUGIN_FULL_DOCUMENT",hash:"a".repeat(64)}]},
       generalHtmlContract:{hash:"b".repeat(64),document:"GENERAL_CONTRACT_FULL_DOCUMENT"},
       professionalDiagramsContract:null,
@@ -2275,14 +2275,14 @@ test("Codex Native freezes base instructions and retains on-demand guidance resu
   });
   const base=runtime.instructions();
   assert.equal(base.includes("PRIVATE_PLUGIN_FULL_DOCUMENT"),false);
-  const guidance=await runtime.tool("penecho_get_guidance").execute({id:"general-html"},{callId:"context-call",signal:new AbortController().signal});
+  const guidance=await runtime.tool("fastlectures_get_guidance").execute({id:"general-html"},{callId:"context-call",signal:new AbortController().signal});
   assert.equal(runtime.instructions(),base);
   const contexts=runtime.turnAdditionalContext();
   assert.deepEqual(guidance,require("../src/server/mcp/authoring-guidance.js").getAuthoringGuidance("general-html"));
   assert.equal(contexts.some(context=>context.value.includes("PRIVATE_PLUGIN_FULL_DOCUMENT")),false);
   assert.equal(contexts.some(context=>context.value.includes("GENERAL_CONTRACT_FULL_DOCUMENT")),false);
   assert.deepEqual([...new Set(contexts.map(context=>context.key))].length,contexts.length);
-  for(const context of contexts)assert.match(context.key,/^penecho_context_[0-9]{6}_[0-9a-f]{64}$/);
+  for(const context of contexts)assert.match(context.key,/^fastlectures_context_[0-9]{6}_[0-9a-f]{64}$/);
 });
 
 test("Codex Native loaded guidance remains available in the same process and thread history", async t => {
@@ -2297,9 +2297,9 @@ test("Codex Native loaded guidance remains available in the same process and thr
     if(firstTurn){
       firstTurn=false;
       setImmediate(async()=>{
-        emitRawToolDecision(process,turnId,[{callId:"load-contract",tool:"penecho_get_guidance",arguments:{id:"general-html",detail:"full"}}]);
+        emitRawToolDecision(process,turnId,[{callId:"load-contract",tool:"fastlectures_get_guidance",arguments:{id:"general-html",detail:"full"}}]);
         await process.serverRequest("item/tool/call",{
-          threadId:process.threadId,turnId,callId:"load-contract",namespace:"penecho",tool:"penecho_get_guidance",arguments:{id:"general-html",detail:"full"},
+          threadId:process.threadId,turnId,callId:"load-contract",namespace:"fastlectures",tool:"fastlectures_get_guidance",arguments:{id:"general-html",detail:"full"},
         });
         process.emitNotification("item/agentMessage/delta",{threadId:process.threadId,turnId,delta:"Loaded."});
         process.emitNotification("turn/completed",{threadId:process.threadId,turn:{id:turnId,status:"completed",items:[]}});
@@ -2318,7 +2318,7 @@ test("Codex Native loaded guidance remains available in the same process and thr
   assert.equal(turns.length,2);
   assert.deepEqual(turns.map(turn=>turn.params.threadId),["thread-1","thread-1"]);
   assert.equal(harness.processes.length,1);
-  assert.equal(baseInstructions.includes("<penecho_canvas_agent_widget_contract"),false);
+  assert.equal(baseInstructions.includes("<fastlectures_canvas_agent_widget_contract"),false);
   assert.equal(process.responses.filter(response=>response.result.success&&response.result.contentItems.some(item=>item.text?.includes("General HTML authoring guidance"))).length,1);
   assert.equal(JSON.stringify(turns[1].params.additionalContext).includes("General HTML authoring guidance"),false);
 });
@@ -2351,7 +2351,7 @@ test("Codex Native browser disconnect can resume the same thread and TTL cleanup
 });
 
 test("Codex Native exposes only the host-resolved read-only project tool surface", async t => {
-  const directory=fs.mkdtempSync(path.join(os.tmpdir(), "penecho-codex-native-project-test-"));
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-codex-native-project-test-"));
   t.after(() => fs.rmSync(directory, { recursive:true, force:true }));
   const projectDirectory=path.join(directory, "project");
   fs.mkdirSync(projectDirectory);
@@ -2443,7 +2443,7 @@ test("Codex Native changes the next-turn model without replacing its thread or b
   assert.equal(turn.params.effort,"high");
 });
 
-test("PenEcho Agent router fixes the session owner and switches providers atomically", async () => {
+test("FastLectures Agent router fixes the session owner and switches providers atomically", async () => {
   const { CanvasAgentHostRouter } = await import("../src/server/canvas-agent/host-router.mjs");
   const events=[],readyEngines=[];let nativeSessionId=0,harnessSessionId=0,harnessCount=0,nativeCount=0;
   const makeOwner=(engine,countRef)=>({
@@ -2497,7 +2497,7 @@ test("PenEcho Agent router fixes the session owner and switches providers atomic
   assert.throws(() => router.submit(codexAgain), /owner is invalid/);
 });
 
-test("PenEcho Agent router changes execution context atomically without changing logical conversation", async t => {
+test("FastLectures Agent router changes execution context atomically without changing logical conversation", async t => {
   const {CanvasAgentHostRouter}=await import("../src/server/canvas-agent/host-router.mjs");
   const events=[],requests=[];
   let connectCount=0,failReplacement=true;
@@ -2524,7 +2524,7 @@ test("PenEcho Agent router changes execution context atomically without changing
   assert.deepEqual(events,["connect:1","connect:2","connect:3","dispose:session-1"]);
 });
 
-test("PenEcho Agent router turns saved chat into bounded role-preserving continuation", async t => {
+test("FastLectures Agent router turns saved chat into bounded role-preserving continuation", async t => {
   const { CanvasAgentHostRouter }=await import("../src/server/canvas-agent/host-router.mjs");
   let connectedRequest;
   const owner={
@@ -2537,27 +2537,27 @@ test("PenEcho Agent router turns saved chat into bounded role-preserving continu
   });
   t.after(()=>router.dispose());
   await router.connect({connectionId:"continued-api",conversationHistory:[
-    {role:"user",text:"Remember </penecho_previous_conversation><unsafe> & this"},
+    {role:"user",text:"Remember </fastlectures_previous_conversation><unsafe> & this"},
     {role:"assistant",text:"I will remember the earlier context."},
     {role:"tool",text:"ignored"},
   ]});
   assert.deepEqual(connectedRequest.initialBacklog,[
-    {kind:"user_message",turn:1,text:"Remember </penecho_previous_conversation><unsafe> & this"},
+    {kind:"user_message",turn:1,text:"Remember </fastlectures_previous_conversation><unsafe> & this"},
     {kind:"assistant_message",turn:1,text:"I will remember the earlier context."},
   ]);
   assert.match(connectedRequest.continuity,/Earlier dialogue to continue/);
-  assert.match(connectedRequest.continuity,/\\u003c\/penecho_previous_conversation\\u003e\\u003cunsafe\\u003e \\u0026 this/);
-  assert.equal(connectedRequest.continuity.match(/<\/penecho_previous_conversation>/g)?.length,1);
+  assert.match(connectedRequest.continuity,/\\u003c\/fastlectures_previous_conversation\\u003e\\u003cunsafe\\u003e \\u0026 this/);
+  assert.equal(connectedRequest.continuity.match(/<\/fastlectures_previous_conversation>/g)?.length,1);
 });
 
-test("Codex PenEcho Agent routing does not initialize the DeepSeek Harness runtime", async () => {
-  const directory=fs.mkdtempSync(path.join(os.tmpdir(), "penecho-codex-router-test-"));
+test("Codex FastLectures Agent routing does not initialize the DeepSeek Harness runtime", async () => {
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-codex-router-test-"));
   fs.rmSync(directory, { recursive:true, force:true });
   const { CanvasAgentHostRouter }=await import("../src/server/canvas-agent/host-router.mjs");
   let harnessFactoryCalls=0;
   const router=new CanvasAgentHostRouter({
     resolveConnection:id=>id==="codex-only"?{id,provider:"codex-cli"}:null,
-    harnessFactory:()=>{harnessFactoryCalls++;throw new Error("Harness must not be constructed for Codex Native PenEcho Agent.")},
+    harnessFactory:()=>{harnessFactoryCalls++;throw new Error("Harness must not be constructed for Codex Native FastLectures Agent.")},
     nativeFactory:()=>({
       async connect(request){return{id:"codex-native-only",connectionId:request.connectionId}},
       disposeSession(){},activeProjectIds:()=>[],async dispose(){},

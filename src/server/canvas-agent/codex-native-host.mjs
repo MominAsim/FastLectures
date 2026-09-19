@@ -10,7 +10,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { admitEncodedImages } from '@deepseek-ai/dsh-attachment'
 import { canvasAgentConversationContinuity } from './conversation-continuity.mjs'
 import { createCanvasDecisionBatch, MAX_CANVAS_DECISION_TOOLS, CANVAS_MUTATION_TOOLS } from './tool-batch.mjs'
-import PenEchoAttachmentStore from './image-attachments.mjs'
+import FastLecturesAttachmentStore from './image-attachments.mjs'
 import { NativeActivityDiagnostics } from './native-activity-diagnostics.mjs'
 import { DEFAULT_CANVAS_AGENT_IDLE_TIMEOUT_MS, canvasAgentTimeoutSeconds, createCanvasAgentModelTimeout } from './model-timeout.mjs'
 import {
@@ -125,17 +125,17 @@ const CODEX_NATIVE_KNOWN_NOTIFICATIONS = new Set([
   'item/completed',
 ])
 const CODEX_NATIVE_CAPTURE_CONSUMPTION_CONTRACT = [
-  'Code Mode capture result contract: await tools.penecho__canvas_capture(args) may return a structured result or a nested result string containing metadata and a data:image/png;base64,... or data:image/webp;base64,... URL.',
+  'Code Mode capture result contract: await tools.fastlectures__canvas_capture(args) may return a structured result or a nested result string containing metadata and a data:image/png;base64,... or data:image/webp;base64,... URL.',
   'Extract the image URL and forward it with image(url); forward metadata separately with text(metadata).',
   'Do not inspect r.content, guess a content shape, or call text(raw) while raw still contains the image data.',
-  'Standard form: const r=await tools.penecho__canvas_capture(args); const raw=r&&typeof r===\'object\'&&\'result\' in r?r.result:r; const imageUrl=typeof raw===\'string\'?raw.match(/data:image\\/(?:png|webp);base64,[A-Za-z0-9+/=]+/)?.[0]:raw?.imageUrl??raw?.dataUrl??(typeof raw?.image===\'string\'?raw.image:null)??raw?.attachment?.dataUrl; const metadata=typeof raw===\'string\'?raw.replace(/data:image\\/(?:png|webp);base64,[A-Za-z0-9+/=]+/g,\'\').trim():raw?.metadata??Object.fromEntries(Object.entries(raw&&typeof raw===\'object\'?raw:{}).filter(([key])=>![\'image\',\'imageUrl\',\'dataUrl\',\'attachment\'].includes(key))); if(metadata)text(typeof metadata===\'string\'?metadata:JSON.stringify(metadata)); if(imageUrl)image(imageUrl).',
+  'Standard form: const r=await tools.fastlectures__canvas_capture(args); const raw=r&&typeof r===\'object\'&&\'result\' in r?r.result:r; const imageUrl=typeof raw===\'string\'?raw.match(/data:image\\/(?:png|webp);base64,[A-Za-z0-9+/=]+/)?.[0]:raw?.imageUrl??raw?.dataUrl??(typeof raw?.image===\'string\'?raw.image:null)??raw?.attachment?.dataUrl; const metadata=typeof raw===\'string\'?raw.replace(/data:image\\/(?:png|webp);base64,[A-Za-z0-9+/=]+/g,\'\').trim():raw?.metadata??Object.fromEntries(Object.entries(raw&&typeof raw===\'object\'?raw:{}).filter(([key])=>![\'image\',\'imageUrl\',\'dataUrl\',\'attachment\'].includes(key))); if(metadata)text(typeof metadata===\'string\'?metadata:JSON.stringify(metadata)); if(imageUrl)image(imageUrl).',
 ].join(' ')
 const CODEX_NATIVE_CAPTURE_DATA_URL_PATTERN = /data:image\/(?:png|webp);base64,[A-Za-z0-9+/=]+/g
 
 export function addCodexNativeCaptureContract(dynamicTools) {
   if (!Array.isArray(dynamicTools)) return dynamicTools
   return dynamicTools.map(namespace => {
-    if (namespace?.type !== 'namespace' || namespace.name !== 'penecho' || !Array.isArray(namespace.tools)) return namespace
+    if (namespace?.type !== 'namespace' || namespace.name !== 'fastlectures' || !Array.isArray(namespace.tools)) return namespace
     return {
       ...namespace,
       tools:namespace.tools.map(tool => {
@@ -224,7 +224,7 @@ function configured(value) {
   return text && text !== 'config' && text !== 'default' ? text : null
 }
 
-function safeError(error, fallback = 'Codex Native PenEcho Agent failed.') {
+function safeError(error, fallback = 'Codex Native FastLectures Agent failed.') {
   return String(error?.message || error || fallback)
     .replace(/\/(?:[\w.-]+\/)+[\w.-]+/g, '<path>')
     .replace(/\b[A-Za-z]:\\(?:[^\\\s]+\\)+[^\\\s]+/g, '<path>')
@@ -241,14 +241,14 @@ function codexFailureStderr(value) {
 }
 
 function codexProtocolLineTooLargeError() {
-  return new Error('Codex returned more attachment data than PenEcho can safely process in one message. Send fewer or smaller images and try again.')
+  return new Error('Codex returned more attachment data than FastLectures can safely process in one message. Send fewer or smaller images and try again.')
 }
 
 function nativeRawDecisionCall(item) {
   const itemId=String(item?.id||''),callId=String(item?.call_id||item?.callId||''),aliases=[...new Set([itemId,callId].filter(value=>value&&value.length<=256))],
     name=String(item?.name||''),argumentsValue=item?.arguments??item?.input??null,
     underlyingToolNames=name==='exec'&&typeof argumentsValue==='string'
-      ? [...argumentsValue.matchAll(/\btools\.penecho__([A-Za-z0-9_]+)\s*\(/g)].map(match=>match[1])
+      ? [...argumentsValue.matchAll(/\btools\.fastlectures__([A-Za-z0-9_]+)\s*\(/g)].map(match=>match[1])
       : name?[name]:[]
   return{
     itemId:itemId&&itemId.length<=256?itemId:null,
@@ -280,7 +280,7 @@ function installedCodexCandidates(connection, env, stateDirectory, platform = pr
     configuredPath,
   }), privateExecutable=managedCliPaths('codex-cli',{env,platform,stateDir:stateDirectory})[0]
   return candidates.map(candidate=>canonicalFile(candidate.executable)===canonicalFile(privateExecutable)
-    ? {...candidate,source:'penecho-managed',privateManaged:true}
+    ? {...candidate,source:'fastlectures-managed',privateManaged:true}
     : candidate)
 }
 
@@ -310,7 +310,7 @@ function codexCandidateFailure(failures) {
   const messages=[...new Set(failures.map(failure=>safeError(failure.error)).filter(Boolean))], authentication=messages.find(message=>/authenticat|unauthori|not logged|login required|\b401\b/i.test(message)),
     error=new Error(authentication
       ? `Every installed Codex CLI candidate requires authentication or failed to start. ${authentication}`
-      : `No compatible installed Codex CLI could start PenEcho Agent.${messages.length ? ` ${messages.at(-1)}` : ''}`)
+      : `No compatible installed Codex CLI could start FastLectures Agent.${messages.length ? ` ${messages.at(-1)}` : ''}`)
   error.code=authentication ? 'CODEX_CLI_AUTHENTICATION_REQUIRED' : 'CODEX_CLI_INCOMPATIBLE'
   error.diagnostic=JSON.stringify(failures.map(failure=>({source:failure.source,error:safeError(failure.error)})))
   return error
@@ -451,7 +451,7 @@ export class CodexNativeAppServerProcess {
       await mkdir(runtimeDirectory, { recursive:true, mode:0o700 })
       await chmod(runtimeDirectory, 0o700).catch(() => {})
     }
-    this.workDir = await mkdtemp(join(runtimeDirectory, 'penecho-canvas-codex-'))
+    this.workDir = await mkdtemp(join(runtimeDirectory, 'fastlectures-canvas-codex-'))
     await chmod(this.workDir, 0o700).catch(() => {})
     try {
     this.launch = resolveCodexLaunch(this.connection.cliPath, this.env)
@@ -481,7 +481,7 @@ export class CodexNativeAppServerProcess {
     })
 
       await this.request('initialize', {
-        clientInfo:{ name:'penecho-canvas-agent', title:'PenEcho Agent', version:'1' },
+        clientInfo:{ name:'fastlectures-canvas-agent', title:'FastLectures Agent', version:'1' },
         capabilities:{ experimentalApi:true },
       }, DEFAULT_REQUEST_TIMEOUT_MS)
       this.notify('initialized', {})
@@ -709,7 +709,7 @@ export class CodexNativeHost {
     this.onModelUsage = typeof onModelUsage === 'function' ? onModelUsage : null
     this.env = env
     this.platform = platform
-    if (typeof publicFetch !== 'function') throw new Error('Codex Native PenEcho Agent public fetch is invalid.')
+    if (typeof publicFetch !== 'function') throw new Error('Codex Native FastLectures Agent public fetch is invalid.')
     this.publicFetch = publicFetch
     this.createAppServer = createAppServer || (options => new CodexNativeAppServerProcess(options))
     this.resolveCliCandidates = resolveCliCandidates || (connection => installedCodexCandidates(connection,this.env,this.stateDirectory,this.platform))
@@ -727,7 +727,7 @@ export class CodexNativeHost {
     this.sessions = new Map()
     this.resumeIndex = new Map()
     this.context = new Context()
-    this.attachments = new PenEchoAttachmentStore(this.context, { dshHome:join(stateDirectory, 'codex-native') })
+    this.attachments = new FastLecturesAttachmentStore(this.context, { dshHome:join(stateDirectory, 'codex-native') })
     this.attachments.requestImageObserver = record => this.traceModelRequestImage(record)
     this.disposing = null
   }
@@ -740,15 +740,15 @@ export class CodexNativeHost {
       widgetCapabilities = {}, projectId = '', accessMode = 'controlled', binding = null, send = null, initialBacklog = [], continuity = '',
     } = options || {}
     if (String(canvasSessionId).length > 256 || String(resumeToken).length > 256 || String(clientId).length > 256 || String(connectionId).length > 256 || String(conversationId).length > 256 || /[\r\n\0]/.test(String(conversationId || '')) || String(projectId).length > 128) {
-      throw new Error('PenEcho Agent connection identity is invalid.')
+      throw new Error('FastLectures Agent connection identity is invalid.')
     }
     const normalizedProjectId = String(projectId || ''), normalizedAccessMode = String(accessMode || 'controlled'), logicalConversationId=String(conversationId || '')
-    if (!['controlled', 'full'].includes(normalizedAccessMode)) throw new Error('PenEcho Agent project access mode is invalid.')
+    if (!['controlled', 'full'].includes(normalizedAccessMode)) throw new Error('FastLectures Agent project access mode is invalid.')
     const project = normalizedProjectId ? await this.resolveProject(normalizedProjectId) : null
-    if (normalizedProjectId && !project) throw new Error('The selected local project was not found on this PenEcho host.')
+    if (normalizedProjectId && !project) throw new Error('The selected local project was not found on this FastLectures host.')
     const connection = this.resolveConnection(connectionId)
     if (!connection) throw Object.assign(new Error('The selected AI connection was not found. Refresh AI connections.'), { code:'CONNECTION_STALE', status:409 })
-    if (connection.provider !== 'codex-cli') throw new Error('Codex Native PenEcho Agent requires a Codex CLI connection.')
+    if (connection.provider !== 'codex-cli') throw new Error('Codex Native FastLectures Agent requires a Codex CLI connection.')
     const fingerprint = codexConnectionFingerprint(connection)
     const resolvedWebSearch = this.resolveWebSearch?.() || {}
     const requestedDeepSeekSearchProvider=String(resolvedWebSearch.deepseekProvider||''), deepseekSearchProvider=['deepseek-official','opencode-go'].includes(requestedDeepSeekSearchProvider)?requestedDeepSeekSearchProvider:'deepseek-official', deepseekSearchApiKey=String(resolvedWebSearch.deepseekApiKey||''), tavilySearchApiKey=String(resolvedWebSearch.tavilyApiKey??resolvedWebSearch.apiKey??'')
@@ -952,7 +952,7 @@ export class CodexNativeHost {
   }
 
   async startCandidate(session, connection, candidate, lifecycle, failures) {
-    if (session.disposed || session.lifecycle !== lifecycle) throw new Error('Codex Native PenEcho Agent session was closed during startup.')
+    if (session.disposed || session.lifecycle !== lifecycle) throw new Error('Codex Native FastLectures Agent session was closed during startup.')
     const executable=String(candidate?.executable || '').trim()
     if (!executable) return null
     const source=String(candidate?.source || 'configured').slice(0,32),candidateConnection={...connection,cliPath:executable}
@@ -990,7 +990,7 @@ export class CodexNativeHost {
       })
       starting=false
       if (startupFailure) throw startupFailure
-      if (session.disposed || session.lifecycle !== lifecycle) throw new Error('Codex Native PenEcho Agent session was closed during startup.')
+      if (session.disposed || session.lifecycle !== lifecycle) throw new Error('Codex Native FastLectures Agent session was closed during startup.')
       session.threadId = threadId
       session.reportedUsageTotal = null
       session.cliSource = source
@@ -1003,7 +1003,7 @@ export class CodexNativeHost {
       if (session.process === process) session.process=null
       session.threadId=null
       await process.close().catch(() => {})
-      if (session.disposed || session.lifecycle !== lifecycle) throw new Error('Codex Native PenEcho Agent session was closed during startup.')
+      if (session.disposed || session.lifecycle !== lifecycle) throw new Error('Codex Native FastLectures Agent session was closed during startup.')
       this.forgetPreferredCli(connection,executable)
       failures.push({source,error})
       this.logger({type:'codex-native-cli-candidate-failed',source,error:safeError(error)})
@@ -1032,7 +1032,7 @@ export class CodexNativeHost {
     if (!this.managedCliInstalls.has(requestedVersion)) {
       const promise=Promise.resolve().then(()=>this.installManagedCli(requestedVersion)).then(result=>{
         const executable=String(result?.executable||'').trim()
-        if(!executable)throw new Error('PenEcho managed Codex CLI installation did not return an executable.')
+        if(!executable)throw new Error('FastLectures managed Codex CLI installation did not return an executable.')
         assertCodexCliVersion(result?.version,requestedVersion)
         return{...result,executable}
       },error=>{
@@ -1045,15 +1045,15 @@ export class CodexNativeHost {
   }
 
   async ensureStarted(session) {
-    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native PenEcho Agent session is closed.')
+    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native FastLectures Agent session is closed.')
     if (session.recoveryPromise) await session.recoveryPromise
-    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native PenEcho Agent session is closed.')
+    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native FastLectures Agent session is closed.')
     const connection = this.resolveConnection(session.connectionId)
-    if (!connection) throw new Error('The Codex Native PenEcho Agent connection is unavailable.')
+    if (!connection) throw new Error('The Codex Native FastLectures Agent connection is unavailable.')
     if (codexConnectionFingerprint(connection) !== session.connectionFingerprint) {
-      throw new Error('The Codex Native PenEcho Agent connection changed. Start a new conversation before submitting this turn.')
+      throw new Error('The Codex Native FastLectures Agent connection changed. Start a new conversation before submitting this turn.')
     }
-    if (connection.provider !== 'codex-cli') throw new Error('The Codex Native PenEcho Agent connection is unavailable.')
+    if (connection.provider !== 'codex-cli') throw new Error('The Codex Native FastLectures Agent connection is unavailable.')
     if (session.process?.alive && session.threadId) return session.threadId
     if (session.startPromise) return session.startPromise
     const lifecycle = session.lifecycle
@@ -1082,12 +1082,12 @@ export class CodexNativeHost {
         this.logger({type:'codex-native-managed-cli-installed',release:CODEX_CLI_PINNED_VERSION,version:String(installed.version||'').slice(0,64)})
         session.traceDecisionProtocol?.({kind:'native-managed-cli-installed',release:CODEX_CLI_PINNED_VERSION,version:String(installed.version||'').slice(0,64)})
       } catch(error) {
-        failures.push({source:'penecho-install-pinned',error})
+        failures.push({source:'fastlectures-install-pinned',error})
         this.logger({type:'codex-native-managed-cli-install-failed',release:CODEX_CLI_PINNED_VERSION,error:safeError(error)})
         session.traceDecisionProtocol?.({kind:'native-managed-cli-install-failed',release:CODEX_CLI_PINNED_VERSION,error:safeError(error)})
       }
       if(installed){
-        const threadId=await this.startCandidate(session,connection,{executable:installed.executable,source:'penecho-installed',privateManaged:true},lifecycle,failures)
+        const threadId=await this.startCandidate(session,connection,{executable:installed.executable,source:'fastlectures-installed',privateManaged:true},lifecycle,failures)
         if(threadId)return threadId
       }
       this.send(session,'agent_status',{status:'preparing',phase:'discovering'})
@@ -1106,12 +1106,12 @@ export class CodexNativeHost {
         this.logger({type:'codex-native-managed-cli-installed',release:'latest',version:String(latest.version||'').slice(0,64)})
         session.traceDecisionProtocol?.({kind:'native-managed-cli-installed',release:'latest',version:String(latest.version||'').slice(0,64)})
       }catch(error){
-        failures.push({source:'penecho-install-latest',error})
+        failures.push({source:'fastlectures-install-latest',error})
         this.logger({type:'codex-native-managed-cli-install-failed',release:'latest',error:safeError(error)})
         session.traceDecisionProtocol?.({kind:'native-managed-cli-install-failed',release:'latest',error:safeError(error)})
       }
       if(latest){
-        const threadId=await this.startCandidate(session,connection,{executable:latest.executable,source:'penecho-latest',privateManaged:true},lifecycle,failures)
+        const threadId=await this.startCandidate(session,connection,{executable:latest.executable,source:'fastlectures-latest',privateManaged:true},lifecycle,failures)
         if(threadId)return threadId
       }
       throw codexCandidateFailure(failures)
@@ -1196,13 +1196,13 @@ export class CodexNativeHost {
   }
 
   async setConnection(session, { connectionId, binding = session?.binding, send = session?.send } = {}) {
-    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native PenEcho Agent session is closed.')
+    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native FastLectures Agent session is closed.')
     if (session.recoveryPromise) await session.recoveryPromise
-    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native PenEcho Agent session is closed.')
-    if (session.active || session.interruptPromise) throw new Error('Wait for the current PenEcho Agent turn to finish before changing models.')
+    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native FastLectures Agent session is closed.')
+    if (session.active || session.interruptPromise) throw new Error('Wait for the current FastLectures Agent turn to finish before changing models.')
     const connection = this.resolveConnection(String(connectionId || ''))
     if (!connection) throw Object.assign(new Error('The selected AI connection was not found. Refresh AI connections.'), { code:'CONNECTION_STALE', status:409 })
-    if (connection.provider !== 'codex-cli') throw new Error('The selected AI connection cannot use Codex Native PenEcho Agent.')
+    if (connection.provider !== 'codex-cli') throw new Error('The selected AI connection cannot use Codex Native FastLectures Agent.')
     session.connectionId=String(connection.id || connectionId)
     session.connectionFingerprint=codexConnectionFingerprint(connection)
     session.connection=connection
@@ -1234,12 +1234,12 @@ export class CodexNativeHost {
   }
 
   setWebSearchEnabled(session, enabled) {
-    if (Boolean(enabled) !== session.webSearch.enabled) throw new Error('Internet Search changed. Start a new PenEcho Agent conversation before submitting this turn.')
+    if (Boolean(enabled) !== session.webSearch.enabled) throw new Error('Internet Search changed. Start a new FastLectures Agent conversation before submitting this turn.')
     return session.webSearch.enabled
   }
 
   async admitUserImages(session, images) {
-    if (!Array.isArray(images) || images.length > 5) throw new Error('PenEcho Agent accepts at most five images per message.')
+    if (!Array.isArray(images) || images.length > 5) throw new Error('FastLectures Agent accepts at most five images per message.')
     const imageAttachments = images.length ? await admitEncodedImages(this.attachments, images) : []
     if (this.conversationTrace) images.forEach((image,index)=>{
       const diagnostic=canvasAgentHandwritingAdmissionDiagnostic(image,imageAttachments[index])
@@ -1248,7 +1248,7 @@ export class CodexNativeHost {
     const nextAttachmentRefs = new Map(session.attachmentRefs)
     for (const attachment of imageAttachments) nextAttachmentRefs.set(String(attachment.attachmentId), attachment)
     const attachmentBytes = [...nextAttachmentRefs.values()].reduce((total, attachment) => total + Number(attachment.bytes || 0), 0)
-    if (nextAttachmentRefs.size > 100 || attachmentBytes > 100 * 1024 * 1024) throw new Error('PenEcho Agent attachment capacity is exhausted. Start a new conversation before attaching more images.')
+    if (nextAttachmentRefs.size > 100 || attachmentBytes > 100 * 1024 * 1024) throw new Error('FastLectures Agent attachment capacity is exhausted. Start a new conversation before attaching more images.')
     for (const attachment of imageAttachments) session.attachmentRefs.set(String(attachment.attachmentId), attachment)
     return imageAttachments
   }
@@ -1280,7 +1280,7 @@ export class CodexNativeHost {
     const input = [
       { type:'text', text:prompt },
       ...(session.continuity ? [{ type:'text', text:`\n${session.continuity}` }] : []),
-      { type:'text', text:`\n<penecho_host_references>${JSON.stringify(hostReferences)}</penecho_host_references>` },
+      { type:'text', text:`\n<fastlectures_host_references>${JSON.stringify(hostReferences)}</fastlectures_host_references>` },
     ]
     for (const attachment of attachments) {
       const stored = await this.attachments.readImageRequest(attachment, CODEX_MODEL_IMAGE_REQUEST_POLICY, signal)
@@ -1298,12 +1298,12 @@ export class CodexNativeHost {
   }
 
   async submit(session, text, steer = false, images = [], references = {}, initialState = null, fileIds = [], canvasTitleNeeded = false, reasoningEffort = 'config') {
-    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native PenEcho Agent session is closed.')
+    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native FastLectures Agent session is closed.')
     if (session.interruptPromise) await session.interruptPromise
     if (session.recoveryPromise) await session.recoveryPromise
-    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native PenEcho Agent session is closed.')
+    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native FastLectures Agent session is closed.')
     const prompt = boundedText(text, 40_000).trim()
-    if (!prompt) throw new Error('Enter a message for PenEcho Agent.')
+    if (!prompt) throw new Error('Enter a message for FastLectures Agent.')
     const requestEffort=resolveCanvasAgentRequestEffort(session.connection,reasoningEffort)
     const normalizedFileIds=normalizeCanvasAgentTurnFileIds(fileIds,Array.isArray(images)?images.length:0)
     if (steer) return this.runSteer(session, prompt, images, references, initialState, normalizedFileIds, canvasTitleNeeded)
@@ -1314,20 +1314,20 @@ export class CodexNativeHost {
 
   async runSteer(session, prompt, images = [], references = {}, initialState = null, fileIds = [], canvasTitleNeeded = false) {
     const active = session.active
-    if (!active || !active.turnId) throw new Error('No active Codex Native PenEcho Agent turn is available to steer.')
-    if (!session.process?.alive || !session.threadId) throw new Error('Codex Native PenEcho Agent thread is unavailable.')
+    if (!active || !active.turnId) throw new Error('No active Codex Native FastLectures Agent turn is available to steer.')
+    if (!session.process?.alive || !session.threadId) throw new Error('Codex Native FastLectures Agent thread is unavailable.')
     const initialCanvasState = await admitInitialCanvasState(session, this.attachments, initialState)
     const imageAttachments = await this.admitUserImages(session, images)
     const preparedTurnFiles=await prepareCanvasAgentTurnFiles(session,this.resolveProject,fileIds,images.length), previousTurnFiles=Array.isArray(session.turnFiles)?session.turnFiles:[],
       addedTurnFiles=preparedTurnFiles.filter(file=>!previousTurnFiles.some(previous=>previous.id===file.id)), duplicateTurnFiles=preparedTurnFiles.filter(file=>previousTurnFiles.some(previous=>previous.id===file.id)),
       nextTurnFiles=[...previousTurnFiles,...addedTurnFiles]
     await discardCanvasAgentTurnFiles(duplicateTurnFiles)
-    if(nextTurnFiles.length+images.length>CANVAS_AGENT_MAX_TURN_ATTACHMENTS){await discardCanvasAgentTurnFiles(addedTurnFiles);throw new Error('PenEcho Agent accepts at most five files and images per active turn.')}
+    if(nextTurnFiles.length+images.length>CANVAS_AGENT_MAX_TURN_ATTACHMENTS){await discardCanvasAgentTurnFiles(addedTurnFiles);throw new Error('FastLectures Agent accepts at most five files and images per active turn.')}
     session.turnFiles=nextTurnFiles
     if (session.active !== active || active.inputController.signal.aborted) {
       session.turnFiles=previousTurnFiles
       await discardCanvasAgentTurnFiles(addedTurnFiles)
-      throw new Error('No active Codex Native PenEcho Agent turn is available to steer.')
+      throw new Error('No active Codex Native FastLectures Agent turn is available to steer.')
     }
     const hostReferences = this.hostReferencesFor(session, imageAttachments, references, initialCanvasState)
     const previousCanvasTurnBudget = session.canvasTurnBudget, previousVisualExplainerBudget = session.visualExplainerBudget, previousVisualExplorerBudget = session.visualExplorerBudget,
@@ -1345,7 +1345,7 @@ export class CodexNativeHost {
       const input = await this.modelInput(session, prompt, hostReferences, [
         ...(initialCanvasState?.attachment ? [initialCanvasState.attachment] : []), ...imageAttachments,
       ], active.inputController.signal)
-      if (session.active !== active || active.inputController.signal.aborted) throw new Error('No active Codex Native PenEcho Agent turn is available to steer.')
+      if (session.active !== active || active.inputController.signal.aborted) throw new Error('No active Codex Native FastLectures Agent turn is available to steer.')
       this.emitPublicEvent(session, { kind:'user_message', turn:session.turnNumber, text:redactPublicProjectValue(prompt, session) })
       await session.process.request('turn/steer', {
         threadId:session.threadId,
@@ -1369,10 +1369,10 @@ export class CodexNativeHost {
   }
 
   async runSubmit(session, text, steer = false, images = [], references = {}, initialState = null, fileIds = [], canvasTitleNeeded = false, requestEffort = resolveCanvasAgentRequestEffort(session?.connection)) {
-    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native PenEcho Agent session is closed.')
+    if (!this.sessions.has(session?.id) || session.disposed) throw new Error('Codex Native FastLectures Agent session is closed.')
     const prompt = boundedText(text, 40_000).trim()
-    if (!prompt) throw new Error('Enter a message for PenEcho Agent.')
-    if (session.active) throw new Error('A Codex Native PenEcho Agent turn is already active.')
+    if (!prompt) throw new Error('Enter a message for FastLectures Agent.')
+    if (session.active) throw new Error('A Codex Native FastLectures Agent turn is already active.')
     const inputController = new AbortController()
     let active
     const turnPromise = new Promise((resolve, reject) => {
@@ -1397,7 +1397,7 @@ export class CodexNativeHost {
             try { Promise.resolve(this.onModelUsage({requestId:active.usageRequestId,connectionId:session.connectionId,connectionName:session.connection?.name || 'Codex CLI',model:session.model || 'default',createdAt:active.usageStartedAt,completedAt:Date.now(),status:reason==='completed'?'succeeded':reason==='cancelled'||reason==='interrupted'?'cancelled':'failed',usage,usageFormat:'openai'})).catch(()=>{}); } catch {}
           }
           active.timeout?.clear()
-          this.rejectNativeToolAdmission(active, error || new Error('Codex Native PenEcho Agent turn ended during tool admission.'))
+          this.rejectNativeToolAdmission(active, error || new Error('Codex Native FastLectures Agent turn ended during tool admission.'))
           active.activityDiagnosticRequestIds?.clear()
           if (session.active === active) session.active = null
           active.activityDiagnostics?.close()
@@ -1437,7 +1437,7 @@ export class CodexNativeHost {
       if (session.disposed || session.active !== active || inputController.signal.aborted) {
         throw inputController.signal.reason instanceof Error
           ? inputController.signal.reason
-          : new Error('Codex Native PenEcho Agent turn is no longer active.')
+          : new Error('Codex Native FastLectures Agent turn is no longer active.')
       }
     }
     try {
@@ -1447,7 +1447,7 @@ export class CodexNativeHost {
       await this.ensureStarted(session)
       active.usageBaseline = session.reportedUsageTotal || {}
       assertActive()
-      if (!session.process?.alive || !session.threadId) throw codexNativeResetRequired('Codex Native PenEcho Agent thread is unavailable.')
+      if (!session.process?.alive || !session.threadId) throw codexNativeResetRequired('Codex Native FastLectures Agent thread is unavailable.')
       const timeoutController = new AbortController()
       active.timeout = createCanvasAgentModelTimeout(
         timeoutController,
@@ -1455,14 +1455,14 @@ export class CodexNativeHost {
         {
           reasonFor:(_kind, limitMs) => {
             this.traceNativeActivitySummary(session,active,'timeout')
-            return Object.assign(new Error(`Codex CLI PenEcho Agent turn timed out after ${canvasAgentTimeoutSeconds(limitMs)} seconds without activity. The conversation is preserved; send another message to continue.`), { name:'TimeoutError' })
+            return Object.assign(new Error(`Codex CLI FastLectures Agent turn timed out after ${canvasAgentTimeoutSeconds(limitMs)} seconds without activity. The conversation is preserved; send another message to continue.`), { name:'TimeoutError' })
           },
         },
       )
       timeoutController.signal.addEventListener('abort', () => {
         const error = timeoutController.signal.reason instanceof Error
           ? timeoutController.signal.reason
-          : new Error('Codex CLI PenEcho Agent turn timed out.')
+          : new Error('Codex CLI FastLectures Agent turn timed out.')
         this.interruptFailedTurn(session, error).catch(() => {})
       }, { once:true })
       const imageAttachments = await this.admitUserImages(session, images)
@@ -1545,7 +1545,7 @@ export class CodexNativeHost {
   async cancel(session) {
     const active = session?.active
     if (!active) return
-    const error = new Error('Codex Native PenEcho Agent turn cancelled.')
+    const error = new Error('Codex Native FastLectures Agent turn cancelled.')
     if (!active.turnId) {
       await this.invalidateSession(session, error)
       return
@@ -1606,7 +1606,7 @@ export class CodexNativeHost {
   concludeNativeTurnAfterTool(session, active, value) {
     setImmediate(() => {
       if (session.disposed || session.active !== active || active.settled || !active.turnId) return
-      const message=boundedText(String(value?.message||'PenEcho Agent stopped the current turn.'),2_000), turnId=active.turnId
+      const message=boundedText(String(value?.message||'FastLectures Agent stopped the current turn.'),2_000), turnId=active.turnId
       this.emitPublicEvent(session,{kind:'assistant_message',turn:session.turnNumber,text:redactPublicProjectValue(message,session)})
       const interruptPromise=session.process?.alive
         ? session.process.interrupt(session.threadId,turnId)
@@ -1741,7 +1741,7 @@ export class CodexNativeHost {
       batch.canvasDecisionBatch=createCanvasDecisionBatch(session)
       // The installed CLI can still wrap dynamic tools in exec even when Code
       // Mode is disabled. Its actual callbacks supply resolved JSON arguments;
-      // do not evaluate or parse the JavaScript wrapper in the PenEcho host.
+      // do not evaluate or parse the JavaScript wrapper in the FastLectures host.
       batch.callbackOrdered=calls.length===1&&calls[0].name==='exec'
       let predecessor=Promise.resolve()
       for(const call of underlyingCalls){
@@ -1757,7 +1757,7 @@ export class CodexNativeHost {
             for(const name of call.underlyingToolNames)if(!session.native.tool(name))throw Object.assign(new Error(`Unavailable tool: ${name}.`),{code:'CANVAS_TOOL_UNAVAILABLE'})
             continue
           }
-          if(call.namespace!==null&&call.namespace!=='penecho')throw new Error('Tool namespace is unavailable.')
+          if(call.namespace!==null&&call.namespace!=='fastlectures')throw new Error('Tool namespace is unavailable.')
           if(!session.native.tool(call.name))throw Object.assign(new Error(`Unavailable tool: ${call.name}.`),{code:'CANVAS_TOOL_UNAVAILABLE'})
           if(!call.aliases.length||call.aliases.some(id=>ids.has(id)))throw new Error('Tool call IDs must be nonempty and unique.')
           call.aliases.forEach(id=>ids.add(id))
@@ -1802,7 +1802,7 @@ export class CodexNativeHost {
       return
     }
     if (method === 'thread/closed') {
-      this.invalidateSession(session, new Error('Codex app-server closed the PenEcho Agent thread.')).catch(() => {})
+      this.invalidateSession(session, new Error('Codex app-server closed the FastLectures Agent thread.')).catch(() => {})
       return
     }
     if (method === 'thread/tokenUsage/updated') {
@@ -1934,10 +1934,10 @@ export class CodexNativeHost {
 
   parseNativeToolRequest(request) {
     const { active, turnId, params }=request
-    const namespace = params.namespace === undefined ? 'penecho' : String(params.namespace || '')
+    const namespace = params.namespace === undefined ? 'fastlectures' : String(params.namespace || '')
     const name = String(params.tool || params.name || '')
     if (!name || name.length > 200) throw new Error('Codex dynamic tool name is invalid.')
-    if (namespace !== 'penecho') throw new Error('Codex dynamic tool namespace is unavailable.')
+    if (namespace !== 'fastlectures') throw new Error('Codex dynamic tool namespace is unavailable.')
     let args = params.arguments
     if (typeof args === 'string') {
       if (!args.trim()) args = {}
@@ -1955,7 +1955,7 @@ export class CodexNativeHost {
 
   async admitNativeToolRequest(session, request, batch, underlyingCall = null) {
     const {active}=request,callId=String(request.params?.callId||'')
-    if(session.disposed||session.active!==active||active.settled)throw new Error('Codex Native PenEcho Agent turn changed during tool admission.')
+    if(session.disposed||session.active!==active||active.settled)throw new Error('Codex Native FastLectures Agent turn changed during tool admission.')
     const matched=underlyingCall||this.nativeToolMatch(batch,request),rawCall=matched?.rawCall
     if(batch.turnId!==request.turnId||!rawCall){
       const message='Codex dynamic tool call does not match its raw model response boundary.'
@@ -1974,7 +1974,7 @@ export class CodexNativeHost {
     rawCall.admitted=true
     if(batch.admissionError){
       if(callId&&callId.length<=256)active.callIds.add(callId)
-      const message=`PenEcho Agent decision rejected: ${batch.admissionError.message} The entire decision was rejected before execution; no Canvas tool ran. Return corrected direct JSON tool calls.`
+      const message=`FastLectures Agent decision rejected: ${batch.admissionError.message} The entire decision was rejected before execution; no Canvas tool ran. Return corrected direct JSON tool calls.`
       this.traceNativeDecisionRejection(session,batch,batch.admissionError.code,message)
       return {success:false,contentItems:[{type:'inputText',text:message}]}
     }
@@ -2025,21 +2025,21 @@ export class CodexNativeHost {
     const toolStillActive = () => !session.disposed && session.lifecycle === lifecycle && session.active === active && active.turnId === turnId
     let concludesTurn=false
     const execution = session.toolQueue.then(async () => {
-      if (!toolStillActive()) throw new Error('Codex Native PenEcho Agent session or turn changed during tool execution.')
+      if (!toolStillActive()) throw new Error('Codex Native FastLectures Agent session or turn changed during tool execution.')
       active.activityDiagnostics?.tool('executing')
       active.activityDiagnostics?.phase('tool-executing')
       const controller = new AbortController()
       const timeoutMs = Math.max(1_000, Number(tool.timeoutMs) || 45_000)
-      const timer = setTimeout(() => controller.abort(new Error(`PenEcho tool ${name} timed out.`)), timeoutMs)
+      const timer = setTimeout(() => controller.abort(new Error(`FastLectures tool ${name} timed out.`)), timeoutMs)
       session.toolAborts.set(callId, controller)
       this.emitPublicEvent(session, { kind:'tool_call', turn:session.turnNumber, callId, name, arguments:redactPublicProjectValue(args, session) })
       try {
         const value = await raceAbortableExecution(
           Promise.resolve().then(() => tool.execute(args, { callId, signal:controller.signal, canvasDecisionBatch:request.canvasDecisionBatch, concludeTurn:()=>{concludesTurn=true} })),
           controller.signal,
-          `PenEcho tool ${name} timed out.`,
+          `FastLectures tool ${name} timed out.`,
         )
-        if (!toolStillActive()) throw new Error('Codex Native PenEcho Agent session or turn changed during tool execution.')
+        if (!toolStillActive()) throw new Error('Codex Native FastLectures Agent session or turn changed during tool execution.')
         session.native.recordToolResult({ isError:false, value })
         const contentItems=await nativeToolContentItems({
           name,
@@ -2049,9 +2049,9 @@ export class CodexNativeHost {
           imagePolicy:CODEX_MODEL_IMAGE_REQUEST_POLICY,
           signal:controller.signal,
         })
-        if (!toolStillActive()) throw new Error('Codex Native PenEcho Agent session or turn changed during tool execution.')
-        if (!contentItems.length) contentItems.push({ type:'inputText', text:'PenEcho tool completed.' })
-        const resultText=value?.terminal===true?boundedText(String(value.message||'PenEcho Agent stopped the current turn.'),2_000):'PenEcho tool completed.'
+        if (!toolStillActive()) throw new Error('Codex Native FastLectures Agent session or turn changed during tool execution.')
+        if (!contentItems.length) contentItems.push({ type:'inputText', text:'FastLectures tool completed.' })
+        const resultText=value?.terminal===true?boundedText(String(value.message||'FastLectures Agent stopped the current turn.'),2_000):'FastLectures tool completed.'
         this.emitPublicEvent(session, { kind:'tool_result', turn:session.turnNumber, callId, text:resultText, error:null })
         const response={ success:true, contentItems }
         active.activityDiagnostics?.tool('result-ready')
@@ -2061,7 +2061,7 @@ export class CodexNativeHost {
       } catch (error) {
         if(request.canvasDecisionBatch&&CANVAS_MUTATION_TOOLS.has(name))request.canvasDecisionBatch.failed=true
         if (toolStillActive()) session.native.recordToolResult({ isError:true, error })
-        const text = boundedText(redactPublicProjectValue(safeError(error, `PenEcho tool ${name} failed.`), session), 2_000)
+        const text = boundedText(redactPublicProjectValue(safeError(error, `FastLectures tool ${name} failed.`), session), 2_000)
         if (toolStillActive()) this.emitPublicEvent(session, { kind:'tool_result', turn:session.turnNumber, callId, text, error:{ code:'CODEX_TOOL_FAILED', message:text } })
         active.activityDiagnostics?.tool('result-ready')
         active.activityDiagnostics?.phase('tool-result-ready')
@@ -2076,7 +2076,7 @@ export class CodexNativeHost {
   }
 
   async handleServerRequest(session, id, method, params) {
-    if (session.disposed) throw new Error('Codex Native PenEcho Agent session is closed.')
+    if (session.disposed) throw new Error('Codex Native FastLectures Agent session is closed.')
     if (method === 'item/tool/call') {
       const active=session.active
       if (active?.activityDiagnosticRequestIds && active.activityDiagnosticRequestIds.size < 64) active.activityDiagnosticRequestIds.add(id)
@@ -2085,7 +2085,7 @@ export class CodexNativeHost {
     }
     session.traceDecisionProtocol?.({kind:'native-server-request',requestId:id,method,params})
     if (method !== 'item/tool/call') {
-      const message=`PenEcho refused Codex app-server request ${method}.`
+      const message=`FastLectures refused Codex app-server request ${method}.`
       session.traceDecisionProtocol?.({kind:'decision-rejected',code:'CODEX_NATIVE_SERVER_REQUEST_UNAVAILABLE',message,details:{method:boundedText(method,128)}})
       this.invalidateSession(session, new Error(message)).catch(() => {})
       throw new Error(message)
@@ -2184,7 +2184,7 @@ export class CodexNativeHost {
     const disconnectError = new Error('Canvas browser disconnected during tool execution.')
     const active = session.active
     if (active) {
-      await this.invalidateSession(session, new Error('Codex Native PenEcho Agent turn interrupted by browser disconnect.'))
+      await this.invalidateSession(session, new Error('Codex Native FastLectures Agent turn interrupted by browser disconnect.'))
       return true
     }
     await this.abortToolWork(session, disconnectError)
@@ -2209,8 +2209,8 @@ export class CodexNativeHost {
       const interruption=active?.turnId&&session.process?.alive
         ? session.process.interrupt(session.threadId,active.turnId).catch(() => {})
         : null
-      if (active) active.fail(new Error('Codex Native PenEcho Agent session closed.'))
-      await this.abortToolWork(session, new Error('Codex Native PenEcho Agent session closed.'))
+      if (active) active.fail(new Error('Codex Native FastLectures Agent session closed.'))
+      await this.abortToolWork(session, new Error('Codex Native FastLectures Agent session closed.'))
       if(interruption)await interruption
       session.decisionFeedbackCalls.clear()
       session.decisionFeedbackCallIds.clear()

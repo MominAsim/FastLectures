@@ -5,7 +5,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 test('hosted file resource seam uses only authorized turn IDs without enabling local projects',async t=>{
- const root=await fs.mkdtemp(path.join(os.tmpdir(),'penecho-file-seam-'));
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'fastlectures-file-seam-'));
  const {CanvasHarnessHost}=await import('../src/server/canvas-agent/runtime.mjs');
  const id='cloud-file-11111111-1111-4111-8111-111111111111',calls=[];
  const fileResources={async prepare(session,ids){assert.equal(session.logicalConversationId,'conversation-test');return ids.map(id=>({id,project:{id,kind:'file',reader:'document',name:'notes.pdf',bytes:200}}));},async read(session,fileId,args,signal){calls.push({fileId,args,conversationId:session.logicalConversationId});signal.throwIfAborted();return{text:'1: extracted text'};}};

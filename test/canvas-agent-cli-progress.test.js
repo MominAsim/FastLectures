@@ -7,8 +7,8 @@ const os = require("node:os");
 const path = require("node:path");
 
 async function cliAdapter(callCli) {
-  const { PenEchoCliAdapter } = await import("../src/server/canvas-agent/cli-adapter.mjs");
-  const adapter = new PenEchoCliAdapter({ callCli, timeoutMs:() => 10_000 });
+  const { FastLecturesCliAdapter } = await import("../src/server/canvas-agent/cli-adapter.mjs");
+  const adapter = new FastLecturesCliAdapter({ callCli, timeoutMs:() => 10_000 });
   const provider = adapter.replaceConnections([{ id:"progress", provider:"claude-cli", cliPath:"claude", cliModel:"test", effort:"medium" }])[0];
   return { adapter, provider };
 }
@@ -129,7 +129,7 @@ test("closing the iterator after progress aborts the pending disposable CLI call
 });
 
 test("Claude public text callback exposes text deltas but not thinking deltas", async () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-claude-public-text-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-claude-public-text-"));
   const fakeCli = path.join(directory, "fake-claude.js");
   const decision = '{"progress":"Progress: Reading Canvas","type":"final","text":"Done"}';
   fs.writeFileSync(fakeCli, `"use strict";
@@ -155,7 +155,7 @@ process.stdin.on("end",()=>{
 });
 
 test("Kimi cumulative public text waits through a split CLI bullet prefix", async () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-kimi-public-text-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-kimi-public-text-"));
   const fakeCli = path.join(directory, "fake-kimi.js");
   const decision = '{"progress":"Progress: Inspecting Canvas","type":"final","text":"Done"}';
   fs.writeFileSync(fakeCli, `"use strict";
@@ -174,7 +174,7 @@ setTimeout(()=>process.stdout.write(" "+${JSON.stringify(decision)}),10);`);
 });
 
 test("Codex public text callback uses its completed assistant message event", async () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-codex-public-text-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-codex-public-text-"));
   const fakeCli = path.join(directory, "fake-codex.js"), codexHome = path.join(directory, "codex-home");
   const decision = '{"progress":"Progress: Inspecting Canvas","type":"final","text":"Done"}';
   fs.mkdirSync(codexHome);

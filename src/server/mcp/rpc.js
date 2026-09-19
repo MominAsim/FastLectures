@@ -9,7 +9,7 @@ function createMcpRpc({callTool,toolFailure,instructions=INSTRUCTIONS,tools=TOOL
     const result = value => ({jsonrpc:'2.0',id:body.id,result:value});
     const error = (code, message) => ({jsonrpc:'2.0',id:body.id,error:{code,message}});
     switch (body.method) {
-      case 'initialize': return result({protocolVersion:PROTOCOL_VERSION,capabilities:{tools:{listChanged:false},prompts:{listChanged:false},resources:{subscribe:false,listChanged:false}},serverInfo:{name:'PenEcho',version:'1.0.0'},instructions});
+      case 'initialize': return result({protocolVersion:PROTOCOL_VERSION,capabilities:{tools:{listChanged:false},prompts:{listChanged:false},resources:{subscribe:false,listChanged:false}},serverInfo:{name:'FastLectures',version:'1.0.0'},instructions});
       case 'ping': return result({});
       case 'tools/list': return result({tools});
       case 'prompts/list': return result({prompts:PROMPTS});
@@ -21,7 +21,7 @@ function createMcpRpc({callTool,toolFailure,instructions=INSTRUCTIONS,tools=TOOL
         try {
           const name = body.params?.name, args = body.params?.arguments ?? {};
           if (typeof name !== 'string' || !args || typeof args !== 'object' || Array.isArray(args)) return error(-32602,'Invalid params');
-          const value = name === 'penecho_get_guidance' ? getAuthoringGuidance(validateToolArguments(name,args).id, args.detail) : await callTool(session.ownerId,name,args,{signal});
+          const value = name === 'fastlectures_get_guidance' ? getAuthoringGuidance(validateToolArguments(name,args).id, args.detail) : await callTool(session.ownerId,name,args,{signal});
           return result(value?.image ? captureToolResult(value) : normal(value));
         } catch (e) { return result({...normal(toolFailure(e)),isError:true}); }
       }

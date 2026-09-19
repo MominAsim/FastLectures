@@ -1,6 +1,6 @@
 // Studio-only navigator for recent Agent conversations and saved canvases.
   {
-    const STUDIO_NAVIGATOR_TAB_KEY = "penecho-studio-navigator-tab",
+    const STUDIO_NAVIGATOR_TAB_KEY = "fastlectures-studio-navigator-tab",
       STUDIO_EDGE_SWIPE_START_PX = 28,
       STUDIO_EDGE_SWIPE_COMMIT_PX = 56,
       STUDIO_EDGE_SWIPE_CANCEL_PX = 36,
@@ -62,7 +62,7 @@
       studioEdgeSwipe = null;
 
     // Sidebar-only browser metadata; never part of a Canvas snapshot or server write.
-    const STUDIO_CANVAS_OPENED_KEY = "penecho-studio-canvas-last-opened";
+    const STUDIO_CANVAS_OPENED_KEY = "fastlectures-studio-canvas-last-opened";
     let studioCanvasOpened = readStudioCanvasOpened(), studioLastOpenedKey = "";
     function readStudioCanvasOpened() {
       try {
@@ -1175,8 +1175,8 @@
       }
     });
     studioNavigatorCompactMedia?.addEventListener?.("change", handleStudioNavigatorCompactChange);
-    window.addEventListener("penecho:languagechange", renderStudioNavigator);
-    window.PenEchoStudioNavigator = Object.freeze({
+    window.addEventListener("fastlectures:languagechange", renderStudioNavigator);
+    window.FastLecturesStudioNavigator = Object.freeze({
       render:renderStudioNavigator,
       renderWork:()=>{if(studioNavigatorActiveTab==="all")renderStudioWorkHistory();},
       renderAgent:()=>{studioNavigatorActiveTab==="agent"?renderStudioAgentHistory():studioNavigatorActiveTab==="all"&&renderStudioWorkHistory();},

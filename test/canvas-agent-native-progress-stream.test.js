@@ -30,16 +30,16 @@ test("native progress streams fragmented title-requested responses without expos
   before.active.text += "源码。\n";
   before.project();
   assert.deepEqual(before.events.map(event => event.text), ["进展：正在检查源码。\n"]);
-  before.active.text += "<penecho_canvas_title>源码检查结果</penecho_canvas_title>\n完成。";
+  before.active.text += "<fastlectures_canvas_title>源码检查结果</fastlectures_canvas_title>\n完成。";
   before.seal();
   assert.equal(before.active.canvasTitleCandidate, "源码检查结果");
   assert.equal(before.active.text, "进展：正在检查源码。\n完成。");
-  assert.equal(before.events.some(event => String(event.text).includes("penecho_canvas_title")), false);
+  assert.equal(before.events.some(event => String(event.text).includes("fastlectures_canvas_title")), false);
 
   const after = nativeProgressHarness(CodexNativeHost, "", { titleRequested:true });
   const fragments = [
-    "<penecho_canvas_",
-    "title>结构分析</penecho_canvas_title>\n进展：",
+    "<fastlectures_canvas_",
+    "title>结构分析</fastlectures_canvas_title>\n进展：",
     "已确认结构。\n",
   ];
   for (const fragment of fragments) {
@@ -51,7 +51,7 @@ test("native progress streams fragmented title-requested responses without expos
   after.seal();
   assert.equal(after.active.canvasTitleCandidate, "结构分析");
   assert.equal(after.active.text, "进展：已确认结构。\n正文。");
-  assert.equal(after.events.some(event => String(event.text).includes("penecho_canvas_title")), false);
+  assert.equal(after.events.some(event => String(event.text).includes("fastlectures_canvas_title")), false);
 });
 
 test("native progress is bounded per response and continues across more than two response boundaries", async () => {
@@ -100,7 +100,7 @@ test("native progress does not duplicate when a completed item repeats streamed 
 
 test("native progress is not repeated when a trailing title envelope trims its separator", async () => {
   const { CodexNativeHost } = await import("../src/server/canvas-agent/codex-native-host.mjs");
-  const harness = nativeProgressHarness(CodexNativeHost, "Progress: checking\n<penecho_canvas_title>检查结果</penecho_canvas_title>", { titleRequested:true });
+  const harness = nativeProgressHarness(CodexNativeHost, "Progress: checking\n<fastlectures_canvas_title>检查结果</fastlectures_canvas_title>", { titleRequested:true });
   harness.project();
   harness.seal();
 

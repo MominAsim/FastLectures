@@ -1,4 +1,4 @@
-# PenEcho Agent 性能修改计划与收益估计
+# FastLectures Agent 性能修改计划与收益估计
 
 日期：2026-09-05。状态：实施计划，产品实现尚未修改。本计划汇总前面的源码、请求日志和边界验证结论，取代早期方案中将全局 revision / 完整 Widget hash / 视觉复核作为内容 patch 前置条件的建议。
 
@@ -17,7 +17,7 @@
 
 ## 2. 样本与证据范围
 
-扫描目录 `/Users/heack/.penecho/logs/requests/`，共 100 份 trace，其中 47 份标记为 `canvas-conversation-turn`。其余包含普通 Canvas 请求；Agent 样本还混有不同模型、不同执行引擎、失败、取消和放弃的请求。统计必须分组，不能用混合平均值承诺加速比例，也不能拿不同任务的耗时作模型速度排名。
+扫描目录 `/Users/heack/.fastlectures/logs/requests/`，共 100 份 trace，其中 47 份标记为 `canvas-conversation-turn`。其余包含普通 Canvas 请求；Agent 样本还混有不同模型、不同执行引擎、失败、取消和放弃的请求。统计必须分组，不能用混合平均值承诺加速比例，也不能拿不同任务的耗时作模型速度排名。
 
 重点完整核对的两个最新 Codex native 修改请求：
 
@@ -74,7 +74,7 @@
 | 几何状态 | x/y/w/h、contentW/contentH、层级与画布布局 | 使用提交时最新值；内容 patch 不覆盖它 |
 | 渲染/视觉状态 | ready、运行时诊断、动画更新、截图新鲜度、待复核标记 | 更新验收状态，不阻塞源码修改 |
 
-全局 Canvas revision 继续服务同步和历史，但不再是纯源码 patch 的前置锁。现有 `contentVersion` 会随 `penecho-widget-updated` 增长，属于渲染失效代次，也不能用作源码版本。
+全局 Canvas revision 继续服务同步和历史，但不再是纯源码 patch 的前置锁。现有 `contentVersion` 会随 `fastlectures-widget-updated` 增长，属于渲染失效代次，也不能用作源码版本。
 
 当前完整 `widgetEditContext` 包含 box 和诊断。VM 核验已证明 HTML 不变时，仅 box 或 runtime diagnostics 改变也会改变现有 hash。这是需要消除的误冲突来源。
 

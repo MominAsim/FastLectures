@@ -152,7 +152,7 @@ function createMcpRequestTracer({ requestTraceDirectory, requestTraceLimit = 100
   function begin({ ownerId, name, arguments:args }) {
     const startedAt = now(), requestId = String(createRequestId()), owner = String(ownerId);
     const sessionIdentity = args?.sessionId ? `${owner}\0id:${args.sessionId}` : null;
-    const group = aliases.get(sessionIdentity) || groupFor(`${owner}\0${args?.sessionKey ? `key:${args.sessionKey}` : args?.sessionId ? `id:${args.sessionId}` : name === "penecho_start_session" ? `start:${requestId}` : "discovery"}`);
+    const group = aliases.get(sessionIdentity) || groupFor(`${owner}\0${args?.sessionKey ? `key:${args.sessionKey}` : args?.sessionId ? `id:${args.sessionId}` : name === "fastlectures_start_session" ? `start:${requestId}` : "discovery"}`);
     group.metadata ||= {ownerId:safeTraceValue(ownerId), sessionKey:safeTraceValue(args?.sessionKey), title:safeTraceValue(args?.title), client:safeTraceValue(args?.client), sessionIds:[]};
     const trace = { available:false, group, owner, directory:path.join(group.directory, `request-${String(startedAt).padStart(13,"0")}-${hash(requestId)}`), data:{schemaVersion:2, kind:"mcp-request", requestId, startedAt:isoTime(startedAt), updatedAt:isoTime(startedAt), completedAt:null, durationMs:null, status:"running", request:{ownerId:safeTraceValue(ownerId), tool:safeTraceValue(name), arguments:safeTraceValue(args)}, browserInteractions:[], outcome:null, error:null} };
     group.active.add(trace);
@@ -184,7 +184,7 @@ function createMcpRequestTracer({ requestTraceDirectory, requestTraceLimit = 100
   }
   function finish(trace, result, error) {
     if (!trace) return;
-    if (!error && trace.data.request.tool === "penecho_start_session" && result?.sessionId) {
+    if (!error && trace.data.request.tool === "fastlectures_start_session" && result?.sessionId) {
       aliases.set(`${trace.owner}\0id:${result.sessionId}`, trace.group);
       if (!trace.group.metadata.sessionIds.includes(result.sessionId)) trace.group.metadata.sessionIds.push(result.sessionId);
     }

@@ -305,7 +305,7 @@ function decodeAtlasImage(dataUrl) {
 }
 
 async function callCodexCli({ executable, model, effort, prompt, atlasImage, signal, env = process.env, onProgress = null, onText = null, onActivity = null, onUsage = null }) {
-  const workDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-codex-"));
+  const workDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-codex-"));
   const imageInputs = (Array.isArray(atlasImage) ? atlasImage : atlasImage ? [atlasImage] : []).filter(Boolean).slice(0, 5),
     images = imageInputs.map(decodeAtlasImage),
     imageFiles = images.map((image, index) => path.join(workDir, `atlas-${index + 1}.${image.extension}`)),

@@ -1,6 +1,6 @@
-# PenEcho Agent Visual Explorer
+# FastLectures Agent Visual Explorer
 
-This contract applies only to new Visual Explorer authoring in PenEcho Agent. It does not redefine ordinary General HTML, any optional Widget plugin, Canvas Pen AI Refine, Main Canvas AI, or saved legacy `VisualExplainerPlan` content.
+This contract applies only to new Visual Explorer authoring in FastLectures Agent. It does not redefine ordinary General HTML, any optional Widget plugin, Canvas Pen AI Refine, Main Canvas AI, or saved legacy `VisualExplainerPlan` content.
 
 Visual Explorer is the default route for understanding-, learning-, explanation-, analysis-, and organization-first requests, even when the user does not explicitly ask for an infographic. This includes substantial pasted text, equations to explain, project explanations, document analysis, study material, structured summaries, and material that should become easier to understand at a glance. Bare function graphs use host-native `canvas_create` `type:"plot"`; use math Visual Explorer only for derivation, linked evidence, animation, interaction, or an explicit Widget. Do not select it when the primary task is merely to supplement or modify existing Canvas/page elements, or when interaction, simulation, live data, an ordinary small HTML tool, or another explicitly available artifact is the defining result.
 
@@ -270,7 +270,7 @@ The viewer should be able to understand:
 
 Use the language explicitly requested by the user for all visible text. If no language is specified, use the primary language of the user's request while preserving necessary source terminology and proper nouns.
 
-## PenEcho Agent source and invocation
+## FastLectures Agent source and invocation
 
 Create one responsive HTML/CSS/SVG Widget with minimal JavaScript. It must explain the subject rather than display raw JSON, source, or a `<pre>` dump; do not use photorealistic image generation.
 
@@ -279,7 +279,7 @@ For mathematics or physics, call `load_visual_skill` with the closest available 
 Before creating the Widget:
 
 1. Use the authoritative initial state. If `empty:true` at the current revision, skip inspect/capture; choose finite dimensions and create with `placement:{"mode":"auto"}`.
-2. Otherwise call `canvas_inspect` with `plannedWidget`. Nonempty Canvas needs a complete basic Canvas capture first. Include typography, `sourceFormat:"penecho-visual-explorer+html"`, and placement mode.
+2. Otherwise call `canvas_inspect` with `plannedWidget`. Nonempty Canvas needs a complete basic Canvas capture first. Include typography, `sourceFormat:"fastlectures-visual-explorer+html"`, and placement mode.
 3. Reuse the returned width, height, and `createPlacement` in `canvas_create`.
 
 Call `canvas_create` with exactly one item:
@@ -289,15 +289,15 @@ Call `canvas_create` with exactly one item:
 * `widgetType:"html_widget"`
 * required concise `title`, separate from the document's `<title>`
 * complete, readable, non-minified `html`
-* `sourceFormat:"penecho-visual-explorer+html"`
-* `frameworkVersion:"penecho-visual-explorer/1"`
+* `sourceFormat:"fastlectures-visual-explorer+html"`
+* `frameworkVersion:"fastlectures-visual-explorer/1"`
 * `refreshSeconds:0`
 * no `copyText` or `copyLabel`
 * finite `width`/`height`; empty Canvas uses `placement:{"mode":"auto"}`, otherwise reuse inspected dimensions and absolute placement
 
 `widget.html` is the sole canonical reusable source for a new Visual Explorer. Never use the legacy VisualExplainerPlan create/update tools for new authoring.
 
-Keep major HTML elements, CSS declarations, and JavaScript statements on stable separate lines so later patches remain small. After the initial render and meaningful layout changes, post `{type:"penecho-widget-updated"}` to the parent; do not emit it every frame.
+Keep major HTML elements, CSS declarations, and JavaScript statements on stable separate lines so later patches remain small. After the initial render and meaningful layout changes, post `{type:"fastlectures-widget-updated"}` to the parent; do not emit it every frame.
 
 ## Bounded rendered review
 

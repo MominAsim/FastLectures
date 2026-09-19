@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { readConnectionStore, writeConnectionStore, isUsableConnection, connectionEnvironment } = require("../src/server/connection-store.js");
-function fixture(t) { const dir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-connections-")); t.after(() => fs.rmSync(dir, { recursive:true, force:true })); return path.join(dir, "connections.json"); }
+function fixture(t) { const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-connections-")); t.after(() => fs.rmSync(dir, { recursive:true, force:true })); return path.join(dir, "connections.json"); }
 const legacy = { id:"default", provider:"api", apiFormat:"openai", apiUrl:"https://example.com/v1", apiModel:"model", apiKey:"private-key", effort:"high" };
 test("fresh install persists an empty canonical store and never imports later environment values", t => {
   const file = fixture(t);
@@ -105,8 +105,8 @@ test("server request routing uses real saved or explicit transient connections a
   store = withConnectionOverride(store, { AI_PROVIDER:"codex-cli" });
   assert.equal((await context.requestProviderSnapshot({ headers:{} })).id, "cli-override");
   store = { version:1, connections:[legacy, { id:"second", provider:"kimi-cli" }] };
-  assert.equal((await context.requestProviderSnapshot({ headers:{ "x-penecho-connection":"second" } })).provider, "kimi-cli");
+  assert.equal((await context.requestProviderSnapshot({ headers:{ "x-fastlectures-connection":"second" } })).provider, "kimi-cli");
   assert.equal((await context.requestProviderSnapshot({ headers:{} })).id, "default");
-  await assert.rejects(() => context.requestProviderSnapshot({ headers:{ "x-penecho-connection":"hosted:missing" } }), /unavailable/);
-  await assert.rejects(() => context.requestProviderSnapshot({ headers:{ "x-penecho-connection":"123e4567-e89b-42d3-a456-426614174000" } }), /unavailable/);
+  await assert.rejects(() => context.requestProviderSnapshot({ headers:{ "x-fastlectures-connection":"hosted:missing" } }), /unavailable/);
+  await assert.rejects(() => context.requestProviderSnapshot({ headers:{ "x-fastlectures-connection":"123e4567-e89b-42d3-a456-426614174000" } }), /unavailable/);
 });

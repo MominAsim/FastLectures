@@ -2,11 +2,11 @@
 
 ## Scope and baseline
 
-- Canvas workspace: `/Users/heack/workspace/penecho_071_version`, HEAD `e4b87f1`.
+- Canvas workspace: `/Users/heack/workspace/fastlectures_071_version`, HEAD `e4b87f1`.
 - Verified remote Canvas main: `84d4f8dc45cf5970193895f7d8b084d172f2dd7b`.
-- Cloud workspace: `/Users/heack/workspace/penecho_cloud`; fetched remote main `2a5cb52ac88775f9f6dbb568e701acbc61512220`.
+- Cloud workspace: `/Users/heack/workspace/fastlectures_cloud`; fetched remote main `2a5cb52ac88775f9f6dbb568e701acbc61512220`.
 - Both repositories already contained substantial changes. Existing changes were preserved. Diff totals against main include those changes and are not this task's patch size.
-- Reused existing 071 services on ports 3921/3922 and the signed-in Cloud UAT at `internaltest.penecho.ai`. No production deployment or push was performed. Existing services were not restarted.
+- Reused existing 071 services on ports 3921/3922 and the signed-in Cloud UAT at `internaltest.fastlectures.ai`. No production deployment or push was performed. Existing services were not restarted.
 - UI interactions used computer use through Edge, native ZCode/Edge accessibility, and the in-app browser. No shell-based browser automation was substituted.
 
 ## Confirmed bugs and fixes
@@ -20,13 +20,13 @@
 
 Canonical edits: `src/client/app/persistence.js`, `src/server/mcp/service.js`, `src/server/canvas-agent/runtime.mjs` and focused tests. Built `public/app.js` with `scripts/build-client.js`. Synced Cloud's `app.js` using `tools/sync-public-canvas.mjs --only=app.js`; synced its approved server runtime with `tools/sync-canvas-agent-runtime.mjs`. Cloud mirrors were not hand-edited. These are local code fixes; backend fixes require the next service start/deployment to become active.
 
-Design source: existing Canvas document-title editor and busy/error states retained. The mapped canonical sources are `penecho_design/penecho-design-language.html` Input/Select, Compact/Icon/Toolbar controls and form states, plus its README hard baseline. No new geometry, typography or component variant was introduced. The narrow/200% rendered matrix remains incomplete due to computer-use failure.
+Design source: existing Canvas document-title editor and busy/error states retained. The mapped canonical sources are `fastlectures_design/fastlectures-design-language.html` Input/Select, Compact/Icon/Toolbar controls and form states, plus its README hard baseline. No new geometry, typography or component variant was introduced. The narrow/200% rendered matrix remains incomplete due to computer-use failure.
 
 ## Actual ZCode interoperability evidence
 
-1. ZCode already had a PenEcho stdio entry from an earlier configuration task. This run did not rewrite unrelated configuration.
-2. Created a new ZCode task named **PenEcho MCP 工具列表与画布枚举验收**, explicitly requiring native MCP tools and forbidding shell-simulated JSON-RPC.
-3. Native `penecho_list_canvases` returned both local instances. Matched instance to the actual 3921 service using local instance records, without logging credentials.
+1. ZCode already had a FastLectures stdio entry from an earlier configuration task. This run did not rewrite unrelated configuration.
+2. Created a new ZCode task named **FastLectures MCP 工具列表与画布枚举验收**, explicitly requiring native MCP tools and forbidding shell-simulated JSON-RPC.
+3. Native `fastlectures_list_canvases` returned both local instances. Matched instance to the actual 3921 service using local instance records, without logging credentials.
 4. ZCode started a session and created `uat-card`; its result reported object `widget-1`, 480 × 360 and applied=true. Its capture result reported pixelVerified=true and a WebP image. Separately inspected the actual browser screenshot showing “MCP 联动测试”, “版本 A” and “改成蓝色”.
 5. Initial presentation used both preset size and explicit dimensions; validation correctly rejected it. ZCode removed the conflicting preset and succeeded. This rejection is not recorded as a product failure.
 6. First computer-use click did not produce an inbox message; ZCode's one native `read_messages` call returned an empty array and cursor 0. It did not falsely update the card. Later inspection established that the Widget must enter Interact mode first.

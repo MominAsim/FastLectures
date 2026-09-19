@@ -1,15 +1,15 @@
 /* One Canvas execution queue receives local, account and Linked Device MCP calls. */
 (() => {
   'use strict';
-  window.PenEchoCloudMcpSocket = class extends EventTarget {
+  window.FastLecturesCloudMcpSocket = class extends EventTarget {
     constructor() {
-      super();this.local=window.PENECHO_CONFIG?.runtime!=='cloud';this.readyState=0;this.routes=new Map();this.deviceSessions=new Set();this.closed=false;this.hello=null;this.retry=null;this.device=null;this.deviceId=null;this.retryCount=0;this.primaryReady=false;this.deviceReady=false;
+      super();this.local=window.FASTLECTURES_CONFIG?.runtime!=='cloud';this.readyState=0;this.routes=new Map();this.deviceSessions=new Set();this.closed=false;this.hello=null;this.retry=null;this.device=null;this.deviceId=null;this.retryCount=0;this.primaryReady=false;this.deviceReady=false;
       this.primary=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}${this.local?'/api/mcp/canvas':'/api/v1/mcp/canvas'}`);
       this.primary.addEventListener('open',()=>{if(this.closed)return;this.readyState=1;this.dispatchEvent(new Event('open'));this.connectDevice();});
       this.primary.addEventListener('message',event=>this.receive(event,this.primary,'cloud'));
       this.primary.addEventListener('error',()=>this.dispatchEvent(new Event('error')));
       this.primary.addEventListener('close',()=>{if(this.closed)return;this.close();this.dispatchEvent(new Event('close'));});
-      this.status=()=>this.connectDevice();window.addEventListener(this.local?'penecho:cloud-account-changed':'penecho:remote-cloud-status',this.status);
+      this.status=()=>this.connectDevice();window.addEventListener(this.local?'fastlectures:cloud-account-changed':'fastlectures:remote-cloud-status',this.status);
     }
     emit(message){this.dispatchEvent(new MessageEvent('message',{data:JSON.stringify(message)}));}
     get availability(){return {cloud:this.local?this.deviceReady:this.primaryReady,local:this.local?this.primaryReady:this.deviceReady};}
@@ -46,17 +46,17 @@
     }
     async connectDevice() {
       if(this.closed||this.readyState!==1)return;
-      const remoteStatus=window.PENECHO_REMOTE_CLOUD_STATUS;
+      const remoteStatus=window.FASTLECTURES_REMOTE_CLOUD_STATUS;
       let deviceId=remoteStatus?.deviceOnline===false?null:remoteStatus?.deviceId;
       if(this.local) {
         if(this.checking){this.checkAgain=true;return;}
         this.checking=true;
         try {
-          const token=window.PENECHO_CONFIG?.accessSessionToken||sessionStorage.getItem('penecho-access-session');
-          const response=await fetch('/api/cloud/status',{headers:token?{'x-penecho-session':token}:{}});
+          const token=window.FASTLECTURES_CONFIG?.accessSessionToken||sessionStorage.getItem('fastlectures-access-session');
+          const response=await fetch('/api/cloud/status',{headers:token?{'x-fastlectures-session':token}:{}});
           if(response.status>=500)throw Error('Cloud status is temporarily unavailable.');
           const status=response.ok?await response.json():null;
-          window.PenEchoMcpSettings?.setDeviceStatus(status?.device||{connected:false});
+          window.FastLecturesMcpSettings?.setDeviceStatus(status?.device||{connected:false});
           deviceId=status?.cloudMcpEnabled?'cloud':null;
         }catch{deviceId=null;this.scheduleDeviceRetry();}finally{this.checking=false;}
         if(this.closed)return;
@@ -83,7 +83,7 @@
     }
     close() {
       if(this.closed)return;this.closed=true;this.readyState=3;clearTimeout(this.retry);
-      window.removeEventListener(this.local?'penecho:cloud-account-changed':'penecho:remote-cloud-status',this.status);
+      window.removeEventListener(this.local?'fastlectures:cloud-account-changed':'fastlectures:remote-cloud-status',this.status);
       this.primaryReady=false;this.deviceReady=false;this.publishAvailability();
       this.primary.close();this.device?.close();this.device=null;this.routes.clear();this.deviceSessions.clear();
     }

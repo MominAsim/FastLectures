@@ -1,10 +1,10 @@
 'use strict';
 // Standalone DNS-SD transport: discovered addresses are hints; TLS pinning remains authority.
 const dgram=require('node:dgram'),os=require('node:os'),net=require('node:net');
-const GROUP='224.0.0.251',PORT=5353,SERVICE='_penecho-mcp._tcp.local';
+const GROUP='224.0.0.251',PORT=5353,SERVICE='_fastlectures-mcp._tcp.local';
 const privateIP=a=>net.isIPv4(a)&&(/^(10\.|192\.168\.)/.test(a)||/^172\.(1[6-9]|2\d|3[01])\./.test(a));
 const interfaces=()=>[...new Set(Object.values(os.networkInterfaces()).flat().filter(a=>a?.family==='IPv4'&&privateIP(a.address)).map(a=>a.address))];
-function names(hostId){if(!/^[a-f0-9]{64}$/i.test(hostId))throw new Error('Invalid host identity');const id=hostId.toLowerCase();let n=BigInt('0x'+id),label='';for(let i=0;i<52;i++){label='abcdefghijklmnopqrstuvwxyz234567'[Number(n&31n)]+label;n>>=5n;}return {instance:`${label}.${SERVICE}`,host:`${id.slice(0,32)}.${id.slice(32)}.penecho.local`};}
+function names(hostId){if(!/^[a-f0-9]{64}$/i.test(hostId))throw new Error('Invalid host identity');const id=hostId.toLowerCase();let n=BigInt('0x'+id),label='';for(let i=0;i<52;i++){label='abcdefghijklmnopqrstuvwxyz234567'[Number(n&31n)]+label;n>>=5n;}return {instance:`${label}.${SERVICE}`,host:`${id.slice(0,32)}.${id.slice(32)}.fastlectures.local`};}
 function encodeName(name){return Buffer.concat([...name.split('.').map(s=>{const b=Buffer.from(s);if(!b.length||b.length>63)throw new Error('Invalid DNS label');return Buffer.concat([Buffer.from([b.length]),b]);}),Buffer.from([0])]);}
 function parsePacket(data){
  if(!Buffer.isBuffer(data)||data.length<12||data.length>9000)throw new Error('Invalid DNS packet');

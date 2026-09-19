@@ -27,12 +27,12 @@ function safeJsonValue(value, label, maximumBytes = MAX_FILE_BYTES) {
     const json = JSON.stringify(value);
     if (!json || Buffer.byteLength(json, "utf8") > maximumBytes) throw new Error();
     return JSON.parse(json);
-  } catch { throw bridgeError("invalid_browser_result", `The PenEcho canvas returned an invalid or oversized ${label}.`, 502); }
+  } catch { throw bridgeError("invalid_browser_result", `The FastLectures canvas returned an invalid or oversized ${label}.`, 502); }
 }
 
 function browserSessionProgress(value) {
   const progress = safeJsonValue(value, "session progress", 1_048_576);
-  const invalid = () => { throw bridgeError("invalid_browser_result", "The PenEcho canvas returned invalid session progress.", 502); };
+  const invalid = () => { throw bridgeError("invalid_browser_result", "The FastLectures canvas returned invalid session progress.", 502); };
   const string = (value, maximum, empty = false) => typeof value === "string" && value.length <= maximum && (empty || value.length > 0);
   if (!progress || typeof progress !== "object" || Array.isArray(progress)
     || !string(progress.title, 120, true) || !string(progress.summary, 4000, true)
@@ -73,17 +73,17 @@ function sharedPatchCall(fn,...args) {
 const patchVirtualFile = (...args)=>sharedPatchCall(applyCanvasFilePatch,...args);
 
 function browserRevision(value) {
-  if (!Number.isSafeInteger(value) || value < 0) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid revision.", 502);
+  if (!Number.isSafeInteger(value) || value < 0) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned an invalid revision.", 502);
   return value;
 }
 
 function browserCursor(value, label = "feedback cursor") {
-  if (!Number.isSafeInteger(value) || value < 0) throw bridgeError("invalid_browser_result", `The PenEcho canvas returned an invalid ${label}.`, 502);
+  if (!Number.isSafeInteger(value) || value < 0) throw bridgeError("invalid_browser_result", `The FastLectures canvas returned an invalid ${label}.`, 502);
   return value;
 }
 
 function browserObject(value, label) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw bridgeError("invalid_browser_result", `The PenEcho canvas returned an invalid ${label}.`, 502);
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw bridgeError("invalid_browser_result", `The FastLectures canvas returned an invalid ${label}.`, 502);
   return value;
 }
 
@@ -106,20 +106,20 @@ function browserMetadata(result) {
 
 function browserArtifactResult(result, artifactId, kind) {
   browserObject(result, `${kind} result`);
-  if (result.artifactId !== artifactId) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned a mismatched artifact.", 502);
-  if (result.kind !== kind) throw bridgeError("invalid_browser_result", `The PenEcho canvas returned an invalid ${kind} artifact kind.`, 502);
+  if (result.artifactId !== artifactId) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned a mismatched artifact.", 502);
+  if (result.kind !== kind) throw bridgeError("invalid_browser_result", `The FastLectures canvas returned an invalid ${kind} artifact kind.`, 502);
   if (!Array.isArray(result.objectIds) || !result.objectIds.length || result.objectIds.length > 24) {
-    throw bridgeError("invalid_browser_result", `The PenEcho canvas returned invalid ${kind} object ids.`, 502);
+    throw bridgeError("invalid_browser_result", `The FastLectures canvas returned invalid ${kind} object ids.`, 502);
   }
   const objectIds = result.objectIds.map((value, index) => {
     if (typeof value !== "string" || !value || value.length > 128 || /[\u0000-\u001f\u007f]/.test(value)) {
-      throw bridgeError("invalid_browser_result", `The PenEcho canvas returned an invalid ${kind} object id at index ${index}.`, 502);
+      throw bridgeError("invalid_browser_result", `The FastLectures canvas returned an invalid ${kind} object id at index ${index}.`, 502);
     }
     return value;
   });
-  if (new Set(objectIds).size !== objectIds.length) throw bridgeError("invalid_browser_result", `The PenEcho canvas returned duplicate ${kind} object ids.`, 502);
-  if (kind === "plot" && objectIds.length !== 1) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned more than one plot object.", 502);
-  if (result.objectId !== undefined && result.objectId !== objectIds[0]) throw bridgeError("invalid_browser_result", `The PenEcho canvas returned a mismatched primary ${kind} object id.`, 502);
+  if (new Set(objectIds).size !== objectIds.length) throw bridgeError("invalid_browser_result", `The FastLectures canvas returned duplicate ${kind} object ids.`, 502);
+  if (kind === "plot" && objectIds.length !== 1) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned more than one plot object.", 502);
+  if (result.objectId !== undefined && result.objectId !== objectIds[0]) throw bridgeError("invalid_browser_result", `The FastLectures canvas returned a mismatched primary ${kind} object id.`, 502);
   return {
     artifactId,
     objectIds,
@@ -131,16 +131,16 @@ function browserArtifactResult(result, artifactId, kind) {
 }
 
 function browserPrimitiveCaptureMetadata(result, image, artifactId) {
-  if (result?.artifactId !== artifactId) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned a mismatched primitive capture artifact.", 502);
+  if (result?.artifactId !== artifactId) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned a mismatched primitive capture artifact.", 502);
   const width = result?.width, height = result?.height;
   if (!Number.isSafeInteger(width) || width <= 0 || !Number.isSafeInteger(height) || height <= 0) {
-    throw bridgeError("invalid_capture", "The PenEcho canvas returned invalid primitive screenshot dimensions.", 502);
+    throw bridgeError("invalid_capture", "The FastLectures canvas returned invalid primitive screenshot dimensions.", 502);
   }
   if (width > MAX_FEEDBACK_CAPTURE_EDGE || height > MAX_FEEDBACK_CAPTURE_EDGE || width * height > MAX_FEEDBACK_CAPTURE_PIXELS) {
-    throw bridgeError("capture_too_large", "The PenEcho primitive screenshot exceeds the safe image dimensions.", 413);
+    throw bridgeError("capture_too_large", "The FastLectures primitive screenshot exceeds the safe image dimensions.", 413);
   }
   if (result.encodedBytes !== undefined && (!Number.isSafeInteger(result.encodedBytes) || result.encodedBytes !== image.bytes)) {
-    throw bridgeError("invalid_capture", "The PenEcho canvas returned invalid primitive screenshot byte metadata.", 502);
+    throw bridgeError("invalid_capture", "The FastLectures canvas returned invalid primitive screenshot byte metadata.", 502);
   }
   return {
     width,
@@ -153,10 +153,10 @@ function browserPrimitiveCaptureMetadata(result, image, artifactId) {
 function browserCanvasCaptureMetadata(result, image) {
   const width = result?.width, height = result?.height;
   if (!Number.isSafeInteger(width) || width <= 0 || width > 16_384 || !Number.isSafeInteger(height) || height <= 0 || height > 16_384) {
-    throw bridgeError("invalid_capture", "The PenEcho canvas returned invalid Canvas screenshot dimensions.", 502);
+    throw bridgeError("invalid_capture", "The FastLectures canvas returned invalid Canvas screenshot dimensions.", 502);
   }
   if (!Number.isSafeInteger(result.encodedBytes) || result.encodedBytes <= 0 || result.encodedBytes !== image.bytes) {
-    throw bridgeError("invalid_capture", "The PenEcho canvas returned invalid Canvas screenshot byte metadata.", 502);
+    throw bridgeError("invalid_capture", "The FastLectures canvas returned invalid Canvas screenshot byte metadata.", 502);
   }
   return { width, height, encodedBytes:result.encodedBytes, revision:browserRevision(result.revision) };
 }
@@ -167,7 +167,7 @@ function browserFeedbackBounds(value, label) {
   for (const key of ["x", "y", "w", "h"]) {
     const number = value[key];
     if (typeof number !== "number" || !Number.isFinite(number) || Math.abs(number) > 1_000_000_000 || (key === "w" || key === "h") && number < 0) {
-      throw bridgeError("invalid_browser_result", `The PenEcho canvas returned invalid ${label}.`, 502);
+      throw bridgeError("invalid_browser_result", `The FastLectures canvas returned invalid ${label}.`, 502);
     }
     output[key] = number;
   }
@@ -176,22 +176,22 @@ function browserFeedbackBounds(value, label) {
 
 function browserFeedbackResult(result, sessionId, requestedAfter, limit) {
   browserObject(result, "feedback result");
-  if (result.sessionId !== sessionId) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned mismatched feedback.", 502);
+  if (result.sessionId !== sessionId) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned mismatched feedback.", 502);
   const after = browserCursor(result.after, "feedback after cursor");
-  if (requestedAfter !== undefined && after < requestedAfter) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned feedback from before the requested cursor.", 502);
+  if (requestedAfter !== undefined && after < requestedAfter) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned feedback from before the requested cursor.", 502);
   const nextCursor = browserCursor(result.nextCursor, "next feedback cursor");
   const latestCursor = browserCursor(result.latestCursor, "latest feedback cursor");
   if (nextCursor < after || nextCursor > latestCursor || typeof result.hasMore !== "boolean" || typeof result.truncated !== "boolean" || !Array.isArray(result.entries) || result.entries.length > limit) {
-    throw bridgeError("invalid_browser_result", "The PenEcho canvas returned invalid bounded feedback.", 502);
+    throw bridgeError("invalid_browser_result", "The FastLectures canvas returned invalid bounded feedback.", 502);
   }
-  if (result.hasMore !== (nextCursor < latestCursor)) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an inconsistent feedback continuation state.", 502);
+  if (result.hasMore !== (nextCursor < latestCursor)) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned an inconsistent feedback continuation state.", 502);
   let previousCursor = after;
   const entries = result.entries.map((entry, index) => {
     browserObject(entry, `feedback entry ${index}`);
     const cursor = browserCursor(entry.cursor, `feedback entry ${index} cursor`);
-    if (cursor <= previousCursor || cursor > nextCursor) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned feedback entries out of cursor order.", 502);
+    if (cursor <= previousCursor || cursor > nextCursor) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned feedback entries out of cursor order.", 502);
     previousCursor = cursor;
-    if (!new Set(["text", "image", "stroke"]).has(entry.kind)) throw bridgeError("invalid_browser_result", `The PenEcho canvas returned an invalid feedback entry ${index}.`, 502);
+    if (!new Set(["text", "image", "stroke"]).has(entry.kind)) throw bridgeError("invalid_browser_result", `The FastLectures canvas returned an invalid feedback entry ${index}.`, 502);
     const output = {
       cursor,
       kind:entry.kind,
@@ -200,20 +200,20 @@ function browserFeedbackResult(result, sessionId, requestedAfter, limit) {
     };
     if (entry.objectId !== undefined) output.objectId = safeString(entry.objectId, 128, `feedback entry ${index} objectId`);
     if (entry.text !== undefined) {
-      if (typeof entry.text !== "string" || entry.text.length > 4_000) throw bridgeError("invalid_browser_result", `The PenEcho canvas returned invalid feedback entry ${index} text.`, 502);
+      if (typeof entry.text !== "string" || entry.text.length > 4_000) throw bridgeError("invalid_browser_result", `The FastLectures canvas returned invalid feedback entry ${index} text.`, 502);
       output.text = entry.text;
     }
     if (entry.textTruncated !== undefined) {
-      if (typeof entry.textTruncated !== "boolean") throw bridgeError("invalid_browser_result", `The PenEcho canvas returned invalid feedback entry ${index} truncation state.`, 502);
+      if (typeof entry.textTruncated !== "boolean") throw bridgeError("invalid_browser_result", `The FastLectures canvas returned invalid feedback entry ${index} truncation state.`, 502);
       output.textTruncated = entry.textTruncated;
     }
     return output;
   });
-  if (entries.length && nextCursor !== entries.at(-1).cursor) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid next feedback cursor.", 502);
-  if (!entries.length && nextCursor !== after) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid empty feedback cursor.", 502);
+  if (entries.length && nextCursor !== entries.at(-1).cursor) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned an invalid next feedback cursor.", 502);
+  if (!entries.length && nextCursor !== after) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned an invalid empty feedback cursor.", 502);
   const output = { sessionId, after, nextCursor, latestCursor, hasMore:result.hasMore, truncated:result.truncated, entries };
   if (result.visualContext !== undefined) {
-    if (!["current-user-layer-regions", "current-canvas-with-nearby-design"].includes(result.visualContext)) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid feedback visual context.", 502);
+    if (!["current-user-layer-regions", "current-canvas-with-nearby-design"].includes(result.visualContext)) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned an invalid feedback visual context.", 502);
     output.visualContext = result.visualContext;
   }
   return output;
@@ -222,15 +222,15 @@ function browserFeedbackResult(result, sessionId, requestedAfter, limit) {
 function browserFeedbackCaptureMetadata(result, image) {
   const width = result.width, height = result.height;
   if (!Number.isSafeInteger(width) || width <= 0 || !Number.isSafeInteger(height) || height <= 0) {
-    throw bridgeError("invalid_capture", "The PenEcho canvas returned invalid feedback screenshot dimensions. Refresh the PenEcho Canvas and try again.", 502);
+    throw bridgeError("invalid_capture", "The FastLectures canvas returned invalid feedback screenshot dimensions. Refresh the FastLectures Canvas and try again.", 502);
   }
   if (width > MAX_FEEDBACK_CAPTURE_EDGE || height > MAX_FEEDBACK_CAPTURE_EDGE || width * height > MAX_FEEDBACK_CAPTURE_PIXELS) {
-    throw bridgeError("capture_too_large", "The PenEcho feedback screenshot exceeds the safe image dimensions.", 413);
+    throw bridgeError("capture_too_large", "The FastLectures feedback screenshot exceeds the safe image dimensions.", 413);
   }
   const output = { width, height };
   if (result.encodedBytes !== undefined) {
     if (!Number.isSafeInteger(result.encodedBytes) || result.encodedBytes <= 0 || result.encodedBytes !== image.bytes) {
-      throw bridgeError("invalid_capture", "The PenEcho canvas returned invalid feedback screenshot byte metadata. Refresh the PenEcho Canvas and try again.", 502);
+      throw bridgeError("invalid_capture", "The FastLectures canvas returned invalid feedback screenshot byte metadata. Refresh the FastLectures Canvas and try again.", 502);
     }
     output.encodedBytes = result.encodedBytes;
   }
@@ -240,7 +240,7 @@ function browserFeedbackCaptureMetadata(result, image) {
     for (const key of ["x", "y", "width", "height"]) {
       const number = result.logicalRegion[key];
       if (typeof number !== "number" || !Number.isFinite(number) || number < 0 || number > 1_000_000_000 || (key === "width" || key === "height") && number === 0) {
-        throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid feedback screenshot logical region.", 502);
+        throw bridgeError("invalid_browser_result", "The FastLectures canvas returned an invalid feedback screenshot logical region.", 502);
       }
       logicalRegion[key] = number;
     }
@@ -250,27 +250,27 @@ function browserFeedbackCaptureMetadata(result, image) {
     browserObject(result.compression, "feedback screenshot compression metadata");
     const allowed = new Set(["policy", "format", "quality", "maxBytes", "automatic"]);
     for (const key of Object.keys(result.compression)) {
-      if (!allowed.has(key)) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned unsafe feedback screenshot compression metadata.", 502);
+      if (!allowed.has(key)) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned unsafe feedback screenshot compression metadata.", 502);
     }
     const compression = {};
     if (result.compression.policy !== undefined) {
-      if (typeof result.compression.policy !== "string" || !result.compression.policy || result.compression.policy.length > 128 || /[\u0000-\u001f\u007f]/.test(result.compression.policy)) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned invalid feedback screenshot compression metadata.", 502);
+      if (typeof result.compression.policy !== "string" || !result.compression.policy || result.compression.policy.length > 128 || /[\u0000-\u001f\u007f]/.test(result.compression.policy)) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned invalid feedback screenshot compression metadata.", 502);
       compression.policy = result.compression.policy;
     }
     if (result.compression.format !== undefined) {
-      if (!["image/png", "image/jpeg", "image/webp"].includes(result.compression.format) || result.compression.format !== image.mimeType) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned invalid feedback screenshot compression metadata.", 502);
+      if (!["image/png", "image/jpeg", "image/webp"].includes(result.compression.format) || result.compression.format !== image.mimeType) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned invalid feedback screenshot compression metadata.", 502);
       compression.format = result.compression.format;
     }
     if (result.compression.quality !== undefined) {
-      if (result.compression.quality !== null && (typeof result.compression.quality !== "number" || !Number.isFinite(result.compression.quality) || result.compression.quality < 0 || result.compression.quality > 1)) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned invalid feedback screenshot compression metadata.", 502);
+      if (result.compression.quality !== null && (typeof result.compression.quality !== "number" || !Number.isFinite(result.compression.quality) || result.compression.quality < 0 || result.compression.quality > 1)) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned invalid feedback screenshot compression metadata.", 502);
       compression.quality = result.compression.quality;
     }
     if (result.compression.maxBytes !== undefined) {
-      if (!Number.isSafeInteger(result.compression.maxBytes) || result.compression.maxBytes <= 0 || result.compression.maxBytes > MAX_FEEDBACK_CAPTURE_BYTES) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned invalid feedback screenshot compression metadata.", 502);
+      if (!Number.isSafeInteger(result.compression.maxBytes) || result.compression.maxBytes <= 0 || result.compression.maxBytes > MAX_FEEDBACK_CAPTURE_BYTES) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned invalid feedback screenshot compression metadata.", 502);
       compression.maxBytes = result.compression.maxBytes;
     }
     if (result.compression.automatic !== undefined) {
-      if (typeof result.compression.automatic !== "boolean") throw bridgeError("invalid_browser_result", "The PenEcho canvas returned invalid feedback screenshot compression metadata.", 502);
+      if (typeof result.compression.automatic !== "boolean") throw bridgeError("invalid_browser_result", "The FastLectures canvas returned invalid feedback screenshot compression metadata.", 502);
       compression.automatic = result.compression.automatic;
     }
     output.compression = compression;
@@ -281,30 +281,30 @@ function browserFeedbackCaptureMetadata(result, image) {
 function extractCapture(result, maximumBytes = MAX_CAPTURE_BYTES, label = "widget") {
   const source = typeof result?.dataUrl === "string" ? result.dataUrl : typeof result?.imageUrl === "string" ? result.imageUrl : "";
   const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(source);
-  if (!match) throw bridgeError("invalid_capture", "The PenEcho canvas returned an unsupported capture.", 502);
+  if (!match) throw bridgeError("invalid_capture", "The FastLectures canvas returned an unsupported capture.", 502);
   const data = Buffer.from(match[2], "base64");
-  if (!data.length || data.length > maximumBytes || data.toString("base64").replace(/=+$/, "") !== match[2].replace(/=+$/, "")) throw bridgeError("capture_too_large", `The PenEcho ${label} capture is invalid or too large.`, 413);
+  if (!data.length || data.length > maximumBytes || data.toString("base64").replace(/=+$/, "") !== match[2].replace(/=+$/, "")) throw bridgeError("capture_too_large", `The FastLectures ${label} capture is invalid or too large.`, 413);
   return { mimeType:result?.mediaType && result.mediaType === match[1] ? result.mediaType : match[1], data:match[2], bytes:data.length };
 }
 
-const BOUND_CANVAS_TOOL_NAMES = Object.freeze(["penecho_list_files", "penecho_read_file", "penecho_inbox", "penecho_patch_file", "penecho_edit_canvas", "penecho_upload_image", "penecho_place_image", "penecho_capture_canvas", "penecho_present_widget", "penecho_draw", "penecho_plot", "penecho_inspect_session"]);
+const BOUND_CANVAS_TOOL_NAMES = Object.freeze(["fastlectures_list_files", "fastlectures_read_file", "fastlectures_inbox", "fastlectures_patch_file", "fastlectures_edit_canvas", "fastlectures_upload_image", "fastlectures_place_image", "fastlectures_capture_canvas", "fastlectures_present_widget", "fastlectures_draw", "fastlectures_plot", "fastlectures_inspect_session"]);
 
 // Shared document operations. The caller owns authentication and session lifecycle.
 async function executeBoundOperation({name,args,session,canvasCall,flushUpdate = async () => {},sessionSnapshot = session => ({sessionId:session.id}),callOptions = {}}) {
   if (!BOUND_CANVAS_TOOL_NAMES.includes(name)) throw bridgeError("tool_not_found", "Unknown bound Canvas tool.", 404);
   if (args.sessionId !== session.id) throw bridgeError("session_mismatch", "The tool must target its bound Canvas session.", 409);
-  if (name === "penecho_list_files" || name === "penecho_read_file") {
-    const operation = ({penecho_list_files:"mcp_list_files",penecho_read_file:"mcp_read_file"})[name];
+  if (name === "fastlectures_list_files" || name === "fastlectures_read_file") {
+    const operation = ({fastlectures_list_files:"mcp_list_files",fastlectures_read_file:"mcp_read_file"})[name];
     const { result, timing } = await canvasCall(session.connection, operation, args, callOptions);
     browserObject(result, `${name} result`);
-    if (result.sessionId !== undefined && result.sessionId !== session.id) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned a mismatched session result.", 502);
-    if (name === "penecho_list_files") for (const key of ["files", "entries"]) if (result[key] !== undefined && (!Array.isArray(result[key]) || result[key].length > args.limit)) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid bounded virtual file list.", 502);
-    if (name === "penecho_read_file") {
-      if (typeof result.content !== "string" || Buffer.byteLength(result.content, "utf8") > MAX_FILE_BYTES || typeof result.contentHash !== "string" || !result.contentHash || result.contentHash.length > 256) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned invalid virtual file content.", 502);
+    if (result.sessionId !== undefined && result.sessionId !== session.id) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned a mismatched session result.", 502);
+    if (name === "fastlectures_list_files") for (const key of ["files", "entries"]) if (result[key] !== undefined && (!Array.isArray(result[key]) || result[key].length > args.limit)) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned an invalid bounded virtual file list.", 502);
+    if (name === "fastlectures_read_file") {
+      if (typeof result.content !== "string" || Buffer.byteLength(result.content, "utf8") > MAX_FILE_BYTES || typeof result.contentHash !== "string" || !result.contentHash || result.contentHash.length > 256) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned invalid virtual file content.", 502);
     }
-    return {...publicVirtualResult(result, name === "penecho_read_file" ? "virtual file" : "bounded result"),timing};
+    return {...publicVirtualResult(result, name === "fastlectures_read_file" ? "virtual file" : "bounded result"),timing};
   }
-  if (name === "penecho_patch_file") {
+  if (name === "fastlectures_patch_file") {
     const signature = mutationSignature({tool:name,...args}), prior = session.mutationRequests.get(args.requestId);
     if (prior && prior.signature !== signature) throw bridgeError("REQUEST_ID_CONFLICT", "requestId was already used with different patch arguments. Use a new requestId.", 409);
     if (prior?.response) return {...prior.response,reused:true};
@@ -332,7 +332,7 @@ async function executeBoundOperation({name,args,session,canvasCall,flushUpdate =
       throw error;
     }
   }
-  if (["penecho_edit_canvas", "penecho_upload_image", "penecho_place_image"].includes(name)) {
+  if (["fastlectures_edit_canvas", "fastlectures_upload_image", "fastlectures_place_image"].includes(name)) {
     const signature = mutationSignature({tool:name,...args}), prior = session.mutationRequests.get(args.requestId);
     if (prior && prior.signature !== signature) throw bridgeError("REQUEST_ID_CONFLICT", "requestId was already used with different mutation arguments. Use a new requestId.", 409);
     if (prior?.response) return {...prior.response,reused:true};
@@ -344,13 +344,13 @@ async function executeBoundOperation({name,args,session,canvasCall,flushUpdate =
     }
     const entry = prior || {signature};
     session.mutationRequests.set(args.requestId, entry);
-    const applied = await canvasCall(session.connection, name.replace(/^penecho_/, "mcp_"), args, callOptions);
+    const applied = await canvasCall(session.connection, name.replace(/^fastlectures_/, "mcp_"), args, callOptions);
     browserObject(applied.result, "canvas edit result");
     const response = mutationBrowserResult(applied.result,applied.timing);
     entry.response = response;
     return response;
   }
-  if (name === "penecho_capture_canvas" && args.target !== "artifact") {
+  if (name === "fastlectures_capture_canvas" && args.target !== "artifact") {
     await flushUpdate(session);
     const { result, timing } = await canvasCall(session.connection, "mcp_capture_canvas", args, callOptions);
     browserObject(result, "Canvas capture result");
@@ -365,7 +365,7 @@ async function executeBoundOperation({name,args,session,canvasCall,flushUpdate =
       ...browserMetadata(result),
     };
   }
-  if (name === "penecho_present_widget") {
+  if (name === "fastlectures_present_widget") {
     await flushUpdate(session);
     const presentationArgs = {
       sessionId:args.sessionId,
@@ -387,19 +387,19 @@ async function executeBoundOperation({name,args,session,canvasCall,flushUpdate =
     }
     const { result, timing } = await canvasCall(session.connection, "mcp_present_widget", presentationArgs, callOptions);
     browserObject(result, "widget result");
-    if (result.artifactId !== args.artifactId) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned a mismatched artifact.", 502);
+    if (result.artifactId !== args.artifactId) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned a mismatched artifact.", 502);
     if (inspect) {
-      if (result.ephemeral !== true || result.objectId !== undefined) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned an invalid ephemeral inspection result.", 502);
+      if (result.ephemeral !== true || result.objectId !== undefined) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned an invalid ephemeral inspection result.", 502);
       const quality = args.quality || "basic", policy = INSPECT_CAPTURE_POLICIES[quality];
       const image = extractCapture(result, policy.maxBytes, "inspection");
       const width = Number.isSafeInteger(result.width) && result.width > 0 && result.width <= 16_384 ? result.width : undefined;
       const height = Number.isSafeInteger(result.height) && result.height > 0 && result.height <= 16_384 ? result.height : undefined;
-      if (!width || !height) throw bridgeError("invalid_capture", "The PenEcho canvas returned invalid inspection screenshot dimensions.", 502);
-      if (width > policy.maxLongEdge || height > policy.maxLongEdge || width * height > policy.maxPixels) throw bridgeError("capture_too_large", "The PenEcho inspection screenshot exceeds the requested quality bounds.", 413);
-      if (!Number.isSafeInteger(result.encodedBytes) || result.encodedBytes !== image.bytes) throw bridgeError("invalid_capture", "The PenEcho canvas returned invalid inspection screenshot byte metadata.", 502);
+      if (!width || !height) throw bridgeError("invalid_capture", "The FastLectures canvas returned invalid inspection screenshot dimensions.", 502);
+      if (width > policy.maxLongEdge || height > policy.maxLongEdge || width * height > policy.maxPixels) throw bridgeError("capture_too_large", "The FastLectures inspection screenshot exceeds the requested quality bounds.", 413);
+      if (!Number.isSafeInteger(result.encodedBytes) || result.encodedBytes !== image.bytes) throw bridgeError("invalid_capture", "The FastLectures canvas returned invalid inspection screenshot byte metadata.", 502);
       if (result.viewport !== undefined) {
         browserObject(result.viewport, "inspection viewport");
-        if (result.viewport.width !== args.width || result.viewport.height !== args.height) throw bridgeError("invalid_browser_result", "The PenEcho canvas returned a mismatched inspection viewport.", 502);
+        if (result.viewport.width !== args.width || result.viewport.height !== args.height) throw bridgeError("invalid_browser_result", "The FastLectures canvas returned a mismatched inspection viewport.", 502);
       }
       return {
         sessionId:session.id,
@@ -423,10 +423,10 @@ async function executeBoundOperation({name,args,session,canvasCall,flushUpdate =
     const image=extractCapture(result);
     return {...presentation,image,pixelVerified:true,...browserCanvasCaptureMetadata(result,image)};
   }
-  if (name === "penecho_draw" || name === "penecho_plot") {
+  if (name === "fastlectures_draw" || name === "fastlectures_plot") {
     await flushUpdate(session);
-    const kind=name==="penecho_draw"?"drawing":"plot";
-    const {result,timing}=await canvasCall(session.connection,name.replace(/^penecho_/,"mcp_"),args,callOptions);
+    const kind=name==="fastlectures_draw"?"drawing":"plot";
+    const {result,timing}=await canvasCall(session.connection,name.replace(/^fastlectures_/,"mcp_"),args,callOptions);
     const artifact=browserArtifactResult(result,args.artifactId,kind);
     const applied={sessionId:session.id,...artifact,...(args.presentation?{presentation:args.presentation}:{}),applied:true,pixelVerified:false,timing,...browserMetadata(result)};
     if(result.captureFailure)return {...applied,captureFailure:publicCaptureFailure(result.captureFailure,session.id,args.artifactId)};
@@ -435,7 +435,7 @@ async function executeBoundOperation({name,args,session,canvasCall,flushUpdate =
     return {...applied,image,pixelVerified:true,...browserPrimitiveCaptureMetadata(result,image,args.artifactId)};
   }
 
-  if (name === "penecho_capture_canvas" && args.target === "artifact") {
+  if (name === "fastlectures_capture_canvas" && args.target === "artifact") {
     await flushUpdate(session);
     const { result, timing } = await canvasCall(session.connection, "mcp_capture_canvas", args, callOptions);
     browserObject(result, "capture result");
@@ -444,7 +444,7 @@ async function executeBoundOperation({name,args,session,canvasCall,flushUpdate =
     const height = Number.isSafeInteger(result.height) && result.height > 0 && result.height <= 16_384 ? result.height : undefined;
     return { sessionId:session.id, artifactId:args.artifactId, image, pixelVerified:true, ...(width ? {width} : {}), ...(height ? {height} : {}), ...(result.revision === undefined ? {} : {revision:browserRevision(result.revision)}), timing, ...browserMetadata(result) };
   }
-  if (name === "penecho_inbox") {
+  if (name === "fastlectures_inbox") {
     const {result,timing}=await canvasCall(session.connection,"mcp_inbox",args,callOptions);
     browserObject(result,"inbox");
     if(result.sessionId!==session.id)throw bridgeError("invalid_browser_result","Inbox session mismatch.",502);
@@ -464,7 +464,7 @@ async function executeBoundOperation({name,args,session,canvasCall,flushUpdate =
     }
     return response;
   }
-  if (name === "penecho_inspect_session") {
+  if (name === "fastlectures_inspect_session") {
     await flushUpdate(session);
     const { result, timing } = await canvasCall(session.connection, "mcp_inspect_session", args, callOptions);
     return { ...sessionSnapshot(session), browser:result, timing };
@@ -473,7 +473,7 @@ async function executeBoundOperation({name,args,session,canvasCall,flushUpdate =
 
 function publicCaptureFailure(value,sessionId,artifactId) {
   browserObject(value,"capture failure");
-  return {code:safeString(value.code,80,"capture failure code"),message:"Content was applied; capture the existing artifact after resolving visibility/readiness.",retryTool:"penecho_capture_canvas",retryArguments:{sessionId,target:"artifact",artifactId}};
+  return {code:safeString(value.code,80,"capture failure code"),message:"Content was applied; capture the existing artifact after resolving visibility/readiness.",retryTool:"fastlectures_capture_canvas",retryArguments:{sessionId,target:"artifact",artifactId}};
 }
 function mutationBrowserResult(result,timing) {
   const {dataUrl,imageUrl,...metadata}=result;
@@ -496,7 +496,7 @@ async function executeBoundCanvasTool(options) {
   const wasCompleted=!!options.session.mutationRequests.get(args.requestId)?.response;
   if(args.completion&&!wasCompleted)await options.flushUpdate?.(options.session);
   let result;
-  const artifactMutation=["penecho_present_widget","penecho_draw","penecho_plot"].includes(options.name);
+  const artifactMutation=["fastlectures_present_widget","fastlectures_draw","fastlectures_plot"].includes(options.name);
   if(artifactMutation) {
     const signature=mutationSignature({tool:options.name,...args}),cache=options.session.mutationRequests,prior=cache.get(args.requestId);
     if(prior&&prior.signature!==signature)throw bridgeError("REQUEST_ID_CONFLICT","requestId already has different arguments.",409);

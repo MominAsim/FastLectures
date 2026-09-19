@@ -9,7 +9,7 @@ async function testDesktopConnection(configuration, { timeoutMs = 30_000, testPr
     clearTimeout(timer);
     timer = setTimeout(() => {
       const error = new Error(`Connection test timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
-      error.code = "PENECHO_SETTINGS_TEST_TIMEOUT";
+      error.code = "FASTLECTURES_SETTINGS_TEST_TIMEOUT";
       rejectTimeout(error);
     }, timeoutMs);
   };

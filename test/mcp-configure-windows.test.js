@@ -10,7 +10,7 @@ const { createRequire } = require("node:module");
 
 // Run the production launch resolvers as Windows without spawning any process.
 function fixture(t, respond) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-mcp-windows-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-mcp-windows-"));
   t.after(() => fs.rmSync(root, { recursive:true, force:true }));
   const calls = [], cache = new Map();
   function load(filename) {
@@ -47,7 +47,7 @@ function fixture(t, respond) {
 }
 
 const launch = {
-  command:'C:\\Program Files\\PenEcho & Tools\\PenEcho.exe',
+  command:'C:\\Program Files\\FastLectures & Tools\\FastLectures.exe',
   args:['C:\\Users\\用户\\stdio.js', '--state-dir', 'C:\\space & %PATH% ! ^ ( )\\', 'literal "quote"'],
   env:{ ELECTRON_RUN_AS_NODE:"1", EXACT:'space & %PATH% ! ^ "quoted"' },
 };
@@ -63,7 +63,7 @@ for (const client of ["codex", "claude"]) {
     assert.equal(result.configured, true);
     assert.equal(result.updated,false);
     assert.equal(calls.length, client === "codex" ? 2 : 1);
-    if(client === "codex")assert.deepEqual(calls[0].args, [script, "mcp", "get", "penecho"]);
+    if(client === "codex")assert.deepEqual(calls[0].args, [script, "mcp", "get", "fastlectures"]);
     assert.deepEqual(calls.at(-1).args, [script, ...api.configurationArguments(client, launch)]);
     for (const call of calls) {
       assert.equal(call.command, process.execPath);
@@ -86,8 +86,8 @@ test("Windows inspection resolves Claude native payload and Codex npm payload wi
   const result = await api.inspectConfiguredClients({ candidates:{ codex:[{ executable:codex }], claude:[{ executable:claude }] } });
   assert.deepEqual(Array.from(result), ["codex", "claude"]);
   assert.equal(calls.length, 2);
-  assert.deepEqual(calls.find(call => call.command === process.execPath).args, [script, "mcp", "get", "penecho"]);
-  assert.deepEqual(calls.find(call => call.command === native).args, ["mcp", "get", "penecho"]);
+  assert.deepEqual(calls.find(call => call.command === process.execPath).args, [script, "mcp", "get", "fastlectures"]);
+  assert.deepEqual(calls.find(call => call.command === native).args, ["mcp", "get", "fastlectures"]);
   assert.ok(calls.every(call => call.options.timeout === 1_000 && !call.options.shell));
 });
 
@@ -99,7 +99,7 @@ test("unsupported Windows wrapper falls back to native candidate and preserves e
   assert.equal(result.configured, true);
   assert.equal(calls.length, 2);
   assert.equal(calls[0].command, native);
-  assert.deepEqual(calls[0].args, ["mcp", "get", "penecho"]);
+  assert.deepEqual(calls[0].args, ["mcp", "get", "fastlectures"]);
 });
 
 test("unsupported Windows wrapper fails without invoking a shell", async t => {
@@ -126,7 +126,7 @@ for (const client of ["codex", "claude"]) {
     });
     assert.equal(result.configured, true);
     assert.equal(calls.length, client === "codex" ? 2 : 1);
-    if(client === "codex")assert.deepEqual(calls[0].args, [...prefix, "mcp", "get", "penecho"]);
+    if(client === "codex")assert.deepEqual(calls[0].args, [...prefix, "mcp", "get", "fastlectures"]);
     assert.deepEqual(calls.at(-1).args, [...prefix, ...api.configurationArguments(client, launch)]);
     assert.ok(calls.every(call => call.options.cwd === resources && call.options.env.EXACT === env.EXACT && !call.options.shell));
     assert.equal(calls.at(-1).command, client === "codex" ? process.execPath : executable);
@@ -135,7 +135,7 @@ for (const client of ["codex", "claude"]) {
 }
 
 test("packaged Windows inspection uses a real cwd for Node and native clients", async t => {
-  const resources = 'C:\\Program Files\\PenEcho\\resources';
+  const resources = 'C:\\Program Files\\FastLectures\\resources';
   const { api, calls, file } = fixture(t, (call, callback) => callback(
     call.options.cwd === resources ? null : Object.assign(new Error("spawn ENOENT"), { code:"ENOENT" }), "entry", "",
   ));
@@ -153,10 +153,10 @@ test("packaged Windows inspection uses a real cwd for Node and native clients", 
 test("configuration and inspection normalize cwd before injected runners and preserve existing entries", async t => {
   const { api } = fixture(t, () => assert.fail("injected runner expected"));
   const roots = [
-    ['C:\\PenEcho\\resources\\app.asar', 'C:\\PenEcho\\resources'],
-    ['C:/PenEcho/resources/app.asar/src', 'C:/PenEcho/resources'],
-    ['/Applications/PenEcho.app/Contents/Resources/app.asar/src', '/Applications/PenEcho.app/Contents/Resources'],
-    ['C:\\PenEcho\\resources\\app.asar.unpacked\\src', 'C:\\PenEcho\\resources\\app.asar.unpacked\\src'],
+    ['C:\\FastLectures\\resources\\app.asar', 'C:\\FastLectures\\resources'],
+    ['C:/FastLectures/resources/app.asar/src', 'C:/FastLectures/resources'],
+    ['/Applications/FastLectures.app/Contents/Resources/app.asar/src', '/Applications/FastLectures.app/Contents/Resources'],
+    ['C:\\FastLectures\\resources\\app.asar.unpacked\\src', 'C:\\FastLectures\\resources\\app.asar.unpacked\\src'],
     ['/workspace/app.asar.unpacked/src', '/workspace/app.asar.unpacked/src'],
     ['/workspace/source', '/workspace/source'],
     [undefined, undefined],
@@ -181,10 +181,10 @@ test("configuration and inspection normalize cwd before injected runners and pre
     assert.equal(calls.filter(call=>call.args.includes("add")).length,2);
   }
 });
-test('Claude replaces only the user PenEcho entry atomically with literal launch data',async t=>{
+test('Claude replaces only the user FastLectures entry atomically with literal launch data',async t=>{
  const {api,root}=fixture(t,()=>assert.fail('existing user entry must not launch its old command'));
- const dir=path.join(root,'claude-user');fs.mkdirSync(dir);const file=path.join(dir,'.claude.json');const config={apiKey:'private-test-value',mcpServers:{other:{type:'http',url:'https://example.test'},penecho:{type:'http',url:'https://old.test',headers:{Authorization:'old'}}},projects:{'/project':{mcpServers:{penecho:{command:'project-only'}}}}};fs.writeFileSync(file,JSON.stringify(config));
- const result=await api.configureClient('claude',launch,{candidates:[{executable:'claude.exe'}],env:{CLAUDE_CONFIG_DIR:dir}});assert.equal(result.configured,true);assert.equal(result.updated,true);const saved=JSON.parse(fs.readFileSync(file));assert.deepEqual(saved.mcpServers.penecho,{type:'stdio',...launch});assert.deepEqual(saved.mcpServers.other,config.mcpServers.other);assert.deepEqual(saved.projects,config.projects);assert.equal(saved.apiKey,config.apiKey);assert.deepEqual(fs.readdirSync(dir),['.claude.json']);
+ const dir=path.join(root,'claude-user');fs.mkdirSync(dir);const file=path.join(dir,'.claude.json');const config={apiKey:'private-test-value',mcpServers:{other:{type:'http',url:'https://example.test'},fastlectures:{type:'http',url:'https://old.test',headers:{Authorization:'old'}}},projects:{'/project':{mcpServers:{fastlectures:{command:'project-only'}}}}};fs.writeFileSync(file,JSON.stringify(config));
+ const result=await api.configureClient('claude',launch,{candidates:[{executable:'claude.exe'}],env:{CLAUDE_CONFIG_DIR:dir}});assert.equal(result.configured,true);assert.equal(result.updated,true);const saved=JSON.parse(fs.readFileSync(file));assert.deepEqual(saved.mcpServers.fastlectures,{type:'stdio',...launch});assert.deepEqual(saved.mcpServers.other,config.mcpServers.other);assert.deepEqual(saved.projects,config.projects);assert.equal(saved.apiKey,config.apiKey);assert.deepEqual(fs.readdirSync(dir),['.claude.json']);
 });
 test('Claude malformed user JSON fails without changing bytes or leaking content',async t=>{
  const {api,root}=fixture(t,()=>assert.fail('invalid file must not invoke CLI'));const file=path.join(root,'.claude.json'),source='{"secret":"NEVER-RETURN-THIS", bad';fs.writeFileSync(file,source);

@@ -62,7 +62,7 @@ function harness(options = {}) {
     language: "en", theme: "light", userRevision: 1, snapshotSavedRevision: 0,
     currentSnapshotId: null, currentSnapshotLocation: null, currentSnapshotName: "Visible",
     currentSnapshotBundleExtensions: {
-      penechoDocument: { version: 1, documentId: options.activeId || "visible-document", title: "Visible", bindings: [], locators: [], processor: { kind: "penecho" } },
+      fastlecturesDocument: { version: 1, documentId: options.activeId || "visible-document", title: "Visible", bindings: [], locators: [], processor: { kind: "fastlectures" } },
     },
     currentSnapshotManifestExtensions: {}, currentSnapshotPreservedAssets: [],
     widgets: [], textBoxes: [], images: [], preservedSnapshotAnimations: [], animations: [], history: [], future: [], historyBefore: new Map(),
@@ -71,12 +71,12 @@ function harness(options = {}) {
   };
   const listeners = {};
   const context = vm.createContext({
-    PenEchoCanvasFilePatch: require("../src/shared/canvas-file-patch"),
+    FastLecturesCanvasFilePatch: require("../src/shared/canvas-file-patch"),
     SIZE: 32768, TILE: 512, MAX_HISTORY: 50, state, crypto: options.crypto || crypto.webcrypto,
     TextEncoder, TextDecoder, Blob, URL, structuredClone, queueMicrotask,
     AbortController, AbortSignal, setTimeout, clearTimeout, performance,
     document: { getElementById: () => null, querySelectorAll: () => [], hidden: false, createElement: () => ({}) },
-    window: { PENECHO_CONFIG: {} }, location: { origin: "http://127.0.0.1" }, WebSocket: { OPEN: 1 },
+    window: { FASTLECTURES_CONFIG: {} }, location: { origin: "http://127.0.0.1" }, WebSocket: { OPEN: 1 },
     addEventListener: (type, fn) => { listeners[type] = fn; },
     requestResult: async request => request.value,
     indexedDB: { open: () => { throw Error("unexpected IndexedDB open"); } },
@@ -232,7 +232,7 @@ test("History loads legacy canvases without Web Crypto and permits retry after a
     assert.equal(await h.context.loadSnapshot(item.id, location), true);
     const expected = `legacy-${crypto.createHash("sha256").update(JSON.stringify({ location, scope: "", id: item.id })).digest("hex")}`;
     assert.equal(h.canvasDocumentsCurrent().id, expected);
-    assert.equal(h.state.currentSnapshotBundleExtensions.penechoDocument.documentId, expected);
+    assert.equal(h.state.currentSnapshotBundleExtensions.fastlecturesDocument.documentId, expected);
     assert.equal(h.state.widgets[0].html, item.widgets[0].html);
     assert.equal(h.state.textBoxes[0].text, item.textBoxes[0].text);
     assert.equal(h.state.currentSnapshotLocation, location);
@@ -552,9 +552,9 @@ test("Save as creates independent identity while retaining source and separating
   await h.canvasDocumentsExecute("mcp_start_session", { sessionId: "original-session", documentId: originalId, sessionKey: "original-key", client: "Codex", title: "Original", slotIndex: 0, takeover: false }, {});
   assert.equal(original.bindings[0].key, "original-key");
 
-  const bundleExtensions = h.canvasDocumentsSaveMetadata({ copy: true }), copiedId = bundleExtensions.penechoDocument.documentId;
+  const bundleExtensions = h.canvasDocumentsSaveMetadata({ copy: true }), copiedId = bundleExtensions.fastlecturesDocument.documentId;
   assert.notEqual(copiedId, originalId);
-  assert.equal(bundleExtensions.penechoDocument.bindings.length, 0);
+  assert.equal(bundleExtensions.fastlecturesDocument.bindings.length, 0);
   const item = {
     version: 2, name: "Independent copy", theme: "light", view: { scale: 1, panX: 0, panY: 0, navigationLocked: false },
     widgets: h.state.widgets.map(widget => ({ ...widget })), textBoxes: [], images: [], animations: [],
@@ -574,11 +574,11 @@ test("Save as creates independent identity while retaining source and separating
   await h.canvasDocumentsExecute("mcp_start_session", { sessionId: "copy-session", documentId: copiedId, sessionKey: "copy-key", client: "Codex", title: "Copy", slotIndex: 1, takeover: false }, {});
   assert.equal(copied.bindings[0].key, "copy-key");
   assert.equal(parkedOriginal.bindings.some(binding => binding.key === "copy-key"), false);
-  assert.equal(h.state.currentSnapshotBundleExtensions.penechoDocument.documentId, copiedId);
+  assert.equal(h.state.currentSnapshotBundleExtensions.fastlecturesDocument.documentId, copiedId);
 });
 
 test("open distinguishes an exact locator from ambiguous IDs and unavailable storage", async () => {
-  const metadata = documentId => ({ penechoDocument: { version: 1, documentId, title: documentId, bindings: [], locators: [], processor: { kind: "penecho" } } });
+  const metadata = documentId => ({ fastlecturesDocument: { version: 1, documentId, title: documentId, bindings: [], locators: [], processor: { kind: "fastlectures" } } });
   const snapshots = [
     { id: "copy-a", name: "A", bundleExtensions: metadata("shared-document") },
     { id: "copy-b", name: "B", bundleExtensions: metadata("shared-document") },
@@ -600,7 +600,7 @@ test("open distinguishes an exact locator from ambiguous IDs and unavailable sto
 
 test("legacy and identified saved copies keep independent content across visible switches", async () => {
   const identifiedId = "identified-document";
-  const extension = { penechoDocument: { version: 1, documentId: identifiedId, title: "Identified", bindings: [], locators: [], processor: { kind: "penecho" } } };
+  const extension = { fastlecturesDocument: { version: 1, documentId: identifiedId, title: "Identified", bindings: [], locators: [], processor: { kind: "fastlectures" } } };
   const stored = (name, html, bundleExtensions = {}) => ({
     item: {
       version: 2, name, theme: "light", view: { scale: 1, panX: 0, panY: 0, navigationLocked: false },
@@ -747,7 +747,7 @@ test("explicit current attaches populated Canvas, preserves title, and stays pin
   assert.equal(result.documentId,visible.id);
   assert.equal(h.canvasDocuments.records.size,1);
   assert.equal(visible.title,"Untitled Canvas");
-  assert.equal(visible.processor.kind,"penecho");
+  assert.equal(visible.processor.kind,"fastlectures");
   const live=h.mcpRuntime.sessions.get("attached");
   live.summary="retain progress";
   await h.canvasDocumentsExecute("mcp_start_session",args,{});
@@ -811,7 +811,7 @@ test("saved Widget front order survives workspace reload and explicit save metad
   first.state.frontPlacedCanvasObjectKind = "text-box";
   first.state.userRevision++;
   const metadata = first.canvasDocumentsSaveMetadata();
-  assert.deepEqual({...metadata.penechoObjectOrder},{version:1,frontKind:"widget",placedKind:"text-box"});
+  assert.deepEqual({...metadata.fastlecturesObjectOrder},{version:1,frontKind:"widget",placedKind:"text-box"});
   await first.context.canvasDocumentsPark();
   const second = harness({records,activeId:"different-canvas"});
   await second.canvasDocumentsReady();
@@ -1140,7 +1140,7 @@ for (const cryptoMode of ['native','missing-subtle','missing-crypto','rejected-d
   if(cryptoMode==='rejected-digest')h.context.crypto={subtle:{digest:async()=>{throw Error("unavailable");}}};
   const first=await h.context.canvasDocumentsUploadImage(doc,{name:'sample.png',source:assetTestImage},{});
   assert.equal(first.assetId,require("node:crypto").createHash("sha256").update(Buffer.from(assetTestImage.split(",")[1],"base64")).digest("hex"));
-  assert.match(first.source,/^penecho-asset:[a-f0-9]{64}$/);assert.equal(first.width,120);
+  assert.match(first.source,/^fastlectures-asset:[a-f0-9]{64}$/);assert.equal(first.width,120);
   assert.equal(h.state.images.length,0);assert.equal(h.state.currentSnapshotPreservedAssets.length,1);
   const revision=h.state.userRevision;
   const second=await h.context.canvasDocumentsUploadImage(doc,{name:'other.png',source:assetTestImage},{});
@@ -1165,7 +1165,7 @@ test('image placement uses attachment bytes, auto-layout or explicit position an
   assert.equal(h.state.images[1].x,400);assert.equal(h.state.images[1].w,160);
   const revision=h.state.userRevision;
   await assert.rejects(h.context.canvasDocumentsPlaceImage(doc,{source:asset.source,width:80},{}),/at least 80/);
-  await assert.rejects(h.context.canvasDocumentsPlaceImage(doc,{source:'penecho-asset:'+'f'.repeat(64)},{}),/not in this Canvas/);
+  await assert.rejects(h.context.canvasDocumentsPlaceImage(doc,{source:'fastlectures-asset:'+'f'.repeat(64)},{}),/not in this Canvas/);
   assert.equal(h.state.images.length,2);assert.equal(h.state.userRevision,revision);
   await assert.rejects(h.context.canvasDocumentsUploadImage(doc,{source:'file:///tmp/image.png'},{}),/Data URL/);
 });
@@ -1204,14 +1204,14 @@ test('routed image upload retries reuse the document receipt without retaining B
   await assert.rejects(h.canvasDocumentsExecute('mcp_upload_image',{...args,name:'different.png'},{}),/different content/);
 });
 
-test("legacy routing and external takeover keep the composer on PenEcho while Widget choices remain readable", async () => {
+test("legacy routing and external takeover keep the composer on FastLectures while Widget choices remain readable", async () => {
   const h = harness();
   const restored = h.canvasDocumentsRecord({ documentId: "legacy", processor: { kind: "external", bindingKey: "old" } });
-  assert.equal(restored.processor.kind, "penecho");
+  assert.equal(restored.processor.kind, "fastlectures");
   await h.canvasDocumentsReady();
   const doc = h.canvasDocumentsCurrent();
   await h.canvasDocumentsExecute("mcp_start_session", { sessionId: "choice-owner", sessionKey: "choice-key", client: "Codex", target: "current", takeover: true }, {});
-  assert.equal(doc.processor.kind, "penecho");
+  assert.equal(doc.processor.kind, "fastlectures");
   assert.equal(h.canvasDocumentsExternal(), false);
   const widget = { id: "choice-widget", x: 10, y: 20, w: 200, h: 100 };
   h.mcpRuntime.sessions.get("choice-owner").artifacts.set("choice-artifact", { objectId: widget.id });
@@ -1221,7 +1221,7 @@ test("legacy routing and external takeover keep the composer on PenEcho while Wi
   assert.equal(inbox.messages.messages.length, 1);
   assert.equal(inbox.messages.messages[0].text, "Use option B");
   assert.equal(inbox.messages.messages[0].source, "widget");
-  assert.equal(doc.processor.kind, "penecho");
+  assert.equal(doc.processor.kind, "fastlectures");
 });
 
 test("compound completion acknowledges only owned messages after the committed mutation and retries exactly once",async()=>{
@@ -1269,7 +1269,7 @@ test("background geometry patches preserve Widget content and image raster mappi
  const sessionId="geometry-mapping-session";await startHidden(h,opened.documentId,sessionId);
  const doc=h.canvasDocuments.records.get(opened.documentId);h.state.scale=2;
  doc.stored.item.view={scale:2,panX:17,panY:29,readingStage:{x:0,y:0,w:1000,h:1600},region:{x:0,y:0,w:500,h:800}};
- const widget={id:"geometry-widget",title:"Geometry Widget",widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",html:"<p>Widget</p>",x:100,y:100,w:240,h:110,contentW:480,contentH:220};
+ const widget={id:"geometry-widget",title:"Geometry Widget",widgetType:"html_widget",pluginId:"general",sourceFormat:"fastlectures-mcp+html",html:"<p>Widget</p>",x:100,y:100,w:240,h:110,contentW:480,contentH:220};
  const image={id:"geometry-image",sourceName:"fixture",x:600,y:100,w:40,h:40,naturalW:80,naturalH:80};
  doc.stored.item.widgets.push(widget);doc.stored.item.images.push(image);doc.spatial=null;
  const patchGeometry=async(pathName,next,requestId)=>{
@@ -1320,10 +1320,10 @@ test("background native labels store text foreground without changing the curren
   {id:"label",type:"text",x:200,y:230,width:100,text:"Hello"}]};
  await h.canvasDocumentsExecute("mcp_draw",args,{});
  assert.equal(h.state.frontPlacedCanvasObjectKind,"image");
- assert.deepEqual({...doc.stored.item.bundleExtensions.penechoObjectOrder},{version:1,frontKind:"text-box",placedKind:"text-box"});
- doc.stored.item.bundleExtensions.penechoObjectOrder={version:1,frontKind:"image",placedKind:"image"};
+ assert.deepEqual({...doc.stored.item.bundleExtensions.fastlecturesObjectOrder},{version:1,frontKind:"text-box",placedKind:"text-box"});
+ doc.stored.item.bundleExtensions.fastlecturesObjectOrder={version:1,frontKind:"image",placedKind:"image"};
  await h.canvasDocumentsExecute("mcp_draw",args,{});
- assert.equal(doc.stored.item.bundleExtensions.penechoObjectOrder.placedKind,"image");
+ assert.equal(doc.stored.item.bundleExtensions.fastlecturesObjectOrder.placedKind,"image");
 });
 
 test('MCP text and background native content retain screen dimensions and camera across zoom and reopen',async()=>{
@@ -1362,7 +1362,7 @@ test('raw image upload targets the current document without a conversation and p
   const h=imageAssetHarness();await h.canvasDocumentsReady();const doc=h.canvasDocumentsCurrent();
   const args={documentId:doc.id,requestId:'raw-1',name:'sample.png',originalName:'sample.tiff',inputSha256:'a'.repeat(64),source:assetTestImage};
   const first=await h.canvasDocumentsExecute('mcp_upload_image_to_document',args,{}),revision=h.state.userRevision;
-  assert.equal(first.documentId,doc.id);assert.match(first.source,/^penecho-asset:/);assert.equal(h.mcpRuntime.sessions.size,0);
+  assert.equal(first.documentId,doc.id);assert.match(first.source,/^fastlectures-asset:/);assert.equal(h.mcpRuntime.sessions.size,0);
   assert.equal((await h.canvasDocumentsExecute('mcp_upload_image_to_document',args,{})).source,first.source);
   assert.equal(h.state.userRevision,revision);
   await assert.rejects(h.canvasDocumentsExecute('mcp_upload_image_to_document',{...args,inputSha256:'b'.repeat(64)},{}),/different content/);

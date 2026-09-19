@@ -108,7 +108,7 @@ function harness(options = {}) {
     currentSnapshotProjectId: null,
     currentSnapshotRevisionId: null,
     currentSnapshotBundleExtensions: {
-      penechoDocument: { version: 1, documentId: "blank-document" },
+      fastlecturesDocument: { version: 1, documentId: "blank-document" },
     },
     currentSnapshotManifestExtensions: {},
     currentSnapshotPreservedAssets: [],
@@ -148,7 +148,7 @@ function harness(options = {}) {
       },
     },
     window: {
-      PenEchoStudioNavigator: {
+      FastLecturesStudioNavigator: {
         updateDocument: () => navigatorUpdates.push("document"),
         refreshSource: () => navigatorUpdates.push("source"),
       },
@@ -205,7 +205,7 @@ test("an explicit rename persists an otherwise blank Canvas with its name and id
   const [id, item] = [...h.storage.items.entries()][0];
   assert.equal(item.id, id);
   assert.equal(item.name, "Empty lesson");
-  assert.equal(item.bundleExtensions.penechoDocument.documentId, "blank-document");
+  assert.equal(item.bundleExtensions.fastlecturesDocument.documentId, "blank-document");
   assert.equal(h.state.currentSnapshotId, id);
   assert.equal(h.state.currentSnapshotLocation, "device");
   assert.equal(h.state.currentSnapshotName, "Empty lesson");
@@ -244,7 +244,7 @@ test("renaming an existing Canvas overwrites its stored identity", async () => {
     updatedAt: 456,
     name: "Before",
     projectId: null,
-    bundleExtensions: { penechoDocument: { version: 1, documentId: "saved-document" } },
+    bundleExtensions: { fastlecturesDocument: { version: 1, documentId: "saved-document" } },
   };
   h.storage.items.set(existing.id, existing);
   h.storage.tiles.set("saved-canvas:tile-1", { id: "saved-canvas:tile-1", snapshotId: existing.id });
@@ -265,7 +265,7 @@ test("renaming an existing Canvas overwrites its stored identity", async () => {
   assert.equal(saved.id, existing.id);
   assert.equal(saved.createdAt, existing.createdAt);
   assert.equal(saved.name, "After");
-  assert.equal(saved.bundleExtensions.penechoDocument.documentId, "saved-document");
+  assert.equal(saved.bundleExtensions.fastlecturesDocument.documentId, "saved-document");
   assert.equal(h.storage.tiles.size, 0);
   assert.equal(h.state.currentSnapshotId, existing.id);
 });

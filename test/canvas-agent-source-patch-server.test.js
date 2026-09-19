@@ -20,8 +20,8 @@ function widgetEdit(overrides = {}) {
     box:{x:100,y:200,w:1200,h:700},
     refreshSeconds:0,
     html:OLD_HTML,
-    sourceFormat:"penecho-visual-explorer+html",
-    frameworkVersion:"penecho-visual-explorer/1",
+    sourceFormat:"fastlectures-visual-explorer+html",
+    frameworkVersion:"fastlectures-visual-explorer/1",
     source:OLD_HTML,
     sourceMirrorsHtml:true,
     copyLabel:"",
@@ -35,7 +35,7 @@ async function sourcePatchRuntime(current, rpcCalls) {
   visualExplorerBudget.objectIds.add("widget-1");
   visualExplorerBudget.deliveryModes.set("widget-1","oneShot");
   const session={
-    projectRuntimeDirectory:path.join(os.tmpdir(),"penecho-source-patch-test"),
+    projectRuntimeDirectory:path.join(os.tmpdir(),"fastlectures-source-patch-test"),
     widgetCapabilities:{fingerprint:"test",professionalEnabled:false,privatePlugins:[]},
     generalHtmlContract:{hash:"a".repeat(64),document:"general"},
     professionalDiagramsContract:null,
@@ -130,9 +130,9 @@ test("native guidance is read on demand from the shared source without the old l
   const native=await createCanvasAgentNativeRuntime({attachments:{saveImages:async()=>[]},session});
   const { getAuthoringGuidance } = require("../src/server/mcp/authoring-guidance.js");
   const expected=getAuthoringGuidance("general-html"), exec={callId:"guidance",signal:new AbortController().signal};
-  const first=await native.tool("penecho_get_guidance").execute({id:"general-html"},exec);
+  const first=await native.tool("fastlectures_get_guidance").execute({id:"general-html"},exec);
   assert.deepEqual(first,expected);
-  const repeated=await native.tool("penecho_get_guidance").execute({id:"general-html"},{...exec,callId:"guidance-again"});
+  const repeated=await native.tool("fastlectures_get_guidance").execute({id:"general-html"},{...exec,callId:"guidance-again"});
   assert.deepEqual(repeated,expected);
   assert.equal(native.tool("load_widget_contract"),null);
   assert.equal(rpcCalls.length,0,"guidance is read from the shared source without a browser RPC");

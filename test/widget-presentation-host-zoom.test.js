@@ -99,7 +99,7 @@ test("maximized Widget host scale applies available width, presentation width, a
 
   assert.equal(h.messages.length, 1);
   const message = h.messages[0].message;
-  assert.equal(message.type, "penecho-widget-state");
+  assert.equal(message.type, "fastlectures-widget-state");
   assert.equal(message.maximized, true);
   assert.equal(message.fitContent, false);
   assert.equal(message.fitContentAxes, null);

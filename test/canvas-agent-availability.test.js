@@ -49,7 +49,7 @@ function button() {
 }
 
 test("Canvas Agent availability separates browser-only UI from executable connections",()=>{
-  const context={window:{PENECHO_CONFIG:{runtime:"local"}}},functions=availabilityFunctions(context),cases=[
+  const context={window:{FASTLECTURES_CONFIG:{runtime:"local"}}},functions=availabilityFunctions(context),cases=[
     [{runtime:"local",canvasAgent:true,browserCanvasEditing:false},true,true],
     [{runtime:"cloud",canvasAgent:true,browserCanvasEditing:false},true,true],
     [{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true},true,false],
@@ -58,7 +58,7 @@ test("Canvas Agent availability separates browser-only UI from executable connec
     [{runtime:"local",canvasAgent:undefined,browserCanvasEditing:false},true,true],
   ];
   for (const [config,expectedUi,expectedExecution] of cases) {
-    context.window.PENECHO_CONFIG=config;
+    context.window.FASTLECTURES_CONFIG=config;
     assert.equal(functions.available(),expectedUi,`UI availability for ${JSON.stringify(config)}`);
     assert.equal(functions.execution(),expectedExecution,`execution availability for ${JSON.stringify(config)}`);
   }
@@ -66,7 +66,7 @@ test("Canvas Agent availability separates browser-only UI from executable connec
 
 test("Canvas Agent browser-only mode keeps the panel launcher but disables sending with status linkage",()=>{
   const send=button(),input={disabled:false},context={
-    window:{PENECHO_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
+    window:{FASTLECTURES_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
     canvasAgentSend:send,canvasAgentInput:input,canvasAgent:{attachmentBusy:false,projectUploadBusy:false},
   },sync=vm.runInNewContext(`(()=>{
     ${functionSource(source,"canvasAgentExecutionAvailable")}
@@ -77,7 +77,7 @@ test("Canvas Agent browser-only mode keeps the panel launcher but disables sendi
   assert.equal(send.disabled,true);
   assert.equal(send.attributes["aria-describedby"],"canvasAgentStatus");
 
-  context.window.PENECHO_CONFIG={runtime:"local",canvasAgent:true};
+  context.window.FASTLECTURES_CONFIG={runtime:"local",canvasAgent:true};
   sync();
   assert.equal(send.disabled,false);
   assert.equal(send.attributes["aria-describedby"],undefined);
@@ -98,7 +98,7 @@ test("Canvas Agent browser-only mode keeps the panel launcher but disables sendi
 
 test("Canvas Agent attachment sync restores sending after project upload and keeps browser-only sending disabled",()=>{
   const attach=button(),send=button(),input={disabled:false},context={
-    window:{PENECHO_CONFIG:{runtime:"local",canvasAgent:true}},
+    window:{FASTLECTURES_CONFIG:{runtime:"local",canvasAgent:true}},
     canvasAgentUsesCloudHost:()=>false,t:localized,canvasAgentFileInput:{accept:""},
     canvasAgentAttach:attach,canvasAgentSend:send,canvasAgentInput:input,
     canvasAgent:{attachmentBusy:false,projectUploadBusy:true},canvasAgentSyncPromptSuggestions() {},
@@ -117,7 +117,7 @@ test("Canvas Agent attachment sync restores sending after project upload and kee
   assert.equal(attach.disabled,false);
   assert.equal(send.disabled,false,"ending project upload restores Send for an executable connection");
 
-  context.window.PENECHO_CONFIG={runtime:"cloud",canvasAgent:false,browserCanvasEditing:true};
+  context.window.FASTLECTURES_CONFIG={runtime:"cloud",canvasAgent:false,browserCanvasEditing:true};
   sync();
   assert.equal(attach.disabled,false);
   assert.equal(send.disabled,true,"browser-only editing remains send-disabled after upload completion");
@@ -128,7 +128,7 @@ test("Canvas Agent unavailable status and connection label remain unavailable ac
   assert.match(coreSource,/canvasAgentNoConnections:\s*"No available connections"/);
   assert.match(zhSource,/canvasAgentNoConnections:\s*"无可用的连接"/);
   const status={textContent:"",},panel={dataset:{status:"ready"}},label={textContent:""},connection=button(),context={
-    window:{PENECHO_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
+    window:{FASTLECTURES_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
     canvasAgentStatus:status,canvasAgentPanel:panel,canvasAgentConnectionButton:connection,canvasAgentConnectionLabel:label,
     allAiConnections:()=>[{id:"saved",provider:"api",name:"Saved API"}],selectedAiConnectionId:()=>"saved",connectionTitle:item=>item.name,
     t:localized,canvasAgentSyncSendAvailability(){},
@@ -146,7 +146,7 @@ test("Canvas Agent unavailable status and connection label remain unavailable ac
   assert.equal(label.textContent,"No available connections");
   assert.match(connection.attributes["aria-label"],/Choose AI connection: No available connections/);
 
-  context.window.PENECHO_CONFIG={runtime:"local",canvasAgent:true};
+  context.window.FASTLECTURES_CONFIG={runtime:"local",canvasAgent:true};
   run.setStatus("Connecting…", "connecting");
   assert.equal(status.textContent,"Connecting…");
   assert.equal(panel.dataset.status,"connecting");
@@ -156,7 +156,7 @@ test("Canvas Agent unavailable status and connection label remain unavailable ac
 
 test("Cloud hosted connections execute without a device only when the hosted Agent capability is enabled",()=>{
   let selected="hosted:db6e5128-0ec7-4a2a-a9bd-6b20c49c322b";
-  const context={window:{PENECHO_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true,hostedCanvasAgent:true}},
+  const context={window:{FASTLECTURES_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true,hostedCanvasAgent:true}},
     location:{pathname:"/canvas/5250fdb4-3cce-44fd-a60c-3b6ee5732ad0",protocol:"https:",host:"uat.example.test"},
     state:{currentSnapshotLocation:"cloud",currentSnapshotId:"5250fdb4-3cce-44fd-a60c-3b6ee5732ad0"},
     selectedAiConnectionId:()=>selected};
@@ -174,9 +174,9 @@ test("Cloud hosted connections execute without a device only when the hosted Age
   assert.equal(run.available(),false,"offline device connections remain unavailable");
   assert.equal(run.url(),"wss://uat.example.test/api/v1/remote-canvas/canvas-agent");
   selected="hosted:db6e5128-0ec7-4a2a-a9bd-6b20c49c322b";
-  context.window.PENECHO_CONFIG.hostedCanvasAgent=false;
+  context.window.FASTLECTURES_CONFIG.hostedCanvasAgent=false;
   assert.equal(run.available(),false,"a listed model cannot advertise a missing execution backend");
-  context.window.PENECHO_CONFIG={runtime:"viewer",canvasAgent:false,hostedCanvasAgent:true};
+  context.window.FASTLECTURES_CONFIG={runtime:"viewer",canvasAgent:false,hostedCanvasAgent:true};
   assert.equal(run.available(),false);
 });
 
@@ -196,7 +196,7 @@ test("Hosted model labels identify Cloud and round display multipliers without c
 test("Canvas Agent capabilities refresh preserves the browser-only panel and synchronizes unavailable controls",()=>{
   const calls={close:0,hostedModels:0,connection:0,send:0,assistant:0,status:[]},toggle={hidden:false},panel={hidden:false},context={
     settings:{connectionScope:""},aiConnectionScope:()=>"",renderConnectionLists:()=>{},
-    window:{PENECHO_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
+    window:{FASTLECTURES_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
     canvasAgentToggle:toggle,canvasAgentPanel:panel,
     canvasAgentAvailable:null,canvasAgentExecutionAvailable:null,
     closeCanvasAgent:()=>calls.close++,renderHostedModels:()=>calls.hostedModels++,canvasAgentUpdateConnectionButton:()=>calls.connection++,
@@ -231,7 +231,7 @@ test("Canvas Agent language refresh keeps unavailable status instead of restorin
     "canvasAgentProjectRemoveConfirm","canvasAgentProjectRemoveDescription","canvasAgentApproval","canvasAgentTranscript","canvasAgentStatus","canvasAgentPanel",
   ];
   const element=()=>({textContent:"",hidden:true,value:"",dataset:{status:"connecting"},classList:{contains:()=>false},setAttribute(){},querySelector:()=>({textContent:""}),querySelectorAll:()=>[]});
-  const context={window:{PENECHO_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},canvasAgent:{running:false,projectRootApproval:null,projectRemovePending:null,toolRows:new Map(),lastTurnError:null},t:localized,
+  const context={window:{FASTLECTURES_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},canvasAgent:{running:false,projectRootApproval:null,projectRemovePending:null,toolRows:new Map(),lastTurnError:null},t:localized,
     canvasAgentSetComposerActionLabel(){},canvasAgentRenderPromptSuggestions(){},canvasAgentUpdateSearchButton(){},canvasAgentUpdateConnectionButton(){},canvasAgentRenderToolRow(){},canvasAgentBlockLabel:key=>key,
     canvasAgentSetAssistantCopyState(){},canvasAgentRenderErrorElement(){},canvasAgentSyncSelection(){},canvasAgentRenderReferencePicker(){},canvasAgentRenderHistoryList(){},canvasAgentRenderProjects(){},canvasAgentRenderEmpty(){},
     canvasAgentSyncInputHint(){},canvasAgentSyncPromptSuggestions(){},canvasAgentSyncSendAvailability(){},
@@ -253,7 +253,7 @@ test("Canvas Agent language refresh keeps unavailable status instead of restorin
 
 test("Canvas Agent connect rejects unavailable execution before project loading, capabilities, or WebSocket creation",async()=>{
   const calls={projects:0,websocket:0},context={
-    window:{PENECHO_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
+    window:{FASTLECTURES_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
     canvasAgentReconcileCloudCanvas:()=>{},canvasAgentCloudCanvasId:()=>"",
     canvasAgentEnsureProjects:async()=>{calls.projects++},canvasAgentCurrentWidgetCapabilities:async()=>{calls.capabilities=(calls.capabilities||0)+1;return {};},
     canvasAgentSetStatus:()=>{},canvasAgentExecutionAvailable:null,
@@ -272,14 +272,14 @@ test("Canvas Agent connect rechecks execution after asynchronous capabilities an
   const calls={projects:0,capabilities:0,websocket:0},FakeWebSocket=function(){calls.websocket++};
   FakeWebSocket.OPEN=1;
   const context={
-    window:{PENECHO_CONFIG:{runtime:"cloud",canvasAgent:true,browserCanvasEditing:false}},
+    window:{FASTLECTURES_CONFIG:{runtime:"cloud",canvasAgent:true,browserCanvasEditing:false}},
     canvasAgent:{socket:null,connectPromise:null},
     canvasAgentReconcileCloudCanvas:()=>{},canvasAgentCloudCanvasId:()=>"",
     canvasAgentEnsureProjects:async()=>{calls.projects++},
     canvasAgentCurrentWidgetCapabilities:async()=>{
       calls.capabilities++;
       await Promise.resolve();
-      context.window.PENECHO_CONFIG.canvasAgent=false;
+      context.window.FASTLECTURES_CONFIG.canvasAgent=false;
       return {};
     },
     canvasAgentSetStatus:()=>{},selectedAiConnectionId:()=>"connection",
@@ -296,7 +296,7 @@ test("Canvas Agent connect rechecks execution after asynchronous capabilities an
 test("Canvas Agent unavailable submission returns false without consuming the draft or creating a request",async()=>{
   const send=button(),input={disabled:false,value:"keep this draft"},conversation={id:"conversation-before"},counts={begin:0,submit:0,conversation:0,connect:0,search:0,request:0,network:0},status=[];
   const context={
-    window:{PENECHO_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
+    window:{FASTLECTURES_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
     canvasAgentSend:send,canvasAgentInput:input,canvasAgent:{attachmentBusy:false,projectUploadBusy:false,attachments:[{id:"draft-image"}],inkPresent:true,currentConversation:conversation},
     canvasAgentSetStatus:(text,kind)=>status.push({text,kind}),canvasAgentSyncSendAvailability:null,
     canvasAgentBeginRequest:()=>counts.begin++,canvasAgentBeginSubmitExecution:()=>{counts.submit++;},canvasAgentDidStartUserConversation:()=>{counts.conversation++;},
@@ -321,7 +321,7 @@ test("Canvas Agent unavailable submission returns false without consuming the dr
 
 test("Canvas Agent retry is disabled when the UI remains available but execution has no connection",()=>{
   const context={
-    window:{PENECHO_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
+    window:{FASTLECTURES_CONFIG:{runtime:"cloud",canvasAgent:false,browserCanvasEditing:true}},
     canvasAgent:{running:false,requestPending:false,attachmentBusy:false,projectUploadBusy:false,pendingApproval:false},
     canvasAgentInput:{disabled:false},canvasAgentCanShowRetryTarget:()=>true,
   },retry=vm.runInNewContext(`(()=>{
@@ -330,6 +330,6 @@ test("Canvas Agent retry is disabled when the UI remains available but execution
     return canvasAgentCanRetryTarget;
   })()`,context);
   assert.equal(retry({historyItem:{}}),false);
-  context.window.PENECHO_CONFIG={runtime:"local",canvasAgent:true};
+  context.window.FASTLECTURES_CONFIG={runtime:"local",canvasAgent:true};
   assert.equal(retry({historyItem:{}}),true);
 });

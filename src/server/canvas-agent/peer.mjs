@@ -3,7 +3,7 @@ import { parseClientEnvelope } from './protocol.mjs'
 export const CANVAS_AGENT_MAX_FRAME_BYTES = 48 * 1024 * 1024
 
 /**
- * Transport-neutral PenEcho Canvas Agent protocol peer.
+ * Transport-neutral FastLectures Canvas Agent protocol peer.
  *
  * Authentication stays at the transport boundary. `principal` is an opaque,
  * immutable server-authenticated scope forwarded to the runtime so a resume
@@ -16,12 +16,12 @@ export function createCanvasAgentPeer({
   closeTransport = () => {},
   onDisconnect = () => {},
 }) {
-  if (typeof runtime !== 'function') throw new Error('PenEcho Agent peer requires a runtime resolver.')
-  if (typeof sendFrame !== 'function') throw new Error('PenEcho Agent peer requires a frame sender.')
+  if (typeof runtime !== 'function') throw new Error('FastLectures Agent peer requires a runtime resolver.')
+  if (typeof sendFrame !== 'function') throw new Error('FastLectures Agent peer requires a frame sender.')
   const binding = {}
   const state = { session:null, sessionGeneration:0, incomingSeq:0, outgoingSeq:0, pendingHandshakeId:'', closed:false, receiveQueue:Promise.resolve() }
   const sendForGeneration = generation => {
-    if (!Number.isSafeInteger(generation)) throw new Error('PenEcho Agent session generation is invalid.')
+    if (!Number.isSafeInteger(generation)) throw new Error('FastLectures Agent session generation is invalid.')
     return (type, payload, identity = state.session) => {
       if (state.closed || generation !== state.sessionGeneration) return
       state.outgoingSeq += 1
@@ -42,19 +42,19 @@ export function createCanvasAgentPeer({
     return (type,payload,identity)=>generationSend(type,['ready','error'].includes(type)?{...payload,handshakeId:expected}:payload,identity)
   }
   const fail = (error, fatal = false) => {
-    send('error', { message:String(error?.message || error || 'PenEcho Agent failed.'), fatal, ...(error?.code ? {code:String(error.code)} : {}), ...(Number.isInteger(error?.status) ? {status:error.status} : {}), ...(state.pendingHandshakeId?{handshakeId:state.pendingHandshakeId}:{}) })
-    if (fatal) closeTransport(1008, 'PenEcho Agent protocol error')
+    send('error', { message:String(error?.message || error || 'FastLectures Agent failed.'), fatal, ...(error?.code ? {code:String(error.code)} : {}), ...(Number.isInteger(error?.status) ? {status:error.status} : {}), ...(state.pendingHandshakeId?{handshakeId:state.pendingHandshakeId}:{}) })
+    if (fatal) closeTransport(1008, 'FastLectures Agent protocol error')
   }
   const processFrame = async raw => {
     if (state.closed) return
     try {
-      if (Buffer.byteLength(raw) > CANVAS_AGENT_MAX_FRAME_BYTES) throw new Error('PenEcho Agent message is too large.')
+      if (Buffer.byteLength(raw) > CANVAS_AGENT_MAX_FRAME_BYTES) throw new Error('FastLectures Agent message is too large.')
       const envelope = parseClientEnvelope(raw)
-      if (envelope.seq <= state.incomingSeq) throw new Error('PenEcho Agent message sequence must increase.')
+      if (envelope.seq <= state.incomingSeq) throw new Error('FastLectures Agent message sequence must increase.')
       state.incomingSeq = envelope.seq
       const owner = await runtime()
       if (envelope.type === 'hello') {
-        if (state.session) throw new Error('PenEcho Agent hello was already accepted.')
+        if (state.session) throw new Error('FastLectures Agent hello was already accepted.')
         const generation = ++state.sessionGeneration, handshakeId=normalizedHandshakeId(envelope.payload?.handshakeId)
         state.pendingHandshakeId=handshakeId
         const generationSend = sendForHandshake(generation,handshakeId)
@@ -75,14 +75,14 @@ export function createCanvasAgentPeer({
         })
         if (generation !== state.sessionGeneration) {
           await owner.disposeSession(session).catch(() => {})
-          throw new Error('PenEcho Agent session replacement is no longer current.')
+          throw new Error('FastLectures Agent session replacement is no longer current.')
         }
         state.session = session
         if(state.pendingHandshakeId===handshakeId)state.pendingHandshakeId=''
         return
       }
-      if (state.session?.binding !== binding) throw new Error('PenEcho Agent session moved to another connection.')
-      if (!state.session) throw new Error('PenEcho Agent session is not established.')
+      if (state.session?.binding !== binding) throw new Error('FastLectures Agent session moved to another connection.')
+      if (!state.session) throw new Error('FastLectures Agent session is not established.')
       if (envelope.type === 'new_conversation') {
         const previous = state.session, connectionId = String(envelope.payload?.connectionId || previous.connectionId), handshakeId=normalizedHandshakeId(envelope.payload?.handshakeId)
         const generation = ++state.sessionGeneration
@@ -113,7 +113,7 @@ export function createCanvasAgentPeer({
         }
         if (generation !== state.sessionGeneration) {
           await owner.disposeSession(replacement).catch(() => {})
-          throw new Error('PenEcho Agent session replacement is no longer current.')
+          throw new Error('FastLectures Agent session replacement is no longer current.')
         }
         state.session = replacement
         if(state.pendingHandshakeId===handshakeId)state.pendingHandshakeId=''
@@ -148,7 +148,7 @@ export function createCanvasAgentPeer({
         }
         if (generation !== state.sessionGeneration) {
           if (changed !== previous) await owner.disposeSession(changed).catch(() => {})
-          throw new Error('PenEcho Agent context change is no longer current.')
+          throw new Error('FastLectures Agent context change is no longer current.')
         }
         state.session = changed
         if(state.pendingHandshakeId===handshakeId)state.pendingHandshakeId=''
@@ -161,11 +161,11 @@ export function createCanvasAgentPeer({
         try {
           owner.setWebSearchEnabled(session, envelope.payload?.webSearchEnabled === true)
         } catch (error) {
-          sendForGeneration(generation)('error', { message:String(error?.message || error || 'PenEcho Agent failed.'), fatal:false }, session)
+          sendForGeneration(generation)('error', { message:String(error?.message || error || 'FastLectures Agent failed.'), fatal:false }, session)
           return
         }
         void owner.submit(session, envelope.payload?.text, envelope.type === 'steer', envelope.payload?.images, envelope.payload?.references, envelope.payload?.initialState, envelope.payload?.fileIds, envelope.payload?.canvasTitleNeeded === true, envelope.payload?.reasoningEffort).catch(error => {
-          sendForGeneration(generation)('error', { message:String(error?.message || error || 'PenEcho Agent failed.'), fatal:false }, session)
+          sendForGeneration(generation)('error', { message:String(error?.message || error || 'FastLectures Agent failed.'), fatal:false }, session)
         })
       }
       else if (envelope.type === 'cancel') await owner.cancel(state.session)

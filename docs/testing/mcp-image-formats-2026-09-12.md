@@ -1,6 +1,6 @@
 # MCP image upload validation — 2026-09-12
 
-Scope: agent-side file preparation, stdio MCP upload protocol with a fake bridge, real schema validation, and isolated Canvas document/Widget asset tests. No running PenEcho service was started; this is not a two-machine end-to-end or browser visual test.
+Scope: agent-side file preparation, stdio MCP upload protocol with a fake bridge, real schema validation, and isolated Canvas document/Widget asset tests. No running FastLectures service was started; this is not a two-machine end-to-end or browser visual test.
 
 ## Format expectations
 

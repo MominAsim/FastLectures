@@ -27,14 +27,14 @@ Thumbs.db
 *.pfx
 local/*
 public/plugins/private/
-docs/assets/penecho-demo.gif
+docs/assets/fastlectures-demo.gif
 tools/mobile/android/
 tools/mobile/ios/
-tools/mobile/web/penecho-mark.png
+tools/mobile/web/fastlectures-mark.png
 .claude
 .impeccable/
-.penecho/
-.penecho-local-test/
+.fastlectures/
+.fastlectures-local-test/
 
 # Agent / assistant working directories
 .playwright-cli/

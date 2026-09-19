@@ -1,5 +1,5 @@
 // Canvas snapshots, export, drawing history, strokes, and lasso selection.
-  const SNAPSHOT_DB = "penecho-canvas-history",
+  const SNAPSHOT_DB = "fastlectures-canvas-history",
     SNAPSHOT_STORE = "snapshots",
     SNAPSHOT_TILE_STORE = "snapshot-tiles",
     SNAPSHOT_TILE_DECODE_BATCH_SIZE = 8,
@@ -7,10 +7,10 @@
     SNAPSHOT_LOCATIONS = new Set(["device", "server", "cloud"]),
     SERVER_DEFAULT_PROJECT_ID = "uncategorized",
     SERVER_ALL_PROJECTS_ID = "all",
-    SERVER_PROJECT_SESSION_KEY = "penecho-selected-canvas-project",
+    SERVER_PROJECT_SESSION_KEY = "fastlectures-selected-canvas-project",
     CLOUD_ALL_PROJECTS_ID = "all",
-    CLOUD_PROJECT_SESSION_KEY = "penecho-selected-cloud-project",
-    HISTORY_VIEW_STORAGE_KEY = "penecho-history-view-v2";
+    CLOUD_PROJECT_SESSION_KEY = "fastlectures-selected-cloud-project",
+    HISTORY_VIEW_STORAGE_KEY = "fastlectures-history-view-v2";
   let snapshotDbPromise = null,
     snapshotItems = [],
     snapshotSaveInProgress = false,
@@ -51,8 +51,8 @@
     const name=String(value||"").replace(/\s+/g," ").trim().slice(0,48).trim();
     if(!name||!currentCanvasNeedsAgentName())return false;
     state.currentCanvasSuggestedName=name;
-    window.PenEchoStudioNavigator?.updateDocument?.();
-    window.PenEchoStudioNavigator?.renderAgent?.();
+    window.FastLecturesStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.renderAgent?.();
     return true;
   }
   function validServerProjectSelection(projectId) {
@@ -97,13 +97,13 @@
     return selectedCloudProjectId === CLOUD_ALL_PROJECTS_ID ? cloudDefaultProjectId() : selectedCloudProjectId;
   }
   function snapshotLocationLabel(location = state.snapshotLocation) {
-    return t(location === "server" ? "storagePenEchoServer" : location === "cloud" ? "storagePenEchoCloud" : "storageThisDevice");
+    return t(location === "server" ? "storageFastLecturesServer" : location === "cloud" ? "storageFastLecturesCloud" : "storageThisDevice");
   }
   function cloudHistoryCopy(key) {
     return t({
       title:"snapshotCloudSignInRequired",
       description:"snapshotCloudSignInHint",
-      action:"openPenEchoCloud",
+      action:"openFastLecturesCloud",
       confirmExternalOpen:"openCloudCanvasUnsaved",
     }[key] || key);
   }
@@ -131,7 +131,7 @@
   }
   function updateSnapshotLocationUi() {
     const location = SNAPSHOT_LOCATIONS.has(state.snapshotLocation) ? state.snapshotLocation : "device",
-      descriptionKey = location === "server" ? "storagePenEchoServerDescription" : location === "cloud" ? "storagePenEchoCloudDescription" : "storageThisDeviceDescription";
+      descriptionKey = location === "server" ? "storageFastLecturesServerDescription" : location === "cloud" ? "storageFastLecturesCloudDescription" : "storageThisDeviceDescription";
     document.querySelectorAll('input[name="historyStorageLocation"], input[name="newCanvasStorageLocation"]').forEach((input) => {
       input.checked = input.value === location;
     });
@@ -153,7 +153,7 @@
       snapshotLoadingId = null;
     }
     state.snapshotLocation = location;
-    localStorage.setItem("penecho-snapshot-location", location);
+    localStorage.setItem("fastlectures-snapshot-location", location);
     snapshotItems = [];
     snapshotItemsLocation = null;
     if (location === "cloud") cloudCanvasProjects = [];
@@ -289,7 +289,7 @@
       saveButton.classList.toggle("is-saving", busy);
       saveButton.setAttribute("aria-busy", String(busy));
     }
-    window.PenEchoStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.updateDocument?.();
     if (!busy) renderServerProjectUi();
     updateHistoryReadControls();
   }
@@ -312,7 +312,7 @@
   }
   async function saveCurrentCanvas() {
     if (snapshotSaveInProgress) return;
-    const location = state.currentSnapshotLocation || (window.PENECHO_CONFIG?.browserCanvasEditing ? "cloud" : state.snapshotLocation),
+    const location = state.currentSnapshotLocation || (window.FASTLECTURES_CONFIG?.browserCanvasEditing ? "cloud" : state.snapshotLocation),
       overwriteId = state.currentSnapshotId && state.currentSnapshotLocation === location ? state.currentSnapshotId : null,
       requestedName = document.querySelector("#historyName")?.value.trim(),
       name = requestedName || currentCanvasDisplayName();
@@ -504,7 +504,7 @@
     try {
       return await canvasBlob(snapshotPreview(), "image/webp", .78);
     } catch (error) {
-      console.warn("PenEcho snapshot thumbnail failed; saving with a fallback thumbnail:", error);
+      console.warn("FastLectures snapshot thumbnail failed; saving with a fallback thumbnail:", error);
       return dataUrlBlob("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
     }
   }
@@ -538,7 +538,7 @@
     let body = null;
     try { body = await snapshotJsonBody(response, onProgress); } catch {}
     if (!response.ok) {
-      const error = Error(body?.error || `PenEcho server returned HTTP ${response.status}`);
+      const error = Error(body?.error || `FastLectures server returned HTTP ${response.status}`);
       error.status = response.status;
       error.code = body?.code || body?.error || null;
       throw error;
@@ -563,7 +563,7 @@
   async function cloudSnapshotItems() {
     const response = await fetch("/api/cloud/library", { credentials:"same-origin", cache:"no-store", headers:authenticatedApiHeaders() }),
       body = await snapshotApiResponse(response);
-    if (body?.sync?.bundleVersion !== 2 || body.sync.conflictPolicy !== "base-revision-required") throw Error("PenEcho Cloud does not support this Canvas sync version");
+    if (body?.sync?.bundleVersion !== 2 || body.sync.conflictPolicy !== "base-revision-required") throw Error("FastLectures Cloud does not support this Canvas sync version");
     cloudCanvasProjects = Array.isArray(body.projects) ? body.projects : [];
     const selectedExists = selectedCloudProjectId === CLOUD_ALL_PROJECTS_ID || cloudCanvasProjects.some((project) => project.id === selectedCloudProjectId);
     if (!selectedExists) rememberSelectedCloudProject(cloudDefaultProjectId() || CLOUD_ALL_PROJECTS_ID);
@@ -573,7 +573,7 @@
     })).sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
   }
   async function snapshotsAt(location) {
-    if (location === "server") await window.PenEchoLinkedDevice?.refresh({ ifNeeded:true });
+    if (location === "server") await window.FastLecturesLinkedDevice?.refresh({ ifNeeded:true });
     return location === "server" ? serverSnapshotItems() : location === "cloud" ? cloudSnapshotItems() : allSnapshots();
   }
   function animationBounds(region = null) {
@@ -692,7 +692,7 @@
   function exportFilename() {
     const now = new Date(),
       pad = (value) => String(value).padStart(2, "0");
-    return `penecho-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.png`;
+    return `fastlectures-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.png`;
   }
   async function exportCanvasPng() {
     const buttons = [document.querySelector("#exportPngBtn"), canvasViewDownloadButton].filter(Boolean);
@@ -843,12 +843,12 @@
     }
   }
   function snapshotCanvasObjectExtensions() {
-    return { ...snapshotExtensionObject(state.currentSnapshotBundleExtensions), penechoObjectOrder:{
+    return { ...snapshotExtensionObject(state.currentSnapshotBundleExtensions), fastlecturesObjectOrder:{
       version:1, frontKind:state.frontCanvasObjectKind, placedKind:state.frontPlacedCanvasObjectKind,
     } };
   }
   function restoreSnapshotCanvasObjectOrder(extensions) {
-    const order = extensions?.penechoObjectOrder;
+    const order = extensions?.fastlecturesObjectOrder;
     restoreCanvasObjectFrontKinds(order?.version === 1 ? order.frontKind : "image", order?.version === 1 ? order.placedKind : "image");
   }
   function snapshotPreservedAssets(value) {
@@ -882,7 +882,7 @@
       name:item.name,
       projectId:item.projectId || SERVER_DEFAULT_PROJECT_ID,
       manifest:{
-        format:"penecho-raster-tiles",
+        format:"fastlectures-raster-tiles",
         formatVersion:1,
         canvasSize:{ width:SIZE, height:SIZE },
         tileSize:TILE,
@@ -954,7 +954,7 @@
     if (origin?.id && /^[0-9a-f-]{36}$/i.test(origin.id)) {
       item.bundleExtensions = {
         ...snapshotExtensionObject(item.bundleExtensions),
-        penechoCommunity:{
+        fastlecturesCommunity:{
           originItemId:origin.id,
           rootItemId:origin.rootItemId || origin.id,
           originName:String(origin.name || "").trim().slice(0, 160),
@@ -977,7 +977,7 @@
   // tool keep the restored objects read-only while fitViewerCanvas() frames
   // the complete artifact instead of its publishing-time pan/zoom.
   async function viewCommunityCanvasArtifact(artifact) {
-    if (window.PENECHO_CONFIG?.runtime !== "viewer") throw Error("Read-only Canvas viewing is unavailable in this runtime.");
+    if (window.FASTLECTURES_CONFIG?.runtime !== "viewer") throw Error("Read-only Canvas viewing is unavailable in this runtime.");
     const parsed = await readSnapshotBundle(artifact),
       { item, tileEntries } = parsed,
       loadGeneration = ++state.snapshotLoadGeneration,
@@ -1060,7 +1060,7 @@
           originName:artifact?.widget?.communityOriginName,
           originGeneration:artifact?.widget?.communityOriginGeneration,
         }
-      : artifact?.extensions?.penechoCommunity;
+      : artifact?.extensions?.fastlecturesCommunity;
     return lineage && /^[0-9a-f-]{36}$/i.test(String(lineage.originItemId || ""))
       ? {
           parentItemId:lineage.originItemId,
@@ -1071,7 +1071,7 @@
       : null;
   }
   function publishedCommunityOrigin(item) {
-    if (!item || !/^[0-9a-f-]{36}$/i.test(String(item.id || ""))) throw Error("PenEcho Cloud returned an invalid Craft confirmation.");
+    if (!item || !/^[0-9a-f-]{36}$/i.test(String(item.id || ""))) throw Error("FastLectures Cloud returned an invalid Craft confirmation.");
     return {
       originItemId:item.id,
       rootItemId:/^[0-9a-f-]{36}$/i.test(String(item.rootItemId || "")) ? item.rootItemId : item.id,
@@ -1082,12 +1082,12 @@
   async function persistCurrentCanvasCommunityOrigin(origin) {
     state.currentSnapshotBundleExtensions = {
       ...snapshotExtensionObject(state.currentSnapshotBundleExtensions),
-      penechoCommunity:origin,
+      fastlecturesCommunity:origin,
     };
     if (state.currentSnapshotLocation !== "device" || !state.currentSnapshotId) return;
     const db = await snapshotDb(), transaction = db.transaction(SNAPSHOT_STORE, "readwrite"), store = transaction.objectStore(SNAPSHOT_STORE), item = await requestResult(store.get(state.currentSnapshotId));
     if (!item) return;
-    item.bundleExtensions = { ...snapshotExtensionObject(item.bundleExtensions), penechoCommunity:origin };
+    item.bundleExtensions = { ...snapshotExtensionObject(item.bundleExtensions), fastlecturesCommunity:origin };
     store.put(item);
     await transactionDone(transaction);
   }
@@ -1144,7 +1144,7 @@
         body:JSON.stringify({ name:item.name || "Untitled Canvas", bundle }),
       }),
       body = await snapshotApiResponse(response);
-    if (!body?.canvas?.id || !body?.revision?.id) throw Error("PenEcho Cloud returned an invalid save confirmation");
+    if (!body?.canvas?.id || !body?.revision?.id) throw Error("FastLectures Cloud returned an invalid save confirmation");
     return { id:body.canvas.id, revisionId:body.revision.id };
   }
   async function saveSnapshot({ overwriteId = null, name = null, location = state.snapshotLocation, allowEmpty = false } = {}) {
@@ -1230,9 +1230,9 @@
     if(typeof canvasDocumentsDidSave==="function")await canvasDocumentsDidSave(item,location,storedId,tileEntries);
     canvasAgentCanvasDidPersist(location, storedId);
     await refreshSnapshots();
-    window.PenEchoStudioNavigator?.refreshSource?.(location, { force:true });
+    window.FastLecturesStudioNavigator?.refreshSource?.(location, { force:true });
     setStatusKey(overwriteId ? "snapshotOverwritten" : "snapshotSaved");
-    window.PenEchoStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.updateDocument?.();
     return storedId;
   }
   async function readDeviceSnapshot(id) {
@@ -1244,7 +1244,7 @@
     return item ? { item, tileEntries } : null;
   }
   async function readSnapshotBundle(stored) {
-    if (!stored || stored.bundleVersion !== 2 || stored.mode !== "snapshot" || stored.formatVersion !== 1 || stored.manifest?.format !== "penecho-raster-tiles" || stored.manifest?.formatVersion !== 1 || !Array.isArray(stored.assets)) throw Error("PenEcho returned an invalid canvas bundle");
+    if (!stored || stored.bundleVersion !== 2 || stored.mode !== "snapshot" || stored.formatVersion !== 1 || stored.manifest?.format !== "fastlectures-raster-tiles" || stored.manifest?.formatVersion !== 1 || !Array.isArray(stored.assets)) throw Error("FastLectures returned an invalid canvas bundle");
     const previewAsset = stored.assets.find((asset) => asset.kind === "preview"),
       tileAssets = stored.assets.filter((asset) => asset.kind === "tile"),
       imageAssets = stored.assets.filter((asset) => asset.kind === "resource" && asset.metadata?.resourceType === "image"),
@@ -1292,10 +1292,10 @@
       }),
       body = await snapshotApiResponse(response, onProgress),
       stored = body?.canvas;
-    if (!stored) throw Error("PenEcho server returned an invalid canvas");
+    if (!stored) throw Error("FastLectures server returned an invalid canvas");
     const storedVersion = stored.version ?? stored.bundleVersion ?? 1;
     if (storedVersion === 2) return readSnapshotBundle(stored);
-    if (!Array.isArray(stored.tiles) || !Array.isArray(stored.images)) throw Error("PenEcho server returned an invalid canvas");
+    if (!Array.isArray(stored.tiles) || !Array.isArray(stored.images)) throw Error("FastLectures server returned an invalid canvas");
     return {
       item:{
         ...stored,
@@ -1315,7 +1315,7 @@
         headers:authenticatedApiHeaders(),
       }),
       body = await snapshotApiResponse(response, onProgress);
-    if (!body?.bundle || !body?.revision?.id) throw Error("PenEcho Cloud returned an invalid Canvas");
+    if (!body?.bundle || !body?.revision?.id) throw Error("FastLectures Cloud returned an invalid Canvas");
     const parsed = await readSnapshotBundle(body.bundle),
       metadata = snapshotItems.find((item) => item.id === id);
     parsed.item = {
@@ -1436,11 +1436,11 @@
       state.snapshotSavedRevision = state.userRevision;
       if(typeof canvasDocumentsAdopt==="function")await canvasDocumentsAdopt(item,location);
       resetCanvasDefaultMode();
-      const restoreStudioConversation=window.PenEchoStudioNavigator?.wantsConversationForCanvas?.({ id:item.id, location })===true;
+      const restoreStudioConversation=window.FastLecturesStudioNavigator?.wantsConversationForCanvas?.({ id:item.id, location })===true;
       canvasAgentCanvasDidChange({ id:item.id, location },{clearProject:true,deferConversationStart:restoreStudioConversation});
-      window.PenEchoStudioNavigator?.canvasDidLoad?.({ id:item.id, location });
-      window.PenEchoStudioNavigator?.renderCanvases?.();
-      window.PenEchoStudioNavigator?.updateDocument?.();
+      window.FastLecturesStudioNavigator?.canvasDidLoad?.({ id:item.id, location });
+      window.FastLecturesStudioNavigator?.renderCanvases?.();
+      window.FastLecturesStudioNavigator?.updateDocument?.();
       setHistoryActivity(t("snapshotLoading").replace("{name}", displayName), t("snapshotLoadApplying"), 100);
       render();
       void refreshVisibleTextBoxQuality();
@@ -1448,7 +1448,7 @@
       setStatusKey("snapshotLoaded");
       return true;
     } catch (error) {
-      window.PenEchoStudioNavigator?.cancelPendingConversation?.();
+      window.FastLecturesStudioNavigator?.cancelPendingConversation?.();
       if (decodedTiles?.size) releaseSnapshotTileCanvases(decodedTiles);
       if (loadGeneration !== state.snapshotLoadGeneration) return false;
       const message = t("snapshotLoadFailed").replace("{message}", String(error?.message || error));
@@ -1505,8 +1505,8 @@
       state.currentSnapshotPreservedAssets = [];
     }
     await refreshSnapshots();
-    window.PenEchoStudioNavigator?.refreshSource?.(location, { force:true });
-    window.PenEchoStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.refreshSource?.(location, { force:true });
+    window.FastLecturesStudioNavigator?.updateDocument?.();
     setStatusKey("snapshotDeleted");
   }
   function requestSnapshotDelete(item, location = state.snapshotLocation) {
@@ -1651,8 +1651,8 @@
     state.currentSnapshotPreservedAssets = [];
     if(typeof canvasDocuments!=="undefined"){canvasDocuments.activeId=null;canvasDocuments.epoch++;canvasDocumentsCurrent();mcpRuntime.feedback=[];mcpRuntime.feedbackSequence=0;canvasDocumentsRender();}
     canvasAgentCanvasDidChange(null,{clearProject:true});
-    window.PenEchoStudioNavigator?.renderCanvases?.();
-    window.PenEchoStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.renderCanvases?.();
+    window.FastLecturesStudioNavigator?.updateDocument?.();
     state.viewInitialized = false;
     state.aiDraftReturnMode = null;
     state.pendingHistoryRestored = false;
@@ -1667,7 +1667,7 @@
     setStatusKey("newCanvasReady");
   }
   function openNewCanvasDialog() {
-    window.PenEchoStudioNavigator?.cancelPendingConversation?.();
+    window.FastLecturesStudioNavigator?.cancelPendingConversation?.();
     return requestCanvasTransition({ type:"new" });
   }
   async function completeNewCanvas(saveMode) {
@@ -1744,7 +1744,7 @@
     return true;
   }
   async function saveEchoToCloud(name) {
-    if (window.PENECHO_CONFIG?.runtime !== "cloud" || !window.PENECHO_CONFIG?.browserCanvasEditing) throw Error("Cloud browser editing is unavailable");
+    if (window.FASTLECTURES_CONFIG?.runtime !== "cloud" || !window.FASTLECTURES_CONFIG?.browserCanvasEditing) throw Error("Cloud browser editing is unavailable");
     await cloudSnapshotItems();
     setSnapshotLocation("cloud", { refresh:false });
     const id = await saveSnapshot({ location:"cloud", overwriteId:null, name:String(name || currentCanvasDisplayName() || "Untitled Canvas"), allowEmpty:true });
@@ -1801,7 +1801,7 @@
         state.currentCanvasSuggestedName = "";
         canvasAgentCanvasDidPersist(location, id);
         if(typeof canvasDocumentsSyncExtension==="function"){canvasDocumentsSyncExtension();canvasDocumentsRender();}
-        window.PenEchoStudioNavigator?.updateDocument?.();
+        window.FastLecturesStudioNavigator?.updateDocument?.();
       }
       await refreshSnapshots();
       showHistoryNoticeKey("canvasRenamed", "success");
@@ -1881,7 +1881,7 @@
     loading.textContent = t("snapshotLibraryLoading").replace("{location}", snapshotLocationLabel(location));
     list.replaceChildren(loading);
     updateHistorySelectionUi(null);
-    window.PenEchoStudioNavigator?.renderCanvases?.();
+    window.FastLecturesStudioNavigator?.renderCanvases?.();
   }
   function renderSnapshotListError(location = state.snapshotLocation, retainItems = false) {
     const list = document.querySelector("#historyList");
@@ -1912,7 +1912,7 @@
       updateHistoryLibrarySummary(null);
       updateHistorySelectionUi(null);
     }
-    window.PenEchoStudioNavigator?.renderCanvases?.();
+    window.FastLecturesStudioNavigator?.renderCanvases?.();
   }
   function renderCloudHistorySignIn() {
     const list = document.querySelector("#historyList");
@@ -1934,7 +1934,7 @@
     empty.append(title, description, action);
     list.replaceChildren(empty);
     updateHistorySelectionUi(null);
-    window.PenEchoStudioNavigator?.renderCanvases?.();
+    window.FastLecturesStudioNavigator?.renderCanvases?.();
   }
   function serverProjectName(project) {
     return project?.id === SERVER_DEFAULT_PROJECT_ID || project?.system || project?.systemKey === "uncategorized" ? t("canvasProjectUncategorized") : project?.name || t("canvasProjectUncategorized");
@@ -2215,7 +2215,7 @@
     updateHistorySelectionUi();
   }
   function renderStudioSnapshotLists() {
-    window.PenEchoStudioNavigator?.render?.();
+    window.FastLecturesStudioNavigator?.render?.();
   }
   function revokeHistoryPreviewUrlWhenSettled(url, image) {
     const revoke = () => {
@@ -2665,7 +2665,7 @@
     const panel = document.querySelector("#historyPanel"),
       backdrop = document.querySelector("#historyBackdrop"),
       button = document.querySelector("#historyBtn");
-    window.PenEchoStudioNavigator?.historyManagerWillOpen?.();
+    window.FastLecturesStudioNavigator?.historyManagerWillOpen?.();
     backdrop.hidden = false;
     panel.inert = false;
     panel.classList.add("open");
@@ -2699,7 +2699,7 @@
     panel.classList.remove("open");
     panel.setAttribute("aria-hidden", "true");
     button.setAttribute("aria-expanded", "false");
-    window.PenEchoStudioNavigator?.historyManagerDidClose?.();
+    window.FastLecturesStudioNavigator?.historyManagerDidClose?.();
     setTimeout(() => {
       if (!panel.classList.contains("open")) {
         backdrop.hidden = true;
@@ -3104,7 +3104,7 @@
     state.textBoxHistoryBefore = null;
     if (state.history.length > MAX_HISTORY) state.history.shift();
     state.future = [];
-    window.PenEchoStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.updateDocument?.();
     return entry;
   }
   function saveUserCanvasChange() {
@@ -3130,7 +3130,7 @@
     clearSharpOverlays();
     requestAnimationLayerRender();
     render();
-    window.PenEchoStudioNavigator?.updateDocument?.();
+    window.FastLecturesStudioNavigator?.updateDocument?.();
   }
   function undo() {
     save();

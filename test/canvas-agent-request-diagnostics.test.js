@@ -16,21 +16,21 @@ async function waitFor(predicate, timeoutMs = 3000) {
     if (predicate()) return;
     await new Promise(resolve=>setTimeout(resolve,10));
   }
-  throw new Error("Timed out waiting for PenEcho Agent diagnostic test state.");
+  throw new Error("Timed out waiting for FastLectures Agent diagnostic test state.");
 }
 
-test("PenEcho Agent request trace records provider cache ratios for API usage",t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-api-usage-")),requestTraceDirectory=path.join(stateDirectory,"logs","requests"),
+test("FastLectures Agent request trace records provider cache ratios for API usage",t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-api-usage-")),requestTraceDirectory=path.join(stateDirectory,"logs","requests"),
     tracer=createCanvasAgentRequestTracer({requestTraceDirectory,prune:()=>{}}),conversationId="api-usage-conversation",
     connection={provider:"api",format:"openai",model:"qwen-test",effort:"max"},event=(type,data,time)=>({type,data,time});
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   tracer({phase:"start",conversationId,connectionId:"api-usage",connection});
   tracer({phase:"event",conversationId,connectionId:"api-usage",event:event("turn/start",{turn:1},"2026-08-26T00:00:00.000Z")});
   tracer({phase:"event",conversationId,connectionId:"api-usage",event:event("step/start",{turn:1,step:1},"2026-08-26T00:00:01.000Z")});
-  tracer({phase:"event",conversationId,connectionId:"api-usage",event:event("assistant/message",{turn:1,step:1,usage:{inputTokens:25,outputTokens:9,cacheReadTokens:75},message:{role:"assistant",source:{provider:"penecho-api",model:"qwen-test"},content:[{type:"text",text:"First response"}]}},"2026-08-26T00:00:02.000Z"),messages:[]});
+  tracer({phase:"event",conversationId,connectionId:"api-usage",event:event("assistant/message",{turn:1,step:1,usage:{inputTokens:25,outputTokens:9,cacheReadTokens:75},message:{role:"assistant",source:{provider:"fastlectures-api",model:"qwen-test"},content:[{type:"text",text:"First response"}]}},"2026-08-26T00:00:02.000Z"),messages:[]});
   tracer({phase:"event",conversationId,connectionId:"api-usage",event:event("step/end",{turn:1,step:1},"2026-08-26T00:00:03.000Z")});
   tracer({phase:"event",conversationId,connectionId:"api-usage",event:event("step/start",{turn:1,step:2},"2026-08-26T00:00:04.000Z")});
-  tracer({phase:"event",conversationId,connectionId:"api-usage",event:event("assistant/message",{turn:1,step:2,usage:{inputTokens:10,outputTokens:2,cacheWriteTokens:5},message:{role:"assistant",source:{provider:"penecho-api",model:"qwen-test"},content:[{type:"text",text:"Second response"}]}},"2026-08-26T00:00:05.000Z"),messages:[]});
+  tracer({phase:"event",conversationId,connectionId:"api-usage",event:event("assistant/message",{turn:1,step:2,usage:{inputTokens:10,outputTokens:2,cacheWriteTokens:5},message:{role:"assistant",source:{provider:"fastlectures-api",model:"qwen-test"},content:[{type:"text",text:"Second response"}]}},"2026-08-26T00:00:05.000Z"),messages:[]});
   tracer({phase:"event",conversationId,connectionId:"api-usage",event:event("turn/end",{turn:1,reason:{kind:"completed"}},"2026-08-26T00:00:06.000Z")});
   const directory=fs.readdirSync(requestTraceDirectory,{withFileTypes:true}).find(entry=>entry.isDirectory()),trace=JSON.parse(fs.readFileSync(path.join(requestTraceDirectory,directory.name,"trace.json"),"utf8"));
   assert.deepEqual(trace.steps.map(step=>step.response.usage.cacheReadRatio),[.75,0]);
@@ -50,8 +50,8 @@ test("PenEcho Agent request trace records provider cache ratios for API usage",t
   });
 });
 
-test("PenEcho Agent request trace records the normalized ink-image upload and exact LLM request image",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-handwriting-trace-")),requestTraceDirectory=path.join(stateDirectory,"logs","requests"),messages=[],
+test("FastLectures Agent request trace records the normalized ink-image upload and exact LLM request image",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-handwriting-trace-")),requestTraceDirectory=path.join(stateDirectory,"logs","requests"),messages=[],
     tracer=createCanvasAgentRequestTracer({requestTraceDirectory,prune:()=>{}}),
     connection={id:"handwriting-trace",provider:"claude-cli",name:"Handwriting trace",cliPath:"claude-test",cliModel:"claude-test",effort:"medium"},
     webp=await sharp({create:{width:48,height:32,channels:4,background:{r:255,g:255,b:255,alpha:1}}}).webp({lossless:true}).toBuffer(),
@@ -97,15 +97,15 @@ test("PenEcho Agent request trace records the normalized ink-image upload and ex
   assert.equal(JSON.stringify(trace).includes(webp.toString("base64")),false);
 });
 
-test("PenEcho Agent handwriting diagnostics recognize WebP primary and PNG fallback filenames",async()=>{
+test("FastLectures Agent handwriting diagnostics recognize WebP primary and PNG fallback filenames",async()=>{
   const { isCanvasAgentHandwritingImageName }=await import("../src/server/canvas-agent/runtime.mjs");
   assert.equal(isCanvasAgentHandwritingImageName("canvas-agent-message.webp"),true);
   assert.equal(isCanvasAgentHandwritingImageName("canvas-agent-message.png"),true);
   assert.equal(isCanvasAgentHandwritingImageName("canvas-agent-message.jpg"),false);
 });
 
-test("PenEcho Agent request trace retains redacted CLI provider diagnostics",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-cli-diagnostic-")),requestTraceDirectory=path.join(stateDirectory,"logs","requests"),messages=[],
+test("FastLectures Agent request trace retains redacted CLI provider diagnostics",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-cli-diagnostic-")),requestTraceDirectory=path.join(stateDirectory,"logs","requests"),messages=[],
     tracer=createCanvasAgentRequestTracer({requestTraceDirectory,prune:()=>{}}),
     connection={id:"claude-diagnostic",provider:"claude-cli",name:"Claude diagnostic",cliPath:"claude-test",cliModel:"claude-opus-test",effort:"high"},
     diagnostic=JSON.stringify({
@@ -150,8 +150,8 @@ test("PenEcho Agent request trace retains redacted CLI provider diagnostics",asy
   assert.doesNotMatch(serialized,/provider-secret-token|oauth-secret-value/);
 });
 
-test("PenEcho Agent request trace keeps complete large standard JSON tool bodies",t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-full-body-trace-")),requestTraceDirectory=path.join(stateDirectory,"logs","requests"),
+test("FastLectures Agent request trace keeps complete large standard JSON tool bodies",t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-full-body-trace-")),requestTraceDirectory=path.join(stateDirectory,"logs","requests"),
     tracer=createCanvasAgentRequestTracer({requestTraceDirectory,prune:()=>{}}),conversationId="full-body-conversation",
     body=JSON.stringify({baseRevision:1,items:[{type:"widget",pluginId:"general",widgetType:"html_widget",title:"Full body",html:`<main>${"complete-body-segment-".repeat(6000)}</main>`}]});
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
@@ -165,17 +165,17 @@ test("PenEcho Agent request trace keeps complete large standard JSON tool bodies
   assert.equal(JSON.stringify(trace).includes("…[truncated]"),false);
 });
 
-test("PenEcho Agent request trace records document source conflicts and a fresh patch retry",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-patch-trace-")),requestTraceDirectory=path.join(stateDirectory,"logs","requests"),messages=[],calls=[],
+test("FastLectures Agent request trace records document source conflicts and a fresh patch retry",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-patch-trace-")),requestTraceDirectory=path.join(stateDirectory,"logs","requests"),messages=[],calls=[],
     tracer=createCanvasAgentRequestTracer({requestTraceDirectory,prune:()=>{}}),
     connection={id:"patch-trace",provider:"codex-cli",name:"Patch trace",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
     html="<h1>Old trace body</h1>\n",
     patch="--- a/widget.html\n+++ b/widget.html\n@@ -1 +1 @@\n-<h1>Old trace body</h1>\n+<h1>New trace body</h1>\n",
     decisions=[
-      JSON.stringify({type:"tool_call",name:"penecho_patch_file",arguments:{path:"/widget.html",contentHash:"stale-source-hash",requestId:"patch-invalid-args",patch,unexpected:true}}),
-      JSON.stringify({type:"tool_call",name:"penecho_patch_file",arguments:{path:"/widget.html",contentHash:"stale-source-hash",requestId:"patch-stale",patch}}),
-      JSON.stringify({type:"tool_call",name:"penecho_read_file",arguments:{path:"/widget.html"}}),
-      JSON.stringify({type:"tool_call",name:"penecho_patch_file",arguments:{path:"/widget.html",contentHash:"source-hash",requestId:"patch-retry",patch}}),
+      JSON.stringify({type:"tool_call",name:"fastlectures_patch_file",arguments:{path:"/widget.html",contentHash:"stale-source-hash",requestId:"patch-invalid-args",patch,unexpected:true}}),
+      JSON.stringify({type:"tool_call",name:"fastlectures_patch_file",arguments:{path:"/widget.html",contentHash:"stale-source-hash",requestId:"patch-stale",patch}}),
+      JSON.stringify({type:"tool_call",name:"fastlectures_read_file",arguments:{path:"/widget.html"}}),
+      JSON.stringify({type:"tool_call",name:"fastlectures_patch_file",arguments:{path:"/widget.html",contentHash:"source-hash",requestId:"patch-retry",patch}}),
       JSON.stringify({type:"final",text:"Patch corrected."}),
     ],
     {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),
@@ -220,8 +220,8 @@ test("PenEcho Agent request trace records document source conflicts and a fresh 
   await waitFor(()=>messages.some(message=>message.type==="session_event"&&message.payload.kind==="turn_end"));
   assert.equal(calls.length,5);
   const advertised=JSON.parse(calls[0].prompt).availableTools.map(tool=>tool.name);
-  assert.ok(advertised.includes("penecho_patch_file"));
-  assert.ok(advertised.includes("penecho_read_file"));
+  assert.ok(advertised.includes("fastlectures_patch_file"));
+  assert.ok(advertised.includes("fastlectures_read_file"));
   assert.equal(advertised.includes("canvas_patch_widget"),false);
   const browserCalls=messages.filter(message=>message.type==="tool_request").map(message=>{
     const envelope=message.payload.arguments;

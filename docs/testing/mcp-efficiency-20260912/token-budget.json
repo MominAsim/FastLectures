@@ -16,79 +16,79 @@
   },
   "perTool": [
     {
-      "name": "penecho_inbox",
+      "name": "fastlectures_inbox",
       "estimatedTokens": 320
     },
     {
-      "name": "penecho_get_guidance",
+      "name": "fastlectures_get_guidance",
       "estimatedTokens": 145
     },
     {
-      "name": "penecho_list_canvases",
+      "name": "fastlectures_list_canvases",
       "estimatedTokens": 96
     },
     {
-      "name": "penecho_open_canvas",
+      "name": "fastlectures_open_canvas",
       "estimatedTokens": 293
     },
     {
-      "name": "penecho_find_canvases",
+      "name": "fastlectures_find_canvases",
       "estimatedTokens": 119
     },
     {
-      "name": "penecho_start_session",
+      "name": "fastlectures_start_session",
       "estimatedTokens": 267
     },
     {
-      "name": "penecho_list_files",
+      "name": "fastlectures_list_files",
       "estimatedTokens": 185
     },
     {
-      "name": "penecho_read_file",
+      "name": "fastlectures_read_file",
       "estimatedTokens": 116
     },
     {
-      "name": "penecho_patch_file",
+      "name": "fastlectures_patch_file",
       "estimatedTokens": 337
     },
     {
-      "name": "penecho_upload_image",
+      "name": "fastlectures_upload_image",
       "estimatedTokens": 296
     },
     {
-      "name": "penecho_place_image",
+      "name": "fastlectures_place_image",
       "estimatedTokens": 382
     },
     {
-      "name": "penecho_edit_canvas",
+      "name": "fastlectures_edit_canvas",
       "estimatedTokens": 1177
     },
     {
-      "name": "penecho_capture_canvas",
+      "name": "fastlectures_capture_canvas",
       "estimatedTokens": 374
     },
     {
-      "name": "penecho_update_session",
+      "name": "fastlectures_update_session",
       "estimatedTokens": 338
     },
     {
-      "name": "penecho_present_widget",
+      "name": "fastlectures_present_widget",
       "estimatedTokens": 772
     },
     {
-      "name": "penecho_draw",
+      "name": "fastlectures_draw",
       "estimatedTokens": 800
     },
     {
-      "name": "penecho_plot",
+      "name": "fastlectures_plot",
       "estimatedTokens": 694
     },
     {
-      "name": "penecho_inspect_session",
+      "name": "fastlectures_inspect_session",
       "estimatedTokens": 81
     },
     {
-      "name": "penecho_close_session",
+      "name": "fastlectures_close_session",
       "estimatedTokens": 76
     }
   ]

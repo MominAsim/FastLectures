@@ -1,30 +1,30 @@
-# PenEcho Agent × DeepSeek Harness 集成规格
+# FastLectures Agent × DeepSeek Harness 集成规格
 
 > 状态：首版已实施（API + CLI）
-> 基线：`penecho_071_version`
-> 产品意图参考：`penecho_always_main`，仅用于理解界面方向与最终需求，不作为实现来源
+> 基线：`fastlectures_071_version`
+> 产品意图参考：`fastlectures_always_main`，仅用于理解界面方向与最终需求，不作为实现来源
 > Harness 研究快照：`deepseek-ai/deepseek-harness` `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`，版本 `0.1.1-rc.2`，2026-08-21
 > 最后更新：2026-08-25
 
-> Provider routing amendment（2026-08-25）：本文中 Harness-specific 的 session、context、loop、replay 和 compaction 规则适用于 API、Kimi CLI 与 Claude CLI。选中 `codex-cli` 时，只有 PenEcho Agent 改走独立的 native Codex App Server 路径；共享的 Canvas 权威、WebSocket、工具校验、资源、UI 投影和安全规则仍适用于两个 engine。Main Canvas AI 与 direct one-shot CLI adapter 不变。
+> Provider routing amendment（2026-08-25）：本文中 Harness-specific 的 session、context、loop、replay 和 compaction 规则适用于 API、Kimi CLI 与 Claude CLI。选中 `codex-cli` 时，只有 FastLectures Agent 改走独立的 native Codex App Server 路径；共享的 Canvas 权威、WebSocket、工具校验、资源、UI 投影和安全规则仍适用于两个 engine。Main Canvas AI 与 direct one-shot CLI adapter 不变。
 
 ## 1. 结论
 
-在 071 中新增一个独立的 **PenEcho Agent 模式**，并按 connection 选择两个彼此隔离的服务端 engine。API、Kimi CLI 与 Claude CLI 使用同进程 DeepSeek Harness；Codex CLI 绕过 Harness，使用 conversation-scoped native `codex app-server` process/thread。选中的 provider runtime 负责会话日志、上下文组装、工具循环、token 计量、上下文压缩、转向和取消。
+在 071 中新增一个独立的 **FastLectures Agent 模式**，并按 connection 选择两个彼此隔离的服务端 engine。API、Kimi CLI 与 Claude CLI 使用同进程 DeepSeek Harness；Codex CLI 绕过 Harness，使用 conversation-scoped native `codex app-server` process/thread。选中的 provider runtime 负责会话日志、上下文组装、工具循环、token 计量、上下文压缩、转向和取消。
 
-画布继续保留在浏览器端，仍是当前内容的唯一权威。两个 engine 都不直接读取浏览器内存，也不获得 shell、任意宿主文件、Git、GitHub、MCP、代码执行、技能、子代理或工作流能力；它们只能通过 PenEcho 定义并校验的 Canvas、选定资源和受控公共 Web 工具操作当前已认证能力。Codex 的无关 built-ins 全部关闭，只暴露这些 PenEcho dynamic tools。
+画布继续保留在浏览器端，仍是当前内容的唯一权威。两个 engine 都不直接读取浏览器内存，也不获得 shell、任意宿主文件、Git、GitHub、MCP、代码执行、技能、子代理或工作流能力；它们只能通过 FastLectures 定义并校验的 Canvas、选定资源和受控公共 Web 工具操作当前已认证能力。Codex 的无关 built-ins 全部关闭，只暴露这些 FastLectures dynamic tools。
 
-第一阶段支持本地 Web、Desktop，以及通过 Linked Device 打开的 Cloud 可编辑 Canvas。PenEcho Agent 使用画布右上角当前选中的 connection：API、Kimi CLI 与 Claude CLI 映射到 Harness，Codex CLI 映射到独立 native host。Cloud 只转发受认证的 PenEcho Agent 帧，provider runtime、模型连接和密钥仍在 Linked Device 本地主机执行；只读 Viewer 与 Mobile 不进入 PenEcho Agent MVP。现有 `/api/ai/command` 和旧 AI 草稿/接受流程保持不变，作为并行的 legacy 能力保留。
+第一阶段支持本地 Web、Desktop，以及通过 Linked Device 打开的 Cloud 可编辑 Canvas。FastLectures Agent 使用画布右上角当前选中的 connection：API、Kimi CLI 与 Claude CLI 映射到 Harness，Codex CLI 映射到独立 native host。Cloud 只转发受认证的 FastLectures Agent 帧，provider runtime、模型连接和密钥仍在 Linked Device 本地主机执行；只读 Viewer 与 Mobile 不进入 FastLectures Agent MVP。现有 `/api/ai/command` 和旧 AI 草稿/接受流程保持不变，作为并行的 legacy 能力保留。
 
 ## 2. 目标与非目标
 
 ### 2.1 目标
 
-1. 让选中的 provider runtime 完整承担多轮对话和 agent loop：API/Kimi/Claude 由 Harness 承担，Codex 由同一 App Server thread 承担；PenEcho 不再自己拼接模型历史。
+1. 让选中的 provider runtime 完整承担多轮对话和 agent loop：API/Kimi/Claude 由 Harness 承担，Codex 由同一 App Server thread 承担；FastLectures 不再自己拼接模型历史。
 2. 让模型能够检查、读取、截图和原子修改当前画布，并在一次对话中根据工具结果继续工作。
 3. 保留 071 的画布状态、撤销/重做、持久化和安全边界，不复制 `alwaysmain` 的自定义代理循环。
 4. 为长对话启用 provider-native compaction：Harness engine 使用 Harness basic compaction，Codex engine 使用 App Server automatic compaction。
-5. 提供可停止、可在运行中补充要求、可断线恢复 UI 投影的沉浸式 PenEcho Agent 体验。
+5. 提供可停止、可在运行中补充要求、可断线恢复 UI 投影的沉浸式 FastLectures Agent 体验。
 6. 把所有 Harness 依赖隔离在一个窄适配层中，以承受 developer preview 阶段的 API 变化。
 
 ### 2.2 非目标
@@ -32,7 +32,7 @@
 - 不把 `alwaysmain` 的代码、代理编排、reviewer、Web 搜索或 context atlas 合回 071。
 - 不允许模型读取任意本地文件、执行 bash/PowerShell、操作 Git/GitHub 或访问任意 URL。
 - 不允许模型直接访问 Canvas 内部对象或调用散落在 UI 中的 mutation 函数。
-- Kimi 与 Claude 不嵌套 CLI 自带 agent loop、文件工具、shell 或 MCP，只作为 Harness 的无工具模型传输层。Codex 是明确的 provider-specific 例外：native App Server 拥有该 conversation 的 agent loop 与历史，但无关 built-ins 关闭，只暴露 PenEcho 批准的 dynamic tools。
+- Kimi 与 Claude 不嵌套 CLI 自带 agent loop、文件工具、shell 或 MCP，只作为 Harness 的无工具模型传输层。Codex 是明确的 provider-specific 例外：native App Server 拥有该 conversation 的 agent loop 与历史，但无关 built-ins 关闭，只暴露 FastLectures 批准的 dynamic tools。
 - 不在 Canvas 快照中保存聊天记录、Harness session 或附件。
 - 不在 Cloud 服务中执行 Harness、模型请求或 Canvas tool；Cloud 可编辑 Canvas 必须通过同账户 Linked Device 的受认证双向 bridge 回到本地主机。
 - 不展示模型的私有思维链；只展示可见回答、通用状态和工具活动。
@@ -56,13 +56,13 @@ Harness 的核心扩展点均为 Cordis 插件。会话日志、系统提示词�
 - 基础压缩插件会在 token 压力或确认的上下文溢出时写入压缩事件，并以摘要替换较早的可见 span，同时维持 tool call/result 配对。
 - 附件以内容寻址引用存在 session log 之外；模型消息只持有附件引用。
 
-因此 PenEcho 不应再维护一份第二套“为了模型而存在”的消息历史。浏览器仅投影 Harness session 事件；提交新消息时只发送本轮原始输入和本轮对象引用。
+因此 FastLectures 不应再维护一份第二套“为了模型而存在”的消息历史。浏览器仅投影 Harness session 事件；提交新消息时只发送本轮原始输入和本轮对象引用。
 
 ### 3.2 不采用官方 JSON-RPC SDK 作为主边界
 
-官方 SDK client 当前缺少 prompt 级结果、运行中 prompt cancel 和单 session close 等能力。关闭进程是唯一完整放弃方式，这与 PenEcho Agent 的 Stop、运行中转向和一个 PenEcho 进程承载多个浏览器会话不匹配。
+官方 SDK client 当前缺少 prompt 级结果、运行中 prompt cancel 和单 session close 等能力。关闭进程是唯一完整放弃方式，这与 FastLectures Agent 的 Stop、运行中转向和一个 FastLectures 进程承载多个浏览器会话不匹配。
 
-结论：使用 **同进程直接 Agent API**。浏览器与 PenEcho 主机之间使用 PenEcho 自己的 WebSocket 协议；不能把官方 SDK 子进程当作 PenEcho Agent 主链路。
+结论：使用 **同进程直接 Agent API**。浏览器与 FastLectures 主机之间使用 FastLectures 自己的 WebSocket 协议；不能把官方 SDK 子进程当作 FastLectures Agent 主链路。
 
 ### 3.3 运行时和依赖约束
 
@@ -77,14 +77,14 @@ Harness 的核心扩展点均为 Cordis 插件。会话日志、系统提示词�
 
 ```mermaid
 flowchart LR
-    U["用户"] --> UI["071 PenEcho Agent UI"]
+    U["用户"] --> UI["071 FastLectures Agent UI"]
     UI <--> WS["认证 WebSocket Bridge"]
-    WS <--> H["PenEcho Agent Host"]
+    WS <--> H["FastLectures Agent Host"]
     H --> R["Provider Engine Router"]
     R <--> A["DeepSeek Harness Agent"]
     R <--> C["Native Codex App Server"]
     A --> L["LLM Adapter"]
-    A --> P["PenEcho Cordis Plugins"]
+    A --> P["FastLectures Cordis Plugins"]
     C --> P
     P --> B["Canvas Bridge Tool RPC"]
     B <--> WS
@@ -103,7 +103,7 @@ flowchart LR
 | 对话与工具历史 | Harness session log 或 native Codex thread | 浏览器不得另组装模型历史 |
 | AI 连接与密钥 | 071 server connection store / secret store | Engine 只能通过受控 connection 解析；密钥不进入浏览器、settings 或日志 |
 | UI transcript | Provider-runtime 事件投影 | UI 可以缓存渲染数据，但不是模型上下文来源 |
-| 会话附件 | PenEcho 临时 PenEcho Agent cache + provider refs | 不写入 Canvas 快照 |
+| 会话附件 | FastLectures 临时 FastLectures Agent cache + provider refs | 不写入 Canvas 快照 |
 
 ### 4.2 部署形态
 
@@ -114,10 +114,10 @@ src/server/main.js (CommonJS)
   -> import("./canvas-agent/runtime.mjs")
      -> Cordis Context
      -> official Harness plugins
-     -> PenEcho Canvas plugins
+     -> FastLectures Canvas plugins
 ```
 
-禁止把 Harness 或 App Server bridge 放进浏览器 bundle。API、Kimi CLI 与 Claude CLI 使用 Harness engine。`codex-cli` 在进入 Harness 前被路由到隔离 native host：每个 Codex PenEcho Agent conversation 惰性启动一个隔离 `codex app-server` process 和一个 ephemeral thread，并在正常 submit、steer、tool call 与 automatic `contextCompaction` 之间保持这组所有权。Codex 是该 conversation 历史、native tool loop、compaction 与 provider cache identity 的唯一权威；PenEcho 不向它 replay Harness history，也不建立平行模型上下文。PenEcho 只提供稳定初始 instructions、有界且带 trust 类型的逐轮 `additionalContext`，以及现有 Canvas/project/public-web/Widget `dynamicTools`，并继续拥有工具执行与权限校验权威。New conversation、选中 connection/provider 变化、选中 connection 保存或删除、fatal protocol/process failure 与 session expiry 会销毁旧 native process/thread；Main Canvas AI 仍使用独立 one-shot adapter。
+禁止把 Harness 或 App Server bridge 放进浏览器 bundle。API、Kimi CLI 与 Claude CLI 使用 Harness engine。`codex-cli` 在进入 Harness 前被路由到隔离 native host：每个 Codex FastLectures Agent conversation 惰性启动一个隔离 `codex app-server` process 和一个 ephemeral thread，并在正常 submit、steer、tool call 与 automatic `contextCompaction` 之间保持这组所有权。Codex 是该 conversation 历史、native tool loop、compaction 与 provider cache identity 的唯一权威；FastLectures 不向它 replay Harness history，也不建立平行模型上下文。FastLectures 只提供稳定初始 instructions、有界且带 trust 类型的逐轮 `additionalContext`，以及现有 Canvas/project/public-web/Widget `dynamicTools`，并继续拥有工具执行与权限校验权威。New conversation、选中 connection/provider 变化、选中 connection 保存或删除、fatal protocol/process failure 与 session expiry 会销毁旧 native process/thread；Main Canvas AI 仍使用独立 one-shot adapter。
 
 ## 5. 插件组合
 
@@ -138,7 +138,7 @@ src/server/main.js (CommonJS)
 11. local attachment backend。
 12. settings service / settings-file adapter。
 13. `llm-pi-ai`，用于映射 071 的 OpenAI、Anthropic 和兼容 API 连接。
-14. `penecho-cli-llm`，用于把 Kimi 与 Claude 的隔离 CLI transport 适配为 Harness `LlmAdapter`，不注册任何模型可见工具。Codex 不装载此插件。
+14. `fastlectures-cli-llm`，用于把 Kimi 与 Claude 的隔离 CLI transport 适配为 Harness `LlmAdapter`，不注册任何模型可见工具。Codex 不装载此插件。
 
 推荐初始配置：
 
@@ -162,13 +162,13 @@ src/server/main.js (CommonJS)
 }
 ```
 
-Harness engine 沿用 Harness basic compaction 的官方语义，把模型路由上限统一为 160,000 token，并在 100,000 token 开始压缩。Codex-native engine 由同一 App Server thread 执行 automatic compaction，PenEcho 不运行第二个 compactor、不重建 thread、不注入 provider cache key，也不 replay 拼接历史。两种 engine 都只把 provider 报告的 token/cache usage 用于观测，不据此改写历史或 provider 请求。
+Harness engine 沿用 Harness basic compaction 的官方语义，把模型路由上限统一为 160,000 token，并在 100,000 token 开始压缩。Codex-native engine 由同一 App Server thread 执行 automatic compaction，FastLectures 不运行第二个 compactor、不重建 thread、不注入 provider cache key，也不 replay 拼接历史。两种 engine 都只把 provider 报告的 token/cache usage 用于观测，不据此改写历史或 provider 请求。
 
 Harness engine 把固定、可复用且跨 step 不变的 Visual Explorer 与 Widget 路由注册为 prefix-stable system-prompt sections；按需合同进入只追加 session system section。Codex-native engine 在 thread start 时冻结稳定初始 instructions；private HTML contract 每轮以 `untrusted` additional context 提供，当前 Canvas/project state 同样不可信，loader 后新增的 Widget/visual contract 则以 `application` additional context 在后续轮次持续提供。Codex 在同一 thread 上压缩，应用层不得删除、替换或合并 provider history。
 
 ### 5.2 明确禁止装载的组件
 
-以下能力即使 Harness 官方 base bundle 包含，也不得进入 PenEcho Agent scope：
+以下能力即使 Harness 官方 base bundle 包含，也不得进入 FastLectures Agent scope：
 
 - base bundle 和 agent-spine demo；
 - bash、PowerShell、subprocess、sandbox；
@@ -185,11 +185,11 @@ Harness engine 把固定、可复用且跨 step 不变的 Visual Explorer 与 Wi
 
 发布测试必须枚举当前 agent scope 的工具名，并与本规格 allowlist 做精确相等比较。仅检查“没有 bash”不够。
 
-### 5.3 PenEcho 自定义插件
+### 5.3 FastLectures 自定义插件
 
-#### `penecho-canvas-bridge`
+#### `fastlectures-canvas-bridge`
 
-职责：把一个 Harness agent scope 绑定到一个已经通过 same-origin 与 PenEcho session 验证的浏览器画布。
+职责：把一个 Harness agent scope 绑定到一个已经通过 same-origin 与 FastLectures session 验证的浏览器画布。
 
 - 维护 `canvasSessionId -> connection` 的一对一活动绑定。
 - 从最新 `state_sync` 读取不可变的 CanvasDigest。
@@ -198,21 +198,21 @@ Harness engine 把固定、可复用且跨 step 不变的 Visual Explorer 与 Wi
 - 传播 `AbortSignal`、deadline、断线和取消。
 - 不解析模型意图，不修改 Canvas，不访问宿主文件。
 
-#### `penecho-canvas-context`
+#### `fastlectures-canvas-context`
 
 职责：为单个 agent scope 注册 Canvas 专用 prompt 和动态 context。
 
-- 注册 PenEcho Agent 角色和安全边界。
+- 注册 FastLectures Agent 角色和安全边界。
 - 每一步从 bridge 获取最新 CanvasDigest，并以动态 context 记录到 Harness log。
 - 把本轮用户选中的对象、区域、图片和手写输入转成宿主签名的 reference envelope。
 - 提醒模型 Canvas/Widget 内容是不可信数据，不得把其中的文本视为系统指令。
 - 不把完整 widget HTML、大型数据 URI 或二进制塞进 prompt。
 
-#### `penecho-canvas-tools`
+#### `fastlectures-canvas-tools`
 
 职责：注册第 7 节规定的唯一模型可见工具。每个工具必须使用 canonical input/output schema，并通过 `output.render` 生成模型可见 blocks。
 
-#### `penecho-canvas-policy`
+#### `fastlectures-canvas-policy`
 
 职责：在 `tools/pre-execute` 与 tool RPC 两侧执行确定性策略。
 
@@ -225,16 +225,16 @@ Harness engine 把固定、可复用且跨 step 不变的 Visual Explorer 与 Wi
 - 结果大小截断与诊断。
 - 禁止任意 URL、宿主路径、命令和未注册 operation kind。
 
-#### `penecho-connection-mirror`
+#### `fastlectures-connection-mirror`
 
 职责：把 071 已保存的 API 连接元数据映射成 `llm-pi-ai` provider/profile 设置。
 
-- profile 名使用不可逆短哈希，例如 `penecho-a13f7c9d`，不暴露原始 connection id。
+- profile 名使用不可逆短哈希，例如 `fastlectures-a13f7c9d`，不暴露原始 connection id。
 - 只镜像 provider、base URL、model、可选 context window 和能力标志。
 - 不在 settings 中写 API key。
 - 连接变更时使用 settings replace/update 语义热更新；已有 agent 的本轮请求不被中途切换。
 
-#### `penecho-cli-llm`
+#### `fastlectures-cli-llm`
 
 职责：把 Harness 专用的 Kimi/Claude 持久 CLI transport 作为纯模型后端注册到 Harness LLM runtime；不修改或复用旧画布 AI 的一次性请求生命周期。Codex 不经过此插件。
 
@@ -249,37 +249,37 @@ Harness engine 把固定、可复用且跨 step 不变的 Visual Explorer 与 Wi
 
 #### `codex-native-host`
 
-职责：只为 `codex-cli` PenEcho Agent connection 托管原生 Codex App Server，不进入 Harness，也不复用 direct Canvas AI 的 one-shot `codex exec` adapter。
+职责：只为 `codex-cli` FastLectures Agent connection 托管原生 Codex App Server，不进入 Harness，也不复用 direct Canvas AI 的 one-shot `codex exec` adapter。
 
 - 每个 Canvas conversation 惰性创建一个私有 `CODEX_HOME`、一个 `codex app-server --stdio --strict-config` process 和一个 ephemeral thread；普通 turn、steer、automatic compaction 与 dynamic tool loop 复用同一 process/thread。
-- thread start 冻结稳定的 base instructions；每轮只追加有 trust kind 的有界 `additionalContext`。PenEcho 不 replay 浏览器 transcript、不拼接 Harness snapshot，也不设置 provider cache key。
-- App Server built-ins、MCP、skills、plugins、shell、文件写入、子代理和 browser/computer tools 全部关闭；模型只看到 PenEcho 注册的 dynamic-tool namespace。PenEcho 仍负责参数验证、revision、超时、取消、权限和浏览器 mutation。
+- thread start 冻结稳定的 base instructions；每轮只追加有 trust kind 的有界 `additionalContext`。FastLectures 不 replay 浏览器 transcript、不拼接 Harness snapshot，也不设置 provider cache key。
+- App Server built-ins、MCP、skills、plugins、shell、文件写入、子代理和 browser/computer tools 全部关闭；模型只看到 FastLectures 注册的 dynamic-tool namespace。FastLectures 仍负责参数验证、revision、超时、取消、权限和浏览器 mutation。
 - connection fingerprint、provider、project scope、Widget capabilities 与 Web Search 状态固定到 conversation。New conversation、切换/保存/删除选中 connection、fatal protocol error、进程退出或不确定的 interrupt 会销毁 owner；成功确认的 known-turn interrupt 才允许保留 thread。
 - App Server 的 token/cache usage 与 compaction event 只投影为观测事件；对话、工具历史和压缩后的模型上下文以 Codex thread 为唯一权威。
 
 ### 5.4 Canvas decision 准入与标准 JSON 工具协议
 
-本节只适用于新的 PenEcho Agent，不得接入 Main Canvas AI、`/api/ai/command` 或旧 one-shot Canvas AI adapter。
+本节只适用于新的 FastLectures Agent，不得接入 Main Canvas AI、`/api/ai/command` 或旧 one-shot Canvas AI adapter。
 
 - 一个模型 step 可包含最多 16 个已知工具调用，零调用可以 final。完整决策在执行前校验工具可用性、JSON 和唯一 call ID；非法或截断决策整体替换成可恢复的模型反馈。合法批次原样进入 Harness canonical history，保留 replay metadata。独立 `canvas_read` 可并发，最多 4 个；mutation 保持独占、按模型顺序执行。
 - 同批写入可提交同一份已观察到的 `baseRevision`。宿主仅依据本批成功写入的连续回执衔接 revision，浏览器仍做最终精确校验；绝不拿最新 digest 自动重试。`sourceHash` 原样保留，不跨对象或跨批次改写。失败或无法确认回执归属后，后续写入停止，已有成功结果保留，诊断读取仍可执行。它不是跨工具事务；一次 `canvas_edit` 内的 operations 仍是原子操作。
 - Codex-native 以 `rawResponse/completed` 为完整模型边界。直接 JSON 工具批次先整体校验，动态调用的 name/arguments 必须匹配 raw decision；请求乱序到达时在加入执行队列前等待前序调用，取消时释放等待。仍关闭 Code Mode 配置；兼容已安装 CLI 实际产生的单个 `exec` wrapper：先核对声明的工具名称和数量，再对实际到达的 JSON 回调逐个校验，按回调顺序串行执行并复用同一 revision 链。宿主不执行 wrapper JavaScript；不支持混合 wrapper 与直接调用批次。
-- API/Harness、Kimi CLI、Claude CLI 与 Codex dynamic tool request 都使用现有标准工具 schema。`html`、`source`、`patch` 是普通 JSON string 字段，无 one-hot header、raw body、source ref 或自定义版本标记。模型/provider 必须按各自原生 tool protocol 生成合法转义；PenEcho 只做一次标准解析和 schema 校验，不猜测或修补非法 JSON。
+- API/Harness、Kimi CLI、Claude CLI 与 Codex dynamic tool request 都使用现有标准工具 schema。`html`、`source`、`patch` 是普通 JSON string 字段，无 one-hot header、raw body、source ref 或自定义版本标记。模型/provider 必须按各自原生 tool protocol 生成合法转义；FastLectures 只做一次标准解析和 schema 校验，不猜测或修补非法 JSON。
 - API/Harness 在完整 `llm/stream` 决策边界先缓冲工具、准入、再投影；之前的公开进展仍可流式呈现。合法 final、单工具及多工具 step 按原 chunk 顺序透传，保留 provider replay metadata。仅在决策被替换成 feedback 时丢弃不再匹配的该 step replay envelope。
 - 本地 request trace 保存完整 provider diagnostic、Codex raw wrapper、dynamic server request 的已解析参数和拒绝详情（credential/token 字段仍按全局日志规则脱敏），用于区分“传输层 JSON 显示转义”与“解析后源码真的改变”。
 
-#### `penecho-credentials`
+#### `fastlectures-credentials`
 
 职责：实现 Harness credential provider，从现有 071 connection store 或 desktop secret store 按操作读取密钥。
 
-- 引用形式为 `PENECHO_AI_CONNECTION_<HASH>`，只是内部引用名，不写入真实环境变量。
+- 引用形式为 `FASTLECTURES_AI_CONNECTION_<HASH>`，只是内部引用名，不写入真实环境变量。
 - 密钥只在 LLM request 需要时解析。
 - 不记录值、不返回浏览器、不写 session log、不写 settings file。
 - 删除连接后立即拒绝新请求；正在进行的网络请求按现有 AbortSignal 结束。
 
-#### `penecho-canvas-host`
+#### `fastlectures-canvas-host`
 
-职责：不作为模型可见插件，而是 PenEcho 运行时宿主层。
+职责：不作为模型可见插件，而是 FastLectures 运行时宿主层。
 
 - 创建/销毁 agent scope。
 - 选择连接/profile。
@@ -333,13 +333,13 @@ type CanvasDigest = {
 
 `revision` 对应内容并发控制；`viewRevision` 只用于识别 viewport/selection 变化，不能导致 Canvas dirty，也不进入 Undo 历史。
 
-`appearance` 提供当前 PenEcho 主题、字体和核心色板，让 Agent 在不额外截图时也能尽量延续当前界面风格；视觉证据不足时才按需调用 `canvas_capture`。生成 Widget、图示、SVG 或叠加层时外层默认透明，只有在对比度、可读性、语义分组或媒体展示确有改善时才使用尽可能局部的不透明或半透明承托面。
+`appearance` 提供当前 FastLectures 主题、字体和核心色板，让 Agent 在不额外截图时也能尽量延续当前界面风格；视觉证据不足时才按需调用 `canvas_capture`。生成 Widget、图示、SVG 或叠加层时外层默认透明，只有在对比度、可读性、语义分组或媒体展示确有改善时才使用尽可能局部的不透明或半透明承托面。
 
 `objects` 和 `selection` 只包含类型、ID、精确逻辑包围盒以及标题/短文本等紧凑元数据。动态 context 会被宿主限长；完整分页和内容 hash 通过 `canvas_inspect` 的 `metadata` 模式按需取得。
 
 ### 6.2 每步动态上下文
 
-`penecho-canvas-context` 在每个 agent step 前取最新 digest，渲染为结构化、明确标记为宿主数据的 context。Harness 会把该快照写进 session，因此后续能知道每一步看到的 Canvas 状态；PenEcho 无需把 Canvas 摘要人工追加进历史消息。
+`fastlectures-canvas-context` 在每个 agent step 前取最新 digest，渲染为结构化、明确标记为宿主数据的 context。Harness 会把该快照写进 session，因此后续能知道每一步看到的 Canvas 状态；FastLectures 无需把 Canvas 摘要人工追加进历史消息。
 
 规则：
 
@@ -482,8 +482,8 @@ MVP 工具名必须保持扁平、稳定，且精确为以下八个：`canvas_in
 - `formula`：渲染到 ink layer。
 - `plot`：渲染到 ink layer。
 - `drawing`：通过现有受限 DRAW renderer 渲染到 ink layer。
-- `widget`：PenEcho Agent 新建时只能是 `html_widget`；HTML 可承担 Visual Explorer、动态/交互展示和其他通用输出。已有 `diagram_source` 仍可通过 `canvas_read` 与 `canvas_patch_widget` 原位修改。该限制只存在于 PenEcho Agent 的工具与浏览器 RPC 路径，不改变 Main Canvas AI、普通 Canvas Professional Diagram 能力或旧画布内容。
-- `image`：只能引用当前 PenEcho Agent session 拥有的 Harness `attachmentId`，提交时复制到 071 现有 image persistence。
+- `widget`：FastLectures Agent 新建时只能是 `html_widget`；HTML 可承担 Visual Explorer、动态/交互展示和其他通用输出。已有 `diagram_source` 仍可通过 `canvas_read` 与 `canvas_patch_widget` 原位修改。该限制只存在于 FastLectures Agent 的工具与浏览器 RPC 路径，不改变 Main Canvas AI、普通 Canvas Professional Diagram 能力或旧画布内容。
+- `image`：只能引用当前 FastLectures Agent session 拥有的 Harness `attachmentId`，提交时复制到 071 现有 image persistence。
 
 每个 item 可带 `placement`：`auto`、`absolute` 或相对一个对象的 `left/right/above/below`。默认 `auto` 在当前 viewport 中扫描不与已有/同批对象相撞且可读的空位；无空位时返回 `crowded: true`，不能静默声称无重叠。
 
@@ -566,7 +566,7 @@ MVP 工具名必须保持扁平、稳定，且精确为以下八个：`canvas_in
 
 ### 7.7 固定 Widget 合同上下文
 
-Harness 在每个模型 step 自动注入 Canvas-Agent-only Visual Explorer contract 和当前 Widget 路由。普通 `general`（General HTML）contract 始终可通过 `load_widget_contract` 按需加入只追加的 session system section；`flowchart`（Professional Diagrams）从不进入 PenEcho Agent 创建 schema，只有浏览器确认插件已启用时才出现在 loader enum，并在调用 loader 后注入仅供修改当前 Canvas 已有 Professional Diagram 的合同。该 schema 限制不进入 Main Canvas AI 或普通 Canvas 执行路径。浏览器当前已启用且主机重新验证为 `builtIn:false` 的 private HTML contract 会按原插件 id 注入；未启用、未知、内置冲突或非 HTML private 插件会令该 capability handshake 失败。每个会话最多 12 个 private contract、合计 48 KiB。所有注入 contract 都不写入普通 tool-result 历史，因而不会被 compaction 摘要替代。共享 `public/plugins/*/plugin.md` 仍只服务原有 Canvas AI 插件链路，不被 PenEcho Agent 改写。
+Harness 在每个模型 step 自动注入 Canvas-Agent-only Visual Explorer contract 和当前 Widget 路由。普通 `general`（General HTML）contract 始终可通过 `load_widget_contract` 按需加入只追加的 session system section；`flowchart`（Professional Diagrams）从不进入 FastLectures Agent 创建 schema，只有浏览器确认插件已启用时才出现在 loader enum，并在调用 loader 后注入仅供修改当前 Canvas 已有 Professional Diagram 的合同。该 schema 限制不进入 Main Canvas AI 或普通 Canvas 执行路径。浏览器当前已启用且主机重新验证为 `builtIn:false` 的 private HTML contract 会按原插件 id 注入；未启用、未知、内置冲突或非 HTML private 插件会令该 capability handshake 失败。每个会话最多 12 个 private contract、合计 48 KiB。所有注入 contract 都不写入普通 tool-result 历史，因而不会被 compaction 摘要替代。共享 `public/plugins/*/plugin.md` 仍只服务原有 Canvas AI 插件链路，不被 FastLectures Agent 改写。
 
 ### 7.8 `canvas_set_view`
 
@@ -623,7 +623,7 @@ type CanvasToolError = {
 
 ## 8. 浏览器原子操作层
 
-071 当前 Canvas mutation 分散在多个函数中，且部分函数各自调用 history/revision/save。PenEcho Agent 工具不能直接复用这些外部副作用不一致的入口。
+071 当前 Canvas mutation 分散在多个函数中，且部分函数各自调用 history/revision/save。FastLectures Agent 工具不能直接复用这些外部副作用不一致的入口。
 
 新增 `CanvasAgentFacade`，作为浏览器侧唯一 RPC 执行面：
 
@@ -721,24 +721,24 @@ type Envelope<T> = {
 
 MVP 使用 Harness 的内存 session backend，不装载 JSONL persistence：
 
-- 对话属于浏览器临时 PenEcho Agent session。
-- 每次加载已有 Canvas 或创建新 Canvas 时，默认建立一段新的 PenEcho Agent 对话；不同 Canvas 不共享对话入口。
-- 未选择资源时，浏览器按 Canvas 身份在 `localStorage` 中最多保留最近 5 段 UI transcript 投影；选择文件夹时写入该目录的 `.penecho`，选择单文件时写入 PenEcho 私有 state。三者都只保存文本消息与有界工具活动，不保存图片二进制、attachment refs、resume capability、Canvas session id 或 Harness session id。
+- 对话属于浏览器临时 FastLectures Agent session。
+- 每次加载已有 Canvas 或创建新 Canvas 时，默认建立一段新的 FastLectures Agent 对话；不同 Canvas 不共享对话入口。
+- 未选择资源时，浏览器按 Canvas 身份在 `localStorage` 中最多保留最近 5 段 UI transcript 投影；选择文件夹时写入该目录的 `.fastlectures`，选择单文件时写入 FastLectures 私有 state。三者都只保存文本消息与有界工具活动，不保存图片二进制、attachment refs、resume capability、Canvas session id 或 Harness session id。
 - 浏览器历史不是模型上下文来源，也不能伪装成可恢复的 Harness session；当前对话的模型历史仍只来自 Harness session log。
-- server 重启后 Harness 模型上下文消失，UI 显示“PenEcho Agent 会话已重置”；保留的 transcript 仍只是只读历史，不能伪装成可恢复会话。
+- server 重启后 Harness 模型上下文消失，UI 显示“FastLectures Agent 会话已重置”；保留的 transcript 仍只是只读历史，不能伪装成可恢复会话。
 - New conversation 显式销毁当前 agent scope，把已有 UI 投影留在当前浏览器或资源的最近历史中，并创建新 session。
 - session id、resume capability 和 UI projection cache 不进入 Canvas snapshot。
 
-用户开启完整请求记录时，PenEcho Agent 与 Harness 外的普通 AI 请求共用 server 端 `~/.penecho/logs/requests`：每个 turn 创建一个 `<timestamp>-<uuid>` 目录，`trace.json` 聚合该 turn 的模型 steps、用户与最终 assistant 消息、工具调用/结果、请求上下文、usage 与结束状态。用户附件和 `canvas_capture` 真正进入后续模型 step 的每份视觉输入都作为独立 `vision-*` 文件保存在同一目录，并由对应 step 引用；图片编码内容、credentials、resume capability、Canvas session id 和 Harness session id 不进入 JSON。开启 debug artifacts 时可以另外把用于 UI 的安全事件投影追加到轮转服务日志，且不重复记录流式 delta。这些调试记录都不是可恢复的模型历史，也不改变内存 session backend 的权威边界。
+用户开启完整请求记录时，FastLectures Agent 与 Harness 外的普通 AI 请求共用 server 端 `~/.fastlectures/logs/requests`：每个 turn 创建一个 `<timestamp>-<uuid>` 目录，`trace.json` 聚合该 turn 的模型 steps、用户与最终 assistant 消息、工具调用/结果、请求上下文、usage 与结束状态。用户附件和 `canvas_capture` 真正进入后续模型 step 的每份视觉输入都作为独立 `vision-*` 文件保存在同一目录，并由对应 step 引用；图片编码内容、credentials、resume capability、Canvas session id 和 Harness session id 不进入 JSON。开启 debug artifacts 时可以另外把用于 UI 的安全事件投影追加到轮转服务日志，且不重复记录流式 delta。这些调试记录都不是可恢复的模型历史，也不改变内存 session backend 的权威边界。
 
 这一选择与产品要求的“对话不写 Canvas”一致，也避免官方 JSONL backend 当前无删除/自动 GC 时产生不可见的永久聊天历史。以后若需要跨重启恢复，必须作为独立功能引入明确的保留时长、清除入口、迁移和隐私说明。
 
 ### 10.2 附件缓存
 
-Harness attachment refs 要求二进制在 session log 外可寻址。PenEcho Agent 为每个 server boot 使用明确的缓存目录：
+Harness attachment refs 要求二进制在 session log 外可寻址。FastLectures Agent 为每个 server boot 使用明确的缓存目录：
 
 ```text
-<PenEcho state directory>/cache/canvas-agent/<boot-id>/attachments/
+<FastLectures state directory>/cache/canvas-agent/<boot-id>/attachments/
 ```
 
 规则：
@@ -757,43 +757,43 @@ Harness attachment refs 要求二进制在 session log 外可寻址。PenEcho Ag
 ### 10.3 本地资源能力
 
 - folder scope 当前只在被选中的 canonical 根目录内挂载 `glob`、`grep`、`list_directory`、`read`、`read_image`，以及按需 document/SQLite reader；`glob` / `grep` 使用随应用打包的 ripgrep、固定 argv 和有界结果，不经过 shell；不注册 `write`、`edit`、`bash` 或命令执行工具。旧客户端传入的 `full` 也归一为相同只读 session。
-- file scope 使用 PenEcho 自己的 exact-file 插件，只注册与该文件类型匹配的一个 reader；任意其他格式使用有界十六进制/ASCII reader，且永不执行文件。不复用会同时注册 mutator 的通用 ToolFs，不暴露父目录、siblings、Bash、write 或 edit。
+- file scope 使用 FastLectures 自己的 exact-file 插件，只注册与该文件类型匹配的一个 reader；任意其他格式使用有界十六进制/ASCII reader，且永不执行文件。不复用会同时注册 mutator 的通用 ToolFs，不暴露父目录、siblings、Bash、write 或 edit。
 - folder 的 PDF/DOCX/XLSX/CSV 与 SQLite 工具先通过 `load_project_plugin` 惰性注册；单个有效同类文件直接注册唯一匹配 reader。SQLite 在独立、可强制终止的低内存子进程内只读执行。
-- 本地、LAN 与桌面页面通过 PenEcho 内置目录浏览器选择 host Home 下的非私有子目录，不调用系统目录选择器。Cloud 资源属于实际执行 Harness 的 Linked PenEcho host；资源 HTTP 与 PenEcho Agent WebSocket 必须固定同一 `deviceId`，Cloud 只能用 opaque root id 与相对路径浏览配置根，不能桥接本地隐式 Home root 或 raw-path project POST。
+- 本地、LAN 与桌面页面通过 FastLectures 内置目录浏览器选择 host Home 下的非私有子目录，不调用系统目录选择器。Cloud 资源属于实际执行 Harness 的 Linked FastLectures host；资源 HTTP 与 FastLectures Agent WebSocket 必须固定同一 `deviceId`，Cloud 只能用 opaque root id 与相对路径浏览配置根，不能桥接本地隐式 Home root 或 raw-path project POST。
 - iPad/普通浏览器通过系统 file picker、拖放或粘贴添加最大 32 MiB 的受控副本；非图片文件先作为可移除的待发送附件显示，必须由用户补充要求后再随消息发送，不能在添加时自动发起分析。相同文件只显示一个附件项，待发送附件的移除不弹确认并直接删除 managed copy；发送后在聊天消息内保留仅含安全 project id、文件名和大小的文件卡片。已知格式使用专用验证和 reader，其他格式退回只读有界 binary reader；副本写入 owner-only state。桌面原生 file picker 可以登记原文件，桌面系统剪贴板文件则复制为 managed attachment；两者均使用 exact-file reader。桌面文件卡片双击时由主进程重新验证 project id 后调用系统默认应用，浏览器和历史记录都不得获得绝对路径。
 
 ## 11. AI 连接集成
 
 ### 11.1 MVP 支持矩阵
 
-| 071 连接类型 | PenEcho Agent MVP | 处理 |
+| 071 连接类型 | FastLectures Agent MVP | 处理 |
 | --- | --- | --- |
 | OpenAI API / compatible API | 支持 | 映射到 `llm-pi-ai` custom provider/profile |
 | Anthropic API / compatible API | 支持 | 映射到 `llm-pi-ai` provider/profile |
 | DeepSeek 官方 API | 支持 | 优先可使用官方 DeepSeek adapter；也可经兼容 profile，实施时固定一个路径 |
 | Kimi CLI | 支持 | Harness 专用长驻 ACP 进程 + 单 Harness conversation 的 ACP session；空工具，Harness 执行 Canvas tools |
-| Codex CLI | 支持 | 独立 native host：单 Canvas conversation 复用一个隔离 `app-server` process/ephemeral thread；只开放 PenEcho dynamic tools，不进入 Harness |
+| Codex CLI | 支持 | 独立 native host：单 Canvas conversation 复用一个隔离 `app-server` process/ephemeral thread；只开放 FastLectures dynamic tools，不进入 Harness |
 | Claude CLI | 支持 | Harness 专用长驻 `stream-json` 进程 + `--tools ""` + strict MCP config + safe mode |
 
-Kimi 与 Claude 由 `penecho-cli-llm` 使用窄 decision protocol：每个 step 返回覆盖完整响应的一个标准 `final`、`tool_call` 或 `tool_calls` JSON 对象，HTML/source/patch 直接位于 `arguments`；插件翻译成 Harness `StreamChunk` 后仍由统一准入层决定是否执行。其自带工具关闭，上游 conversation 只在 replay metadata 与 canonical Harness history 一致时续接。Codex 是例外：App Server 原生 tool-call stream、thread history 和 automatic compaction 直接拥有该 provider conversation，PenEcho 不在 Harness 内建立镜像或执行 snapshot replay。
+Kimi 与 Claude 由 `fastlectures-cli-llm` 使用窄 decision protocol：每个 step 返回覆盖完整响应的一个标准 `final`、`tool_call` 或 `tool_calls` JSON 对象，HTML/source/patch 直接位于 `arguments`；插件翻译成 Harness `StreamChunk` 后仍由统一准入层决定是否执行。其自带工具关闭，上游 conversation 只在 replay metadata 与 canonical Harness history 一致时续接。Codex 是例外：App Server 原生 tool-call stream、thread history 和 automatic compaction 直接拥有该 provider conversation，FastLectures 不在 Harness 内建立镜像或执行 snapshot replay。
 
-右上角 connection switch 是唯一模型选择来源。一个 PenEcho Agent session 固定绑定一个 connection 和一个 engine，防止一轮内混用 provider；切换 connection、保存选中 connection 的配置或删除选中 connection 时，客户端先失效旧 generation、取消待决提交/工具并创建新的 provider conversation。即使面板隐藏，涉及进入或离开 `codex-cli` 的 transition 也必须销毁旧 native owner；Harness 到 Harness 的隐藏面板行为保持既有语义。`ready.connectionId`、`ready.engine` 和当前 handshake identity 必须共同匹配后才能接受新 session。
+右上角 connection switch 是唯一模型选择来源。一个 FastLectures Agent session 固定绑定一个 connection 和一个 engine，防止一轮内混用 provider；切换 connection、保存选中 connection 的配置或删除选中 connection 时，客户端先失效旧 generation、取消待决提交/工具并创建新的 provider conversation。即使面板隐藏，涉及进入或离开 `codex-cli` 的 transition 也必须销毁旧 native owner；Harness 到 Harness 的隐藏面板行为保持既有语义。`ready.connectionId`、`ready.engine` 和当前 handshake identity 必须共同匹配后才能接受新 session。
 
 ### 11.2 模型能力
 
-- connection profile 必须声明模型名称、provider route、160,000 token 的 PenEcho context 上限，以及 `text + image` 输入；PenEcho Agent 不接纳纯文本模型。
+- connection profile 必须声明模型名称、provider route、160,000 token 的 FastLectures context 上限，以及 `text + image` 输入；FastLectures Agent 不接纳纯文本模型。
 - API 与 CLI bridge 都必须发送活跃图片；同消息用户附件最多 5 张，截图最多最新 1 张。
 - 只有 adapter 明确支持 reasoning 参数时，才传现有 071 reasoning effort；否则省略，不能伪造映射。
-- Harness engine 的 basic compaction 在 100,000 token（160,000 的 0.625）开始，保留最近 16% 的普通上下文并把 summary output 限制在 4,096 token。Codex engine 使用同一 App Server thread 的 automatic compaction；PenEcho 不维护第二份摘要、缓存提示或 provider cache 控制层，也不因压缩重启 process/thread。
+- Harness engine 的 basic compaction 在 100,000 token（160,000 的 0.625）开始，保留最近 16% 的普通上下文并把 summary output 限制在 4,096 token。Codex engine 使用同一 App Server thread 的 automatic compaction；FastLectures 不维护第二份摘要、缓存提示或 provider cache 控制层，也不因压缩重启 process/thread。
 - `canvas_capture` 的 detail 只允许一个 Widget 或显式紧凑 region，输出最长边和单边都不超过 2,048px；结果必须返回逻辑区域、pixel/logical 双向映射和 pixels-per-logical-unit，让模型知道同尺寸下区域越紧，局部采样密度越高。
 
-## 12. PenEcho Agent UI
+## 12. FastLectures Agent UI
 
 `alwaysmain` 只提供产品意图。071 的实现应新建隔离的状态机和组件，不复制其现有实现。
 
 ### 12.1 入口与布局
 
-- 只在本地 editable Canvas 和 Desktop owner 模式显示 PenEcho Agent 入口。
+- 只在本地 editable Canvas 和 Desktop owner 模式显示 FastLectures Agent 入口。
 - 进入后保留当前 `state.mode`，临时隐藏与 Agent 冲突的 legacy chrome；退出时原样恢复。
 - 底部居中紧凑 composer；其上方是流式回答与工具活动卡片。
 - Canvas 始终可 pan/zoom；Agent 面板不覆盖主要工作区。
@@ -893,7 +893,7 @@ test/
 - `scripts/build-client.js` 把两个新 client source 插在 `ai-runtime.js` 之后、`ui-bootstrap.js` 之前。
 - `public/app.js` 仍由构建生成，不手工编辑。
 - `public/index.html`、`public/style.css` 和 locale 增加 UI 所需 DOM/styles/text。
-- `penecho_cloud/public/canvas` 只能通过 071 的发布流程生成；Cloud 中通过 Linked Device 打开的可编辑 Canvas 必须使用同一 PenEcho Agent 功能，并通过受认证的远程会话桥连接到本地主机执行 Harness。
+- `fastlectures_cloud/public/canvas` 只能通过 071 的发布流程生成；Cloud 中通过 Linked Device 打开的可编辑 Canvas 必须使用同一 FastLectures Agent 功能，并通过受认证的远程会话桥连接到本地主机执行 Harness。
 - 不删除或改写现有 `/api/ai/command`。
 
 ## 15. 分阶段实施
@@ -902,11 +902,11 @@ test/
 
 071 的首版实现采用“依赖可安装、能力不挂载、客户端不打包”的三层边界：
 
-- Harness 只在本地 owner 浏览器第一次连接 `/api/canvas-agent/socket`，或 Cloud Linked Device 第一次创建远程 PenEcho Agent logical channel 后动态导入；普通画布启动路径不加载 Harness ESM、模型 SDK 或附件处理器。
-- 进程级运行时只允许挂载 19 个插件：timer、PenEcho 内存 settings/credentials、local attachment、LLM/session/system-prompt/tools/agent、retry、tool timeout、token meter、tool-result pruner、basic compaction、pi-ai adapter、PenEcho CLI LLM adapter、project filesystem、filesystem observation policy 和 agent loop。
-- 无资源的 agent scope 只允许 `penecho-canvas` 插件注册八个核心工具：`canvas_inspect`、`canvas_read`、`canvas_capture`、`canvas_create`、`canvas_edit`、`canvas_patch_widget`、`canvas_set_view`、`canvas_revert`。选择资源后，额外能力严格来自 10.3 的 folder 或 exact-file 插件。
-- 不挂载通用 shell/sandbox bundle、GitHub、Web、MCP、skills、jobs、goals、delegation、persistence、command UI 或通用 base bundle。folder Bash 是 PenEcho 自己的窄工具并经过 OS 级能力探针和边界执行；浏览器 approval 只是该工具的逐次 RPC，不是 Harness 通用 approval 插件。
-- `llm-pi-ai` 保留是为了沿用 071 已有的 OpenAI-compatible 与 Anthropic-compatible API connections；`penecho-cli-llm` 的持久 session manager 位于 PenEcho Agent ESM island，只复用 CLI 路径解析、环境净化等无状态安全 helper，不复用旧画布 AI 的一次性 request/session 实现。两者都不进入 `public/app.js`，也不在普通画布路径初始化。
+- Harness 只在本地 owner 浏览器第一次连接 `/api/canvas-agent/socket`，或 Cloud Linked Device 第一次创建远程 FastLectures Agent logical channel 后动态导入；普通画布启动路径不加载 Harness ESM、模型 SDK 或附件处理器。
+- 进程级运行时只允许挂载 19 个插件：timer、FastLectures 内存 settings/credentials、local attachment、LLM/session/system-prompt/tools/agent、retry、tool timeout、token meter、tool-result pruner、basic compaction、pi-ai adapter、FastLectures CLI LLM adapter、project filesystem、filesystem observation policy 和 agent loop。
+- 无资源的 agent scope 只允许 `fastlectures-canvas` 插件注册八个核心工具：`canvas_inspect`、`canvas_read`、`canvas_capture`、`canvas_create`、`canvas_edit`、`canvas_patch_widget`、`canvas_set_view`、`canvas_revert`。选择资源后，额外能力严格来自 10.3 的 folder 或 exact-file 插件。
+- 不挂载通用 shell/sandbox bundle、GitHub、Web、MCP、skills、jobs、goals、delegation、persistence、command UI 或通用 base bundle。folder Bash 是 FastLectures 自己的窄工具并经过 OS 级能力探针和边界执行；浏览器 approval 只是该工具的逐次 RPC，不是 Harness 通用 approval 插件。
+- `llm-pi-ai` 保留是为了沿用 071 已有的 OpenAI-compatible 与 Anthropic-compatible API connections；`fastlectures-cli-llm` 的持久 session manager 位于 FastLectures Agent ESM island，只复用 CLI 路径解析、环境净化等无状态安全 helper，不复用旧画布 AI 的一次性 request/session 实现。两者都不进入 `public/app.js`，也不在普通画布路径初始化。
 
 对应回归测试必须同时断言根依赖精确版本、运行时插件精确白名单和 agent 可见工具精确集合。任何新增 Harness 包、插件或工具都需要显式修改白名单并经过安全审查。
 
@@ -932,14 +932,14 @@ test/
 ### Phase 2：Harness 插件与 API/CLI 连接
 
 - 装载最小官方插件集合。
-- 实现窄范围 PenEcho Canvas 插件与宿主模块。
+- 实现窄范围 FastLectures Canvas 插件与宿主模块。
 - 映射 071 API 连接与 credentials，并注册受控 CLI LLM transport。
 - 开启 retry、token meter、compaction、tool-result pruner、attachments。
 - 用 scripted LLM 执行多步 read → mutate → capture → correct。
 
-退出条件：PenEcho 不传历史消息，Harness 仍可完成长多步任务和上下文压缩。
+退出条件：FastLectures 不传历史消息，Harness 仍可完成长多步任务和上下文压缩。
 
-### Phase 3：071 PenEcho Agent UI
+### Phase 3：071 FastLectures Agent UI
 
 - 实现隔离 mode、composer、reference chips、Stop、steer、tool cards、New conversation。
 - transcript 只来自 Harness session events。
@@ -950,7 +950,7 @@ test/
 
 ### Phase 4：Cloud Linked Device 双向桥
 
-- Cloud 提供同账户、same-origin 的 PenEcho Agent WebSocket，选择并固定一个在线 Linked Device。
+- Cloud 提供同账户、same-origin 的 FastLectures Agent WebSocket，选择并固定一个在线 Linked Device。
 - Linked Device 仅声明有界 `canvasAgent:true` capability，Cloud 不获得 provider、model、密钥或 Harness session 内容。
 - 071 主机提供有上限、有 TTL 的 logical channel，并串行处理 browser frames；Cloud 只做 `open/frame/pull/close` 转发。
 - 071 客户端构建后通过 Cloud 的标准 Canvas mirror 生成器同步，不手工维护第二份客户端实现。
@@ -988,7 +988,7 @@ test/
 - tool result pruner 不破坏 call/result 配对。
 - 用户编辑与 agent 修改竞态产生 `REVISION_CONFLICT`，无数据丢失。
 - screenshot 写 attachment、传给支持图片的模型、会话结束后缓存清理。
-- Kimi/Claude CLI connection 分别完成 tool call → browser result → final 的 Harness 多步循环；Codex connection 在同一 App Server thread 内完成 native tool call → PenEcho dynamic-tool result → final，并观测 automatic compaction。
+- Kimi/Claude CLI connection 分别完成 tool call → browser result → final 的 Harness 多步循环；Codex connection 在同一 App Server thread 内完成 native tool call → FastLectures dynamic-tool result → final，并观测 automatic compaction。
 - 右上角从 API 切到 CLI、CLI 切到 API 或更换 API model 时，旧会话停止且新会话的 `ready.connectionId` 与当前选择一致。
 
 ### 16.3 安全测试
@@ -1019,12 +1019,12 @@ test/
 7. 连续长对话触发 compaction，Agent 仍能根据最新 digest 工作，用户不感知上下文突然丢失。
 8. 页面刷新并在宽限内恢复，transcript 从 Harness events 重建；重启 server 后 UI 清楚说明新会话。
 9. Canvas 中的恶意 widget 文本要求读取本机文件；Agent 没有相应工具，操作被边界自然阻止。
-10. 分别选择 Kimi/Codex/Claude CLI 连接进入 PenEcho Agent，Agent 可 inspect 并修改画布；Kimi/Claude 没有 CLI 工具，Codex 只看到 PenEcho dynamic tools，三者都没有任意宿主文件、shell 或 MCP 能力。
-11. 在右上角从一个 API/CLI connection 切换到另一个，当前 PenEcho Agent conversation 清空并绑定新模型，后续请求不再命中旧 connection。
+10. 分别选择 Kimi/Codex/Claude CLI 连接进入 FastLectures Agent，Agent 可 inspect 并修改画布；Kimi/Claude 没有 CLI 工具，Codex 只看到 FastLectures dynamic tools，三者都没有任意宿主文件、shell 或 MCP 能力。
+11. 在右上角从一个 API/CLI connection 切换到另一个，当前 FastLectures Agent conversation 清空并绑定新模型，后续请求不再命中旧 connection。
 
 ## 18. 发布门槛
 
-满足以下条件才允许默认开启本地 PenEcho Agent：
+满足以下条件才允许默认开启本地 FastLectures Agent：
 
 - 八个核心工具的 schema、策略和 browser Facade 均有覆盖。
 - 证明没有额外模型可见工具。
@@ -1042,15 +1042,15 @@ test/
 - 071 是唯一实现基线；`alwaysmain` 只作产品参考。
 - Harness 同进程嵌入 server，不使用 SDK 子进程。
 - Canvas 留在浏览器，工具通过认证 WebSocket RPC 执行。
-- Provider engine 负责 session/context/loop/compaction/model-context cache：API/Kimi/Claude 由 Harness 负责，Codex 由 native App Server thread 负责。PenEcho 不维护第二份模型历史，不改写 provider history，也不注入 provider cache 控制。
+- Provider engine 负责 session/context/loop/compaction/model-context cache：API/Kimi/Claude 由 Harness 负责，Codex 由 native App Server thread 负责。FastLectures 不维护第二份模型历史，不改写 provider history，也不注入 provider cache 控制。
 - 保留八个核心 Canvas 工具并默认串行；Visual Explorer 常驻，General HTML 按需加载，Professional 仅在插件启用后可按需加载，已启用 private HTML 由主机校验后注入；不做第二层插件检索、安装、生成、导出或发布能力。
 - 动态/交互内容只通过 HTML Widget 提供，不暴露 animation object 工具。
 - Widget 只允许单轴响应式改宽或改高；Image 可以自由拉伸。
-- MVP 不提供任意文件、shell、GitHub、任意 URL、MCP、skill 或 subagent；只允许用户明确选中的只读 project/file reader 与 PenEcho 受控的公共 Web 工具。
+- MVP 不提供任意文件、shell、GitHub、任意 URL、MCP、skill 或 subagent；只允许用户明确选中的只读 project/file reader 与 FastLectures 受控的公共 Web 工具。
 - mutation 原子提交，一 call 一 Undo，使用 revision 乐观锁。
 - 对话临时且不进入 Canvas snapshot；MVP 不启用 JSONL session persistence。
-- MVP 支持 API 与 Kimi/Codex/Claude CLI connections；Kimi/Claude 只作为 Harness 的无工具 LLM transport，Codex 使用独立 native App Server engine，并只开放 PenEcho dynamic tools。
-- Cloud 的可编辑 Canvas 仅可通过 Linked Device 使用同一 PenEcho Agent；只读 Viewer 与 Mobile 默认关闭。
+- MVP 支持 API 与 Kimi/Codex/Claude CLI connections；Kimi/Claude 只作为 Harness 的无工具 LLM transport，Codex 使用独立 native App Server engine，并只开放 FastLectures dynamic tools。
+- Cloud 的可编辑 Canvas 仅可通过 Linked Device 使用同一 FastLectures Agent；只读 Viewer 与 Mobile 默认关闭。
 
 ### 实施阶段必须验证但不改变架构的事项
 

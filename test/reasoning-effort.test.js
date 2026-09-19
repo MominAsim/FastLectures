@@ -26,7 +26,7 @@ test("xhigh and max requests receive twice the configured timeout", () => {
   for (const effort of ["xhigh", "max", " MAX "]) assert.equal(reasoningEffortTimeoutMultiplier(effort),2);
 });
 
-test("Kimi API, CLI, and ACP map the six PenEcho levels onto Kimi's three native levels", () => {
+test("Kimi API, CLI, and ACP map the six FastLectures levels onto Kimi's three native levels", () => {
   const expected = { none:"low", low:"low", medium:"high", high:"high", xhigh:"max", max:"max" };
   for (const [requested, native] of Object.entries(expected)) assert.equal(mapKimiReasoningEffort(requested), native);
   assert.equal(reasoningEffortMapping({ provider:"api", apiPreset:"kimi-global-api", model:"kimi-k3", effort:"medium" }).value, "high");

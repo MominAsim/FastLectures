@@ -13,15 +13,15 @@ Cloud-native Canvas editing now keeps Cloud models and Cloud Library available w
 
 ## Design-source map
 
-Existing Settings content and connection rows retain the `penecho-design-language.html` Settings examples and settings-list pattern. Only availability, localized status, and actions change. Library retains its existing source navigation and library-manager layout; no new appearance rules or containers were introduced.
+Existing Settings content and connection rows retain the `fastlectures-design-language.html` Settings examples and settings-list pattern. Only availability, localized status, and actions change. Library retains its existing source navigation and library-manager layout; no new appearance rules or containers were introduced.
 
 ## Validation
 
 - 071 focused and expanded tests: 364 tests, 361 passed. The 3 remaining failures were reproduced against the pre-change Cloud Canvas mirror: two `resizeImageBox` fixture failures (`contentW` undefined), and the existing Studio Agent toolbar CSS assertion.
 - Cloud `test/remote-canvas.test.mjs`: 9 passed, including account-owned device pinning, connection validation, and request forwarding.
 - Generated client check, selective Cloud mirror check, syntax check, and scoped diff checks passed. The Impeccable detector returned no findings for touched UI source files.
-- Isolated Chromium loaded the actual generated client/HTML/CSS with fixture APIs, without starting a PenEcho server or accessing a real account. Wide English, narrow Chinese, and a 480 CSS px compact viewport showed both model groups and enabled Manage, with no overflow in the affected regions. Actual Server and Cloud Library source controls each loaded their own fixture Canvas. No browser page errors were recorded.
-- Browser evidence: `/tmp/penecho-linked-acceptance/report.json` and screenshots in that directory. This is a Chromium fixture check, not a real-account Linked Device or Electron 200% zoom acceptance run.
+- Isolated Chromium loaded the actual generated client/HTML/CSS with fixture APIs, without starting a FastLectures server or accessing a real account. Wide English, narrow Chinese, and a 480 CSS px compact viewport showed both model groups and enabled Manage, with no overflow in the affected regions. Actual Server and Cloud Library source controls each loaded their own fixture Canvas. No browser page errors were recorded.
+- Browser evidence: `/tmp/fastlectures-linked-acceptance/report.json` and screenshots in that directory. This is a Chromium fixture check, not a real-account Linked Device or Electron 200% zoom acceptance run.
 
 ## Delivery limits
 
@@ -65,7 +65,7 @@ post-deployment end-to-end relay acceptance remain pending.
 
 ## Library gateway failure UI
 
-Design source map: Library shell -> penecho-design-language.html Canvas Library
+Design source map: Library shell -> fastlectures-design-language.html Canvas Library
 manager example; recoverable failure -> Empty / Loading / Error and Modal list
 empty examples. One explanation and one Retry action belong to the content
 region. Grid loading/error states span all columns. Empty/unknown results do
@@ -82,7 +82,7 @@ Isolated browser fixture intercepted every request and injected502 for Server
 while Cloud remained successful. Wide English1440px, Chinese720px and480px
 zoom-proxy checks show one error, no active loading overlay, correct Server
 heading, no measured overflow, and successful retry after restoring the mock
-service. Screenshots/report: /tmp/penecho-library-error-acceptance/. This is
+service. Screenshots/report: /tmp/fastlectures-library-error-acceptance/. This is
 layout and failure-path evidence, not proof that live UAT transport is repaired.
 Targeted Library state tests11/11 passed. Combined ui-controls and Library suite
 124/127 passed; the remaining3 are the previously reported unrelated image,

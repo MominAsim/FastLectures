@@ -1,8 +1,8 @@
 {
-  "name": "penecho-mobile-toolchain",
+  "name": "fastlectures-mobile-toolchain",
   "version": "0.6.0",
   "private": true,
-  "description": "Isolated Capacitor toolchain for PenEcho Android and iOS clients",
+  "description": "Isolated Capacitor toolchain for FastLectures Android and iOS clients",
   "engines": {
     "node": ">=22.12.0"
   },

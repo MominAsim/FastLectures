@@ -1,6 +1,7 @@
-  const KEYBOARD_SHORTCUT_STORAGE_KEY = "penecho-keyboard-shortcuts-v1";
+  const KEYBOARD_SHORTCUT_STORAGE_KEY = "fastlectures-keyboard-shortcuts-v1";
   const KEYBOARD_SHORTCUT_COMMANDS = Object.freeze([
     { id:"focus-agent", group:"essential", labelKey:"shortcutFocusAgent", descriptionKey:"shortcutFocusAgentHelp", defaultChord:"Tab" },
+    { id:"focus-ai", group:"essential", labelKey:"shortcutFocusAI", descriptionKey:"shortcutFocusAIHelp", defaultChord:"Mod+Shift+Space" },
     { id:"save-canvas", group:"essential", labelKey:"saveCanvas", descriptionKey:"shortcutSaveCanvasHelp", defaultChord:"Mod+s" },
     { id:"undo", group:"essential", labelKey:"undo", descriptionKey:"shortcutUndoHelp", defaultChord:"Mod+z" },
     { id:"redo", group:"essential", labelKey:"redo", descriptionKey:"shortcutRedoHelp", defaultChord:"Mod+Shift+z" },
@@ -266,6 +267,7 @@
     if (keyboardShortcutLocalSurface(event.target)) return false;
     if (keyboardShortcutTextEditingTarget(event.target)) return command.id === "save-canvas";
     if (command.id === "focus-agent" && (!canvasAgentAvailable() || canvasAgentPanel.contains(event.target))) return false;
+    if (command.id === "focus-ai" && (!canvasAgentAvailable() || canvasAgentPanel.contains(event.target))) return false;
     if (keyboardShortcutControlOwnsKey(event, chord)) return false;
     return true;
   }
@@ -274,6 +276,11 @@
       const opening = canvasAgentPanel.hidden || !document.body.classList.contains("canvas-agent-open");
       if (opening) openCanvasAgent({ focus:false, animate:true });
       else closeCanvasAgent({ focus:false });
+      return true;
+    }
+    if (commandId === "focus-ai") {
+      const input = document.getElementById("canvasAgentInput");
+      if (input) input.focus();
       return true;
     }
     if (commandId === "save-canvas") { void saveCurrentCanvas(); return true; }
@@ -323,7 +330,7 @@
   });
   settingsShortcutResetAll?.addEventListener("click", keyboardShortcutResetAll);
   window.addEventListener("keydown", handleKeyboardShortcutKeydown, true);
-  window.addEventListener("penecho:languagechange", renderKeyboardShortcuts);
+  window.addEventListener("fastlectures:languagechange", renderKeyboardShortcuts);
   window.addEventListener("storage", (event) => {
     if (event.key !== KEYBOARD_SHORTCUT_STORAGE_KEY) return;
     keyboardShortcutBindings = keyboardShortcutLoadBindings();
@@ -331,7 +338,7 @@
     renderKeyboardShortcuts();
   });
   renderKeyboardShortcuts();
-  window.PenEchoKeyboardShortcuts = Object.freeze({
+  window.FastLecturesKeyboardShortcuts = Object.freeze({
     bindings:() => ({ ...keyboardShortcutBindings }),
     reset:keyboardShortcutResetAll,
     open:() => { selectSettingsPage("shortcuts"); return openSettings(); },

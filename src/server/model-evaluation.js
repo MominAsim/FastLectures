@@ -24,16 +24,16 @@ function normalizeModelEvaluation(value) {
 
 async function forwardModelEvaluation(fetchImpl, cloudOrigin, cloudCredential, event, timeoutMs = 10_000) {
   const token = String(cloudCredential || "").trim();
-  if (!token) throw Object.assign(new Error("An authenticated PenEcho Cloud credential is required for model evaluation reporting."), { code:"cloud_auth_required" });
+  if (!token) throw Object.assign(new Error("An authenticated FastLectures Cloud credential is required for model evaluation reporting."), { code:"cloud_auth_required" });
   const target = new URL("/api/v1/device-sync/model-evaluation", cloudOrigin);
   const response = await fetchImpl(target, {
     method:"POST",
-    headers:{ accept:"application/json", authorization:`Bearer ${token}`, "content-type":"application/json", "user-agent":"penecho-model-evaluation" },
+    headers:{ accept:"application/json", authorization:`Bearer ${token}`, "content-type":"application/json", "user-agent":"fastlectures-model-evaluation" },
     body:JSON.stringify(event),
     redirect:"error",
     signal:AbortSignal.timeout(timeoutMs),
   });
-  if (!response.ok) throw Object.assign(new Error("PenEcho Cloud rejected model evaluation feedback."), { status:response.status });
+  if (!response.ok) throw Object.assign(new Error("FastLectures Cloud rejected model evaluation feedback."), { status:response.status });
   return true;
 }
 

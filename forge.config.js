@@ -5,7 +5,7 @@ const pkg = require("./package.json");
 const desktopTools = require("./tools/electron/package.json");
 
 const ROOT = __dirname;
-const ICON = path.join(ROOT, "build", "icons", "penecho");
+const ICON = path.join(ROOT, "build", "icons", "fastlectures");
 const DESKTOP_TOOLS = path.join(ROOT, "tools", "electron");
 const ELECTRON_VERSION = desktopTools.devDependencies.electron;
 const DESKTOP_VERSION = pkg.config.desktopVersion;
@@ -35,8 +35,8 @@ const windowsSigning = hasWindowsCertificate ? {
   certificatePassword:process.env.WINDOWS_CERTIFICATE_PASSWORD,
   timestampServer:process.env.WINDOWS_TIMESTAMP_SERVER || "http://timestamp.digicert.com",
   hashes:["sha256"],
-  description:"PenEcho",
-  website:"https://github.com/penecho/penecho",
+  description:"FastLectures",
+  website:"https://github.com/fastlectures/fastlectures",
 } : null;
 const macSigning = process.env.MAC_CODESIGN_IDENTITY ? {
   identity:process.env.MAC_CODESIGN_IDENTITY,
@@ -60,20 +60,20 @@ const macSigning = process.env.MAC_CODESIGN_IDENTITY ? {
 
 module.exports = {
   packagerConfig: {
-    name:"PenEcho",
-    executableName:"PenEcho",
+    name:"FastLectures",
+    executableName:"FastLectures",
     appVersion:DESKTOP_VERSION,
     buildVersion:DESKTOP_VERSION,
     icon:ICON,
     asar:{ unpack:"**/node_modules/{sharp,@img,@vscode}/**/*" },
     prune:true,
-    appBundleId:"app.penecho.desktop",
+    appBundleId:"app.fastlectures.desktop",
     appCategoryType:"public.app-category.productivity",
-    appCopyright:`Copyright © ${new Date().getFullYear()} PenEcho contributors`,
+    appCopyright:`Copyright © ${new Date().getFullYear()} FastLectures contributors`,
     extendInfo:{
-      CFBundleDisplayName:"PenEcho",
-      CFBundleName:"PenEcho",
-      NSHumanReadableCopyright:`Copyright © ${new Date().getFullYear()} PenEcho contributors`,
+      CFBundleDisplayName:"FastLectures",
+      CFBundleName:"FastLectures",
+      NSHumanReadableCopyright:`Copyright © ${new Date().getFullYear()} FastLectures contributors`,
     },
     osxSign:macSigning,
     ...(appleNotarization ? {
@@ -85,7 +85,7 @@ module.exports = {
     ignore:[
       /^\/\./,
       /^\/build\/(?!icons(?:\/|$)).+/,
-      /^\/build\/icons\/(?!penecho\.png$).+/,
+      /^\/build\/icons\/(?!fastlectures\.png$).+/,
       /^\/docs\/(?!(?:mcp-setup\.md|mcp-agent-instructions\.md)$).+/,
       /^\/fixtures(?:\/|$)/,
       /^\/logs(?:\/|$)/,
@@ -117,8 +117,8 @@ module.exports = {
       name:desktopModule("@electron-forge/maker-dmg"),
       platforms:["darwin"],
       config:{
-        name:`PenEcho-${DESKTOP_VERSION}`,
-        title:"PenEcho",
+        name:`FastLectures-${DESKTOP_VERSION}`,
+        title:"FastLectures",
         icon:`${ICON}.icns`,
         overwrite:true,
       },
@@ -132,17 +132,17 @@ module.exports = {
       name:desktopModule("@electron-forge/maker-squirrel"),
       platforms:["win32"],
       config:{
-        name:"penecho",
-        authors:"PenEcho contributors",
+        name:"fastlectures",
+        authors:"FastLectures contributors",
         description:pkg.description,
-        exe:"PenEcho.exe",
-        setupExe:`PenEcho-Setup-${DESKTOP_VERSION}-win-x64.exe`,
+        exe:"FastLectures.exe",
+        setupExe:`FastLectures-Setup-${DESKTOP_VERSION}-win-x64.exe`,
         setupIcon:`${ICON}.ico`,
-        loadingGif:path.join(ROOT, "build", "icons", "penecho-install.gif"),
+        loadingGif:path.join(ROOT, "build", "icons", "fastlectures-install.gif"),
         // Avoid invoking rcedit through Wine during cross-platform builds.
-        // The installed app and Setup.exe still use the PenEcho icon.
+        // The installed app and Setup.exe still use the FastLectures icon.
         skipUpdateIcon:true,
-        iconUrl:`https://github.com/penecho/penecho/releases/download/v${DESKTOP_VERSION}/penecho.ico`,
+        iconUrl:`https://github.com/fastlectures/fastlectures/releases/download/v${DESKTOP_VERSION}/fastlectures.ico`,
         noMsi:true,
         ...(windowsSigning ? { windowsSign:windowsSigning } : {}),
       },

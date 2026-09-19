@@ -2,13 +2,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {PassThrough} = require('node:stream');
-const {PenEchoStdioServer,PROMPTS} = require('../src/server/mcp/stdio');
+const {FastLecturesStdioServer,PROMPTS} = require('../src/server/mcp/stdio');
 const {TOOLS} = require('../src/server/mcp/schema');
 const {RESOURCES,DISCOVERY_URI,SKILL_URI} = require('../src/server/mcp/resources');
 
 test('stdio resources require initialization and expose current discovery and live skill', async t => {
   const input=new PassThrough(),output=new PassThrough();
-  const server=new PenEchoStdioServer({input,output}).start();
+  const server=new FastLecturesStdioServer({input,output}).start();
   t.after(()=>{server.close();input.end();});
   let id=0;
   const rpc=(method,params)=>new Promise(resolve=>{output.once('data',data=>resolve(JSON.parse(data.toString())));input.write(JSON.stringify({jsonrpc:'2.0',id:++id,method,params})+'\n');});
@@ -25,5 +25,5 @@ test('stdio resources require initialization and expose current discovery and li
   assert.match(discovery.text,/not automatically overwritten/);
   const skill=(await rpc('resources/read',{uri:SKILL_URI})).result.contents[0].text;
   assert.match(skill,/echo/);assert.match(skill,/画布/);assert.match(skill,/static bootstrap/);
-  for(const params of [{uri:'penecho://missing'}, {}, {uri:42}])assert.equal((await rpc('resources/read',params)).error.code,-32602);
+  for(const params of [{uri:'fastlectures://missing'}, {}, {uri:42}])assert.equal((await rpc('resources/read',params)).error.code,-32602);
 });

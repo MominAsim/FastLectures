@@ -5,7 +5,7 @@
 (() => {
   const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
   const MAX_URL_LENGTH = 16 * 1024;
-  window.PenEchoViewerFetch = {
+  window.FastLecturesViewerFetch = {
     install({ itemId, fetch: fetchData = window.fetch.bind(window) }) {
       const requests = new Map(), controllers = new Set();
       let stopped = false;
@@ -48,7 +48,7 @@
             if (body.byteLength > MAX_RESPONSE_BYTES) throw Error("The public data response is too large.");
           }
           const headers = {};
-          for (const name of ["content-type", "x-penecho-upstream-status", "x-penecho-final-url"]) {
+          for (const name of ["content-type", "x-fastlectures-upstream-status", "x-fastlectures-final-url"]) {
             const value = response.headers.get(name);
             if (value) headers[name] = value;
           }
@@ -68,7 +68,7 @@
       function receive(event) {
         const message = event.data;
         if (stopped || event.origin !== location.origin || !event.source || !owns(event.source)
-          || message?.type !== "penecho-widget-host-public-fetch"
+          || message?.type !== "fastlectures-widget-host-public-fetch"
           || typeof message.requestId !== "string" || !/^widget-fetch-\d{1,16}$/.test(message.requestId)
           || typeof message.url !== "string" || message.url.length > MAX_URL_LENGTH) return;
         let url;
@@ -76,7 +76,7 @@
         if (url.protocol !== "https:" || url.username || url.password) return;
         url.hash = "";
         const reply = (payload, transfer = []) => {
-          if (!stopped && owns(event.source)) event.source.postMessage({ type:"penecho-widget-host-public-fetch-result", requestId:message.requestId, ...payload }, location.origin, transfer);
+          if (!stopped && owns(event.source)) event.source.postMessage({ type:"fastlectures-widget-host-public-fetch-result", requestId:message.requestId, ...payload }, location.origin, transfer);
         };
         get(url.href).then(result => {
           const body = result.body.slice(0);

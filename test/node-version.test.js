@@ -29,15 +29,15 @@ test("Node.js support boundary matches the published engine requirement", () => 
 
 test("unsupported Node.js output tells existing users how to recover", () => {
   const message = unsupportedNodeMessage("20.19.5");
-  assert.ok(message.startsWith(`PenEcho ${PACKAGE_JSON.version} requires Node.js 22.19.0 or newer`));
+  assert.ok(message.startsWith(`FastLectures ${PACKAGE_JSON.version} requires Node.js 22.19.0 or newer`));
   assert.match(message, /current: 20\.19\.5/);
   assert.match(message, /Upgrade Node\.js/);
-  assert.match(message, /npm install --global penecho@latest/);
+  assert.match(message, /npm install --global fastlectures@latest/);
   assert.match(message, /https:\/\/nodejs\.org\//);
 });
 
 test("the npm preinstall gate fails clearly under Node.js 20", () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-node-version-test-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-node-version-test-"));
   test.after(() => fs.rmSync(directory, { recursive:true, force:true }));
   const preload = path.join(directory, "node20.cjs");
   fs.writeFileSync(preload, 'Object.defineProperty(process.versions, "node", { value:"20.19.5" });\n');

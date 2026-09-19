@@ -73,7 +73,7 @@ test("metadata normalizes to a bounded v1 identity and roundtrips", () => {
   assert.equal(bounded.bindings.length, 64);
   assert.equal(bounded.locators.length, 16);
   assert.equal(Object.hasOwn(bounded.bindings[0], "sessionId"), false);
-  assert.equal(JSON.stringify(bounded.processor), JSON.stringify({kind:"penecho"}));
+  assert.equal(JSON.stringify(bounded.processor), JSON.stringify({kind:"fastlectures"}));
 });
 
 test("workspace restores only bound sessions and messages and preserves reconnect maps", () => {
@@ -504,13 +504,13 @@ test("virtual paths reject traversal and unsafe separators without decoding ids"
 
 test("internal restoration cache is bounded and never consumes external authority bindings",()=>{
   const api=loadApi(),metadata={version:1,documentId:"doc",bindings:[{key:"external",client:"Codex",documentId:"doc"}]};
-  const internal=Array.from({length:70},(_,index)=>({sessionKey:`agent-${index.toString(16).padStart(64,"0")}`,client:"PenEcho Agent",artifacts:[["page",{objectId:`widget-${index}`,title:"Page"}]]}));
+  const internal=Array.from({length:70},(_,index)=>({sessionKey:`agent-${index.toString(16).padStart(64,"0")}`,client:"FastLectures Agent",artifacts:[["page",{objectId:`widget-${index}`,title:"Page"}]]}));
   const normalized=api.normalizeWorkspace({version:1,sessions:[{sessionKey:"external",client:"Codex"}],internalSessions:internal},metadata);
   assert.equal(normalized.sessions.length,1);assert.equal(normalized.internalSessions.length,64);
   assert.equal(normalized.internalSessions[0].sessionKey,internal[6].sessionKey);
   assert.equal(normalized.internalSessions.at(-1).artifacts[0][1].objectId,"widget-69");
   assert.equal(metadata.bindings.length,1);
-  const invalid=api.normalizeWorkspace({version:1,internalSessions:[null,{sessionKey:"external",client:"PenEcho Agent"},{...internal[0],client:"Codex"},{...internal[0],documentId:"different"}]},metadata);
+  const invalid=api.normalizeWorkspace({version:1,internalSessions:[null,{sessionKey:"external",client:"FastLectures Agent"},{...internal[0],client:"Codex"},{...internal[0],documentId:"different"}]},metadata);
   assert.equal(invalid.internalSessions,undefined);
 });
 

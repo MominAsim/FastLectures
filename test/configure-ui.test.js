@@ -9,7 +9,7 @@ const path = require("node:path");
 const { discoverConfiguredModel, runConfigureMenu } = require("../src/cli/configure-ui.js");
 
 function temporaryDirectory() {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-configure-ui-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-configure-ui-"));
   test.after(() => fs.rmSync(directory, { recursive:true, force:true }));
   return directory;
 }
@@ -34,8 +34,8 @@ function uiScript({ selections = [], inputs = [], confirms = [], passwords = [] 
 test("main menu provides LLM source and Settings navigation with a parent return", async () => {
   const directory = temporaryDirectory(), configuration = {
     home:directory,
-    stateDir:path.join(directory, ".penecho"),
-    configFile:path.join(directory, ".penecho", "config.env"),
+    stateDir:path.join(directory, ".fastlectures"),
+    configFile:path.join(directory, ".fastlectures", "config.env"),
     env:{ AI_PROVIDER:"codex-cli", AI_TIMEOUT_SECONDS:"180", HOST:"0.0.0.0", PORT:"3888", AUTO_AI_DELAY_SECONDS:"1.2" },
   }, saved = [];
   const ui = uiScript({
@@ -51,9 +51,9 @@ test("main menu provides LLM source and Settings navigation with a parent return
   assert.equal(saved.length, 1);
   assert.equal(saved[0].AI_TIMEOUT_SECONDS, "180");
   assert.equal(saved[0].MAX_TOKENS, "20000");
-  assert.equal(saved[0].PENECHO_AI_IMAGE_FORMAT, "webp");
-  assert.equal(saved[0].PENECHO_REQUEST_TRACE, "true");
-  assert.equal(saved[0].PENECHO_REQUEST_TRACE_LIMIT, "25");
+  assert.equal(saved[0].FASTLECTURES_AI_IMAGE_FORMAT, "webp");
+  assert.equal(saved[0].FASTLECTURES_REQUEST_TRACE, "true");
+  assert.equal(saved[0].FASTLECTURES_REQUEST_TRACE_LIMIT, "25");
   assert.equal(saved[0].HOST, "127.0.0.1");
   assert.equal(saved[0].PORT, "3999");
   assert.equal(saved[0].AUTO_AI_DELAY_SECONDS, "5.3");
@@ -66,7 +66,7 @@ test("main menu provides LLM source and Settings navigation with a parent return
 
 test("provider pages include the requested model quality guidance", async () => {
   const directory = temporaryDirectory(), configuration = {
-    home:directory, stateDir:path.join(directory, ".penecho"), configFile:path.join(directory, "config.env"), env:{},
+    home:directory, stateDir:path.join(directory, ".fastlectures"), configFile:path.join(directory, "config.env"), env:{},
   };
   const claudeUi = uiScript({ selections:["opus", "max", "cancel"] });
   await runConfigureMenu(configuration, { ui:claudeUi, directProvider:"claude-cli", save:async () => {}, test:async () => "ok" });
@@ -94,7 +94,7 @@ test("provider pages include the requested model quality guidance", async () => 
 
 test("Claude CLI configuration offers the complete shared effort scale", async () => {
   const directory = temporaryDirectory(), configuration = {
-    home:directory, stateDir:path.join(directory, ".penecho"), configFile:path.join(directory, "config.env"), env:{},
+    home:directory, stateDir:path.join(directory, ".fastlectures"), configFile:path.join(directory, "config.env"), env:{},
   };
   const ui = uiScript({ selections:["opus", "none", "cancel"] });
   await runConfigureMenu(configuration, { ui, directProvider:"claude-cli", save:async () => {}, test:async () => "ok" });
@@ -105,7 +105,7 @@ test("Claude CLI configuration offers the complete shared effort scale", async (
 
 test("Anthropic API configuration offers none and defaults new selections to medium", async () => {
   const directory = temporaryDirectory(), configuration = {
-    home:directory, stateDir:path.join(directory, ".penecho"), configFile:path.join(directory, "config.env"),
+    home:directory, stateDir:path.join(directory, ".fastlectures"), configFile:path.join(directory, "config.env"),
     env:{ AI_API_FORMAT:"openai", AI_EFFORT:"xhigh" },
   };
   const ui = uiScript({

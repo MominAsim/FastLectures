@@ -13,8 +13,8 @@ The change is in the canonical local `src/server/cloud-connector.js`; no Cloud s
 ## Validation
 
 - 63 tests passed in `cloud-connector.test.js` and `mcp-cloud-transport.test.js`, including enable-only discovery state, stored credential reuse, disable-vs-link races, disconnect, replacement, route isolation and offline behavior.
-- Fixed UAT acceptance used a disposable account and isolated host state. `Enable link` alone enabled Cloud MCP, an opted-in protocol Canvas appeared through public `penecho_list_canvases`, and disconnect/reconnect/replacement checks passed (six acceptance checkpoints).
+- Fixed UAT acceptance used a disposable account and isolated host state. `Enable link` alone enabled Cloud MCP, an opted-in protocol Canvas appeared through public `fastlectures_list_canvases`, and disconnect/reconnect/replacement checks passed (six acceptance checkpoints).
 - On the user's existing `http://192.168.3.158:3921/` page, the state changed from `MCP · Local online` to `MCP · Cloud + Local online`.
-- The actual Cloud MCP connector discovered the Canvas and successfully ran `penecho_start_session` with `target:current`. The local page displayed the matching `Codex connection check` session. The returned upload URL was the UAT Cloud endpoint. No Canvas content was edited, and no local server was started or restarted for this check.
+- The actual Cloud MCP connector discovered the Canvas and successfully ran `fastlectures_start_session` with `target:current`. The local page displayed the matching `Codex connection check` session. The returned upload URL was the UAT Cloud endpoint. No Canvas content was edited, and no local server was started or restarted for this check.
 
-Logs: `/private/tmp/penecho-link-mcp-regression.log`, `/private/tmp/penecho-link-mcp-uat.log`.
+Logs: `/private/tmp/fastlectures-link-mcp-regression.log`, `/private/tmp/fastlectures-link-mcp-uat.log`.

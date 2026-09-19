@@ -9,7 +9,7 @@ test("desktop connection tests retain a deadline for an unresponsive provider", 
   await assert.rejects(testDesktopConnection({}, {
     timeoutMs:20,
     testProvider:() => new Promise(() => {}),
-  }), { code:"PENECHO_SETTINGS_TEST_TIMEOUT" });
+  }), { code:"FASTLECTURES_SETTINGS_TEST_TIMEOUT" });
 });
 
 test("desktop connection tests wait for CLI upgrades before timing the model test", async () => {
@@ -37,7 +37,7 @@ test("desktop connection tests restore the deadline after an upgrade", async () 
       onCliUpgrade({ phase:"complete" });
       return new Promise(() => {});
     },
-  }), { code:"PENECHO_SETTINGS_TEST_TIMEOUT" });
+  }), { code:"FASTLECTURES_SETTINGS_TEST_TIMEOUT" });
 });
 
 test("desktop connection tests preserve an upgrade failure", async () => {

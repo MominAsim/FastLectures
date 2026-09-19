@@ -3,15 +3,15 @@
 (() => {
   const canvasMatch = location.pathname.match(/^\/canvas\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/?$/i);
   const communityMatch = location.pathname.match(/^\/canvas\/community\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/?$/i);
-  if (window.PENECHO_CONFIG?.runtime !== "cloud" || (!canvasMatch && !communityMatch)) return;
+  if (window.FASTLECTURES_CONFIG?.runtime !== "cloud" || (!canvasMatch && !communityMatch)) return;
   const requestedCanvasId = canvasMatch?.[1] || null;
   const requestedCommunityItemId = communityMatch?.[1] || null;
   const isCommunityCraft = Boolean(requestedCommunityItemId);
 
   const nativeFetch = window.fetch.bind(window);
   const nativeWebSocket = window.WebSocket;
-  const cloudRuntime = window.PENECHO_CONFIG?.runtime === "cloud";
-  const nativeCloudCanvasReadsEnabled = window.PENECHO_CONFIG?.remoteCanvasNativeReads === true;
+  const cloudRuntime = window.FASTLECTURES_CONFIG?.runtime === "cloud";
+  const nativeCloudCanvasReadsEnabled = window.FASTLECTURES_CONFIG?.remoteCanvasNativeReads === true;
   const deviceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const widgetPaintReadyFrames = new WeakSet();
   const widgetPaintReadyWaiters = new Set();
@@ -50,7 +50,7 @@
     const delay = waitingForCapabilities ? 500 : linkedDeviceRetryDelay(deviceRetryAttempt++);
     readyRefreshTimer = setTimeout(() => {
       readyRefreshTimer = null;
-      void window.PenEchoLinkedDevice.refresh({ automatic:true }).catch(() => {});
+      void window.FastLecturesLinkedDevice.refresh({ automatic:true }).catch(() => {});
     }, delay);
     readyRefreshTimer?.unref?.();
   }
@@ -59,23 +59,23 @@
     readyRefreshTimer = null;
     readyRefreshDeadline = 0;
     bridgeState = { online:false };
-    window.PENECHO_CONFIG.linkedDeviceOnline = false;
-    window.PENECHO_CONFIG.linkedDeviceReady = false;
-    if (browserEditing) window.PENECHO_CONFIG.canvasAgent = false;
-    const previous = window.PENECHO_REMOTE_CLOUD_STATUS;
+    window.FASTLECTURES_CONFIG.linkedDeviceOnline = false;
+    window.FASTLECTURES_CONFIG.linkedDeviceReady = false;
+    if (browserEditing) window.FASTLECTURES_CONFIG.canvasAgent = false;
+    const previous = window.FASTLECTURES_REMOTE_CLOUD_STATUS;
     if (previous) {
       const detail = Object.freeze({ ...previous, deviceOnline:false, deviceReady:false });
-      window.PENECHO_REMOTE_CLOUD_STATUS = detail;
-      window.dispatchEvent(new CustomEvent("penecho:remote-cloud-status", { detail }));
+      window.FASTLECTURES_REMOTE_CLOUD_STATUS = detail;
+      window.dispatchEvent(new CustomEvent("fastlectures:remote-cloud-status", { detail }));
     }
-    window.dispatchEvent(new CustomEvent("penecho:capabilities-changed"));
+    window.dispatchEvent(new CustomEvent("fastlectures:capabilities-changed"));
     scheduleLinkedDeviceRefresh({ uncertain:true });
   }
   function unavailableBridgeResponse(state, code = "device_offline") {
     const payload = {
       error:code,
       code,
-      message:state?.message || "Your linked PenEcho host is offline.",
+      message:state?.message || "Your linked FastLectures host is offline.",
     };
     if (typeof Response === "function") return new Response(JSON.stringify(payload), { status:409, headers:{ "content-type":"application/json" } });
     return { ok:false, status:409, headers:new Headers({ "content-type":"application/json" }), json:async () => payload };
@@ -120,7 +120,7 @@
     if (["/canvas/api/widget-fetch", "/api/widget-fetch"].includes(sourceUrl.pathname)) return nativeFetch(`/api/v1/widget-fetch${sourceUrl.search}`, { ...options, method, headers, credentials:"same-origin" });
     if (sourceUrl.pathname.startsWith("/api/cloud/") || sourceUrl.pathname === "/api/plugins") return nativeFetch(sourceUrl.pathname + sourceUrl.search, { ...options, method, headers, credentials:"same-origin" });
     const code = bridgeDeviceLinked ? "device_offline" : "linked_device_required";
-    return Promise.resolve(jsonResponse({ error:code, code, message:"This feature needs a linked PenEcho device. Browser editing supports Cloud saves and PenEcho models; local files, CLI tools and private API forwarding stay on your device." }, 409));
+    return Promise.resolve(jsonResponse({ error:code, code, message:"This feature needs a linked FastLectures device. Browser editing supports Cloud saves and FastLectures models; local files, CLI tools and private API forwarding stay on your device." }, 409));
   }
 
   function notifyWidgetPaintReadyWaiters() {
@@ -130,10 +130,10 @@
 
   window.addEventListener("message", (event) => {
     if (event.origin !== location.origin || !event.source || !event.data || typeof event.data !== "object") return;
-    if (event.data.type === "penecho-widget-host-ready") {
+    if (event.data.type === "fastlectures-widget-host-ready") {
       widgetPaintReadyFrames.delete(event.source);
       notifyWidgetPaintReadyWaiters();
-    } else if (event.data.type === "penecho-widget-capture-ready") {
+    } else if (event.data.type === "fastlectures-widget-capture-ready") {
       widgetPaintReadyFrames.add(event.source);
       notifyWidgetPaintReadyWaiters();
     }
@@ -168,21 +168,21 @@
   }
   window.addEventListener("message", (event) => {
     const message = event.data;
-    if (event.origin !== location.origin || !event.source || message?.type !== "penecho-widget-host-public-fetch"
+    if (event.origin !== location.origin || !event.source || message?.type !== "fastlectures-widget-host-public-fetch"
       || !ownsWidgetHost(event.source) || typeof message.requestId !== "string" || !/^widget-fetch-\d{1,16}$/.test(message.requestId)
       || typeof message.url !== "string" || message.url.length > 16384) return;
     let url;
     try { url = new URL(message.url); } catch { return; }
     if (url.protocol !== "https:" || url.username || url.password) return;
     const reply = (payload, transfer = []) => {
-      if (ownsWidgetHost(event.source)) event.source.postMessage({ type:"penecho-widget-host-public-fetch-result", requestId:message.requestId, ...payload }, location.origin, transfer);
+      if (ownsWidgetHost(event.source)) event.source.postMessage({ type:"fastlectures-widget-host-public-fetch-result", requestId:message.requestId, ...payload }, location.origin, transfer);
     };
     void (async () => {
       try {
         const response = await fetchWidgetPublicData(url.href), body = await response.arrayBuffer();
         if (body.byteLength > 5 * 1024 * 1024) throw Error("The public data response is too large");
         const headers = {};
-        for (const name of ["content-type", "x-penecho-upstream-status", "x-penecho-final-url"]) {
+        for (const name of ["content-type", "x-fastlectures-upstream-status", "x-fastlectures-final-url"]) {
           const value = response.headers.get(name);
           if (value) headers[name] = value;
         }
@@ -239,7 +239,7 @@
   }
 
   if (typeof nativeWebSocket === "function") {
-    window.WebSocket = class PenEchoRemoteCanvasWebSocket extends nativeWebSocket {
+    window.WebSocket = class FastLecturesRemoteCanvasWebSocket extends nativeWebSocket {
       constructor(url, protocols) {
         const target = canvasAgentWebSocketTarget(url);
         if (arguments.length > 1) super(target, protocols);
@@ -258,8 +258,8 @@
   }
 
   function csrfHeaders(source) {
-    const headers = new Headers(source || {}), token = cookie("penecho_csrf");
-    if (token && !headers.has("x-penecho-csrf")) headers.set("x-penecho-csrf", token);
+    const headers = new Headers(source || {}), token = cookie("fastlectures_csrf");
+    if (token && !headers.has("x-fastlectures-csrf")) headers.set("x-fastlectures-csrf", token);
     return headers;
   }
 
@@ -270,14 +270,14 @@
     const inputHeaders = input instanceof Request ? input.headers : undefined;
     const headers = csrfHeaders(options.headers || inputHeaders);
     if (cloudRuntime && sourceUrl.pathname === "/api/mcp/status") {
-      if(window.PenEchoCloudMcpSocket)return nativeFetch('/api/v1/mcp/canvas/status',{...options,method:'GET',body:undefined,headers,credentials:'same-origin'});
+      if(window.FastLecturesCloudMcpSocket)return nativeFetch('/api/v1/mcp/canvas/status',{...options,method:'GET',body:undefined,headers,credentials:'same-origin'});
       return bridgeGate.then(() => bridgeState?.online && bridgeDeviceId
         ? nativeFetch(`/api/v1/remote-canvas/mcp/status?deviceId=${encodeURIComponent(bridgeDeviceId)}`, { ...options, method:"GET", body:undefined, headers, credentials:"same-origin" })
         : unavailableBridgeResponse(bridgeState, bridgeDeviceLinked ? "device_offline" : "linked_device_required"));
     }
-    const hostedModel = /^hosted:([0-9a-f-]{36})$/i.exec(headers.get("x-penecho-connection") || "");
-    const executionScope = () => window.PenEchoCloudProjects?.currentExecutionScope?.()
-      || { canvasId:window.PenEchoCloudProjects?.currentCanvasId?.() || null, draft:false };
+    const hostedModel = /^hosted:([0-9a-f-]{36})$/i.exec(headers.get("x-fastlectures-connection") || "");
+    const executionScope = () => window.FastLecturesCloudProjects?.currentExecutionScope?.()
+      || { canvasId:window.FastLecturesCloudProjects?.currentCanvasId?.() || null, draft:false };
     if (sourceUrl.pathname === "/api/ai/command" && method === "POST" && hostedModel) {
       const scope = executionScope();
       if (!scope.canvasId) return Promise.resolve(jsonResponse({ error:"cloud_canvas_initializing", message:"Canvas is still initializing. Retry in a moment." }, 409));
@@ -306,8 +306,8 @@
       || sourceUrl.pathname === "/api/plugins"
     );
     const localCommand = nativeCloudCanvasReadsEnabled && !hostedModel && nativeCloudPaths.has(sourceUrl.pathname);
-    if (hostedModel && sourceUrl.pathname === "/api/plugins/improve" && bridgeDeviceId) headers.set("x-penecho-device", bridgeDeviceId);
-    if (localCommand && !headers.has("x-penecho-connection")) headers.set("x-penecho-connection", "default");
+    if (hostedModel && sourceUrl.pathname === "/api/plugins/improve" && bridgeDeviceId) headers.set("x-fastlectures-device", bridgeDeviceId);
+    if (localCommand && !headers.has("x-fastlectures-connection")) headers.set("x-fastlectures-connection", "default");
     const shouldBridge = !nativeCloudRequest && (localCommand || (!nativeCloudPaths.has(sourceUrl.pathname) && bridgedPaths.some((pattern) => pattern.test(sourceUrl.pathname))));
     const bridgePath = sourceUrl.pathname === "/canvas/api/widget-fetch"
       ? "/api/widget-fetch"
@@ -344,27 +344,27 @@
 
   const zh = /^zh\b/i.test(navigator.language || "");
   const copy = zh ? {
-    eyebrow:"私人云端画布", checking:"正在连接你的 PenEcho 主机…", noHost:"连接 PenEcho 主机后即可打开",
-    offline:"已连接的 PenEcho 主机当前离线", failed:"这张画布暂时无法打开",
+    eyebrow:"私人云端画布", checking:"正在连接你的 FastLectures 主机…", noHost:"连接 FastLectures 主机后即可打开",
+    offline:"已连接的 FastLectures 主机当前离线", failed:"这张画布暂时无法打开",
     dashboard:"连接设备", back:"返回项目",
-    connected:"受保护的远程连接", unavailable:"请先连接一台 PenEcho 主机。", opening:"主机在线，正在打开云端画布…",
+    connected:"受保护的远程连接", unavailable:"请先连接一台 FastLectures 主机。", opening:"主机在线，正在打开云端画布…",
     offlineStatus:"离线", onlineStatus:"在线",
   } : {
-    eyebrow:"Private Cloud Canvas", checking:"Connecting to your PenEcho host…", noHost:"Connect one PenEcho host to open this Canvas",
-    offline:"Your linked PenEcho host is offline", failed:"This Canvas could not be opened",
+    eyebrow:"Private Cloud Canvas", checking:"Connecting to your FastLectures host…", noHost:"Connect one FastLectures host to open this Canvas",
+    offline:"Your linked FastLectures host is offline", failed:"This Canvas could not be opened",
     dashboard:"Link Device", back:"Back to Projects",
-    connected:"Protected remote connection", unavailable:"No device is linked yet. Install PenEcho, then connect one main computer from Link Device.", opening:"Host online. Opening your Cloud Canvas…",
+    connected:"Protected remote connection", unavailable:"No device is linked yet. Install FastLectures, then connect one main computer from Link Device.", opening:"Host online. Opening your Cloud Canvas…",
     offlineStatus:"Offline", onlineStatus:"Online",
   };
   if (isCommunityCraft) Object.assign(copy, zh ? {
-    eyebrow:"公开 Craft", noHost:"连接 PenEcho 主机后即可 Echo 此创作", back:"返回 Echoes",
+    eyebrow:"公开 Craft", noHost:"连接 FastLectures 主机后即可 Echo 此创作", back:"返回 Echoes",
     failed:"暂时无法继续这个 Craft", opening:"主机在线，正在导入这个 Craft…",
   } : {
-    eyebrow:"Public Craft", noHost:"Connect one PenEcho host to Echo this Craft", back:"Back to Echoes",
+    eyebrow:"Public Craft", noHost:"Connect one FastLectures host to Echo this Craft", back:"Back to Echoes",
     failed:"This Craft could not be continued right now", opening:"Host online. Importing this Craft…",
   });
 
-  // The PenEcho brand in the top bar doubles as the way back: the toolbar stays
+  // The FastLectures brand in the top bar doubles as the way back: the toolbar stays
   // uncluttered and the escape hatch lives where users expect a home control.
   const brandTarget = isCommunityCraft ? "/community.html" : "/dashboard.html";
   const brand = document.querySelector(".brand");
@@ -431,29 +431,29 @@
       deviceReady:Boolean(result.device?.online && result.device?.ready),
       deviceId:bridgeDeviceId,
     });
-    window.PENECHO_REMOTE_CLOUD_STATUS = detail;
+    window.FASTLECTURES_REMOTE_CLOUD_STATUS = detail;
     if (typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
-      window.dispatchEvent(new CustomEvent("penecho:remote-cloud-status", { detail }));
+      window.dispatchEvent(new CustomEvent("fastlectures:remote-cloud-status", { detail }));
     }
   }
 
   async function openRequestedCanvas() {
     const deadline = Date.now() + 15_000;
-    while (isCommunityCraft ? !window.PenEchoCommunityUI?.takeFurther : !window.PenEchoCloudProjects?.openCanvas) {
-      if (Date.now() >= deadline) throw new Error("PenEcho Canvas did not finish loading.");
+    while (isCommunityCraft ? !window.FastLecturesCommunityUI?.takeFurther : !window.FastLecturesCloudProjects?.openCanvas) {
+      if (Date.now() >= deadline) throw new Error("FastLectures Canvas did not finish loading.");
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     if (isCommunityCraft) {
-      const item = await window.PenEchoCommunityUI.takeFurther(requestedCommunityItemId);
+      const item = await window.FastLecturesCommunityUI.takeFurther(requestedCommunityItemId);
       if (browserEditing) {
-        const canvasId = await window.PenEchoCloudProjects.saveEcho(item?.name);
+        const canvasId = await window.FastLecturesCloudProjects.saveEcho(item?.name);
         if (!deviceIdPattern.test(String(canvasId || ""))) throw Error("Cloud returned an invalid Canvas identity");
         // Saving already binds this loaded document to the owned Cloud copy.
         // Keep the gate up until completion, then reveal it without reloading.
         window.history.replaceState(window.history.state, "", `/canvas/${canvasId}`);
       }
     }
-    else await window.PenEchoCloudProjects.openCanvas(requestedCanvasId);
+    else await window.FastLecturesCloudProjects.openCanvas(requestedCanvasId);
   }
 
   function updateLinkedDevice(result) {
@@ -464,13 +464,13 @@
     const online = Boolean(candidate && candidate === bridgeDeviceId && result.device?.online);
     const ready = online && result.device?.ready === true;
     bridgeState = { online, ready };
-    window.PENECHO_CONFIG.connectionAccountId = String(result.accountId || window.PENECHO_CONFIG.connectionAccountId || "");
-    window.PENECHO_CONFIG.linkedDeviceId = bridgeDeviceId;
-    window.PENECHO_CONFIG.linkedDeviceReady = ready;
-    window.PENECHO_CONFIG.linkedDeviceLinked = bridgeDeviceLinked;
-    window.PENECHO_CONFIG.linkedDeviceOnline = online;
-    window.PENECHO_CONFIG.canvasAgent = ready && result.device?.capabilities?.canvasAgent === true;
-    if (typeof result.capabilities?.hostedCanvasAgent === "boolean") window.PENECHO_CONFIG.hostedCanvasAgent = result.capabilities.hostedCanvasAgent;
+    window.FASTLECTURES_CONFIG.connectionAccountId = String(result.accountId || window.FASTLECTURES_CONFIG.connectionAccountId || "");
+    window.FASTLECTURES_CONFIG.linkedDeviceId = bridgeDeviceId;
+    window.FASTLECTURES_CONFIG.linkedDeviceReady = ready;
+    window.FASTLECTURES_CONFIG.linkedDeviceLinked = bridgeDeviceLinked;
+    window.FASTLECTURES_CONFIG.linkedDeviceOnline = online;
+    window.FASTLECTURES_CONFIG.canvasAgent = ready && result.device?.capabilities?.canvasAgent === true;
+    if (typeof result.capabilities?.hostedCanvasAgent === "boolean") window.FASTLECTURES_CONFIG.hostedCanvasAgent = result.capabilities.hostedCanvasAgent;
     publishCloudHeaderStatus({ ...result, device:{ ...result.device, online, ready } });
     clearTimeout(readyRefreshTimer);
     readyRefreshTimer = null;
@@ -479,7 +479,7 @@
       if (online && !readyRefreshDeadline) readyRefreshDeadline = Date.now() + 15000;
       scheduleLinkedDeviceRefresh();
     }
-    window.dispatchEvent(new CustomEvent("penecho:capabilities-changed"));
+    window.dispatchEvent(new CustomEvent("fastlectures:capabilities-changed"));
     return bridgeState;
   }
 
@@ -501,7 +501,7 @@
     }
   }
 
-  window.PenEchoLinkedDevice = Object.freeze({
+  window.FastLecturesLinkedDevice = Object.freeze({
     invalidate:invalidateLinkedDevice,
     refresh({ ifNeeded = false, automatic = false } = {}) {
       if (!automatic) deviceRetrySuspended = false;
@@ -531,7 +531,7 @@
     if (deviceRetryStopped || deviceRetrySuspended || bridgeState?.ready) return;
     deviceRetryAttempt = 0;
     clearTimeout(readyRefreshTimer); readyRefreshTimer = null;
-    void window.PenEchoLinkedDevice.refresh({ automatic:true }).catch(() => {});
+    void window.FastLecturesLinkedDevice.refresh({ automatic:true }).catch(() => {});
   });
 
   async function connect() {
@@ -543,16 +543,16 @@
       // Cloud document loading owns the opening gate. Device discovery only
       // settles device-owned requests; neither failure nor latency blocks Cloud.
       browserEditing = true;
-      window.PENECHO_CONFIG.browserCanvasEditing = true;
-      window.PENECHO_CONFIG.canvasAgent = false;
-      window.dispatchEvent(new CustomEvent("penecho:capabilities-changed"));
+      window.FASTLECTURES_CONFIG.browserCanvasEditing = true;
+      window.FASTLECTURES_CONFIG.canvasAgent = false;
+      window.dispatchEvent(new CustomEvent("fastlectures:capabilities-changed"));
       void readLinkedDeviceStatus().then(({ response, result }) => {
         if (!response.ok) {
           if ([401, 403].includes(response.status)) deviceRetrySuspended = true;
           throw new Error(result.message || `HTTP ${response.status}`);
         }
         updateLinkedDevice(result);
-        settleBridgeGate({ online:window.PENECHO_CONFIG.linkedDeviceOnline, ready:window.PENECHO_CONFIG.linkedDeviceReady, browserEditing:true });
+        settleBridgeGate({ online:window.FASTLECTURES_CONFIG.linkedDeviceOnline, ready:window.FASTLECTURES_CONFIG.linkedDeviceReady, browserEditing:true });
       }).catch((error) => {
         invalidateLinkedDevice();
         settleBridgeGate({ online:false, browserEditing:true, message:String(error?.message || error) });
@@ -563,7 +563,7 @@
       try {
         await openRequestedCanvas();
         await waitForVisibleWidgets();
-        if(new URLSearchParams(location.search).get('mcp')==='1')window.dispatchEvent(new CustomEvent('penecho:open-cloud-mcp'));
+        if(new URLSearchParams(location.search).get('mcp')==='1')window.dispatchEvent(new CustomEvent('fastlectures:open-cloud-mcp'));
         gate.hidden = true;
       } catch (error) {
         gate.dataset.state = "error";

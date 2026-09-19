@@ -115,8 +115,8 @@ function assertCodexCliVersion(value, expectedVersion = CODEX_CLI_PINNED_VERSION
   const expected = String(expectedVersion || "").trim(), actual = codexCliVersion(value);
   if (actual && (expected === "latest" || actual === expected)) return actual;
   const error = new Error(actual
-    ? `PenEcho Agent requires Codex CLI ${expected}, but found ${actual}.`
-    : `PenEcho Agent requires Codex CLI ${expected}, but the candidate did not report a compatible version.`);
+    ? `FastLectures Agent requires Codex CLI ${expected}, but found ${actual}.`
+    : `FastLectures Agent requires Codex CLI ${expected}, but the candidate did not report a compatible version.`);
   error.code = "CODEX_CLI_VERSION_INCOMPATIBLE";
   error.expectedVersion = expected;
   error.actualVersion = actual;
@@ -228,8 +228,8 @@ function installInvocation(provider, script, options = {}) {
 function replaceManagedDirectory(stagedDirectory, destinationDirectory) {
   const parent = path.dirname(destinationDirectory);
   fs.mkdirSync(parent, { recursive:true, mode:0o700 });
-  const replacement = path.join(parent, `.penecho-codex-${randomUUID()}`),
-    backup = path.join(parent, `.penecho-codex-backup-${randomUUID()}`),
+  const replacement = path.join(parent, `.fastlectures-codex-${randomUUID()}`),
+    backup = path.join(parent, `.fastlectures-codex-backup-${randomUUID()}`),
     hadExisting = fs.existsSync(destinationDirectory);
   fs.renameSync(stagedDirectory, replacement);
   try {

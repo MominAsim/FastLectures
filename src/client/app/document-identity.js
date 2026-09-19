@@ -326,15 +326,15 @@ var canvasDocumentIdentity = (() => {
   }
 
   function normalizeProcessor(value) {
-    if (!isRecord(value)) return { kind: "penecho" };
+    if (!isRecord(value)) return { kind: "fastlectures" };
     const kind = ownValue(value, "kind");
-    if (kind !== "external") return { kind: "penecho" };
+    if (kind !== "external") return { kind: "fastlectures" };
     const bindingKey = ownValue(value, "bindingKey");
     const client = ownValue(value, "client");
     if (bindingKey !== MISSING && client !== MISSING && validId(bindingKey) && boundedString(client, 1, MAX_CLIENT_LENGTH)) {
       return { kind: "external", bindingKey, client };
     }
-    return { kind: "penecho" };
+    return { kind: "fastlectures" };
   }
 
   function normalizeMetadata(value) {
@@ -737,8 +737,8 @@ var canvasDocumentIdentity = (() => {
     const internalByKey = new Map();
     for (const raw of arrayTail(ownValue(value, "internalSessions"), MAX_WORKSPACE_SESSIONS)) {
       const key = ownValue(raw, "sessionKey");
-      if (typeof key !== "string" || !/^agent-[a-f0-9]{64}$/.test(key) || ownValue(raw,"client") !== "PenEcho Agent") continue;
-      const session = documentId ? normalizeSession(raw,new Map([[key,"PenEcho Agent"]]),documentId) : null;
+      if (typeof key !== "string" || !/^agent-[a-f0-9]{64}$/.test(key) || ownValue(raw,"client") !== "FastLectures Agent") continue;
+      const session = documentId ? normalizeSession(raw,new Map([[key,"FastLectures Agent"]]),documentId) : null;
       if(session)internalByKey.set(key,session);
     }
     const internalSessions = [...internalByKey.values()];

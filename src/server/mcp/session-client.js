@@ -38,7 +38,7 @@ function createSessionClient(options = {}) {
   const now=options.now || Date.now;
   let credentials, endpoint, session, initialization, initFlight, buffer='', pending=0, closed=false, closing, lastActivity=now(), sequence=0, protocolVersion;
   const starts=new Map(),lifetime=new AbortController(),pool=createTransportPool();
-  function safeMessage(error){let message=String(error?.message || 'PenEcho request failed');for(const secret of [credentials?.accessToken,credentials?.certificatePem,credentials?.privateKey,credentials?.key])if(typeof secret==='string'&&secret)message=message.split(secret).join('[redacted]');return message.replace(/-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g,'[redacted]').slice(0,1000);}
+  function safeMessage(error){let message=String(error?.message || 'FastLectures request failed');for(const secret of [credentials?.accessToken,credentials?.certificatePem,credentials?.privateKey,credentials?.key])if(typeof secret==='string'&&secret)message=message.split(secret).join('[redacted]');return message.replace(/-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g,'[redacted]').slice(0,1000);}
   let active=0, controlActive=0; const controls=[], controlKeys=new Set(), activeOwners=new Map(), queued=[], lanes=new Set(), lifecycle=Symbol('lifecycle');
   function pump() {
     if(lanes.has(lifecycle))return;
@@ -70,7 +70,7 @@ function createSessionClient(options = {}) {
   const write=value=>{if(value?.error?.message)value={...value,error:{...value.error,message:safeMessage(value.error)}};if(!closed)output.write(JSON.stringify(value)+'\n');};
   async function locate(){if(closed)throw Error('MCP client is closed');credentials=await (options.loadCredentials || discovery.loadCredentials)(options.hostId,options);endpoint=(await resolve({...options,initialUrl:endpoint&&net.isIP(new URL(endpoint).hostname.replace(/^\[|\]$/g,''))?endpoint:options.initialUrl,signal:lifetime.signal})).url;if(closed)throw Error('MCP client is closed');}
   async function send(message, sid=session, extra={}){return request(endpoint,credentials,message,sid,{protocolVersion,signal:lifetime.signal,agent:message?.method==='notifications/cancelled'?false:pool.get(endpoint,credentials),...extra});}
-  function checked(response){if(response.status<200||response.status>=300)throw Object.assign(Error(`PenEcho HTTPS returned ${response.status}`),{status:response.status});return response;}
+  function checked(response){if(response.status<200||response.status>=300)throw Object.assign(Error(`FastLectures HTTPS returned ${response.status}`),{status:response.status});return response;}
   async function ensure(){
     if(initFlight)return initFlight;if(session)return;
     if(!initialization)throw Error('Send initialize before MCP requests');
@@ -78,9 +78,9 @@ function createSessionClient(options = {}) {
       for(let attempt=0;attempt<2;attempt++){
         try{
           await locate();
-          const response=checked(await send({...initialization,id:`penecho-init-${++sequence}`},undefined,{timeoutMs:1500,signal:undefined}));
+          const response=checked(await send({...initialization,id:`fastlectures-init-${++sequence}`},undefined,{timeoutMs:1500,signal:undefined}));
           if(response.body?.error)throw Error(response.body.error.message);
-          if(!response.session)throw Error('PenEcho initialize did not return a session');
+          if(!response.session)throw Error('FastLectures initialize did not return a session');
           session=response.session;protocolVersion=response.body?.result?.protocolVersion;
           if(closed){await release();throw Error('MCP client is closed');}
           checked(await send({jsonrpc:'2.0',method:'notifications/initialized'},session,{timeoutMs:1500}));
@@ -95,12 +95,12 @@ function createSessionClient(options = {}) {
     const args=message.params?.arguments, old=args?.sessionId;if(!old)return message;
     const saved=starts.get(old);if(!saved)return message;
     if(saved.owner===session)return {...message,params:{...message.params,arguments:{...args,sessionId:saved.current}}};
-    if(!saved.args.sessionKey || !saved.documentId)throw Error('Canvas recovery requires the original explicit sessionKey and documentId; call penecho_start_session with both to reconnect safely');
+    if(!saved.args.sessionKey || !saved.documentId)throw Error('Canvas recovery requires the original explicit sessionKey and documentId; call fastlectures_start_session with both to reconnect safely');
     if(saved.restoreFlight){await saved.restoreFlight;return restore(message);}
     const owner=session;
     saved.restoreFlight=(async()=>{
     const restoreArgs={...saved.args,documentId:saved.documentId};delete restoreArgs.target;
-    const response=checked(await send({jsonrpc:'2.0',id:`penecho-restore-${++sequence}`,method:'tools/call',params:{name:'penecho_start_session',arguments:restoreArgs}}));
+    const response=checked(await send({jsonrpc:'2.0',id:`fastlectures-restore-${++sequence}`,method:'tools/call',params:{name:'fastlectures_start_session',arguments:restoreArgs}}));
     const result=response.body?.result?.structuredContent;
     if(response.body?.error || response.body?.result?.isError || !result?.sessionId || result.documentId!==saved.documentId || saved.args.canvasId&&result.canvasId!==saved.args.canvasId)throw Error('Canvas recovery could not verify the original document; explicitly reconnect with sessionKey and documentId');
     saved.current=result.sessionId;saved.owner=owner;
@@ -116,12 +116,12 @@ function createSessionClient(options = {}) {
       if(initialization)throw Error('MCP client is already initialized');initialization=message;
       try{return {jsonrpc:'2.0',id:message.id,result:await ensure()};}catch(error){await release();initialization=undefined;throw error;}
     }
-    if(message.params?.name==='penecho_start_session'&&starts.size>=128)throw Error('This MCP process has reached its 128 Canvas handle limit; close it and reconnect using the existing sessionKey and documentId');
+    if(message.params?.name==='fastlectures_start_session'&&starts.size>=128)throw Error('This MCP process has reached its 128 Canvas handle limit; close it and reconnect using the existing sessionKey and documentId');
     await ensure();let response;
     for(let attempt=0;attempt<3;attempt++){
       let owner=session;
       try{assertNotCancelled(message);if(Object.hasOwn(message,'id'))activeOwners.set(message.id,null);const restored=await restore(message);assertNotCancelled(message);owner=session;if(Object.hasOwn(message,'id'))activeOwners.set(message.id,owner);response=await send(restored,owner);}catch(e){
-        if(e.transport||typeof e.dispatched==='boolean'){if(session===owner)session=undefined;if(e.dispatched!==false)throw Error('PenEcho connection failed; request may have completed. Inspect Canvas before retrying: '+e.message);if(attempt===2)throw e;await ensure();continue;}
+        if(e.transport||typeof e.dispatched==='boolean'){if(session===owner)session=undefined;if(e.dispatched!==false)throw Error('FastLectures connection failed; request may have completed. Inspect Canvas before retrying: '+e.message);if(attempt===2)throw e;await ensure();continue;}
         if(e.status===404&&attempt<2){if(session===owner)session=undefined;await ensure();continue;}throw e;
       }
       if(response.status===404){if(session===owner)session=undefined;if(attempt<2){await ensure();continue;}}
@@ -129,20 +129,20 @@ function createSessionClient(options = {}) {
       const failure=response.body?.result?.isError&&response.body.result.structuredContent,saved=starts.get(message.params?.arguments?.sessionId);
       if(attempt<2&&saved&&['session_expired','session_not_found'].includes(failure?.code)){
         const details=failure.details;
-        if(failure.code==='session_expired'&&details?.retry!=='penecho_start_session'||details?.documentId&&details.documentId!==saved.documentId||details?.sessionKey&&details.sessionKey!==saved.args.sessionKey)break;
+        if(failure.code==='session_expired'&&details?.retry!=='fastlectures_start_session'||details?.documentId&&details.documentId!==saved.documentId||details?.sessionKey&&details.sessionKey!==saved.args.sessionKey)break;
         saved.owner=undefined;continue;
       }
       break;
     }
     const result=response?.body?.result?.structuredContent;
-    if(message.params?.name==='penecho_start_session'&&result?.sessionId&&!response.body.result.isError)starts.set(result.sessionId,{args:{...message.params.arguments,...(result.canvasId ? {canvasId:result.canvasId} : {})},documentId:result.documentId,owner:session,current:result.sessionId});
+    if(message.params?.name==='fastlectures_start_session'&&result?.sessionId&&!response.body.result.isError)starts.set(result.sessionId,{args:{...message.params.arguments,...(result.canvasId ? {canvasId:result.canvasId} : {})},documentId:result.documentId,owner:session,current:result.sessionId});
     const original=message.params?.arguments?.sessionId,saved=starts.get(original);
     if(saved&&saved.current!==original&&response?.body?.result){
       const normalize=value=>value&&typeof value==='object'&&value.sessionId===saved.current ? {...value,sessionId:original} : value;
       response.body.result.structuredContent=normalize(response.body.result.structuredContent);
       for(const item of response.body.result.content || [])if(item.type==='text')try{const parsed=JSON.parse(item.text);if(parsed?.sessionId===saved.current)item.text=JSON.stringify(normalize(parsed));}catch{}
     }
-    if(message.params?.name==='penecho_close_session'&&!response?.body?.error&&!response?.body?.result?.isError)starts.delete(original);
+    if(message.params?.name==='fastlectures_close_session'&&!response?.body?.error&&!response?.body?.result?.isError)starts.delete(original);
     return response?.body;
   }
   async function release(){const old=session;session=undefined;if(old&&endpoint)try{await send(undefined,old,{method:'DELETE',timeoutMs:1000,signal:undefined});}catch{}}
@@ -163,7 +163,7 @@ function createSessionClient(options = {}) {
     pending++;if(activity)lastActivity=now();
     const run=async()=>{const hasId=Object.hasOwn(message,'id');try{if(closed)return;if(hasId)activeOwners.set(message.id,null);const response=await execute(message);if(Object.hasOwn(message,'id')&&response)write(response);}catch(e){if(Object.hasOwn(message,'id'))write({jsonrpc:'2.0',id:message.id,error:{code:e.code===-32800?-32800:-32000,message:safeMessage(e)}});}finally{if(hasId){activeOwners.delete(message.id);cancelledRequests.delete(message.id);}pending--;if(activity)lastActivity=now();}};
     {
-      const args=message.params?.arguments || {}, barrier=message.method==='initialize'||message.params?.name==='penecho_start_session';
+      const args=message.params?.arguments || {}, barrier=message.method==='initialize'||message.params?.name==='fastlectures_start_session';
       const independent=Symbol();
       const keyFor=()=>barrier?lifecycle:starts.get(args.sessionId)?.documentId||args.documentId||args.sessionId||independent;
       queued.push({run,keyFor,barrier,message});pump();
@@ -176,7 +176,7 @@ function createSessionClient(options = {}) {
 }
 async function main(argv=process.argv.slice(2)){
   const options={onExit:code=>process.exit(code)};
-  try{for(let i=0;i<argv.length;i++){const flag=argv[i];if(flag==='--help'){process.stdout.write('PenEcho per-session stdio HTTPS bridge\n--host-id ID [--state-directory DIR] [--idle-timeout-ms 1800000] [--idle-exit-ms MS]\nRaw image upload: node client.js --host-id ID --upload-image /absolute/image.png --canvas-id C --document-id D [--request-id R] [--state-directory DIR]\nCanvas recovery across process restarts requires the client to retain sessionKey and documentId.\n');return 0;}const key={'--upload-image':'uploadImage','--canvas-id':'canvasId','--document-id':'documentId','--request-id':'requestId','--host-id':'hostId','--state-directory':'stateDirectory','--idle-timeout-ms':'idleTimeoutMs','--idle-exit-ms':'idleExitMs'}[flag];if(!key||!argv[i+1])throw Error('Unknown or incomplete option');options[key]=key.endsWith('Ms')?Number(argv[++i]):argv[++i];if(key.endsWith('Ms')&&(!Number.isFinite(options[key])||options[key]<=0))throw Error('Idle timeout must be positive');}if(!/^[a-f0-9]{64}$/i.test(options.hostId||''))throw Error('--host-id is required');if(options.uploadImage){const controller=new AbortController(),abort=()=>controller.abort();for(const signal of ['SIGTERM','SIGINT','SIGHUP'])process.once(signal,abort);try{return await require('./image-upload-client.js').main({...options,signal:controller.signal});}finally{for(const signal of ['SIGTERM','SIGINT','SIGHUP'])process.removeListener(signal,abort);}}if(options.canvasId||options.documentId||options.requestId)throw Error('Image target options require --upload-image');const client=createSessionClient(options);for(const signal of ['SIGTERM','SIGINT','SIGHUP'])process.once(signal,()=>void client.close());return 0;}catch(e){process.stderr.write(e.message+'\n');return 1;}
+  try{for(let i=0;i<argv.length;i++){const flag=argv[i];if(flag==='--help'){process.stdout.write('FastLectures per-session stdio HTTPS bridge\n--host-id ID [--state-directory DIR] [--idle-timeout-ms 1800000] [--idle-exit-ms MS]\nRaw image upload: node client.js --host-id ID --upload-image /absolute/image.png --canvas-id C --document-id D [--request-id R] [--state-directory DIR]\nCanvas recovery across process restarts requires the client to retain sessionKey and documentId.\n');return 0;}const key={'--upload-image':'uploadImage','--canvas-id':'canvasId','--document-id':'documentId','--request-id':'requestId','--host-id':'hostId','--state-directory':'stateDirectory','--idle-timeout-ms':'idleTimeoutMs','--idle-exit-ms':'idleExitMs'}[flag];if(!key||!argv[i+1])throw Error('Unknown or incomplete option');options[key]=key.endsWith('Ms')?Number(argv[++i]):argv[++i];if(key.endsWith('Ms')&&(!Number.isFinite(options[key])||options[key]<=0))throw Error('Idle timeout must be positive');}if(!/^[a-f0-9]{64}$/i.test(options.hostId||''))throw Error('--host-id is required');if(options.uploadImage){const controller=new AbortController(),abort=()=>controller.abort();for(const signal of ['SIGTERM','SIGINT','SIGHUP'])process.once(signal,abort);try{return await require('./image-upload-client.js').main({...options,signal:controller.signal});}finally{for(const signal of ['SIGTERM','SIGINT','SIGHUP'])process.removeListener(signal,abort);}}if(options.canvasId||options.documentId||options.requestId)throw Error('Image target options require --upload-image');const client=createSessionClient(options);for(const signal of ['SIGTERM','SIGINT','SIGHUP'])process.once(signal,()=>void client.close());return 0;}catch(e){process.stderr.write(e.message+'\n');return 1;}
 }
 module.exports={createSessionClient,httpRequest,createTransportPool,main};
 if(require.main===module)main().then(code=>{process.exitCode=code;});

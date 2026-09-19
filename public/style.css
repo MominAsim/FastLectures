@@ -1,37 +1,37 @@
 :root {
   color-scheme: dark;
   font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Noto Serif SC", "Songti SC", Georgia, serif;
-  color: #e9ddbd;
-  background: #0d0a12;
-  --night: #0d0a12;
-  --panel: #17121e;
-  --panel-raised: #201827;
-  --ink: #e9ddbd;
-  --muted: #a99c80;
-  --gold: #c6a35b;
+  color: #f0e8d8;
+  background: #05050a;
+  --night: #05050a;
+  --panel: #0e0a14;
+  --panel-raised: #181220;
+  --ink: #f0e8d8;
+  --muted: #8a7e68;
+  --gold: #d4a853;
   --gold-bright: #ead28e;
   --accent-ink: #241a14;
   --line: #59482f;
   --danger: #d58a7d;
   --confirm: #15803d;
-  --paper: #ead9ad;
+  --paper: #dcc8a8;
   --paper-grid: #c8ae7155;
-  --outside: #090814;
-  --penecho-dialog-backdrop: rgba(18, 23, 34, .2);
-  --penecho-dialog-backdrop-filter: blur(4px) saturate(1.08);
-  --penecho-dialog-surface: color-mix(in srgb, var(--studio-panel, #ffffff) 70%, transparent);
-  --penecho-dialog-raised-surface: color-mix(in srgb, var(--studio-panel-raised, #f8f9fb) 78%, transparent);
-  --penecho-dialog-body-surface: color-mix(in srgb, var(--studio-panel, #ffffff) 74%, transparent);
-  --penecho-dialog-surface-filter: blur(24px) saturate(1.18);
-  --penecho-large-dialog-radius: 18px;
-  --penecho-large-dialog-surface: var(--studio-glass, color-mix(in srgb, var(--studio-titlebar, #f8f9fb) 62%, transparent));
-  --penecho-large-dialog-surface-filter: saturate(1.15) blur(20px);
-  --penecho-large-dialog-shadow: 0 28px 80px rgba(17, 24, 39, .28), 0 2px 8px rgba(17, 24, 39, .12);
-  --penecho-workbench-title-surface: color-mix(in srgb, var(--studio-titlebar, #fff) 70%, transparent);
-  --penecho-workbench-title-filter: blur(24px) saturate(1.2);
-  --penecho-workbench-navigation-surface: color-mix(in srgb, var(--studio-toolbar, #eef0f2) 68%, transparent);
-  --penecho-workbench-navigation-filter: blur(24px) saturate(1.14);
-  --penecho-workbench-content-surface: color-mix(in srgb, var(--studio-panel, #fff) 62%, transparent);
+  --outside: #030308;
+  --fastlectures-dialog-backdrop: rgba(18, 23, 34, .2);
+  --fastlectures-dialog-backdrop-filter: blur(4px) saturate(1.08);
+  --fastlectures-dialog-surface: color-mix(in srgb, var(--studio-panel, #ffffff) 70%, transparent);
+  --fastlectures-dialog-raised-surface: color-mix(in srgb, var(--studio-panel-raised, #f8f9fb) 78%, transparent);
+  --fastlectures-dialog-body-surface: color-mix(in srgb, var(--studio-panel, #ffffff) 74%, transparent);
+  --fastlectures-dialog-surface-filter: blur(24px) saturate(1.18);
+  --fastlectures-large-dialog-radius: 18px;
+  --fastlectures-large-dialog-surface: var(--studio-glass, color-mix(in srgb, var(--studio-titlebar, #f8f9fb) 62%, transparent));
+  --fastlectures-large-dialog-surface-filter: saturate(1.15) blur(20px);
+  --fastlectures-large-dialog-shadow: 0 28px 80px rgba(17, 24, 39, .28), 0 2px 8px rgba(17, 24, 39, .12);
+  --fastlectures-workbench-title-surface: color-mix(in srgb, var(--studio-titlebar, #fff) 70%, transparent);
+  --fastlectures-workbench-title-filter: blur(24px) saturate(1.2);
+  --fastlectures-workbench-navigation-surface: color-mix(in srgb, var(--studio-toolbar, #eef0f2) 68%, transparent);
+  --fastlectures-workbench-navigation-filter: blur(24px) saturate(1.14);
+  --fastlectures-workbench-content-surface: color-mix(in srgb, var(--studio-panel, #fff) 62%, transparent);
 }
 
 * { box-sizing: border-box; }
@@ -61,36 +61,36 @@ body::before {
 
 main { position: relative; display: flex; width: 100%; min-height: 100vh; min-height: 100dvh; flex-direction: column; max-width: none; margin: 0 auto; padding: 6px clamp(6px, 1.2vw, 16px); }
 @media (min-width: 701px) {
-  html.penecho-web-page-scale[data-penecho-page-scale="90"] {
-    --penecho-canvas-page-scale: .9;
-    --penecho-canvas-page-viewport-width: 111.11111111111111vw;
-    --penecho-canvas-page-viewport-height: 111.11111111111111vh;
-    --penecho-canvas-page-dynamic-height: 111.11111111111111dvh;
+  html.fastlectures-web-page-scale[data-fastlectures-page-scale="90"] {
+    --fastlectures-canvas-page-scale: .9;
+    --fastlectures-canvas-page-viewport-width: 111.11111111111111vw;
+    --fastlectures-canvas-page-viewport-height: 111.11111111111111vh;
+    --fastlectures-canvas-page-dynamic-height: 111.11111111111111dvh;
   }
-  html.penecho-web-page-scale[data-penecho-page-scale="110"] {
-    --penecho-canvas-page-scale: 1.1;
-    --penecho-canvas-page-viewport-width: 90.9090909090909vw;
-    --penecho-canvas-page-viewport-height: 90.9090909090909vh;
-    --penecho-canvas-page-dynamic-height: 90.9090909090909dvh;
+  html.fastlectures-web-page-scale[data-fastlectures-page-scale="110"] {
+    --fastlectures-canvas-page-scale: 1.1;
+    --fastlectures-canvas-page-viewport-width: 90.9090909090909vw;
+    --fastlectures-canvas-page-viewport-height: 90.9090909090909vh;
+    --fastlectures-canvas-page-dynamic-height: 90.9090909090909dvh;
   }
-  html.penecho-web-page-scale[data-penecho-page-scale="125"] {
-    --penecho-canvas-page-scale: 1.25;
-    --penecho-canvas-page-viewport-width: 80vw;
-    --penecho-canvas-page-viewport-height: 80vh;
-    --penecho-canvas-page-dynamic-height: 80dvh;
+  html.fastlectures-web-page-scale[data-fastlectures-page-scale="125"] {
+    --fastlectures-canvas-page-scale: 1.25;
+    --fastlectures-canvas-page-viewport-width: 80vw;
+    --fastlectures-canvas-page-viewport-height: 80vh;
+    --fastlectures-canvas-page-dynamic-height: 80dvh;
   }
-  html.penecho-web-page-scale { zoom: var(--penecho-canvas-page-scale); }
-  html.penecho-web-page-scale body,
-  html.penecho-web-page-scale main {
-    min-height: var(--penecho-canvas-page-viewport-height);
-    min-height: var(--penecho-canvas-page-dynamic-height);
+  html.fastlectures-web-page-scale { zoom: var(--fastlectures-canvas-page-scale); }
+  html.fastlectures-web-page-scale body,
+  html.fastlectures-web-page-scale main {
+    min-height: var(--fastlectures-canvas-page-viewport-height);
+    min-height: var(--fastlectures-canvas-page-dynamic-height);
   }
-  html.penecho-web-page-scale body.is-fullscreen main,
-  html.penecho-web-page-scale body.canvas-view-mode main {
-    height: var(--penecho-canvas-page-viewport-height);
-    height: var(--penecho-canvas-page-dynamic-height);
+  html.fastlectures-web-page-scale body.is-fullscreen main,
+  html.fastlectures-web-page-scale body.canvas-view-mode main {
+    height: var(--fastlectures-canvas-page-viewport-height);
+    height: var(--fastlectures-canvas-page-dynamic-height);
   }
-  html.penecho-web-page-scale :is(
+  html.fastlectures-web-page-scale :is(
     .plugin-modal-layer,
     .history-backdrop,
     .history-panel,
@@ -98,12 +98,12 @@ main { position: relative; display: flex; width: 100%; min-height: 100vh; min-he
     .changelog-layer,
     .settings-layer,
     .configuration-layer,
-    .penecho-cloud-overlay,
+    .fastlectures-cloud-overlay,
     .remote-canvas-gate,
     .viewer-status
   ) {
-    min-height: var(--penecho-canvas-page-viewport-height);
-    min-height: var(--penecho-canvas-page-dynamic-height);
+    min-height: var(--fastlectures-canvas-page-viewport-height);
+    min-height: var(--fastlectures-canvas-page-dynamic-height);
   }
 }
 .topbar { position: relative; display: grid; gap: 5px; min-width: 0; margin-bottom: 6px; }
@@ -272,10 +272,10 @@ input[type="range"] { width: 62px; accent-color: #c39d57; cursor: pointer; }
 .toolbar .effort-custom-form button { display: grid; width: 30px; min-width: 30px; height: 30px; min-height: 30px; padding: 0; place-items: center; }
 .effort-custom-form button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .topbar > .toolbar-anchored-popover { z-index: 52; right: auto; bottom: auto; }
-.plugin-modal-layer { position: fixed; z-index: 75; inset: 0; display: grid; padding: 24px; place-items: center; background: var(--penecho-dialog-backdrop); -webkit-backdrop-filter: var(--penecho-dialog-backdrop-filter); backdrop-filter: var(--penecho-dialog-backdrop-filter); }
+.plugin-modal-layer { position: fixed; z-index: 75; inset: 0; display: grid; padding: 24px; place-items: center; background: var(--fastlectures-dialog-backdrop); -webkit-backdrop-filter: var(--fastlectures-dialog-backdrop-filter); backdrop-filter: var(--fastlectures-dialog-backdrop-filter); }
 .plugin-modal-layer[hidden] { display: none; }
 body.plugin-open { overflow: hidden; }
-.plugin-modal { color-scheme: light; --ink: var(--studio-text, #1c1f27); --muted: var(--studio-muted, #5d6472); --line: var(--studio-line, #d9dde5); --panel: var(--studio-toolbar, #f8f9fb); --panel-raised: var(--studio-panel, #ffffff); --gold: var(--studio-accent, #4f46e5); --gold-bright: var(--studio-accent-strong, #4338ca); --danger: #c53b48; display: grid; grid-template-rows: auto auto minmax(0, 1fr); width: min(920px, 100%); max-height: min(82vh, 820px); overflow: hidden; color: var(--ink); border: 1px solid var(--line); border-radius: var(--penecho-large-dialog-radius); background: var(--penecho-dialog-surface); box-shadow: 0 18px 44px rgba(16, 24, 40, .2); -webkit-backdrop-filter: var(--penecho-dialog-surface-filter); backdrop-filter: var(--penecho-dialog-surface-filter); }
+.plugin-modal { color-scheme: light; --ink: var(--studio-text, #1c1f27); --muted: var(--studio-muted, #5d6472); --line: var(--studio-line, #d9dde5); --panel: var(--studio-toolbar, #f8f9fb); --panel-raised: var(--studio-panel, #ffffff); --gold: var(--studio-accent, #4f46e5); --gold-bright: var(--studio-accent-strong, #4338ca); --danger: #c53b48; display: grid; grid-template-rows: auto auto minmax(0, 1fr); width: min(920px, 100%); max-height: min(82vh, 820px); overflow: hidden; color: var(--ink); border: 1px solid var(--line); border-radius: var(--fastlectures-large-dialog-radius); background: var(--fastlectures-dialog-surface); box-shadow: 0 18px 44px rgba(16, 24, 40, .2); -webkit-backdrop-filter: var(--fastlectures-dialog-surface-filter); backdrop-filter: var(--fastlectures-dialog-surface-filter); }
 .plugin-modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 22px 24px 16px; border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent); }
 .plugin-modal-header h2 { margin: 0; color: var(--ink); font: 750 1.16rem/1.25 system-ui, sans-serif; }
 .plugin-modal-header p { max-width: 680px; margin: 6px 0 0; color: var(--muted); font: .76rem/1.5 system-ui, sans-serif; }
@@ -420,23 +420,23 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
   --sheet-well: var(--ai-well);
   --sheet-accent-soft: var(--ai-accent-soft);
 }
-.history-backdrop { position: fixed; z-index: 72; inset: 0; background: var(--penecho-dialog-backdrop); -webkit-backdrop-filter: var(--penecho-dialog-backdrop-filter); backdrop-filter: var(--penecho-dialog-backdrop-filter); }
+.history-backdrop { position: fixed; z-index: 72; inset: 0; background: var(--fastlectures-dialog-backdrop); -webkit-backdrop-filter: var(--fastlectures-dialog-backdrop-filter); backdrop-filter: var(--fastlectures-dialog-backdrop-filter); }
 .history-backdrop[hidden] { display: none; }
 .history-panel {
   position: fixed; z-index: 73; top: 50%; left: 50%; display: grid;
   width: min(680px, calc(100vw - 64px)); height: auto; max-height: min(680px, calc(100dvh - 64px)); min-height: 0;
   grid-template-rows: auto auto auto minmax(0, 1fr) auto; padding: 0; overflow: hidden; color: var(--ai-ink);
   border: 1px solid color-mix(in srgb, var(--studio-line, #d9dde5) 82%, transparent); border-radius: 14px;
-  background: var(--penecho-dialog-surface);
+  background: var(--fastlectures-dialog-surface);
   box-shadow: 0 4px 8px rgba(16, 24, 40, .16);
   opacity: 0; pointer-events: none; transform: translate(-50%, -48%) scale(.985); visibility: hidden;
-  -webkit-backdrop-filter: var(--penecho-dialog-surface-filter); backdrop-filter: var(--penecho-dialog-surface-filter);
+  -webkit-backdrop-filter: var(--fastlectures-dialog-surface-filter); backdrop-filter: var(--fastlectures-dialog-surface-filter);
   transition: transform .2s cubic-bezier(.25, 1, .5, 1), opacity .16s ease, visibility 0s linear .2s;
   font-family: var(--ai-font);
 }
 .history-panel.open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); visibility: visible; transition-delay: 0s; }
 @media (min-width: 701px) {
-  html.penecho-web-page-scale .history-panel { min-height: 0; }
+  html.fastlectures-web-page-scale .history-panel { min-height: 0; }
 }
 .history-panel > header { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px var(--sheet-gutter); border-bottom: 1px solid var(--sheet-hairline); background: color-mix(in srgb, var(--studio-titlebar, #ffffff) 72%, transparent); }
 .history-panel h2, .new-canvas-dialog h2 { margin: 0; color: var(--ai-ink); font: 650 1.02rem/1.3 var(--ai-font); letter-spacing: -.02em; }
@@ -631,7 +631,7 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 .history-title-stack p { margin: 2px 0 0; overflow: hidden; color: var(--ai-muted); font: 500 11.5px/1.2 var(--ai-font); text-overflow: ellipsis; white-space: nowrap; }
 .history-library-browser { min-width: 0; min-height: 0; display: grid; grid-template-columns: 246px minmax(0, 1fr); }
 .history-library-sidebar {
-  --pe-menu-item-h: var(--penecho-workbench-menu-item-h, 30px);
+  --pe-menu-item-h: var(--fastlectures-workbench-menu-item-h, 30px);
   min-width: 0;
   min-height: 0;
   padding: 12px 10px 10px;
@@ -1374,14 +1374,14 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 .new-canvas-dialog {
   width: min(540px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); padding: 0; overflow: hidden auto;
   color: var(--ai-ink); border: 1px solid var(--ai-line); border-radius: 16px;
-  background: var(--penecho-dialog-surface); box-shadow: 0 8px 14px rgba(16, 24, 40, .24);
-  -webkit-backdrop-filter: var(--penecho-dialog-surface-filter); backdrop-filter: var(--penecho-dialog-surface-filter);
+  background: var(--fastlectures-dialog-surface); box-shadow: 0 8px 14px rgba(16, 24, 40, .24);
+  -webkit-backdrop-filter: var(--fastlectures-dialog-surface-filter); backdrop-filter: var(--fastlectures-dialog-surface-filter);
   font-family: var(--ai-font);
 }
 .new-canvas-dialog[open] { animation: new-canvas-pop .24s cubic-bezier(.32, .72, 0, 1); }
 @keyframes new-canvas-pop { from { opacity: 0; transform: translateY(10px) scale(.985); } }
 .new-canvas-dialog[data-busy="true"] { cursor: progress; }
-.new-canvas-dialog::backdrop { background: var(--penecho-dialog-backdrop); -webkit-backdrop-filter: var(--penecho-dialog-backdrop-filter); backdrop-filter: var(--penecho-dialog-backdrop-filter); }
+.new-canvas-dialog::backdrop { background: var(--fastlectures-dialog-backdrop); -webkit-backdrop-filter: var(--fastlectures-dialog-backdrop-filter); backdrop-filter: var(--fastlectures-dialog-backdrop-filter); }
 .new-canvas-dialog form { padding: 20px 22px 16px; }
 .new-canvas-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .new-canvas-dialog p { margin: 11px 0 13px; color: var(--ai-muted); font: .76rem/1.6 var(--ai-font); }
@@ -1483,10 +1483,10 @@ body.tour-open { overflow: hidden; }
 .tour-card.tour-compact .tour-actions { display: grid; grid-template-columns: 1fr; }
 .tour-card.tour-compact .tour-actions button { width: 100%; min-width: 0; }
 
-.changelog-layer { position: fixed; z-index: 82; inset: 0; display: grid; padding: 20px; place-items: center; background: var(--penecho-dialog-backdrop); -webkit-backdrop-filter: var(--penecho-dialog-backdrop-filter); backdrop-filter: var(--penecho-dialog-backdrop-filter); }
+.changelog-layer { position: fixed; z-index: 82; inset: 0; display: grid; padding: 20px; place-items: center; background: var(--fastlectures-dialog-backdrop); -webkit-backdrop-filter: var(--fastlectures-dialog-backdrop-filter); backdrop-filter: var(--fastlectures-dialog-backdrop-filter); }
 .changelog-layer[hidden] { display: none; }
 body.changelog-open { overflow: hidden; }
-.changelog-dialog { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: min(900px, calc(100vw - 40px)); max-height: min(760px, calc(100dvh - 40px)); overflow: hidden; color: var(--ink); border: 1px solid color-mix(in srgb, var(--gold-bright) 52%, var(--line)); border-radius: var(--penecho-large-dialog-radius); outline: 0; background: var(--penecho-dialog-surface); box-shadow: 0 22px 64px rgba(0,0,0,.56); -webkit-backdrop-filter: var(--penecho-dialog-surface-filter); backdrop-filter: var(--penecho-dialog-surface-filter); }
+.changelog-dialog { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: min(900px, calc(100vw - 40px)); max-height: min(760px, calc(100dvh - 40px)); overflow: hidden; color: var(--ink); border: 1px solid color-mix(in srgb, var(--gold-bright) 52%, var(--line)); border-radius: var(--fastlectures-large-dialog-radius); outline: 0; background: var(--fastlectures-dialog-surface); box-shadow: 0 22px 64px rgba(0,0,0,.56); -webkit-backdrop-filter: var(--fastlectures-dialog-surface-filter); backdrop-filter: var(--fastlectures-dialog-surface-filter); }
 .changelog-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 17px 18px 11px; }
 .changelog-heading { display: flex; min-width: 0; align-items: center; gap: 8px; }
 .changelog-badge { color: var(--gold-bright); font: 800 .68rem/1 system-ui, sans-serif; letter-spacing: 0; text-transform: uppercase; }
@@ -1774,7 +1774,7 @@ main > footer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
-main > footer.penecho-desktop-update-visible .page-hint-slot { display: none; }
+main > footer.fastlectures-desktop-update-visible .page-hint-slot { display: none; }
 .canvas-hint { min-width: 0; max-width: min(440px, 50vw); overflow: hidden; pointer-events: none; visibility: visible; opacity: 1; text-overflow: ellipsis; white-space: nowrap; transition: opacity .2s ease, visibility 0s linear 0s; }
 .canvas-hint[hidden] { display: none; }
 /* Page guidance shares one application-level bottom-right slot. Specific editing
@@ -1940,7 +1940,7 @@ body[data-theme="studio"] {
   --studio-glass: color-mix(in srgb, var(--studio-titlebar) 62%, transparent);
   --studio-glass-strong: color-mix(in srgb, var(--studio-titlebar) 68%, transparent);
   /* Match the Settings shell + content material without another blur layer. */
-  --studio-agent-glass: linear-gradient(var(--penecho-workbench-content-surface), var(--penecho-workbench-content-surface)), var(--penecho-large-dialog-surface);
+  --studio-agent-glass: linear-gradient(var(--fastlectures-workbench-content-surface), var(--fastlectures-workbench-content-surface)), var(--fastlectures-large-dialog-surface);
   --studio-agent-surface: color-mix(in srgb, var(--studio-panel) 58%, transparent);
   --studio-agent-surface-strong: color-mix(in srgb, var(--studio-panel) 70%, transparent);
   --studio-agent-overlay: color-mix(in srgb, var(--studio-panel) 80%, transparent);
@@ -1952,9 +1952,9 @@ body[data-theme="studio"]::before { display: none; }
 /* Studio: one stable title bar plus one contextual tool row. */
 body[data-theme="studio"] main { height: 100vh; height: 100dvh; min-height: 0; padding: 0; overflow: hidden; background: var(--outside); }
 @media (min-width: 701px) {
-  html.penecho-web-page-scale body[data-theme="studio"] main {
-    height: var(--penecho-canvas-page-viewport-height);
-    height: var(--penecho-canvas-page-dynamic-height);
+  html.fastlectures-web-page-scale body[data-theme="studio"] main {
+    height: var(--fastlectures-canvas-page-viewport-height);
+    height: var(--fastlectures-canvas-page-dynamic-height);
   }
 }
 body[data-theme="studio"] .topbar { position: relative; z-index: 50; display: grid; gap: 0; flex: 0 0 auto; margin: 0; background: var(--studio-titlebar); }
@@ -2234,8 +2234,8 @@ body[data-theme="studio"]:not(.studio-navigator-open) .studio-navigator {
 .studio-navigator-foot button svg { flex: 0 0 auto; }
 .studio-navigator-foot button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
-.studio-session-delete-dialog { width: min(400px, calc(100vw - 32px)); padding: 0; color: var(--studio-text, #262a33); border: 1px solid var(--studio-line, #d9dce3); border-radius: 14px; background: var(--penecho-dialog-surface); box-shadow: 0 18px 48px rgba(16, 24, 40, .22); -webkit-backdrop-filter: var(--penecho-dialog-surface-filter); backdrop-filter: var(--penecho-dialog-surface-filter); }
-.studio-session-delete-dialog::backdrop { background: var(--penecho-dialog-backdrop); -webkit-backdrop-filter: var(--penecho-dialog-backdrop-filter); backdrop-filter: var(--penecho-dialog-backdrop-filter); }
+.studio-session-delete-dialog { width: min(400px, calc(100vw - 32px)); padding: 0; color: var(--studio-text, #262a33); border: 1px solid var(--studio-line, #d9dce3); border-radius: 14px; background: var(--fastlectures-dialog-surface); box-shadow: 0 18px 48px rgba(16, 24, 40, .22); -webkit-backdrop-filter: var(--fastlectures-dialog-surface-filter); backdrop-filter: var(--fastlectures-dialog-surface-filter); }
+.studio-session-delete-dialog::backdrop { background: var(--fastlectures-dialog-backdrop); -webkit-backdrop-filter: var(--fastlectures-dialog-backdrop-filter); backdrop-filter: var(--fastlectures-dialog-backdrop-filter); }
 .studio-session-delete-dialog form { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; margin: 0; padding: 18px; }
 .studio-session-delete-icon { display: grid; width: 38px; height: 38px; place-items: center; color: #b4232f; border-radius: 10px; background: rgba(180, 35, 47, .09); }
 .studio-session-delete-icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
@@ -2413,7 +2413,7 @@ body[data-theme="studio"] .canvas-frame.canvas-agent-resizing .canvas-agent-cont
 /* ---- settings panel ---- */
 .settings-layer { position: fixed; z-index: 74; inset: 0; }
 .settings-layer[hidden] { display: none; }
-.settings-backdrop { position: absolute; inset: 0; background: var(--penecho-dialog-backdrop); -webkit-backdrop-filter: var(--penecho-dialog-backdrop-filter); backdrop-filter: var(--penecho-dialog-backdrop-filter); }
+.settings-backdrop { position: absolute; inset: 0; background: var(--fastlectures-dialog-backdrop); -webkit-backdrop-filter: var(--fastlectures-dialog-backdrop-filter); backdrop-filter: var(--fastlectures-dialog-backdrop-filter); }
 .settings-panel, .configuration-panel {
   color-scheme: light;
   --ink: var(--studio-text, #1c1f27);
@@ -2424,35 +2424,35 @@ body[data-theme="studio"] .canvas-frame.canvas-agent-resizing .canvas-agent-cont
   --gold: var(--studio-accent, #4f46e5);
   --gold-bright: var(--studio-accent-strong, #4338ca);
 }
-.settings-panel { position: absolute; top: 50%; left: 50%; width: min(940px, calc(var(--penecho-canvas-page-viewport-width, 100vw) - 40px)); height: min(720px, calc(var(--penecho-canvas-page-dynamic-height, 100dvh) - 40px)); display: flex; overflow: hidden; flex-direction: column; color: var(--ink); border: 1px solid color-mix(in srgb, var(--line) 82%, transparent); border-radius: var(--penecho-large-dialog-radius); background: var(--penecho-large-dialog-surface); box-shadow: var(--penecho-large-dialog-shadow); transform: translate(-50%, -50%); -webkit-backdrop-filter: var(--penecho-large-dialog-surface-filter); backdrop-filter: var(--penecho-large-dialog-surface-filter); animation: settingsIn .2s cubic-bezier(.2, .72, .2, 1); }
-#settingsPanel { --penecho-workbench-title-surface: var(--penecho-workbench-navigation-surface); --penecho-workbench-title-filter: var(--penecho-workbench-navigation-filter); }
-#historyPanel { --penecho-workbench-title-surface: var(--penecho-workbench-navigation-surface); --penecho-workbench-title-filter: var(--penecho-workbench-navigation-filter); }
+.settings-panel { position: absolute; top: 50%; left: 50%; width: min(940px, calc(var(--fastlectures-canvas-page-viewport-width, 100vw) - 40px)); height: min(720px, calc(var(--fastlectures-canvas-page-dynamic-height, 100dvh) - 40px)); display: flex; overflow: hidden; flex-direction: column; color: var(--ink); border: 1px solid color-mix(in srgb, var(--line) 82%, transparent); border-radius: var(--fastlectures-large-dialog-radius); background: var(--fastlectures-large-dialog-surface); box-shadow: var(--fastlectures-large-dialog-shadow); transform: translate(-50%, -50%); -webkit-backdrop-filter: var(--fastlectures-large-dialog-surface-filter); backdrop-filter: var(--fastlectures-large-dialog-surface-filter); animation: settingsIn .2s cubic-bezier(.2, .72, .2, 1); }
+#settingsPanel { --fastlectures-workbench-title-surface: var(--fastlectures-workbench-navigation-surface); --fastlectures-workbench-title-filter: var(--fastlectures-workbench-navigation-filter); }
+#historyPanel { --fastlectures-workbench-title-surface: var(--fastlectures-workbench-navigation-surface); --fastlectures-workbench-title-filter: var(--fastlectures-workbench-navigation-filter); }
 @keyframes settingsIn { from { opacity: 0; transform: translate(-50%, calc(-50% - 10px)) scale(.985); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
-.penecho-workbench-dialog {
-  --penecho-workbench-header-h: 68px;
-  --penecho-workbench-header-padding: 12px 14px 12px 20px;
-  --penecho-workbench-navigation-w: 184px;
-  --penecho-workbench-menu-item-h: 30px;
+.fastlectures-workbench-dialog {
+  --fastlectures-workbench-header-h: 68px;
+  --fastlectures-workbench-header-padding: 12px 14px 12px 20px;
+  --fastlectures-workbench-navigation-w: 184px;
+  --fastlectures-workbench-menu-item-h: 30px;
 }
-.penecho-workbench-dialog > .penecho-workbench-header {
+.fastlectures-workbench-dialog > .fastlectures-workbench-header {
   position: relative;
   z-index: 2;
   display: flex;
-  min-height: var(--penecho-workbench-header-h);
+  min-height: var(--fastlectures-workbench-header-h);
   flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   box-sizing: border-box;
-  padding: var(--penecho-workbench-header-padding);
+  padding: var(--fastlectures-workbench-header-padding);
   border-bottom: 1px solid color-mix(in srgb, var(--studio-line, #d9dde5) 78%, transparent);
-  background: var(--penecho-workbench-title-surface);
-  -webkit-backdrop-filter: var(--penecho-workbench-title-filter);
-  backdrop-filter: var(--penecho-workbench-title-filter);
+  background: var(--fastlectures-workbench-title-surface);
+  -webkit-backdrop-filter: var(--fastlectures-workbench-title-filter);
+  backdrop-filter: var(--fastlectures-workbench-title-filter);
 }
-.penecho-workbench-identity { display: flex; min-width: 0; align-items: center; gap: 10px; }
-.penecho-workbench-heading { min-width: 0; }
-.penecho-workbench-icon {
+.fastlectures-workbench-identity { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.fastlectures-workbench-heading { min-width: 0; }
+.fastlectures-workbench-icon {
   display: grid;
   width: 20px;
   height: 20px;
@@ -2464,8 +2464,8 @@ body[data-theme="studio"] .canvas-frame.canvas-agent-resizing .canvas-agent-cont
   background: transparent;
   box-shadow: none;
 }
-.penecho-workbench-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.penecho-workbench-navigation { --pe-menu-item-h: var(--penecho-workbench-menu-item-h); }
+.fastlectures-workbench-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.fastlectures-workbench-navigation { --pe-menu-item-h: var(--fastlectures-workbench-menu-item-h); }
 .settings-window-header > div { min-width: 0; }
 .settings-panel h2 { margin: 0; color: var(--ink); font: 700 1.02rem/1.2 system-ui, sans-serif; letter-spacing: -.01em; }
 .settings-window-header p { margin: 4px 0 0; overflow: hidden; color: var(--muted); font: 450 .69rem/1.35 system-ui, sans-serif; text-overflow: ellipsis; white-space: nowrap; }
@@ -2473,14 +2473,14 @@ body[data-theme="studio"] .canvas-frame.canvas-agent-resizing .canvas-agent-cont
 .settings-close svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
 .settings-close:hover { color: var(--ink); border-color: color-mix(in srgb, var(--line) 86%, transparent); background: color-mix(in srgb, var(--studio-panel-raised, #f8f9fb) 68%, transparent); }
 .settings-close:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
-.settings-workbench { display: grid; min-height: 0; flex: 1; grid-template-columns: var(--penecho-workbench-navigation-w) minmax(0, 1fr); }
-.settings-navigation { display: flex; min-width: 0; flex-direction: column; gap: 4px; padding: 13px 11px; border-right: 1px solid color-mix(in srgb, var(--line) 76%, transparent); background: var(--penecho-workbench-navigation-surface); -webkit-backdrop-filter: var(--penecho-workbench-navigation-filter); backdrop-filter: var(--penecho-workbench-navigation-filter); }
+.settings-workbench { display: grid; min-height: 0; flex: 1; grid-template-columns: var(--fastlectures-workbench-navigation-w) minmax(0, 1fr); }
+.settings-navigation { display: flex; min-width: 0; flex-direction: column; gap: 4px; padding: 13px 11px; border-right: 1px solid color-mix(in srgb, var(--line) 76%, transparent); background: var(--fastlectures-workbench-navigation-surface); -webkit-backdrop-filter: var(--fastlectures-workbench-navigation-filter); backdrop-filter: var(--fastlectures-workbench-navigation-filter); }
 .settings-navigation button { display: grid; width: 100%; min-height: 40px; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 9px; padding: 7px 9px; color: var(--muted); border: 1px solid transparent; border-radius: 8px; background: transparent; font: 620 .75rem/1.25 system-ui, sans-serif; text-align: left; cursor: pointer; transition: color .16s ease, border-color .16s ease, background .16s ease; }
 .settings-navigation button svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 .settings-navigation button:hover { color: var(--ink); background: color-mix(in srgb, var(--studio-panel-raised, #f8f9fb) 58%, transparent); }
 .settings-navigation button.active, .settings-navigation button[aria-selected="true"] { color: var(--gold-bright); border-color: color-mix(in srgb, var(--gold) 18%, transparent); background: color-mix(in srgb, var(--gold) 11%, var(--studio-panel, #fff) 58%); }
 .settings-navigation button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
-.settings-detail { min-width: 0; min-height: 0; overflow: hidden; background: var(--penecho-workbench-content-surface); }
+.settings-detail { min-width: 0; min-height: 0; overflow: hidden; background: var(--fastlectures-workbench-content-surface); }
 .settings-detail { container-type: inline-size; }
 .settings-page { height: 100%; box-sizing: border-box; overflow-y: auto; padding: 22px 26px 28px; scrollbar-gutter: stable; }
 .settings-page[hidden] { display: none; }
@@ -2570,8 +2570,8 @@ body:not([data-theme="studio"]) .canvas-workspace {top:12px;}
 .settings-connection-quick small { margin-top: 2px; color: var(--muted); font: 430 .62rem/1.2 system-ui, sans-serif; }
 .configuration-layer { position: fixed; z-index: 76; inset: 0; }
 .configuration-layer[hidden] { display: none; }
-.configuration-backdrop { position: absolute; inset: 0; background: var(--penecho-dialog-backdrop); -webkit-backdrop-filter: var(--penecho-dialog-backdrop-filter); backdrop-filter: var(--penecho-dialog-backdrop-filter); }
-.configuration-panel { position: absolute; inset: 50% auto auto 50%; width: min(820px, calc(100vw - 32px)); max-height: min(760px, calc(100dvh - 40px)); display: flex; flex-direction: column; color: var(--ink); border: 1px solid var(--line); border-radius: var(--penecho-large-dialog-radius); background: var(--penecho-dialog-surface); box-shadow: 0 18px 48px rgba(16, 24, 40, .22); transform: translate(-50%, -50%); -webkit-backdrop-filter: var(--penecho-dialog-surface-filter); backdrop-filter: var(--penecho-dialog-surface-filter); animation: configurationIn .2s ease; }
+.configuration-backdrop { position: absolute; inset: 0; background: var(--fastlectures-dialog-backdrop); -webkit-backdrop-filter: var(--fastlectures-dialog-backdrop-filter); backdrop-filter: var(--fastlectures-dialog-backdrop-filter); }
+.configuration-panel { position: absolute; inset: 50% auto auto 50%; width: min(820px, calc(100vw - 32px)); max-height: min(760px, calc(100dvh - 40px)); display: flex; flex-direction: column; color: var(--ink); border: 1px solid var(--line); border-radius: var(--fastlectures-large-dialog-radius); background: var(--fastlectures-dialog-surface); box-shadow: 0 18px 48px rgba(16, 24, 40, .22); transform: translate(-50%, -50%); -webkit-backdrop-filter: var(--fastlectures-dialog-surface-filter); backdrop-filter: var(--fastlectures-dialog-surface-filter); animation: configurationIn .2s ease; }
 @keyframes configurationIn { from { opacity: 0; transform: translate(-50%, calc(-50% - 10px)) scale(.985); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 .configuration-panel > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 24px 14px; }
 .configuration-panel > header > div { min-width: 0; }
@@ -2777,14 +2777,14 @@ body:not([data-theme="studio"]) .canvas-workspace {top:12px;}
   color: var(--ink);
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
-  border-radius: var(--penecho-large-dialog-radius);
-  background: var(--penecho-large-dialog-surface);
-  box-shadow: var(--penecho-large-dialog-shadow);
-  -webkit-backdrop-filter: var(--penecho-large-dialog-surface-filter);
-  backdrop-filter: var(--penecho-large-dialog-surface-filter);
+  border-radius: var(--fastlectures-large-dialog-radius);
+  background: var(--fastlectures-large-dialog-surface);
+  box-shadow: var(--fastlectures-large-dialog-shadow);
+  -webkit-backdrop-filter: var(--fastlectures-large-dialog-surface-filter);
+  backdrop-filter: var(--fastlectures-large-dialog-surface-filter);
   font-family: var(--studio-ui-font, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif);
 }
-.crafts-sidebar { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 10px 12px; overflow: hidden auto; border-right: 1px solid color-mix(in srgb, var(--line) 82%, transparent); background: var(--penecho-workbench-navigation-surface); -webkit-backdrop-filter: var(--penecho-workbench-navigation-filter); backdrop-filter: var(--penecho-workbench-navigation-filter); }
+.crafts-sidebar { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 10px 12px; overflow: hidden auto; border-right: 1px solid color-mix(in srgb, var(--line) 82%, transparent); background: var(--fastlectures-workbench-navigation-surface); -webkit-backdrop-filter: var(--fastlectures-workbench-navigation-filter); backdrop-filter: var(--fastlectures-workbench-navigation-filter); }
 .crafts-brand { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 0 8px; }
 .crafts-brand-mark { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; color: var(--gold-bright); border: 1px solid var(--accent-border); border-radius: 8px; background: var(--accent-soft); }
 .crafts-brand-mark svg { width: 17px; height: 17px; fill: currentColor; stroke: currentColor; stroke-width: 1.35; stroke-linejoin: round; }
@@ -2811,8 +2811,8 @@ body:not([data-theme="studio"]) .canvas-workspace {top:12px;}
 .crafts-echoes-link:hover { color: var(--gold-bright); border-color: var(--accent-border); background: color-mix(in srgb, var(--gold) 6%, var(--panel-raised)); }
 .crafts-echoes-link:active { background: color-mix(in srgb, var(--gold) 10%, var(--panel-raised)); }
 .crafts-echoes-link:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
-.crafts-workspace { min-width: 0; min-height: 0; display: grid; grid-template-rows: 50px minmax(0, 1fr); background: var(--penecho-workbench-content-surface); }
-.crafts-head { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px 0 18px; border-bottom: 1px solid color-mix(in srgb, var(--line) 82%, transparent); background: var(--penecho-workbench-navigation-surface); -webkit-backdrop-filter: var(--penecho-workbench-navigation-filter); backdrop-filter: var(--penecho-workbench-navigation-filter); }
+.crafts-workspace { min-width: 0; min-height: 0; display: grid; grid-template-rows: 50px minmax(0, 1fr); background: var(--fastlectures-workbench-content-surface); }
+.crafts-head { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px 0 18px; border-bottom: 1px solid color-mix(in srgb, var(--line) 82%, transparent); background: var(--fastlectures-workbench-navigation-surface); -webkit-backdrop-filter: var(--fastlectures-workbench-navigation-filter); backdrop-filter: var(--fastlectures-workbench-navigation-filter); }
 .crafts-title-row { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; gap: 9px; }
 .crafts-search { position: relative; display: flex; box-sizing: border-box; width: min(280px, 100%); min-width: 112px; max-width: 280px; height: 30px; flex: 1 1 280px; align-items: center; gap: 7px; padding: 0 9px; color: var(--muted); border: 1px solid color-mix(in srgb, var(--line) 92%, var(--ink-soft)); border-radius: 5px; background: var(--panel-raised); transition: color .16s ease-out, border-color .16s ease-out, box-shadow .16s ease-out; }
 .crafts-search:focus-within { color: var(--gold-bright); border-color: var(--gold-bright); box-shadow: 0 0 0 2px color-mix(in srgb, var(--gold) 16%, transparent); }
@@ -2956,7 +2956,7 @@ body:not([data-theme="studio"]) .canvas-workspace {top:12px;}
   .crafts-refresh-spinner { animation: none; }
 }
 
-/* Harness-backed PenEcho Agent */
+/* Harness-backed FastLectures Agent */
 .canvas-agent-control { position: absolute; z-index: 41; right: max(16px, env(safe-area-inset-right)); bottom: max(18px, calc(env(safe-area-inset-bottom) + 12px)); display: inline-flex; height: 34px; min-height: 34px; align-items: center; gap: 8px; color: var(--ink); }
 .canvas-agent-trigger { position: relative; display: inline-flex; height: 32px; min-height: 32px; align-items: center; gap: 6px; padding: 3px 11px; color: var(--ink); border: 1px solid color-mix(in srgb, var(--line) 78%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--panel-raised) 92%, transparent); box-shadow: 0 7px 22px rgba(15, 23, 42, .18), inset 0 1px rgba(255,255,255,.08); font: 650 12px/1.1 var(--studio-ui-font, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif); cursor: pointer; touch-action: manipulation; }
 .canvas-agent-trigger svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
@@ -3187,9 +3187,9 @@ body:not([data-theme="studio"]) .canvas-workspace {top:12px;}
 .canvas-agent-head button:hover { color: #4338ca; background: #f3f2ff; }
 .canvas-agent-head button:focus-visible,
 .canvas-agent-composer button:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
-.canvas-agent-project-dialog { z-index: 8; box-sizing: border-box; width: min(780px, calc(100vw - 32px)); max-width: none; max-height: min(720px, calc(100dvh - 32px)); padding: 0; overflow: hidden; color: #1f2937; border: 1px solid rgba(148,163,184,.5); border-radius: var(--penecho-large-dialog-radius); background: var(--penecho-dialog-surface); box-shadow: 0 28px 80px rgba(15,23,42,.28); -webkit-backdrop-filter: var(--penecho-dialog-surface-filter); backdrop-filter: var(--penecho-dialog-surface-filter); font-family: system-ui, "Noto Sans SC", -apple-system, "Segoe UI", sans-serif; }
+.canvas-agent-project-dialog { z-index: 8; box-sizing: border-box; width: min(780px, calc(100vw - 32px)); max-width: none; max-height: min(720px, calc(100dvh - 32px)); padding: 0; overflow: hidden; color: #1f2937; border: 1px solid rgba(148,163,184,.5); border-radius: var(--fastlectures-large-dialog-radius); background: var(--fastlectures-dialog-surface); box-shadow: 0 28px 80px rgba(15,23,42,.28); -webkit-backdrop-filter: var(--fastlectures-dialog-surface-filter); backdrop-filter: var(--fastlectures-dialog-surface-filter); font-family: system-ui, "Noto Sans SC", -apple-system, "Segoe UI", sans-serif; }
 .canvas-agent-project-dialog:not([open]) { display: none; }
-.canvas-agent-project-dialog::backdrop { background: var(--penecho-dialog-backdrop); -webkit-backdrop-filter: var(--penecho-dialog-backdrop-filter); backdrop-filter: var(--penecho-dialog-backdrop-filter); }
+.canvas-agent-project-dialog::backdrop { background: var(--fastlectures-dialog-backdrop); -webkit-backdrop-filter: var(--fastlectures-dialog-backdrop-filter); backdrop-filter: var(--fastlectures-dialog-backdrop-filter); }
 .canvas-agent-project-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 20px 22px 17px; border-bottom: 1px solid #e2e8f0; background: #fff; }
 .canvas-agent-project-dialog-head > div { display: grid; min-width: 0; gap: 3px; }
 .canvas-agent-project-eyebrow { color: #6366f1; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; }
@@ -3716,8 +3716,8 @@ body:not([data-theme="studio"]) .canvas-workspace {top:12px;}
     visibility: visible;
     backface-visibility: hidden;
     will-change: transform;
-    -webkit-backdrop-filter: var(--penecho-large-dialog-surface-filter);
-    backdrop-filter: var(--penecho-large-dialog-surface-filter);
+    -webkit-backdrop-filter: var(--fastlectures-large-dialog-surface-filter);
+    backdrop-filter: var(--fastlectures-large-dialog-surface-filter);
     transition: transform .22s cubic-bezier(.2,.72,.2,1), opacity .16s ease, border-color .16s ease, visibility 0s linear 0s;
   }
   body[data-theme="studio"].studio-agent-docked:has(#viewport:is(.canvas-chrome-lightweight, .is-drawing)) .canvas-agent-panel { background: var(--studio-panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -3866,7 +3866,7 @@ body[data-theme="studio"] .canvas-agent-prompt-row:hover { color: var(--studio-t
 body[data-theme="studio"] .canvas-agent-prompt-row:focus-visible { color: var(--studio-text); }
 
 /* Full-screen Agent resource management is part of the same Studio workbench. */
-body[data-theme="studio"] .canvas-agent-project-dialog { color: var(--studio-text); border-color: var(--studio-line); background: var(--penecho-dialog-surface); }
+body[data-theme="studio"] .canvas-agent-project-dialog { color: var(--studio-text); border-color: var(--studio-line); background: var(--fastlectures-dialog-surface); }
 body[data-theme="studio"] .canvas-agent-project-dialog-head { border-bottom-color: var(--studio-line); background: var(--studio-titlebar); }
 body[data-theme="studio"] .canvas-agent-project-eyebrow,
 body[data-theme="studio"] .canvas-agent-project-current { color: var(--studio-accent-strong); }
@@ -4489,8 +4489,8 @@ body[data-theme="studio"]:is(body[data-theme="studio"]) :where(
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* ——— PenEcho button + semantic tint contract ———
-   Incrementally embedded from penecho_design. Low-specificity structural
+/* ——— FastLectures button + semantic tint contract ———
+   Incrementally embedded from fastlectures_design. Low-specificity structural
    defaults let each surface keep its positioning and responsive width. The
    specificity anchor is reserved for the closed visual vocabulary. */
 body[data-theme="studio"] {
@@ -5085,8 +5085,8 @@ body[data-theme="studio"] {
   :is(#pe-button-contract, [data-pe-button], [data-pe-control], [data-pe-item="prompt-suggestion"], [data-pe-item="icon-copy-action"])::after { animation: none; transition-duration: .01ms; }
 }
 
-/* ——— PenEcho typography contract ———
-   Embedded from penecho_design. The specificity anchor closes the legacy
+/* ——— FastLectures typography contract ———
+   Embedded from fastlectures_design. The specificity anchor closes the legacy
    cascade without importing a second stylesheet or changing geometry. */
 :is(#pe-type-contract, body[data-theme="studio"]) {
   --pe-font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
@@ -5312,22 +5312,22 @@ body[data-theme="studio"] {
 
 /* CSS zoom keeps media queries in the unscaled viewport. Dialogs therefore
    use the logical viewport variables so 150–175% text never gets clipped. */
-html.penecho-web-page-scale .plugin-modal {
-  width: min(920px, calc(var(--penecho-canvas-page-viewport-width, 100vw) - 48px));
-  max-height: min(820px, calc(var(--penecho-canvas-page-dynamic-height, 100dvh) - 48px));
+html.fastlectures-web-page-scale .plugin-modal {
+  width: min(920px, calc(var(--fastlectures-canvas-page-viewport-width, 100vw) - 48px));
+  max-height: min(820px, calc(var(--fastlectures-canvas-page-dynamic-height, 100dvh) - 48px));
 }
-html.penecho-web-page-scale .history-panel {
-  width: min(680px, calc(var(--penecho-canvas-page-viewport-width, 100vw) - 64px));
-  max-height: min(680px, calc(var(--penecho-canvas-page-dynamic-height, 100dvh) - 64px));
+html.fastlectures-web-page-scale .history-panel {
+  width: min(680px, calc(var(--fastlectures-canvas-page-viewport-width, 100vw) - 64px));
+  max-height: min(680px, calc(var(--fastlectures-canvas-page-dynamic-height, 100dvh) - 64px));
 }
-html.penecho-web-page-scale .new-canvas-dialog {
-  width: min(540px, calc(var(--penecho-canvas-page-viewport-width, 100vw) - 32px));
-  max-height: calc(var(--penecho-canvas-page-dynamic-height, 100dvh) - 40px);
+html.fastlectures-web-page-scale .new-canvas-dialog {
+  width: min(540px, calc(var(--fastlectures-canvas-page-viewport-width, 100vw) - 32px));
+  max-height: calc(var(--fastlectures-canvas-page-dynamic-height, 100dvh) - 40px);
 }
-html.penecho-web-page-scale .project-dialog { width: min(336px, calc(var(--penecho-canvas-page-viewport-width, 100vw) - 32px)); }
-html.penecho-web-page-scale .text-help-dialog {
-  width: min(440px, calc(var(--penecho-canvas-page-viewport-width, 100vw) - 24px));
-  max-height: calc(var(--penecho-canvas-page-dynamic-height, 100dvh) - 24px);
+html.fastlectures-web-page-scale .project-dialog { width: min(336px, calc(var(--fastlectures-canvas-page-viewport-width, 100vw) - 32px)); }
+html.fastlectures-web-page-scale .text-help-dialog {
+  width: min(440px, calc(var(--fastlectures-canvas-page-viewport-width, 100vw) - 24px));
+  max-height: calc(var(--fastlectures-canvas-page-dynamic-height, 100dvh) - 24px);
 }
 
 /* Settings keeps the defined select expression on a compact right-hand rail. */
@@ -5473,33 +5473,33 @@ body[data-theme="studio"] #aiFont[data-pe-control="select"] {
   .settings-shortcut-reset[data-pe-button="icon"] { width: 44px; min-width: 44px; }
 }
 
-/* Canvas Library — PenEcho Design Language manager XL/nav-content/glass.
+/* Canvas Library — FastLectures Design Language manager XL/nav-content/glass.
    Geometry below maps to the catalog's manager, toolbar, list and grid
    contracts; the grid's internal regions follow the existing Favourite grid. */
 .history-panel[data-pe-surface="manager"] {
   width: min(900px, calc(100vw - 48px));
   height: min(720px, calc(100dvh - 48px));
   max-height: calc(100dvh - 48px);
-  grid-template-rows: var(--penecho-workbench-header-h) minmax(0, 1fr);
+  grid-template-rows: var(--fastlectures-workbench-header-h) minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid var(--pe-line);
-  border-radius: var(--penecho-large-dialog-radius);
-  background: var(--penecho-large-dialog-surface);
-  box-shadow: var(--penecho-large-dialog-shadow);
-  -webkit-backdrop-filter: var(--penecho-large-dialog-surface-filter);
-  backdrop-filter: var(--penecho-large-dialog-surface-filter);
+  border-radius: var(--fastlectures-large-dialog-radius);
+  background: var(--fastlectures-large-dialog-surface);
+  box-shadow: var(--fastlectures-large-dialog-shadow);
+  -webkit-backdrop-filter: var(--fastlectures-large-dialog-surface-filter);
+  backdrop-filter: var(--fastlectures-large-dialog-surface-filter);
   container: history-library / inline-size;
 }
-html.penecho-web-page-scale .history-panel[data-pe-surface="manager"] {
-  width: min(900px, calc(var(--penecho-canvas-page-viewport-width, 100vw) - 48px));
-  height: min(720px, calc(var(--penecho-canvas-page-dynamic-height, 100dvh) - 48px));
-  max-height: calc(var(--penecho-canvas-page-dynamic-height, 100dvh) - 48px);
+html.fastlectures-web-page-scale .history-panel[data-pe-surface="manager"] {
+  width: min(900px, calc(var(--fastlectures-canvas-page-viewport-width, 100vw) - 48px));
+  height: min(720px, calc(var(--fastlectures-canvas-page-dynamic-height, 100dvh) - 48px));
+  max-height: calc(var(--fastlectures-canvas-page-dynamic-height, 100dvh) - 48px);
 }
 .history-panel[data-pe-surface="manager"] > .history-titlebar {
-  min-height: var(--penecho-workbench-header-h);
-  padding: var(--penecho-workbench-header-padding);
+  min-height: var(--fastlectures-workbench-header-h);
+  padding: var(--fastlectures-workbench-header-padding);
   border-bottom: 1px solid color-mix(in srgb, var(--studio-line, #d9dde5) 78%, transparent);
-  background: var(--penecho-workbench-title-surface);
+  background: var(--fastlectures-workbench-title-surface);
 }
 .history-panel[data-pe-surface="manager"] .history-project-select-label {
   display: block;
@@ -5511,15 +5511,15 @@ html.penecho-web-page-scale .history-panel[data-pe-surface="manager"] {
 .history-panel[data-pe-surface="manager"] .history-library-browser {
   min-width: 0;
   min-height: 0;
-  grid-template-columns: var(--penecho-workbench-navigation-w) minmax(0, 1fr);
+  grid-template-columns: var(--fastlectures-workbench-navigation-w) minmax(0, 1fr);
 }
 .history-panel[data-pe-surface="manager"] .history-library-sidebar {
   padding: 13px 11px;
   border-right: 1px solid var(--pe-line);
-  background: var(--penecho-workbench-navigation-surface);
+  background: var(--fastlectures-workbench-navigation-surface);
   font-family: var(--pe-font-ui);
-  -webkit-backdrop-filter: var(--penecho-workbench-navigation-filter);
-  backdrop-filter: var(--penecho-workbench-navigation-filter);
+  -webkit-backdrop-filter: var(--fastlectures-workbench-navigation-filter);
+  backdrop-filter: var(--fastlectures-workbench-navigation-filter);
 }
 .history-panel[data-pe-surface="manager"] .history-sidebar-section + .history-sidebar-section { margin-top: 18px; }
 .history-panel[data-pe-surface="manager"] .snapshot-location.history-sidebar-section legend,
@@ -5594,7 +5594,7 @@ html.penecho-web-page-scale .history-panel[data-pe-surface="manager"] {
 }
 .history-panel[data-pe-surface="manager"] .history-library-main {
   grid-template-rows: 42px 48px minmax(0, 1fr);
-  background: var(--penecho-workbench-content-surface);
+  background: var(--fastlectures-workbench-content-surface);
 }
 .history-panel[data-pe-surface="manager"] .history-column-header { display: none !important; }
 
@@ -5603,7 +5603,7 @@ html.penecho-web-page-scale .history-panel[data-pe-surface="manager"] {
   gap: 6px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--pe-line);
-  background: var(--penecho-dialog-raised-surface);
+  background: var(--fastlectures-dialog-raised-surface);
 }
 .history-panel[data-pe-surface="manager"] .history-toolbar .history-search {
   width: auto;
@@ -6480,22 +6480,22 @@ html.penecho-web-page-scale .history-panel[data-pe-surface="manager"] {
   .history-panel[data-pe-surface="manager"] .history-list:not(.grid-view) .history-card .history-card-select { width: 80px; height: 56px; min-height: 56px; }
   .history-panel[data-pe-surface="manager"] .history-list.grid-view { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 12px; }
 }
-html.penecho-web-page-scale .changelog-dialog {
-  width: min(900px, calc(var(--penecho-canvas-page-viewport-width, 100vw) - 40px));
-  max-height: min(760px, calc(var(--penecho-canvas-page-dynamic-height, 100dvh) - 40px));
+html.fastlectures-web-page-scale .changelog-dialog {
+  width: min(900px, calc(var(--fastlectures-canvas-page-viewport-width, 100vw) - 40px));
+  max-height: min(760px, calc(var(--fastlectures-canvas-page-dynamic-height, 100dvh) - 40px));
 }
-html.penecho-web-page-scale .configuration-panel {
-  width: min(820px, calc(var(--penecho-canvas-page-viewport-width, 100vw) - 32px));
-  max-height: min(760px, calc(var(--penecho-canvas-page-dynamic-height, 100dvh) - 40px));
+html.fastlectures-web-page-scale .configuration-panel {
+  width: min(820px, calc(var(--fastlectures-canvas-page-viewport-width, 100vw) - 32px));
+  max-height: min(760px, calc(var(--fastlectures-canvas-page-dynamic-height, 100dvh) - 40px));
 }
-html.penecho-web-page-scale .crafts-modal {
-  width: min(960px, calc(var(--penecho-canvas-page-viewport-width, 100vw) - 48px));
-  height: min(680px, calc(var(--penecho-canvas-page-dynamic-height, 100dvh) - 48px));
+html.fastlectures-web-page-scale .crafts-modal {
+  width: min(960px, calc(var(--fastlectures-canvas-page-viewport-width, 100vw) - 48px));
+  height: min(680px, calc(var(--fastlectures-canvas-page-dynamic-height, 100dvh) - 48px));
 }
-html.penecho-web-page-scale .studio-session-delete-dialog { width: min(400px, calc(var(--penecho-canvas-page-viewport-width, 100vw) - 32px)); }
-html.penecho-web-page-scale .canvas-agent-project-dialog {
-  width: min(780px, calc(var(--penecho-canvas-page-viewport-width, 100vw) - 32px));
-  max-height: min(720px, calc(var(--penecho-canvas-page-dynamic-height, 100dvh) - 32px));
+html.fastlectures-web-page-scale .studio-session-delete-dialog { width: min(400px, calc(var(--fastlectures-canvas-page-viewport-width, 100vw) - 32px)); }
+html.fastlectures-web-page-scale .canvas-agent-project-dialog {
+  width: min(780px, calc(var(--fastlectures-canvas-page-viewport-width, 100vw) - 32px));
+  max-height: min(720px, calc(var(--fastlectures-canvas-page-dynamic-height, 100dvh) - 32px));
 }
 
 /* Focused Canvas objects share one attached top toolbar. The empty surface is
@@ -6781,7 +6781,7 @@ body[data-theme="studio"] :is(#pe-button-contract, .object-chrome-button.object-
 }
 
 /* Studio navigator and Agent composer location corrections.
-   These surfaces select only existing PenEcho button roles. They restore the
+   These surfaces select only existing FastLectures button roles. They restore the
    navigator hierarchy, equalize composer cells, and keep Scale 90's compact
    view-control pair without creating another button variant. */
 :is(#pe-button-contract, body[data-theme="studio"]) .studio-navigator :is(
@@ -7671,7 +7671,7 @@ body[data-theme="studio"].studio-mcp-docked :is(#pe-button-contract, .mcp-canvas
 
 
 /* AI connections: canonical settings architecture + #lists single/double rows.
-   Geometry/type/material sourced from penecho-design-language.css; product owns behavior. */
+   Geometry/type/material sourced from fastlectures-design-language.css; product owns behavior. */
 #settingsPageConnections { container: pe-connections / inline-size; color: var(--pe-ink); background: var(--pe-surface-raised); }
 #settingsPageConnections .settings-connections-title { margin: 0 0 16px; color: var(--pe-ink); font: 600 20px/1.3 var(--pe-font-ui); }
 #settingsPageConnections .settings-connections-group { margin: 20px 0 0; padding: 0; min-width: 0; }
@@ -7916,3 +7916,81 @@ body[data-theme] #status:has([data-mcp-device-link]) {
 .history-library-error p { margin: 4px 0 12px; color: var(--ai-muted); font: 400 13px/1.45 var(--ai-font); overflow-wrap: anywhere; }
 .history-library-error.with-cache { min-height: 0; padding: 14px; border-bottom: 1px solid var(--ai-line); }
 .history-activity progress[hidden] { display: none; }
+
+/* ===== Sessions sidebar (last 25 sessions, ChatGPT-style) ===== */
+.sessions-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 280px;
+  height: 100vh;
+  height: 100dvh;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-left: 1px solid var(--line);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.18);
+  z-index: 1300;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  padding: 0;
+  margin: 0;
+}
+.sessions-sidebar.open { transform: translateX(0); }
+.sessions-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 14px 10px 18px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.sessions-sidebar-title { margin: 0; font: 600 14px/1.2 var(--font); color: var(--text); }
+.sessions-list { flex: 1; overflow-y: auto; padding: 8px; min-height: 0; }
+.session-item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: 400 13px/1.4 var(--font);
+  color: var(--text);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.session-item:hover { background: color-mix(in srgb, var(--line) 40%, transparent); }
+.session-item.is-current { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.session-item .session-title { display: block; font-weight: 500; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-item .session-meta { display: flex; gap: 8px; font-size: 11px; color: var(--muted); }
+.session-item .session-badge { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.session-item .session-badge.current { background: color-mix(in srgb, var(--accent) 22%, transparent); font-weight: 600; }
+.sessions-empty { padding: 32px 18px; text-align: center; color: var(--muted); font: 400 13px/1.5 var(--font); }
+.sessions-logout-btn {
+  margin: 8px 12px 12px;
+  flex-shrink: 0;
+  align-self: stretch;
+}
+
+/* ===== Voice toggle button ===== */
+.canvas-agent-voice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+.canvas-agent-voice:hover { color: var(--gold); border-color: var(--gold); }
+.canvas-agent-voice[aria-pressed="true"] { color: var(--gold); background: color-mix(in srgb, var(--gold) 14%, transparent); border-color: var(--gold); }
+.canvas-agent-voice svg { width: 16px; height: 16px; }

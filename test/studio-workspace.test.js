@@ -61,7 +61,7 @@ test("background MCP activity does not highlight the visible Canvas",()=>{
   const runtimeSource=fs.readFileSync(path.join(root,"src/client/app/mcp-runtime.js"),"utf8");
   const ring={setAttribute(key,value){this[key]=value;}},button={},newButton={},notice={};
   const runtime={ready:true,socket:{readyState:1},sessions:new Map(),pendingView:new Map(),glowing:true,activeMutation:"AI",mutationDocumentId:"background"};
-  const context=vm.createContext({mcpRuntime:runtime,window:{PENECHO_CONFIG:{runtime:"local"}},WebSocket:{OPEN:1},canvasDocuments:{activeId:"visible"},mcpLocal:()=>true,mcpSessionVisible:()=>true,mcpText:key=>key,
+  const context=vm.createContext({mcpRuntime:runtime,window:{FASTLECTURES_CONFIG:{runtime:"local"}},WebSocket:{OPEN:1},canvasDocuments:{activeId:"visible"},mcpLocal:()=>true,mcpSessionVisible:()=>true,mcpText:key=>key,
     mcpEl:id=>({mcpCanvasRing:ring,mcpCanvasNotice:notice,mcpCanvasNoticeButton:button,mcpShowNewContent:newButton})[id],
   });
   vm.runInContext(extract("mcpAccessLabel",runtimeSource)+extract("mcpRenderCanvasStatus",runtimeSource),context);
@@ -123,7 +123,7 @@ test("Canvas changes suppress automatic Agent opening only while MCP is docked",
   const agentSource=fs.readFileSync(path.join(root,"src/client/app/canvas-agent-runtime.js"),"utf8");
   for(const docked of [false,true]){
     let opened=0;
-    const context={window:{PenEchoStudioNavigator:{isMcpDocked:()=>docked}},canvasDocuments:{},canvasAgent:{},state:{canvasAgentAutoOpen:true},canvasAgentPanel:{hidden:true},WebSocket:{OPEN:1},
+    const context={window:{FastLecturesStudioNavigator:{isMcpDocked:()=>docked}},canvasDocuments:{},canvasAgent:{},state:{canvasAgentAutoOpen:true},canvasAgentPanel:{hidden:true},WebSocket:{OPEN:1},
       canvasAgentReconcileCloudCanvas(){},canvasAgentCancelInitialAutoHide(){},canvasAgentPersistCurrentConversation(){},canvasAgentCanvasIdentity:()=>"test",canvasAgentBeginLocalConversation(){},canvasAgentDropSessionIdentity(){},canvasAgentSyncPromptSuggestions(){},openCanvasAgent:()=>opened++,
     };
     vm.runInNewContext(`(${extract("canvasAgentCanvasDidChange",agentSource)})()`,context);

@@ -1,16 +1,16 @@
 {
   "removedOwnedTestState": [
-    "/tmp/penecho-mcp-efficiency-20260912/zcode-settings.json",
-    "/tmp/penecho-mcp-efficiency-20260912/state-old",
-    "/tmp/penecho-mcp-efficiency-20260912/state-new",
-    "/tmp/penecho-mcp-efficiency-20260912/registry-old",
-    "/tmp/penecho-mcp-efficiency-20260912/registry-new",
-    "/tmp/penecho-mcp-efficiency-20260912/zcode-work",
-    "/tmp/penecho-mcp-efficiency-20260912/zcode-isolated-home",
-    "/tmp/penecho-mcp-efficiency-20260912/zcode-home",
-    "/tmp/penecho-release-20260912/mac-app-state",
-    "/tmp/penecho-release-20260912/zcode-packaged/home",
-    "/tmp/penecho-release-20260912/zcode-packaged/work"
+    "/tmp/fastlectures-mcp-efficiency-20260912/zcode-settings.json",
+    "/tmp/fastlectures-mcp-efficiency-20260912/state-old",
+    "/tmp/fastlectures-mcp-efficiency-20260912/state-new",
+    "/tmp/fastlectures-mcp-efficiency-20260912/registry-old",
+    "/tmp/fastlectures-mcp-efficiency-20260912/registry-new",
+    "/tmp/fastlectures-mcp-efficiency-20260912/zcode-work",
+    "/tmp/fastlectures-mcp-efficiency-20260912/zcode-isolated-home",
+    "/tmp/fastlectures-mcp-efficiency-20260912/zcode-home",
+    "/tmp/fastlectures-release-20260912/mac-app-state",
+    "/tmp/fastlectures-release-20260912/zcode-packaged/home",
+    "/tmp/fastlectures-release-20260912/zcode-packaged/work"
   ],
   "stoppedTestPids": [
     14457,

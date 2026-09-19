@@ -1294,7 +1294,7 @@
       sourceFormat = typeof item.sourceFormat === "string" ? item.sourceFormat.trim() : inferredSourceFormat,
       frameworkVersion = typeof item.frameworkVersion === "string" ? item.frameworkVersion.trim() : "";
     if (diagramKind.length > 80 || sourceFormat.length > 80 || frameworkVersion.length > 120) return null;
-    const copyTextLimit=sourceFormat==="penecho-visual-explainer-plan+json"?MAX_VISUAL_EXPLAINER_SOURCE_LENGTH:MAX_WIDGET_COPY_TEXT_LENGTH;
+    const copyTextLimit=sourceFormat==="fastlectures-visual-explainer-plan+json"?MAX_VISUAL_EXPLAINER_SOURCE_LENGTH:MAX_WIDGET_COPY_TEXT_LENGTH;
     if (widgetType !== "diagram_source" && allowCopy && item.copyText !== undefined && (typeof item.copyText !== "string" || !item.copyText.trim() || item.copyText.length > copyTextLimit)) return null;
     if (widgetType !== "diagram_source" && allowCopy && item.copyLabel !== undefined && (typeof item.copyLabel !== "string" || !item.copyLabel.trim() || item.copyLabel.length > 80)) return null;
     const communityOriginItemId = typeof item.communityOriginItemId === "string" && /^[0-9a-f-]{36}$/i.test(item.communityOriginItemId) ? item.communityOriginItemId : null,
@@ -1390,7 +1390,7 @@
     delete publicWidget.favoriteArtifactSha256;
     delete publicWidget.favoriteCloudId;
     delete publicWidget.favoriteCommunityItemId;
-    return { format:"penecho-widget", formatVersion:1, widget:publicWidget, ...communityImages };
+    return { format:"fastlectures-widget", formatVersion:1, widget:publicWidget, ...communityImages };
   }
   function setCommunityWidgetFavorite(widgetId, favorite, busy = false, artifactSha256 = undefined, reference = undefined) {
     const widget = state.widgets.find((item) => item.id === widgetId);
@@ -1414,7 +1414,7 @@
   }
 
   async function importCommunityWidgetArtifact(artifact, origin = null, options = null) {
-    if (!artifact || artifact.format !== "penecho-widget" || artifact.formatVersion !== 1 || !artifact.widget) throw Error("The community Widget is invalid.");
+    if (!artifact || artifact.format !== "fastlectures-widget" || artifact.formatVersion !== 1 || !artifact.widget) throw Error("The community Widget is invalid.");
     if (state.pendingWidget) acceptPendingWidget({ restoreMode:false });
     if (state.widgetEdit) acceptWidgetEdit();
     const visible = viewportRect(), source = { ...artifact.widget }, favoriteState = options?.favoriteState;
@@ -1437,14 +1437,14 @@
     // Fit the widget into the visible canvas: oversized widgets shrink
     // uniformly (content scales through the shell transform) and land centered
     // instead of spilling past the viewport edges.
-    const viewerFit = options?.fitViewport === true && window.PENECHO_CONFIG?.runtime === "viewer";
+    const viewerFit = options?.fitViewport === true && window.FASTLECTURES_CONFIG?.runtime === "viewer";
     const fitScale = viewerFit ? 1 : Math.min(1, (visible.w * 0.9) / Number(source.w || 300) || 1, (visible.h * 0.9) / Number(source.h || 200) || 1);
     if (!viewerFit && fitScale > 0 && fitScale < 1) { source.w = Number(source.w || 300) * fitScale; source.h = Number(source.h || 200) * fitScale; }
     source.x = Math.max(0, Math.min(SIZE - Number(source.w || 300), visible.x + Math.max(0, (visible.w - Number(source.w || 300)) / 2)));
     source.y = Math.max(0, Math.min(SIZE - Number(source.h || 200), visible.y + Math.max(0, (visible.h - Number(source.h || 200)) / 2)));
     await enableSnapshotWidgetPlugins([source]);
     const widget = widgetRecord(source);
-    if (!widget) throw Error("The community Widget is not compatible with this PenEcho version.");
+    if (!widget) throw Error("The community Widget is not compatible with this FastLectures version.");
     if (origin?.id && /^[0-9a-f-]{36}$/i.test(origin.id)) {
       widget.communityOriginItemId = origin.id;
       widget.communityRootItemId = origin.rootItemId || origin.id;
@@ -1467,7 +1467,7 @@
   }
   function widgetHostUrl(manifest) {
     const url = new URL(canvasAssetUrl("widget-host.html")),
-      runtime = window.PENECHO_CONFIG?.runtime;
+      runtime = window.FASTLECTURES_CONFIG?.runtime;
     // The editable local app isolates Widget code on the other loopback host.
     // Cloud shells serve a host with frame-ancestors 'self', so changing only
     // the hostname there would make the iframe cross-origin and CSP-blocked.
@@ -1706,7 +1706,7 @@
   }
   function probeWidgetHost(widget) {
     if (!widget.frame?.contentWindow) return false;
-    widget.frame.contentWindow.postMessage({ type:"penecho-widget-host-probe" }, widget.hostOrigin || location.origin);
+    widget.frame.contentWindow.postMessage({ type:"fastlectures-widget-host-probe" }, widget.hostOrigin || location.origin);
     return true;
   }
   function sendWidgetInit(widget) {
@@ -1719,7 +1719,7 @@
     widget.initialized = true;
     widget.mcpDocumentLoaded = false;
     widget.frame.contentWindow.postMessage({
-      type:"penecho-widget-init",
+      type:"fastlectures-widget-init",
       title:widget.title,
       html:widget.html,
       imageAssets,
@@ -1751,7 +1751,7 @@
     syncMcpWidgetProgress(widget);
     if (!force && widget.hostStateKey === key) return;
     widget.hostStateKey = key;
-    widget.frame.contentWindow.postMessage({ type:"penecho-widget-state", maximized:widget.maximized === true, fitContent:widget.fitContent === true, fitContentAxes:widget.fitContentAxes || null, selected, interactive, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
+    widget.frame.contentWindow.postMessage({ type:"fastlectures-widget-state", maximized:widget.maximized === true, fitContent:widget.fitContent === true, fitContentAxes:widget.fitContentAxes || null, selected, interactive, active, navigationLocked:state.navigationLocked, scaleX, scaleY }, widget.hostOrigin || location.origin);
   }
   function markWidgetHostReady(widget) {
     widget.hostReady = true;
@@ -1837,7 +1837,7 @@
           widgetSnapshotRequests.set(requestId,pending);
           signal?.addEventListener("abort",abort,{once:true});
           if(signal?.aborted){abort();return;}
-          widget.frame.contentWindow.postMessage({ type:"penecho-widget-snapshot-request", requestId, width:widget.contentW, height:widget.contentH, timeoutMs:remaining(), highResolution, fullContent }, widget.hostOrigin || location.origin);
+          widget.frame.contentWindow.postMessage({ type:"fastlectures-widget-snapshot-request", requestId, width:widget.contentW, height:widget.contentH, timeoutMs:remaining(), highResolution, fullContent }, widget.hostOrigin || location.origin);
         });
       } finally {
         widget.snapshotCaptureActive = false;
@@ -1879,31 +1879,31 @@
     const widget = [...state.widgets, ...(state.pendingWidget ? [state.pendingWidget] : []), ...(typeof mcpRuntime!=="undefined"?[...(mcpRuntime?.previews?.values()||[])]:[])].find((item) => item.frame?.contentWindow === event.source);
     if (!widget || event.origin !== (widget.hostOrigin || location.origin) || !event.data || typeof event.data !== "object") return;
     const message = event.data;
-    if(widget.mcpEphemeral&&!["penecho-widget-host-ready","penecho-widget-capture-ready","penecho-widget-updated","penecho-widget-snapshot","penecho-widget-snapshot-error","penecho-widget-runtime-diagnostics","penecho-visual-explainer-diagnostics"].includes(message.type))return;
-    if(message.type==="penecho-widget-user-action"&&typeof canvasDocumentsWidgetAction==="function") {
+    if(widget.mcpEphemeral&&!["fastlectures-widget-host-ready","fastlectures-widget-capture-ready","fastlectures-widget-updated","fastlectures-widget-snapshot","fastlectures-widget-snapshot-error","fastlectures-widget-runtime-diagnostics","fastlectures-visual-explainer-diagnostics"].includes(message.type))return;
+    if(message.type==="fastlectures-widget-user-action"&&typeof canvasDocumentsWidgetAction==="function") {
       canvasDocumentsWidgetAction(widget,message);return;
     }
-    if (message.type === "penecho-widget-presentation-size") {
+    if (message.type === "fastlectures-widget-presentation-size") {
       applyWidgetPresentationSize(widget, message);
       return;
     }
-    if (message.type === "penecho-widget-fit-result") {
+    if (message.type === "fastlectures-widget-fit-result") {
       applyWidgetContentFit(widget, message);
       return;
     }
-    if (message.type === "penecho-widget-fit" && ["width", "height", "resize"].includes(message.hit)) {
+    if (message.type === "fastlectures-widget-fit" && ["width", "height", "resize"].includes(message.hit)) {
       requestWidgetContentFit(widget, message.hit);
       return;
     }
-    if (message.type === "penecho-widget-exit-interaction") {
+    if (message.type === "fastlectures-widget-exit-interaction") {
       if (state.interactingWidgetId === widget.id) setWidgetInteraction(null);
       return;
     }
-    if (message.type === "penecho-widget-host-ready") {
+    if (message.type === "fastlectures-widget-host-ready") {
       markWidgetHostReady(widget);
       return;
     }
-    if (message.type === "penecho-widget-capture-ready") {
+    if (message.type === "fastlectures-widget-capture-ready") {
       return;
     }
     if (validWidgetHostActivate(message)) {
@@ -1914,14 +1914,14 @@
       return;
     }
     if (validWidgetHostDrag(message)) {
-      if (message.type === "penecho-widget-drag-start") beginWidgetHostDrag(widget, message);
-      else if (message.type === "penecho-widget-drag-move") updateWidgetHostDrag(widget, message);
+      if (message.type === "fastlectures-widget-drag-start") beginWidgetHostDrag(widget, message);
+      else if (message.type === "fastlectures-widget-drag-move") updateWidgetHostDrag(widget, message);
       else finishWidgetHostDrag(widget, message);
       return;
     }
     if (validWidgetHostTouch(message)) {
-      if (message.type === "penecho-widget-touch-start") beginWidgetHostTouch(widget, message);
-      else if (message.type === "penecho-widget-touch-move") updateWidgetHostTouch(widget, message);
+      if (message.type === "fastlectures-widget-touch-start") beginWidgetHostTouch(widget, message);
+      else if (message.type === "fastlectures-widget-touch-move") updateWidgetHostTouch(widget, message);
       else finishWidgetHostTouch(widget, message);
       return;
     }
@@ -1938,7 +1938,7 @@
       widget.visualDiagnosticWaiters?.clear();
       return;
     }
-    if (message.type === "penecho-widget-updated") {
+    if (message.type === "fastlectures-widget-updated") {
       if(message.loaded===true){
         widget.mcpDocumentLoaded = true;
         for(const resolve of widget.mcpLoadWaiters||[])resolve();
@@ -1948,18 +1948,18 @@
       widget.snapshotDataUrl = "";
       return;
     }
-    if (!["penecho-widget-snapshot", "penecho-widget-snapshot-error"].includes(message.type)) return;
+    if (!["fastlectures-widget-snapshot", "fastlectures-widget-snapshot-error"].includes(message.type)) return;
     const pending = widgetSnapshotRequests.get(message.requestId);
     if (!pending || pending.widget !== widget) return;
     widgetSnapshotRequests.delete(message.requestId);
     clearTimeout(pending.timer);
     pending.signal?.removeEventListener("abort",pending.abort);
-    if (message.type === "penecho-widget-snapshot-error" || typeof message.dataUrl !== "string" || !message.dataUrl.startsWith("data:image/png;base64,")
+    if (message.type === "fastlectures-widget-snapshot-error" || typeof message.dataUrl !== "string" || !message.dataUrl.startsWith("data:image/png;base64,")
       || !Number.isFinite(message.width) || message.width <= 0 || !Number.isFinite(message.height) || message.height <= 0) {
-      const snapshotFailure = message.type === "penecho-widget-snapshot-error"
+      const snapshotFailure = message.type === "fastlectures-widget-snapshot-error"
         ? String(message.error || t("widgetExportFailed")).replace(/[\r\n\t]+/g, " ").slice(0, 300)
         : t("widgetExportFailed");
-      if (message.type === "penecho-widget-snapshot-error") console.warn("PenEcho widget snapshot failed:", snapshotFailure);
+      if (message.type === "fastlectures-widget-snapshot-error") console.warn("FastLectures widget snapshot failed:", snapshotFailure);
       const error=Error(snapshotFailure);
       error.code=/^WIDGET_[A-Z_]{1,40}$/.test(message.code||"")?message.code:"WIDGET_CAPTURE_FAILED";
       error.details={widgetId:widget.id,stage:String(message.details?.stage||"capture").slice(0,60),
@@ -2134,7 +2134,7 @@
     if (!widget.pending) beginWidgetEdit(widget);
     const requestId = `widget-fit-${++widgetFitRequestSequence}`;
     widget.contentFitRequest = { requestId, hit, start:widgetLayout(widget), html:widget.html };
-    widget.frame.contentWindow.postMessage({ type:"penecho-widget-fit-request", requestId, hit }, widget.hostOrigin || location.origin);
+    widget.frame.contentWindow.postMessage({ type:"fastlectures-widget-fit-request", requestId, hit }, widget.hostOrigin || location.origin);
     return true;
   }
   function applyWidgetContentFit(widget, message) {
@@ -2252,26 +2252,26 @@
     return finishWidgetGesture({ pointerId:gesture.id });
   }
   function validWidgetHostDrag(message) {
-    return message && ["penecho-widget-drag-start", "penecho-widget-drag-move", "penecho-widget-drag-end"].includes(message.type)
+    return message && ["fastlectures-widget-drag-start", "fastlectures-widget-drag-move", "fastlectures-widget-drag-end"].includes(message.type)
       && Number.isInteger(message.pointerId) && Math.abs(message.pointerId) <= 0x7fffffff
       && ["mouse", "pen", "touch"].includes(message.pointerType)
       && ["width", "height", "resize"].includes(message.hit)
       && [message.localX, message.localY, message.screenX, message.screenY].every(value => Number.isFinite(value) && Math.abs(value) <= 10000000);
   }
   function validWidgetHostTouch(message) {
-    return message && ["penecho-widget-touch-start", "penecho-widget-touch-move", "penecho-widget-touch-end"].includes(message.type)
+    return message && ["fastlectures-widget-touch-start", "fastlectures-widget-touch-move", "fastlectures-widget-touch-end"].includes(message.type)
       && Number.isInteger(message.pointerId) && Math.abs(message.pointerId) <= 0x7fffffff
       && message.pointerType === "touch"
       && [message.localX, message.localY, message.screenX, message.screenY].every(value => Number.isFinite(value) && Math.abs(value) <= 10000000);
   }
   function validWidgetHostActivate(message) {
-    return message?.type === "penecho-widget-activate"
+    return message?.type === "fastlectures-widget-activate"
       && Number.isInteger(message.pointerId) && Math.abs(message.pointerId) <= 0x7fffffff
       && ["mouse", "pen", "touch"].includes(message.pointerType)
       && [message.localX, message.localY, message.screenX, message.screenY].every(value => Number.isFinite(value) && Math.abs(value) <= 10000000);
   }
   function validWidgetRuntimeDiagnostics(message) {
-    return message && message.type === "penecho-widget-runtime-diagnostics"
+    return message && message.type === "fastlectures-widget-runtime-diagnostics"
       && typeof message.truncated === "boolean" && Array.isArray(message.errors) && message.errors.length <= 5
       && message.errors.every(error => error && typeof error === "object"
         && ["error", "unhandledrejection", "script-load"].includes(error.kind)
@@ -2286,7 +2286,7 @@
   }
   function validVisualExplainerDiagnostics(message) {
     const diagnostics=message?.diagnostics;
-    return message?.type === "penecho-visual-explainer-diagnostics" && diagnostics && typeof diagnostics === "object"
+    return message?.type === "fastlectures-visual-explainer-diagnostics" && diagnostics && typeof diagnostics === "object"
       && diagnostics.version === 1 && ["pass","warn","fail"].includes(diagnostics.status)
       && Number.isInteger(diagnostics.score) && diagnostics.score >= 0 && diagnostics.score <= 100
       && ["comfortable","compact","dense"].includes(diagnostics.density)
@@ -2336,7 +2336,7 @@
     screenClientRatio = Math.min(4, Math.max(0.25, screenClientRatio * 0.7 + candidate * 0.3));
   }
   function beginWidgetHostTouch(widget, message) {
-    if (state.mode !== "select" || !validWidgetHostTouch(message) || message.type !== "penecho-widget-touch-start") return false;
+    if (state.mode !== "select" || !validWidgetHostTouch(message) || message.type !== "fastlectures-widget-touch-start") return false;
     const point = widgetHostViewportPoint(widget, message);
     if (!point) return false;
     const id = widgetHostPointerId(widget, message.pointerId);
@@ -2349,14 +2349,14 @@
     return true;
   }
   function updateWidgetHostTouch(widget, message) {
-    if (state.mode !== "select" || !validWidgetHostTouch(message) || message.type !== "penecho-widget-touch-move") return false;
+    if (state.mode !== "select" || !validWidgetHostTouch(message) || message.type !== "fastlectures-widget-touch-move") return false;
     const id = widgetHostPointerId(widget, message.pointerId),
       point = widgetHostTrackedPoint(widgetHostPointerAnchors.get(id), message) || widgetHostViewportPoint(widget, message);
     if (!point || !state.handWidgetPointerIds.has(id)) return false;
     return updateHandObjectFocus({ pointerId:id });
   }
   function finishWidgetHostTouch(widget, message) {
-    if (!validWidgetHostTouch(message) || message.type !== "penecho-widget-touch-end") return false;
+    if (!validWidgetHostTouch(message) || message.type !== "fastlectures-widget-touch-end") return false;
     const id = widgetHostPointerId(widget, message.pointerId);
     if (!state.handWidgetPointerIds.has(id)) return false;
     finishHandObjectFocus({ pointerId:id });
@@ -2366,7 +2366,7 @@
     return true;
   }
   function beginWidgetHostDrag(widget, message) {
-    if (!validWidgetHostDrag(message) || message.type !== "penecho-widget-drag-start") return false;
+    if (!validWidgetHostDrag(message) || message.type !== "fastlectures-widget-drag-start") return false;
     if (message.pointerType === "touch") {
       const id = widgetHostPointerId(widget, message.pointerId);
       if ([...state.handWidgetPointerIds].some((pointerId) => pointerId !== id)) return false;
@@ -2403,7 +2403,7 @@
   }
   function finishWidgetHostDrag(widget, message) {
     const gesture = state.widgetGesture;
-    if (!validWidgetHostDrag(message) || message.type !== "penecho-widget-drag-end" || !gesture || gesture.source !== "widget-host" || gesture.widget !== widget || gesture.hostPointerId !== message.pointerId) return false;
+    if (!validWidgetHostDrag(message) || message.type !== "fastlectures-widget-drag-end" || !gesture || gesture.source !== "widget-host" || gesture.widget !== widget || gesture.hostPointerId !== message.pointerId) return false;
     updateWidgetHostDrag(widget, message);
     return finishWidgetGesture({ pointerId:gesture.id });
   }
@@ -3231,7 +3231,7 @@
     requestRender();
   }
   function fitViewerCanvas() {
-    if (window.PENECHO_CONFIG?.runtime !== "viewer") return false;
+    if (window.FASTLECTURES_CONFIG?.runtime !== "viewer") return false;
     viewerAutoFitWidgetId = null;
     viewerAutoFitCanvas = true;
     fit();
@@ -3503,7 +3503,7 @@
     let enabled = false;
     try { enabled = new URLSearchParams(location.search).get("renderTiming") === "1"; } catch {}
     const records = [];
-    if (enabled) globalThis.__PENECHO_RENDER_TIMINGS__ = records;
+    if (enabled) globalThis.__FASTLECTURES_RENDER_TIMINGS__ = records;
     return { enabled, records, limit:300 };
   })();
   function canvasRenderTimedStage(record, name, work) {
@@ -4072,12 +4072,12 @@
     return copied;
   }
   function widgetImageFilename(widget) {
-    const title = String(widget?.title || "penecho-widget")
+    const title = String(widget?.title || "fastlectures-widget")
       .replace(/[\u0000-\u001f<>:"/\\|?*]+/g, "-")
       .replace(/[.\s]+$/g, "")
       .trim()
       .slice(0, 120);
-    return `${title || "penecho-widget"}.png`;
+    return `${title || "fastlectures-widget"}.png`;
   }
   async function downloadWidgetImage(widget) {
     if (!widget || widget.downloadBusy) return false;
@@ -4159,7 +4159,7 @@
     if (copied) button.dataset.copyState = "copied";
     else delete button.dataset.copyState;
     button.innerHTML = OBJECT_CHROME_ICONS[copied ? "accept" : "copy"];
-    button.setAttribute("aria-label", copied ? t("widgetSourceCopied") : objectChromeLabel("copy", button.penechoSpec));
+    button.setAttribute("aria-label", copied ? t("widgetSourceCopied") : objectChromeLabel("copy", button.fastlecturesSpec));
     if (!copied) return;
     button._copyIconResetTimer = setTimeout(() => {
       button._copyIconResetTimer = 0;
@@ -4201,19 +4201,19 @@
       refineCandidate:options.refine,
       activate:(button) => void beginWidgetRefineConfirmation(options.refine, objectChromeAnchor(button)),
     });
-    if (options.community && window.PenEchoCommunityUI) {
+    if (options.community && window.FastLecturesCommunityUI) {
       const favoriteLabelKey = widget.favoriteBusy ? "favoriteWidgetSaving" : widget.favorite ? "unfavoriteWidget" : "favoriteWidget";
       items.push({
         key:`widget:${widget.id}:tool-favorite`,
         kind:"favorite",
-        label:window.PenEchoCommunityUI.label?.(favoriteLabelKey) || "Favorite",
+        label:window.FastLecturesCommunityUI.label?.(favoriteLabelKey) || "Favorite",
         baseWidth:28,
         iconOnly:true,
         pressed:widget.favorite === true,
         busy:widget.favoriteBusy === true,
         activate:() => {
           if (widget.favoriteBusy) return;
-          window.dispatchEvent(new CustomEvent("penecho:community-widget-action", { detail:{
+          window.dispatchEvent(new CustomEvent("fastlectures:community-widget-action", { detail:{
             action:"favorite",
             widgetId:widget.id,
             favorite:widget.favorite === true,
@@ -4227,10 +4227,10 @@
       items.push({
         key:`widget:${widget.id}:tool-share`,
         kind:"share",
-        label:window.PenEchoCommunityUI.label?.("shareWidget") || "Share",
+        label:window.FastLecturesCommunityUI.label?.("shareWidget") || "Share",
         baseWidth:28,
         iconOnly:true,
-        activate:() => window.dispatchEvent(new CustomEvent("penecho:community-widget-action", { detail:{ action:"share", widgetId:widget.id } })),
+        activate:() => window.dispatchEvent(new CustomEvent("fastlectures:community-widget-action", { detail:{ action:"share", widgetId:widget.id } })),
       });
     }
     if (options.download) items.push({
@@ -4457,8 +4457,8 @@
     if (kind === "copy") return t("copyText");
     if (kind === "merge") return t("imageMerge");
     if (kind === "refine") return t("widgetRefine");
-    if (kind === "favorite") return window.PenEchoCommunityUI?.label?.("favoriteWidget") || "Favorite Widget";
-    if (kind === "share") return window.PenEchoCommunityUI?.label?.("shareWidget") || "Share Widget";
+    if (kind === "favorite") return window.FastLecturesCommunityUI?.label?.("favoriteWidget") || "Favorite Widget";
+    if (kind === "share") return window.FastLecturesCommunityUI?.label?.("shareWidget") || "Share Widget";
     if (kind === "download") return t("downloadWidget");
     return t("hand");
   }
@@ -4589,43 +4589,43 @@
       event.stopPropagation();
       finishStaleWidgetHostGesture(event);
       const dragSurface = kind === "move" || kind === "toolbar";
-      if (button.penechoSpec?.handToolbar) {
-        beginHandToolbarOperation(event.pointerId, button.penechoSpec.handToolbarKey);
-        if (dragSurface) activateHandObjectToolbar(button.penechoSpec.handToolbarKey);
-        refreshHandObjectToolbar(button.penechoSpec.handToolbarKey);
+      if (button.fastlecturesSpec?.handToolbar) {
+        beginHandToolbarOperation(event.pointerId, button.fastlecturesSpec.handToolbarKey);
+        if (dragSurface) activateHandObjectToolbar(button.fastlecturesSpec.handToolbarKey);
+        refreshHandObjectToolbar(button.fastlecturesSpec.handToolbarKey);
       }
       if (!dragSurface) {
         try { button.setPointerCapture(event.pointerId); } catch {}
         return;
       }
-      beginObjectChromeMove(event, button.penechoSpec);
+      beginObjectChromeMove(event, button.fastlecturesSpec);
     });
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       if (kind === "move" || kind === "toolbar" || button.disabled) return;
-      if (kind === "refine") triggerWidgetRefineClickPulse(button.penechoSpec?.refineCandidate?.widgetId);
-      button.penechoSpec?.activate?.(button);
+      if (kind === "refine") triggerWidgetRefineClickPulse(button.fastlecturesSpec?.refineCandidate?.widgetId);
+      button.fastlecturesSpec?.activate?.(button);
     });
     button.addEventListener("pointerenter", (event) => {
-      const key = button.penechoSpec?.handToolbarKey;
+      const key = button.fastlecturesSpec?.handToolbarKey;
       if (key) setHandToolbarHold(key, `chrome-hover:${event.pointerId}:${key}`, true);
     });
     button.addEventListener("pointerleave", (event) => {
-      const key = button.penechoSpec?.handToolbarKey;
+      const key = button.fastlecturesSpec?.handToolbarKey;
       if (key) setHandToolbarHold(key, `chrome-hover:${event.pointerId}:${key}`, false);
     });
     button.addEventListener("focus", () => {
-      const key = button.penechoSpec?.handToolbarKey;
+      const key = button.fastlecturesSpec?.handToolbarKey;
       if (key) setHandToolbarHold(key, `chrome-focus:${key}`, true);
     });
     button.addEventListener("blur", () => {
-      const key = button.penechoSpec?.handToolbarKey;
+      const key = button.fastlecturesSpec?.handToolbarKey;
       if (key) setHandToolbarHold(key, `chrome-focus:${key}`, false);
     });
     if (kind === "refine") {
       button.addEventListener("pointerenter", () => {
-        const candidate = button.penechoSpec?.refineCandidate;
+        const candidate = button.fastlecturesSpec?.refineCandidate;
         if (!candidate) return;
         state.widgetRefineButtonHoverId = candidate.widgetId;
         if (state.widgetRefineHoverCandidate === candidate) {
@@ -4637,7 +4637,7 @@
         requestInteractionLayerRender();
       });
       button.addEventListener("pointerleave", () => {
-        const candidate = button.penechoSpec?.refineCandidate;
+        const candidate = button.fastlecturesSpec?.refineCandidate;
         if (state.widgetRefineButtonHoverId === candidate?.widgetId) state.widgetRefineButtonHoverId = null;
         if (state.widgetRefineHoverCandidate === candidate) scheduleWidgetRefineHoverClear();
         scheduleWidgetRefineHintRender();
@@ -4649,29 +4649,29 @@
     return button;
   }
   function ensureObjectChromeStyleRule(button) {
-    if (!button || button.penechoStyleRule) return button?.penechoStyleRule || null;
+    if (!button || button.fastlecturesStyleRule) return button?.fastlecturesStyleRule || null;
     const sheet = textEditorStyleSheet(),
-      className = button.penechoStyleClass || `object-chrome-position-${nextObjectChromeStyleId++}`;
-    button.penechoStyleClass = className;
+      className = button.fastlecturesStyleClass || `object-chrome-position-${nextObjectChromeStyleId++}`;
+    button.fastlecturesStyleClass = className;
     button.classList.add(className);
     if (!sheet) return null;
     try {
       sheet.insertRule(`.${className} { --object-control-x: 0px; --object-control-y: 0px; z-index: 1; }`, sheet.cssRules.length);
-      button.penechoStyleRule = [...sheet.cssRules].find((rule) => rule.selectorText === `.${className}`) || null;
+      button.fastlecturesStyleRule = [...sheet.cssRules].find((rule) => rule.selectorText === `.${className}`) || null;
     } catch {
-      button.penechoStyleRule = null;
+      button.fastlecturesStyleRule = null;
     }
-    return button.penechoStyleRule;
+    return button.fastlecturesStyleRule;
   }
   function removeObjectChromeStyleRule(button) {
-    const rule = button?.penechoStyleRule,
+    const rule = button?.fastlecturesStyleRule,
       sheet = textEditorStyleSheet();
     if (!rule || !sheet) return;
     const index = [...sheet.cssRules].indexOf(rule);
     if (index >= 0) {
       try { sheet.deleteRule(index); } catch {}
     }
-    button.penechoStyleRule = null;
+    button.fastlecturesStyleRule = null;
   }
   function pendingChromeSpecs(specs, pending) {
     if (!pending) return;
@@ -4870,8 +4870,8 @@
       active.add(spec.key);
       const label = objectChromeLabel(spec.kind, spec),
         copyConfirmed = spec.kind === "copy" && button.dataset.copyState === "copied",
-        declaration = (button.penechoStyleRule || ensureObjectChromeStyleRule(button))?.["style"];
-      button.penechoSpec = spec;
+        declaration = (button.fastlecturesStyleRule || ensureObjectChromeStyleRule(button))?.["style"];
+      button.fastlecturesSpec = spec;
       if (spec.objectToolbar || spec.standaloneDraftControl) {
         button.removeAttribute("data-pe-button");
         button.removeAttribute("data-pe-density");
@@ -4926,8 +4926,8 @@
     syncSelectedWidgetMaterial(selectedWidgetMaterialRecord);
     for (const [key, button] of objectChromeButtons) {
       if (active.has(key)) continue;
-      if (button.penechoSpec?.kind === "refine"
-        && state.widgetRefineButtonHoverId === button.penechoSpec.refineCandidate?.widgetId) {
+      if (button.fastlecturesSpec?.kind === "refine"
+        && state.widgetRefineButtonHoverId === button.fastlecturesSpec.refineCandidate?.widgetId) {
         state.widgetRefineButtonHoverId = null;
         removedHoveredRefineButton = true;
       }

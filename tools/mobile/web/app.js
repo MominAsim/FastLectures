@@ -3,7 +3,7 @@
 const form = document.querySelector("#connectForm");
 const input = document.querySelector("#serverUrl");
 const error = document.querySelector("#error");
-const saved = localStorage.getItem("penecho.mobile.serverUrl");
+const saved = localStorage.getItem("fastlectures.mobile.serverUrl");
 
 if (saved) input.value = saved;
 
@@ -28,6 +28,6 @@ form.addEventListener("submit", event => {
   }
   target.pathname = "/";
   target.search = "";
-  localStorage.setItem("penecho.mobile.serverUrl", target.href);
+  localStorage.setItem("fastlectures.mobile.serverUrl", target.href);
   window.location.href = target.href;
 });

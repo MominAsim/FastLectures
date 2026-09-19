@@ -9,7 +9,7 @@ const vm = require("node:vm");
 const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "public/viewer-fetch.js"), "utf8");
 const itemId = "123e4567-e89b-12d3-a456-426614174000";
-const origin = "https://penecho.test";
+const origin = "https://fastlectures.test";
 const widgetUrl = "https://data.example/feed.json";
 
 class HeadersMock {
@@ -133,7 +133,7 @@ function createHarness({ fetchPlan } = {}) {
     requests.push(call);
     const planned = fetchPlan?.(call);
     return planned && typeof planned.then === "function" ? planned : Promise.resolve(planned || response({
-      headers: { "x-penecho-cache-expires-at": String(clock.now + 20 * 60_000) },
+      headers: { "x-fastlectures-cache-expires-at": String(clock.now + 20 * 60_000) },
     }));
   };
   const context = {
@@ -148,7 +148,7 @@ function createHarness({ fetchPlan } = {}) {
     clearInterval: clock.clearInterval.bind(clock),
   };
   vm.runInNewContext(source, context, { filename: "public/viewer-fetch.js" });
-  const connection = window.PenEchoViewerFetch.install({ itemId, fetch: fetchData, clock: () => clock.now });
+  const connection = window.FastLecturesViewerFetch.install({ itemId, fetch: fetchData, clock: () => clock.now });
 
   return {
     clock,
@@ -165,7 +165,7 @@ function createHarness({ fetchPlan } = {}) {
         type: "message",
         source: eventSource,
         origin: eventOrigin,
-        data: { type: "penecho-widget-host-public-fetch", requestId, url },
+        data: { type: "fastlectures-widget-host-public-fetch", requestId, url },
       });
     },
     listenerCount(type) {
@@ -211,7 +211,7 @@ test("same-URL concurrent requests share one fetch and return independent ArrayB
     body: [10, 20, 30],
     headers: {
       "content-type": "application/json",
-      "x-penecho-cache-expires-at": String(harness.clock.now + 20 * 60_000),
+      "x-fastlectures-cache-expires-at": String(harness.clock.now + 20 * 60_000),
     },
   }));
   await harness.settle();

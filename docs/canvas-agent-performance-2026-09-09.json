@@ -852,7 +852,7 @@
       "toolCalls": 6,
       "tools": {
         "list_directory": 1,
-        "penecho_canvas_decision_feedback": 1,
+        "fastlectures_canvas_decision_feedback": 1,
         "read": 1,
         "load_project_plugin": 1,
         "read_document": 2
@@ -888,7 +888,7 @@
       "outputTokens": 25643,
       "toolCalls": 7,
       "tools": {
-        "penecho_canvas_decision_feedback": 1,
+        "fastlectures_canvas_decision_feedback": 1,
         "canvas_read": 1,
         "canvas_capture": 2,
         "load_widget_contract": 1,
@@ -926,7 +926,7 @@
       "outputTokens": 27050,
       "toolCalls": 16,
       "tools": {
-        "penecho_canvas_decision_feedback": 1,
+        "fastlectures_canvas_decision_feedback": 1,
         "canvas_set_view": 1,
         "canvas_capture": 6,
         "canvas_inspect": 1,

@@ -54,7 +54,7 @@
   const pendingSnapshots = new Map();
 
   function widgetRendererUrl() {
-    const value = document.querySelector('meta[name="penecho-widget-renderer-version"]')?.getAttribute("content") || "",
+    const value = document.querySelector('meta[name="fastlectures-widget-renderer-version"]')?.getAttribute("content") || "",
       version = /^[a-f0-9]{12}$/.test(value) ? value : "";
     return new URL(`widget-renderer.js${version ? `?v=${version}` : ""}`, location.href).href;
   }
@@ -81,15 +81,15 @@
   document.body.append(inner);
   snapshotDebugLog("host-start");
   function runtime(runtimeVersion, scienceMode = false, domRendererUrl = "", snapshotDebugEnabled = false, snapshotDebugId = "", mcpPreviewMode = false) {
-    const UPDATED = "penecho-widget-updated",
-      DRAG_START = "penecho-widget-drag-start",
-      DRAG_MOVE = "penecho-widget-drag-move",
-      DRAG_END = "penecho-widget-drag-end",
-      TOUCH_START = "penecho-widget-touch-start",
-      TOUCH_END = "penecho-widget-touch-end",
-      PUBLIC_FETCH_REQUEST = "penecho-widget-public-fetch-request",
-      PUBLIC_FETCH_RESPONSE = "penecho-widget-public-fetch-response",
-      RUNTIME_DIAGNOSTICS = "penecho-widget-runtime-diagnostics",
+    const UPDATED = "fastlectures-widget-updated",
+      DRAG_START = "fastlectures-widget-drag-start",
+      DRAG_MOVE = "fastlectures-widget-drag-move",
+      DRAG_END = "fastlectures-widget-drag-end",
+      TOUCH_START = "fastlectures-widget-touch-start",
+      TOUCH_END = "fastlectures-widget-touch-end",
+      PUBLIC_FETCH_REQUEST = "fastlectures-widget-public-fetch-request",
+      PUBLIC_FETCH_RESPONSE = "fastlectures-widget-public-fetch-response",
+      RUNTIME_DIAGNOSTICS = "fastlectures-widget-runtime-diagnostics",
       MAX_RUNTIME_ERRORS = 5,
       MOVE_TOLERANCE_PX = 8,
       CONTROL_RADIUS_PX = 26,
@@ -139,7 +139,7 @@
         ...details,
       }));
     }
-    globalThis.__penechoSnapshotDebug = snapshotDebugLog;
+    globalThis.__fastlecturesSnapshotDebug = snapshotDebugLog;
     snapshotDebugLog("runtime-installed", { scienceMode, rendererAvailable:typeof globalThis.html2canvas === "function" });
     function diagnosticText(value, maxLength) {
       return String(value || "").replace(/[\r\n\t]+/g, " ").trim().slice(0, maxLength);
@@ -296,7 +296,7 @@
       try { Object.defineProperty(globalThis, "open", { value:safeOpen, configurable:false, writable:false }); }
       catch { try { globalThis.open = safeOpen; } catch {} }
     }
-    globalThis.penechoFetchPublic = (value) => {
+    globalThis.fastlecturesFetchPublic = (value) => {
       const url = String(value || "");
       if (!url || url.length > PUBLIC_FETCH_MAX_URL_LENGTH) return Promise.reject(Error("A public HTTPS URL is required"));
       const requestId = `public-fetch-${nextPublicFetchId++}`;
@@ -334,7 +334,7 @@
     }
     async function proxyImageFallback(image, sourceUrl) {
       try {
-        const response = await globalThis.penechoFetchPublic(sourceUrl);
+        const response = await globalThis.fastlecturesFetchPublic(sourceUrl);
         if (!response.ok) throw Error(`Image request failed with status ${response.status}`);
         const blob = await response.blob();
         if (!blob.size) throw Error("Image response was empty");
@@ -377,12 +377,12 @@
           if (response.ok) return response;
           const url = publicFetchFallbackUrl(input, init);
           if (!url) return response;
-          try { return await globalThis.penechoFetchPublic(url); }
+          try { return await globalThis.fastlecturesFetchPublic(url); }
           catch { return response; }
         } catch (error) {
           const url = publicFetchFallbackUrl(input, init);
           if (!url) throw error;
-          return globalThis.penechoFetchPublic(url);
+          return globalThis.fastlecturesFetchPublic(url);
         }
       };
       try { Object.defineProperty(globalThis, "fetch", { value:directFirstFetch, configurable:false, writable:false }); }
@@ -451,7 +451,7 @@
       if (bottomDistance >= 0 && bottomDistance <= edge && clientX >= 0 && clientX <= width) return "height";
       return null;
     }
-    const RESIZE_CURSOR_CLASSES = ["penecho-widget-resize-width", "penecho-widget-resize-height", "penecho-widget-resize-corner"];
+    const RESIZE_CURSOR_CLASSES = ["fastlectures-widget-resize-width", "fastlectures-widget-resize-height", "fastlectures-widget-resize-corner"];
     function setControlCursor(hit = null) {
       for (const className of RESIZE_CURSOR_CLASSES) document.documentElement.classList.remove(className);
       if (hit === "width") document.documentElement.classList.add(RESIZE_CURSOR_CLASSES[0]);
@@ -474,7 +474,7 @@
       capturePointer(press);
       try { document.getSelection()?.removeAllRanges(); } catch {}
       setControlCursor(press.hit);
-      document.documentElement.classList.add("penecho-widget-dragging");
+      document.documentElement.classList.add("fastlectures-widget-dragging");
       pointerMessage(DRAG_START, press);
     }
     function cancelAllHoldsForNavigation() {
@@ -502,7 +502,7 @@
         suppressClickUntil = clock() + 650;
       }
       if (tapped) parent.postMessage({
-        type:"penecho-widget-activate",
+        type:"fastlectures-widget-activate",
         pointerId:press.pointerId,
         pointerType:press.pointerType,
         localX:press.clientX,
@@ -513,7 +513,7 @@
       if (press.pointerType === "touch") pointerMessage(TOUCH_END, { ...press, cancelled });
       presses.delete(event.pointerId);
       if (press.captured) try { document.documentElement.releasePointerCapture(press.pointerId); } catch {}
-      if (![...presses.values()].some((item) => item.active)) document.documentElement.classList.remove("penecho-widget-dragging");
+      if (![...presses.values()].some((item) => item.active)) document.documentElement.classList.remove("fastlectures-widget-dragging");
       if (press.pointerType !== "touch") setControlCursor(controlHit(press.clientX, press.clientY, press.pointerType));
     }
     addEventListener("pointerdown", (event) => {
@@ -522,7 +522,7 @@
       const hit = controlHit(Number(event.clientX), Number(event.clientY), event.pointerType);
       if (event.pointerType !== "touch" && !hit) {
         parent.postMessage({
-          type:"penecho-widget-activate",
+          type:"fastlectures-widget-activate",
           pointerId:event.pointerId,
           pointerType:event.pointerType,
           localX:Number(event.clientX),
@@ -631,7 +631,7 @@
         }
       }
       if (active) {
-        document.documentElement.classList.remove("penecho-widget-paused");
+        document.documentElement.classList.remove("fastlectures-widget-paused");
         for (const animation of document.getAnimations()) {
           if (!pausedAnimations.has(animation)) continue;
           pausedAnimations.delete(animation);
@@ -658,7 +658,7 @@
           pausedSvgRoots.add(svg);
         } catch {}
       }
-      document.documentElement.classList.add("penecho-widget-paused");
+      document.documentElement.classList.add("fastlectures-widget-paused");
     }
     function notifyVisibleViewport() {
       try { dispatchEvent(new Event("resize")); } catch {}
@@ -681,7 +681,7 @@
         const background = getComputedStyle(svg).backgroundColor;
         if (background && background !== "transparent" && !/^rgba\([^)]*,\s*0(?:\.0+)?\s*\)$/.test(background) && !/\/\s*0(?:\.0+)?\s*\)$/.test(background)) {
           const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-          rect.setAttribute("data-penecho-snapshot-background", "");
+          rect.setAttribute("data-fastlectures-snapshot-background", "");
           rect.setAttribute("x", "0");
           rect.setAttribute("y", "0");
           rect.setAttribute("width", "100%");
@@ -800,8 +800,8 @@
       const restore = () => {
         for (const node of inserted) node.remove();
         for (const [element, previous] of customInputs) {
-          if (previous === null) element.removeAttribute("data-penecho-snapshot-custom-input");
-          else element.setAttribute("data-penecho-snapshot-custom-input", previous);
+          if (previous === null) element.removeAttribute("data-fastlectures-snapshot-custom-input");
+          else element.setAttribute("data-fastlectures-snapshot-custom-input", previous);
         }
       };
       try {
@@ -812,8 +812,8 @@
             customInput = inputStyles?.getPropertyValue("appearance") === "none";
           let carrier = null;
           if (customInput) {
-            customInputs.push([element, element.getAttribute("data-penecho-snapshot-custom-input")]);
-            element.setAttribute("data-penecho-snapshot-custom-input", "");
+            customInputs.push([element, element.getAttribute("data-fastlectures-snapshot-custom-input")]);
+            element.setAttribute("data-fastlectures-snapshot-custom-input", "");
           }
           for (const pseudo of SNAPSHOT_GENERATED_PSEUDOS) {
             let computed;
@@ -824,8 +824,8 @@
             }
             const content = snapshotPseudoContentText(computed?.getPropertyValue("content"), element);
             if (content === null || computed.getPropertyValue("display") === "none" || computed.getPropertyValue("visibility") === "hidden") continue;
-            const node = document.createElement("penecho-snapshot-pseudo");
-            node.setAttribute("data-penecho-snapshot-pseudo", pseudo.selector.slice(2));
+            const node = document.createElement("fastlectures-snapshot-pseudo");
+            node.setAttribute("data-fastlectures-snapshot-pseudo", pseudo.selector.slice(2));
             node.setAttribute("aria-hidden", "true");
             node.textContent = content;
             for (let index = 0; index < computed.length; index++) {
@@ -840,7 +840,7 @@
             if (customInput && !carrier) {
               // Void inputs cannot render child nodes. Keep the live control in
               // place and give its generated content an adjacent containing box.
-              carrier = document.createElement("penecho-snapshot-input");
+              carrier = document.createElement("fastlectures-snapshot-input");
               carrier.setAttribute("aria-hidden", "true");
               for (let index = 0; index < inputStyles.length; index++) {
                 const property = inputStyles.item(index), value = inputStyles.getPropertyValue(property);
@@ -991,7 +991,7 @@
         return await snapshotDocument({ ...message, timeoutMs:captureTimeoutMs }, true);
       } catch (error) {
         parent.postMessage({
-          type:"penecho-widget-snapshot-error",
+          type:"fastlectures-widget-snapshot-error",
           runtimeVersion,
           requestId:message.requestId,
           error:String(error?.message || "Scientific Widget snapshot preparation failed").slice(0, 300),
@@ -1001,19 +1001,19 @@
         try {
           await boundedSnapshotHook(hooks.afterSnapshot, "after", Math.min(1000, hookTimeoutMs));
         } catch (error) {
-          console.warn("PenEcho scientific Widget snapshot restore failed:", String(error?.message || error).slice(0, 200));
+          console.warn("FastLectures scientific Widget snapshot restore failed:", String(error?.message || error).slice(0, 200));
         }
       }
     }
     let activeSnapshot = null, activeSnapshotRender = null;
     async function snapshot(message) {
       if(activeSnapshot || activeSnapshotRender) {
-        parent.postMessage({type:"penecho-widget-snapshot-error",runtimeVersion,requestId:message.requestId,
+        parent.postMessage({type:"fastlectures-widget-snapshot-error",runtimeVersion,requestId:message.requestId,
           code:"WIDGET_RENDER_BUSY",error:"The previous Widget capture is still finishing. Wait for it before retrying.",
           details:{stage:activeSnapshotRender?"render-draining":"snapshot",runtimeVersion}},"*");
         return;
       }
-      const hooks = globalThis.__penechoScienceSnapshotHooks;
+      const hooks = globalThis.__fastlecturesScienceSnapshotHooks;
       snapshotDebugLog("snapshot-request-received", {
         requestId:message.requestId,
         timeoutMs:Number(message.timeoutMs) || null,
@@ -1097,7 +1097,7 @@
             canvas = await snapshotPrimarySvg(requestedWidth, requestedHeight, scale);
             if (canvas) canvas.toDataURL("image/png");
           } catch (error) {
-            console.warn("PenEcho native SVG snapshot failed; using DOM renderer:", String(error?.message || error).slice(0, 300));
+            console.warn("FastLectures native SVG snapshot failed; using DOM renderer:", String(error?.message || error).slice(0, 300));
           }
           if (captureExpired) {
             if (canvas) canvas.width = canvas.height = 1;
@@ -1128,7 +1128,7 @@
                 useCORS:true,
                 allowTaint:false,
                 foreignObjectRendering:false,
-                penechoDirectRendering:true,
+                fastlecturesDirectRendering:true,
                 imageTimeout:Math.min(10000, timeoutMs),
               });
             } finally {
@@ -1159,7 +1159,7 @@
           width:canvas.width,
           height:canvas.height,
         });
-        parent.postMessage({ type:"penecho-widget-snapshot", runtimeVersion, requestId:message.requestId, dataUrl:canvas.toDataURL("image/png"), contentWidth:requestedWidth, contentHeight:requestedHeight, width:canvas.width, height:canvas.height }, "*");
+        parent.postMessage({ type:"fastlectures-widget-snapshot", runtimeVersion, requestId:message.requestId, dataUrl:canvas.toDataURL("image/png"), contentWidth:requestedWidth, contentHeight:requestedHeight, width:canvas.width, height:canvas.height }, "*");
         canvas.width = canvas.height = 1;
       } catch (error) {
         snapshotDebugLog("snapshot-capture-error", {
@@ -1167,7 +1167,7 @@
           durationMs:Number((clock() - snapshotStartedAt).toFixed(1)),
           error:String(error?.message || "Widget snapshot failed").slice(0, 300),
         });
-        parent.postMessage({ type: "penecho-widget-snapshot-error", runtimeVersion, requestId: message.requestId, error: error.message,
+        parent.postMessage({ type: "fastlectures-widget-snapshot-error", runtimeVersion, requestId: message.requestId, error: error.message,
           code:/timed out/i.test(String(error?.message))?"WIDGET_CAPTURE_TIMEOUT":"WIDGET_CAPTURE_FAILED",
           details:{stage,elapsedMs:Math.round(clock()-snapshotStartedAt),runtimeVersion} }, "*");
       } finally {
@@ -1183,8 +1183,8 @@
     const fitContentElements = new Map();
     function restoreFitContentMarkers() {
       for (const [element, value] of fitContentElements) {
-        if (value === null) element.removeAttribute("data-penecho-fit-scroll");
-        else element.setAttribute("data-penecho-fit-scroll", value);
+        if (value === null) element.removeAttribute("data-fastlectures-fit-scroll");
+        else element.setAttribute("data-fastlectures-fit-scroll", value);
       }
       fitContentElements.clear();
     }
@@ -1222,9 +1222,9 @@
           width:element.scrollWidth > element.clientWidth ? element.scrollWidth + element.offsetWidth - element.clientWidth : 0 });
       }
       for (const [index, item] of containers.entries()) {
-        fitContentElements.set(item.element, item.element.getAttribute("data-penecho-fit-scroll"));
-        if (item.element.getAttribute("data-penecho-fit-scroll") !== String(index)) item.element.setAttribute("data-penecho-fit-scroll", String(index));
-        rules.push('[data-penecho-fit-scroll="' + index + '"]{'
+        fitContentElements.set(item.element, item.element.getAttribute("data-fastlectures-fit-scroll"));
+        if (item.element.getAttribute("data-fastlectures-fit-scroll") !== String(index)) item.element.setAttribute("data-fastlectures-fit-scroll", String(index));
+        rules.push('[data-fastlectures-fit-scroll="' + index + '"]{'
           + (item.viewportMinimum ? "min-height:0!important;" : "")
           + (item.viewportHeight ? "height:auto!important;max-height:none!important;overflow-y:visible!important;" : "")
           + (item.vertical ? "height:auto!important;min-height:0!important;max-height:none!important;overflow-y:visible!important;flex-shrink:0!important;" : "")
@@ -1275,7 +1275,7 @@
         const key = width + ":" + height;
         if (key === lastPresentationSize) return;
         lastPresentationSize = key;
-        parent.postMessage({ type:"penecho-widget-presentation-size", runtimeVersion, width, height }, "*");
+        parent.postMessage({ type:"fastlectures-widget-presentation-size", runtimeVersion, width, height }, "*");
       });
     }
     function setPresentationLayout(refresh = true) {
@@ -1297,7 +1297,7 @@
       if (document.body && !presentationMutations && typeof MutationObserver === "function") {
         presentationMutations = new MutationObserver(records => {
           if (records.some(record => record.target !== fitContentStyle
-            && record.attributeName !== "data-penecho-fit-scroll")) schedulePresentationSize(true);
+            && record.attributeName !== "data-fastlectures-fit-scroll")) schedulePresentationSize(true);
         });
         presentationMutations.observe(document.body, { subtree:true, childList:true, characterData:true, attributes:true });
       }
@@ -1316,11 +1316,11 @@
           && (typeof event.data.body === "string" || event.data.body instanceof ArrayBuffer)) {
           const headers = new Headers();
           if (typeof event.data.contentType === "string" && event.data.contentType) headers.set("Content-Type", event.data.contentType);
-          if (typeof event.data.finalUrl === "string" && event.data.finalUrl) headers.set("X-PenEcho-Final-URL", event.data.finalUrl);
+          if (typeof event.data.finalUrl === "string" && event.data.finalUrl) headers.set("X-FastLectures-Final-URL", event.data.finalUrl);
           const body = [204, 205, 304].includes(event.data.status) ? null : event.data.body;
           pending.resolve(new Response(body, { status:event.data.status, headers }));
         } else pending.reject(Error("The public data response was invalid"));
-      } else if (event.data?.type === "penecho-widget-fit-request") {
+      } else if (event.data?.type === "fastlectures-widget-fit-request") {
         const { requestId, hit } = event.data;
         if (typeof requestId !== "string" || requestId.length > 128 || !["width", "height", "resize"].includes(hit)) return;
         const previous = widgetState.fitContent ? "resize" : widgetState.fitContentAxes;
@@ -1334,9 +1334,9 @@
           width = Math.max(width, rect.right + scrollX);
           height = Math.max(height, rect.bottom + scrollY);
         }
-        parent.postMessage({ type:"penecho-widget-fit-result", requestId, width:Math.ceil(width), height:Math.ceil(height) }, "*");
-      } else if (event.data?.type === "penecho-widget-snapshot-request") void snapshot(event.data);
-      else if (event.data?.type === "penecho-widget-state" && typeof event.data.selected === "boolean" && typeof event.data.active === "boolean"
+        parent.postMessage({ type:"fastlectures-widget-fit-result", requestId, width:Math.ceil(width), height:Math.ceil(height) }, "*");
+      } else if (event.data?.type === "fastlectures-widget-snapshot-request") void snapshot(event.data);
+      else if (event.data?.type === "fastlectures-widget-state" && typeof event.data.selected === "boolean" && typeof event.data.active === "boolean"
         && Number.isFinite(event.data.scaleX) && event.data.scaleX > 0 && Number.isFinite(event.data.scaleY) && event.data.scaleY > 0) {
         const becameVisible = event.data.active && (!widgetStateReceived || !widgetState.active);
         const layoutChanged = widgetState.maximized !== (event.data.maximized === true) || widgetState.fitContent !== (event.data.fitContent === true) || widgetState.fitContentAxes !== event.data.fitContentAxes;
@@ -1350,7 +1350,7 @@
     });
     addEventListener("keydown", (event) => {
       if (widgetState.interactive && event.key === "Escape" && !event.defaultPrevented) {
-        parent.postMessage({ type:"penecho-widget-exit-interaction" }, "*");
+        parent.postMessage({ type:"fastlectures-widget-exit-interaction" }, "*");
       }
     });
     addEventListener("load", notifyReady, { once: true });
@@ -1367,8 +1367,8 @@
     clearTimeout(request?.timer);
     pendingSnapshots.delete(requestId);
     const error = String(message || "Widget snapshot failed").replace(/[\r\n\t]+/g, " ").slice(0, 300);
-    console.warn("PenEcho widget snapshot failed:", error);
-    parent.postMessage({ type:"penecho-widget-snapshot-error", requestId, error,
+    console.warn("FastLectures widget snapshot failed:", error);
+    parent.postMessage({ type:"fastlectures-widget-snapshot-error", requestId, error,
       code:/^WIDGET_[A-Z_]{1,40}$/.test(code)?code:"WIDGET_CAPTURE_FAILED",
       details:{stage:String(details.stage|| (request?.forwarded?"capture":"document-ready")).slice(0,60),
         elapsedMs:request?Math.round(performance.now()-request.startedAt):0,runtimeVersion} }, parentOrigin);
@@ -1390,7 +1390,7 @@
     forwardWidgetState();
     snapshotDebugLog("snapshot-forwarded", { requestId, timeoutMs:remainingMs });
     inner.contentWindow?.postMessage({
-      type:"penecho-widget-snapshot-request",
+      type:"fastlectures-widget-snapshot-request",
       requestId,
       width:request.requestedWidth,
       height:request.requestedHeight,
@@ -1401,17 +1401,17 @@
   }
 
   async function proxyPublicFetch(message) {
-    const reply = (payload, transfer = []) => inner.contentWindow?.postMessage({ type:"penecho-widget-public-fetch-response", requestId:message.requestId, ...payload }, "*", transfer);
+    const reply = (payload, transfer = []) => inner.contentWindow?.postMessage({ type:"fastlectures-widget-public-fetch-response", requestId:message.requestId, ...payload }, "*", transfer);
     try {
       const response = remoteCanvas ? await parentPublicFetch(message.url) : await fetch(publicFetchUrl, {
           method:"POST",
           credentials:"same-origin",
           cache:"no-store",
-          headers:{ "Content-Type":"application/json", ...(accessSession ? { "X-PenEcho-Session":accessSession } : {}) },
+          headers:{ "Content-Type":"application/json", ...(accessSession ? { "X-FastLectures-Session":accessSession } : {}) },
           body:JSON.stringify({ url:message.url }),
         }),
         body = await response.arrayBuffer(),
-        upstreamStatus = Number(response.headers.get("x-penecho-upstream-status"));
+        upstreamStatus = Number(response.headers.get("x-fastlectures-upstream-status"));
       if (body.byteLength > 5 * 1024 * 1024) throw Error("The public data response is too large");
       if (!response.ok) {
         let detail = "", errorText = "";
@@ -1422,7 +1422,7 @@
         status:Number.isInteger(upstreamStatus) && upstreamStatus >= 200 && upstreamStatus <= 599 ? upstreamStatus : response.status,
         body,
         contentType:String(response.headers.get("content-type") || "").slice(0, 200),
-        finalUrl:String(response.headers.get("x-penecho-final-url") || "").slice(0, PUBLIC_FETCH_MAX_URL_LENGTH),
+        finalUrl:String(response.headers.get("x-fastlectures-final-url") || "").slice(0, PUBLIC_FETCH_MAX_URL_LENGTH),
       }, [body]);
     } catch (error) {
       reply({ error:String(error?.message || "The public data request failed").slice(0, 300) });
@@ -1440,12 +1440,12 @@
         reject(Error("The public data request timed out"));
       }, 48000);
       pendingPublicFetches.set(requestId, { resolve, reject, timer });
-      parent.postMessage({ type:"penecho-widget-host-public-fetch", requestId, url }, parentOrigin);
+      parent.postMessage({ type:"fastlectures-widget-host-public-fetch", requestId, url }, parentOrigin);
     });
   }
   function receiveParentPublicFetch(event) {
     if (event.source !== parent || event.origin !== location.origin || parentOrigin !== location.origin
-      || event.data?.type !== "penecho-widget-host-public-fetch-result") return false;
+      || event.data?.type !== "fastlectures-widget-host-public-fetch-result") return false;
     const message = event.data, pending = pendingPublicFetches.get(message.requestId);
     if (!pending) return true;
     pendingPublicFetches.delete(message.requestId);
@@ -1459,7 +1459,7 @@
   }
 
   function resolveImageAssets(html,assets) {
-    const refs=[...new Set(html.match(/penecho-asset:[a-f0-9]{64}/g)||[])];
+    const refs=[...new Set(html.match(/fastlectures-asset:[a-f0-9]{64}/g)||[])];
     if(refs.length>64)throw Error("Too many Widget image attachments");
     let total=0;
     const resolved=new Map();
@@ -1468,7 +1468,7 @@
       resolved.set(ref,source);
     }
     let expanded=html.length;
-    return html.replace(/penecho-asset:[a-f0-9]{64}/g,ref=>{const source=resolved.get(ref);if((expanded+=source.length-ref.length)>16000000)throw Error("Widget image expansion exceeds the supported limit");return source;});
+    return html.replace(/fastlectures-asset:[a-f0-9]{64}/g,ref=>{const source=resolved.get(ref);if((expanded+=source.length-ref.length)>16000000)throw Error("Widget image expansion exceeds the supported limit");return source;});
   }
 
   function csp(allowNestedFrames = false, scienceMode = false) {
@@ -1607,7 +1607,7 @@
   }
 
   function compatibleInlineWidgetScript(source) {
-    return String(source || "").replace(/\b(?:(?:window|globalThis)\.)?parent\.penechoFetchPublic\b/g, "window.penechoFetchPublic");
+    return String(source || "").replace(/\b(?:(?:window|globalThis)\.)?parent\.fastlecturesFetchPublic\b/g, "window.fastlecturesFetchPublic");
   }
 
   function scopedInlineWidgetScript(source) {
@@ -1616,9 +1616,9 @@
   }
 
   function scienceWidgetMode(parsed, sourceFormat, frameworkVersion) {
-    const supportedSource = sourceFormat === "penecho-mcp+html" || sourceFormat === "penecho-visual-explorer+html" && frameworkVersion === "penecho-visual-explorer/1";
+    const supportedSource = sourceFormat === "fastlectures-mcp+html" || sourceFormat === "fastlectures-visual-explorer+html" && frameworkVersion === "fastlectures-visual-explorer/1";
     if (!supportedSource) return false;
-    const skills = [...parsed.querySelectorAll("meta")].filter(meta => meta.getAttribute("name") === "penecho-visual-skill");
+    const skills = [...parsed.querySelectorAll("meta")].filter(meta => meta.getAttribute("name") === "fastlectures-visual-skill");
     return skills.length === 1 && ["math-2d", "physics-2d", "math-3d"].includes(skills[0].getAttribute("content"));
   }
 
@@ -1724,22 +1724,22 @@
       request(() => request(callback));
     }
     function finishReady() {
-      globalThis.__penechoSnapshotDebug?.("science-ready-state", { authoredReady, rendererReady, readyScheduled });
+      globalThis.__fastlecturesSnapshotDebug?.("science-ready-state", { authoredReady, rendererReady, readyScheduled });
       if (readyScheduled || !authoredReady || !rendererReady) return;
       readyScheduled = true;
       try { restoreGetContext(); } catch {}
       requestTwoFrames(() => {
-        delete globalThis.__penechoScienceRendererReady;
-        globalThis.__penechoSnapshotDebug?.("document-ready-marker", { mode:"science", rendererAvailable:typeof globalThis.html2canvas === "function" });
-        parent.postMessage({ type:"penecho-widget-document-ready", runtimeVersion:documentVersion }, "*");
+        delete globalThis.__fastlecturesScienceRendererReady;
+        globalThis.__fastlecturesSnapshotDebug?.("document-ready-marker", { mode:"science", rendererAvailable:typeof globalThis.html2canvas === "function" });
+        parent.postMessage({ type:"fastlectures-widget-document-ready", runtimeVersion:documentVersion }, "*");
       });
     }
-    globalThis.__penechoScienceRendererReady = () => {
+    globalThis.__fastlecturesScienceRendererReady = () => {
       rendererReady = true;
       finishReady();
     };
-    globalThis.__penechoScienceSnapshotHooks = snapshotHooks;
-    globalThis.penechoWidgetReady = (options) => {
+    globalThis.__fastlecturesScienceSnapshotHooks = snapshotHooks;
+    globalThis.fastlecturesWidgetReady = (options) => {
       if (options && typeof options === "object") {
         snapshotHooks.beforeSnapshot = typeof options.beforeSnapshot === "function" ? options.beforeSnapshot : null;
         snapshotHooks.afterSnapshot = typeof options.afterSnapshot === "function" ? options.afterSnapshot : null;
@@ -1751,7 +1751,7 @@
 
   function widgetDocument(html, pluginStyles = "", documentVersion = 0, sourceFormat = "", frameworkVersion = "") {
     const parsed = new DOMParser().parseFromString(html, "text/html");
-    const mcpPreview = sourceFormat === "penecho-mcp+html";
+    const mcpPreview = sourceFormat === "fastlectures-mcp+html";
     parsed.querySelectorAll(mcpPreview ? "base, iframe, object, embed, meta[http-equiv]" : "base, iframe, object, embed, form, meta[http-equiv]").forEach((element) => element.remove());
     parsed.querySelectorAll("script[src]").forEach((element) => {
       if (!safeHttpsResource(element, "src")) element.remove();
@@ -1766,7 +1766,7 @@
         scoped = scopedInlineWidgetScript(original);
       if (scoped === original) return;
       element.textContent = scoped;
-      element.dataset.penechoScopedWindowBindings = "";
+      element.dataset.fastlecturesScopedWindowBindings = "";
     });
     const scienceMode = scienceWidgetMode(parsed, sourceFormat, frameworkVersion),
       waitForAuthoredReady = scienceMode && scienceUsesManim(parsed);
@@ -1789,7 +1789,7 @@
       if (!safeHttpsResource(element, "src")) element.removeAttribute("src");
     });
     parsed.querySelectorAll("a[href]").forEach(safeOutboundLink);
-    const visualPlan = parsed.querySelector("script[type='application/json'][data-penecho-visual-explainer]");
+    const visualPlan = parsed.querySelector("script[type='application/json'][data-fastlectures-visual-explainer]");
     const policy = parsed.createElement("meta");
     policy.httpEquiv = "Content-Security-Policy";
     policy.content = csp(visualExplainerAllowsNestedFrames(visualPlan), scienceMode);
@@ -1800,18 +1800,18 @@
     parsed.head.prepend(viewport);
     if (pluginStyles) {
       const pluginStyle = parsed.createElement("style");
-      pluginStyle.dataset.penechoPluginStyles = "";
+      pluginStyle.dataset.fastlecturesPluginStyles = "";
       pluginStyle.textContent = pluginStyles;
       // Plugin CSS provides defaults; widget-authored styles must be able to override them.
       parsed.head.insertBefore(pluginStyle, parsed.head.querySelector("style, link"));
     }
     const bridgeStyle = parsed.createElement("style");
-    bridgeStyle.textContent = "html,body{background:transparent!important;color-scheme:light!important;font-size:clamp(36px,1.2cqw,52px);overscroll-behavior:contain}html.penecho-widget-dragging,html.penecho-widget-dragging *{user-select:none!important}html.penecho-widget-resize-width,html.penecho-widget-resize-width *{cursor:ew-resize!important}html.penecho-widget-resize-height,html.penecho-widget-resize-height *{cursor:ns-resize!important}html.penecho-widget-resize-corner,html.penecho-widget-resize-corner *{cursor:nwse-resize!important}html.penecho-widget-paused *,html.penecho-widget-paused *::before,html.penecho-widget-paused *::after{animation-play-state:paused!important}";
+    bridgeStyle.textContent = "html,body{background:transparent!important;color-scheme:light!important;font-size:clamp(36px,1.2cqw,52px);overscroll-behavior:contain}html.fastlectures-widget-dragging,html.fastlectures-widget-dragging *{user-select:none!important}html.fastlectures-widget-resize-width,html.fastlectures-widget-resize-width *{cursor:ew-resize!important}html.fastlectures-widget-resize-height,html.fastlectures-widget-resize-height *{cursor:ns-resize!important}html.fastlectures-widget-resize-corner,html.fastlectures-widget-resize-corner *{cursor:nwse-resize!important}html.fastlectures-widget-paused *,html.fastlectures-widget-paused *::before,html.fastlectures-widget-paused *::after{animation-play-state:paused!important}";
     if(mcpPreview)bridgeStyle.textContent=bridgeStyle.textContent.replace("background:transparent!important;color-scheme:light!important;font-size:clamp(36px,1.2cqw,52px);","");
     parsed.head.append(bridgeStyle);
     if (visualPlan && !scienceMode) {
       const visualReady = parsed.createElement("script");
-      visualReady.textContent = `(() => { let visual=false,renderer=false,sent=false;const finish=()=>{globalThis.__penechoSnapshotDebug?.("visual-ready-state",{visual,renderer,sent});if(sent||!visual||!renderer)return;sent=true;globalThis.__penechoSnapshotDebug?.("document-ready-marker",{mode:"visual",rendererAvailable:typeof globalThis.html2canvas==="function"});parent.postMessage({type:"penecho-widget-document-ready",runtimeVersion:${JSON.stringify(documentVersion)}},"*")};addEventListener("penecho-visual-explainer-ready",()=>{visual=true;finish()},{once:true});globalThis.__penechoVisualRendererReady=()=>{renderer=true;finish()};setTimeout(()=>{visual=true;finish()},3200) })()`;
+      visualReady.textContent = `(() => { let visual=false,renderer=false,sent=false;const finish=()=>{globalThis.__fastlecturesSnapshotDebug?.("visual-ready-state",{visual,renderer,sent});if(sent||!visual||!renderer)return;sent=true;globalThis.__fastlecturesSnapshotDebug?.("document-ready-marker",{mode:"visual",rendererAvailable:typeof globalThis.html2canvas==="function"});parent.postMessage({type:"fastlectures-widget-document-ready",runtimeVersion:${JSON.stringify(documentVersion)}},"*")};addEventListener("fastlectures-visual-explainer-ready",()=>{visual=true;finish()},{once:true});globalThis.__fastlecturesVisualRendererReady=()=>{renderer=true;finish()};setTimeout(()=>{visual=true;finish()},3200) })()`;
       parsed.body.append(visualReady);
       const vendor = parsed.createElement("script");
       vendor.src = visualExplainerVendorUrl;
@@ -1824,26 +1824,26 @@
     renderer.src = rendererUrl;
     parsed.body.append(renderer);
     const rendererMarker = parsed.createElement("script");
-    rendererMarker.textContent = `globalThis.__penechoSnapshotDebug?.("renderer-marker",{rendererAvailable:typeof globalThis.html2canvas==="function"})`;
+    rendererMarker.textContent = `globalThis.__fastlecturesSnapshotDebug?.("renderer-marker",{rendererAvailable:typeof globalThis.html2canvas==="function"})`;
     parsed.body.append(rendererMarker);
     if (scienceMode) {
       const rendererReady = parsed.createElement("script");
-      rendererReady.textContent = "if(typeof globalThis.html2canvas===\"function\")globalThis.__penechoScienceRendererReady?.();delete globalThis.__penechoScienceRendererReady";
+      rendererReady.textContent = "if(typeof globalThis.html2canvas===\"function\")globalThis.__fastlecturesScienceRendererReady?.();delete globalThis.__fastlecturesScienceRendererReady";
       parsed.body.append(rendererReady);
     } else if (visualPlan) {
       const rendererReady = parsed.createElement("script");
-      rendererReady.textContent = `globalThis.__penechoVisualRendererReady?.();delete globalThis.__penechoVisualRendererReady`;
+      rendererReady.textContent = `globalThis.__fastlecturesVisualRendererReady?.();delete globalThis.__fastlecturesVisualRendererReady`;
       parsed.body.append(rendererReady);
     } else {
       const ready = parsed.createElement("script");
-      ready.textContent = `globalThis.__penechoSnapshotDebug?.("document-ready-marker",{mode:"regular",rendererAvailable:typeof globalThis.html2canvas==="function"});parent.postMessage({type:"penecho-widget-document-ready",runtimeVersion:${JSON.stringify(documentVersion)}},"*")`;
+      ready.textContent = `globalThis.__fastlecturesSnapshotDebug?.("document-ready-marker",{mode:"regular",rendererAvailable:typeof globalThis.html2canvas==="function"});parent.postMessage({type:"fastlectures-widget-document-ready",runtimeVersion:${JSON.stringify(documentVersion)}},"*")`;
       parsed.body.append(ready);
     }
     const bridge = parsed.createElement("script");
     bridge.textContent = `(${runtime.toString()})(${JSON.stringify(documentVersion)},${JSON.stringify(scienceMode)},${JSON.stringify(rendererUrl)},${JSON.stringify(snapshotDebugEnabled)},${JSON.stringify(snapshotDebugId)},${JSON.stringify(mcpPreview)})`;
     if(mcpPreview) {
       const actions=parsed.createElement("script");
-      actions.textContent=`addEventListener('click',event=>{const button=event.target.closest?.('[data-penecho-action]');if(!event.isTrusted||!button)return;const text=(button.getAttribute('data-penecho-prompt')||button.textContent||'').trim().slice(0,4000),action=(button.getAttribute('data-penecho-action')||'choice').slice(0,80);if(text)parent.postMessage({type:'penecho-widget-user-action',runtimeVersion:${JSON.stringify(documentVersion)},action,text},'*');});`;
+      actions.textContent=`addEventListener('click',event=>{const button=event.target.closest?.('[data-fastlectures-action]');if(!event.isTrusted||!button)return;const text=(button.getAttribute('data-fastlectures-prompt')||button.textContent||'').trim().slice(0,4000),action=(button.getAttribute('data-fastlectures-action')||'choice').slice(0,80);if(text)parent.postMessage({type:'fastlectures-widget-user-action',runtimeVersion:${JSON.stringify(documentVersion)},action,text},'*');});`;
       parsed.body.append(actions);
     }
     // Establish the bridge early. The end marker runs after widget-authored scripts and
@@ -1853,26 +1853,26 @@
   }
 
   function validDragMessage(message) {
-    return message && ["penecho-widget-drag-start", "penecho-widget-drag-move", "penecho-widget-drag-end"].includes(message.type)
+    return message && ["fastlectures-widget-drag-start", "fastlectures-widget-drag-move", "fastlectures-widget-drag-end"].includes(message.type)
       && Number.isInteger(message.pointerId) && Math.abs(message.pointerId) <= 0x7fffffff
       && ["mouse", "pen", "touch"].includes(message.pointerType)
       && ["width", "height", "resize"].includes(message.hit)
       && [message.localX, message.localY, message.screenX, message.screenY].every(value => Number.isFinite(value) && Math.abs(value) <= 10000000);
   }
   function validTouchMessage(message) {
-    return message && ["penecho-widget-touch-start", "penecho-widget-touch-move", "penecho-widget-touch-end"].includes(message.type)
+    return message && ["fastlectures-widget-touch-start", "fastlectures-widget-touch-move", "fastlectures-widget-touch-end"].includes(message.type)
       && Number.isInteger(message.pointerId) && Math.abs(message.pointerId) <= 0x7fffffff
       && message.pointerType === "touch"
       && [message.localX, message.localY].every(value => Number.isFinite(value) && Math.abs(value) <= 10000000);
   }
   function validActivateMessage(message) {
-    return message?.type === "penecho-widget-activate"
+    return message?.type === "fastlectures-widget-activate"
       && Number.isInteger(message.pointerId) && Math.abs(message.pointerId) <= 0x7fffffff
       && ["mouse", "pen", "touch"].includes(message.pointerType)
       && [message.localX, message.localY, message.screenX, message.screenY].every(value => Number.isFinite(value) && Math.abs(value) <= 10000000);
   }
   function validRuntimeDiagnostics(message) {
-    return message && message.type === "penecho-widget-runtime-diagnostics" && message.runtimeVersion === runtimeVersion
+    return message && message.type === "fastlectures-widget-runtime-diagnostics" && message.runtimeVersion === runtimeVersion
       && typeof message.truncated === "boolean" && Array.isArray(message.errors) && message.errors.length <= 5
       && message.errors.every(error => error && typeof error === "object"
         && ["error", "unhandledrejection", "script-load"].includes(error.kind)
@@ -1887,7 +1887,7 @@
   }
   function validVisualExplainerDiagnostics(message) {
     const diagnostics=message?.diagnostics;
-    return message?.type === "penecho-visual-explainer-diagnostics" && diagnostics && typeof diagnostics === "object"
+    return message?.type === "fastlectures-visual-explainer-diagnostics" && diagnostics && typeof diagnostics === "object"
       && diagnostics.version === 1 && ["pass","warn","fail"].includes(diagnostics.status)
       && Number.isInteger(diagnostics.score) && diagnostics.score >= 0 && diagnostics.score <= 100
       && ["comfortable","compact","dense"].includes(diagnostics.density)
@@ -1902,14 +1902,14 @@
         && (issue.sectionId === undefined || typeof issue.sectionId === "string" && issue.sectionId.length > 0 && issue.sectionId.length <= 64));
   }
   function forwardWidgetState() {
-    inner.contentWindow?.postMessage({ type:"penecho-widget-state", ...widgetState }, "*");
+    inner.contentWindow?.postMessage({ type:"fastlectures-widget-state", ...widgetState }, "*");
   }
   function announceWidgetHostReady() {
     snapshotDebugLog("host-ready-announced");
-    parent.postMessage({ type:"penecho-widget-host-ready" }, parentOrigin);
+    parent.postMessage({ type:"fastlectures-widget-host-ready" }, parentOrigin);
   }
   function respondToWidgetHostProbe(event) {
-    if (event.source !== parent || event.origin !== parentOrigin || event.data?.type !== "penecho-widget-host-probe") return false;
+    if (event.source !== parent || event.origin !== parentOrigin || event.data?.type !== "fastlectures-widget-host-probe") return false;
     announceWidgetHostReady();
     return true;
   }
@@ -1922,14 +1922,14 @@
   }
   function forwardDragMessage(message) {
     if (!validDragMessage(message)) return;
-    if (message.type === "penecho-widget-drag-start") {
+    if (message.type === "fastlectures-widget-drag-start") {
       if (forwardedDragPointer !== null) return;
       forwardedDragPointer = message.pointerId;
       parent.postMessage(message, parentOrigin);
       return;
     }
     if (message.pointerId !== forwardedDragPointer) return;
-    if (message.type === "penecho-widget-drag-move") {
+    if (message.type === "fastlectures-widget-drag-move") {
       queuedDragMove = message;
       if (!dragMoveFrame) dragMoveFrame = requestAnimationFrame(flushDragMove);
       return;
@@ -1944,7 +1944,7 @@
     if (receiveParentPublicFetch(event) || respondToWidgetHostProbe(event)) return;
     const message = event.data;
     if (event.source === parent && event.origin === parentOrigin) {
-      if (message?.type === "penecho-widget-init") {
+      if (message?.type === "fastlectures-widget-init") {
         mcpProgressState = null;
         if (typeof message.html !== "string" || message.html.length > MAX_HTML_LENGTH) return;
         if (message.pluginStyles !== undefined && (typeof message.pluginStyles !== "string" || message.pluginStyles.length > MAX_PLUGIN_STYLES_LENGTH)) return;
@@ -1954,24 +1954,24 @@
         runtimeVersion++;
         innerDocumentReady = false;
         inner.title = String(message.title || "Dynamic canvas widget").slice(0, 120);
-        parent.postMessage({ type:"penecho-widget-runtime-diagnostics", errors:[], truncated:false }, parentOrigin);
+        parent.postMessage({ type:"fastlectures-widget-runtime-diagnostics", errors:[], truncated:false }, parentOrigin);
         let imageHtml;
-        try {imageHtml=resolveImageAssets(message.html,message.imageAssets);} catch(error) {parent.postMessage({type:"penecho-widget-runtime-diagnostics",errors:[{kind:"error",message:error.message}],truncated:false},parentOrigin);return;}
+        try {imageHtml=resolveImageAssets(message.html,message.imageAssets);} catch(error) {parent.postMessage({type:"fastlectures-widget-runtime-diagnostics",errors:[{kind:"error",message:error.message}],truncated:false},parentOrigin);return;}
         const documentSource = widgetDocument(imageHtml, message.pluginStyles || "", runtimeVersion, message.sourceFormat, message.frameworkVersion);
         inner.removeAttribute("src");
         inner.srcdoc = documentSource;
         snapshotDebugLog("inner-srcdoc-assigned", { documentLength:documentSource.length });
-      } else if (message?.type === "penecho-mcp-progress" && message.progress && JSON.stringify(message.progress).length <= 64000) {
+      } else if (message?.type === "fastlectures-mcp-progress" && message.progress && JSON.stringify(message.progress).length <= 64000) {
         mcpProgressState = message.progress;
-        inner.contentWindow?.postMessage({type:"penecho-mcp-progress",progress:message.progress},"*");
-      } else if (message?.type === "penecho-widget-state" && typeof message.selected === "boolean" && typeof message.active === "boolean"
+        inner.contentWindow?.postMessage({type:"fastlectures-mcp-progress",progress:message.progress},"*");
+      } else if (message?.type === "fastlectures-widget-state" && typeof message.selected === "boolean" && typeof message.active === "boolean"
         && Number.isFinite(message.scaleX) && message.scaleX > 0 && Number.isFinite(message.scaleY) && message.scaleY > 0) {
         widgetState = { fitContent:message.fitContent === true, fitContentAxes:message.fitContentAxes, maximized:message.maximized === true, selected:message.selected, interactive:Boolean(message.interactive), active:message.active, navigationLocked:Boolean(message.navigationLocked), scaleX:message.scaleX, scaleY:message.scaleY };
         forwardWidgetState();
-      } else if (message?.type === "penecho-widget-fit-request") {
+      } else if (message?.type === "fastlectures-widget-fit-request") {
         if (typeof message.requestId !== "string" || message.requestId.length > 128 || !["width", "height", "resize"].includes(message.hit)) return;
         inner.contentWindow?.postMessage({ type:message.type, requestId:message.requestId, hit:message.hit }, "*");
-      } else if (message?.type === "penecho-widget-snapshot-request") {
+      } else if (message?.type === "fastlectures-widget-snapshot-request") {
         const requestedWidth = Number(message.width), requestedHeight = Number(message.height),
           timeoutMs = Math.max(1000, Math.min(SNAPSHOT_REQUEST_TIMEOUT_MS, Number(message.timeoutMs) || SNAPSHOT_REQUEST_TIMEOUT_MS));
         if (typeof message.requestId !== "string" || message.requestId.length > 128 || !Number.isFinite(requestedWidth) || !Number.isFinite(requestedHeight) || requestedWidth <= 0 || requestedHeight <= 0) {
@@ -1991,7 +1991,7 @@
       return;
     }
     if (event.source !== inner.contentWindow || !message || typeof message !== "object") return;
-    if (["penecho-widget-document-ready", "penecho-widget-snapshot", "penecho-widget-snapshot-error"].includes(message.type)) {
+    if (["fastlectures-widget-document-ready", "fastlectures-widget-snapshot", "fastlectures-widget-snapshot-error"].includes(message.type)) {
       snapshotDebugLog("inner-message", {
         type:message.type,
         requestId:typeof message.requestId === "string" ? message.requestId : null,
@@ -2000,38 +2000,38 @@
         requestPending:typeof message.requestId === "string" ? pendingSnapshots.has(message.requestId) : null,
       });
     }
-    if (message.type === "penecho-widget-presentation-size" && widgetState.maximized
+    if (message.type === "fastlectures-widget-presentation-size" && widgetState.maximized
       && message.runtimeVersion === runtimeVersion
       && [message.width, message.height].every(value => Number.isFinite(value) && value > 0 && value <= 100000)) {
       parent.postMessage({ type:message.type, width:message.width, height:message.height }, parentOrigin);
-    } else if (message.type === "penecho-widget-fit-result" && typeof message.requestId === "string" && message.requestId.length <= 128
+    } else if (message.type === "fastlectures-widget-fit-result" && typeof message.requestId === "string" && message.requestId.length <= 128
       && Number.isFinite(message.width) && message.width > 0 && Number.isFinite(message.height) && message.height > 0) {
       parent.postMessage({ type:message.type, requestId:message.requestId, width:message.width, height:message.height }, parentOrigin);
-    } else if (message.type === "penecho-widget-exit-interaction" && widgetState.interactive) {
+    } else if (message.type === "fastlectures-widget-exit-interaction" && widgetState.interactive) {
       parent.postMessage({ type:message.type }, parentOrigin);
-    } else if (message.type === "penecho-widget-public-fetch-request") {
+    } else if (message.type === "fastlectures-widget-public-fetch-request") {
       if (typeof message.requestId !== "string" || !/^public-fetch-\d+$/.test(message.requestId) || message.requestId.length > 64 || typeof message.url !== "string" || message.url.length > PUBLIC_FETCH_MAX_URL_LENGTH) return;
       void proxyPublicFetch(message);
-    } else if (message.type === "penecho-widget-document-ready" && message.runtimeVersion === runtimeVersion) {
+    } else if (message.type === "fastlectures-widget-document-ready" && message.runtimeVersion === runtimeVersion) {
       innerDocumentReady = true;
-      if(mcpProgressState)inner.contentWindow?.postMessage({type:"penecho-mcp-progress",progress:mcpProgressState},"*");
+      if(mcpProgressState)inner.contentWindow?.postMessage({type:"fastlectures-mcp-progress",progress:mcpProgressState},"*");
       snapshotDebugLog("capture-ready-announced");
-      parent.postMessage({ type:"penecho-widget-capture-ready" }, parentOrigin);
+      parent.postMessage({ type:"fastlectures-widget-capture-ready" }, parentOrigin);
       for (const [requestId, request] of pendingSnapshots) forwardSnapshotRequest(requestId, request);
     } else if (validRuntimeDiagnostics(message)) {
       parent.postMessage({ type:message.type, errors:message.errors, truncated:message.truncated }, parentOrigin);
     } else if (validVisualExplainerDiagnostics(message)) {
       parent.postMessage({ type:message.type, diagnostics:message.diagnostics }, parentOrigin);
-    } else if (message.type === "penecho-widget-user-action" && message.runtimeVersion===runtimeVersion && typeof message.text==="string" && message.text.length>0 && message.text.length<=4000 && typeof message.action==="string" && message.action.length<=80) {
+    } else if (message.type === "fastlectures-widget-user-action" && message.runtimeVersion===runtimeVersion && typeof message.text==="string" && message.text.length>0 && message.text.length<=4000 && typeof message.action==="string" && message.action.length<=80) {
       parent.postMessage({type:message.type,text:message.text,action:message.action},parentOrigin);
-    } else if (message.type === "penecho-widget-updated") {
+    } else if (message.type === "fastlectures-widget-updated") {
       if(message.loaded && message.runtimeVersion !== runtimeVersion)return;
       forwardWidgetState();
       const now = Date.now();
       if (!message.loaded && now - lastUpdate < UPDATE_FORWARD_INTERVAL_MS) return;
       lastUpdate = now;
-      parent.postMessage({ type: "penecho-widget-updated", loaded:message.loaded===true }, parentOrigin);
-    } else if (message.type === "penecho-widget-snapshot" && message.runtimeVersion === runtimeVersion && pendingSnapshots.has(message.requestId)) {
+      parent.postMessage({ type: "fastlectures-widget-updated", loaded:message.loaded===true }, parentOrigin);
+    } else if (message.type === "fastlectures-widget-snapshot" && message.runtimeVersion === runtimeVersion && pendingSnapshots.has(message.requestId)) {
       const request = pendingSnapshots.get(message.requestId);
       if (request.fullContent) {
         if (!Number.isFinite(message.contentWidth) || !Number.isFinite(message.contentHeight)
@@ -2062,7 +2062,7 @@
         });
         parent.postMessage({ type:message.type, requestId:message.requestId, dataUrl:message.dataUrl, width:message.width, height:message.height }, parentOrigin);
       }
-    } else if (message.type === "penecho-widget-snapshot-error" && message.runtimeVersion === runtimeVersion && pendingSnapshots.has(message.requestId)) snapshotError(message.requestId, message.error, message.code, message.details||{});
+    } else if (message.type === "fastlectures-widget-snapshot-error" && message.runtimeVersion === runtimeVersion && pendingSnapshots.has(message.requestId)) snapshotError(message.requestId, message.error, message.code, message.details||{});
     else if (validActivateMessage(message)) parent.postMessage({
       type:message.type,
       pointerId:message.pointerId,

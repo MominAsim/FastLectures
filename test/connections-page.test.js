@@ -5,7 +5,7 @@ const root=path.resolve(__dirname,".."),source=fs.readFileSync(path.join(root,"s
 function extract(name){const start=source.indexOf(`function ${name}(`),body=source.indexOf("{",start);assert.ok(start>=0,name);let depth=0;for(let i=body;i<source.length;i++){if(source[i]==="{")depth++;else if(source[i]==="}"&&!--depth)return source.slice(start,i+1);}throw Error(name);}
 function harness(){
  const {document,window}=parseHTML(fs.readFileSync(path.join(root,"public/index.html"),"utf8"));
- window.PENECHO_CONFIG={cloudOrigin:"https://example.test"};
+ window.FASTLECTURES_CONFIG={cloudOrigin:"https://example.test"};
  const settings={connections:[],editingConnectionId:null,connectionLimit:10},hostedSettings={models:[],credits:null,signedIn:false,loading:false,error:false};
  let selected="default";
  const context=vm.createContext({document,window,location:{origin:"https://example.test"},settings,hostedSettings,selectedAiConnectionId:()=>selected,t:key=>key});
@@ -44,7 +44,7 @@ test("loading and errors remain recoverable; browser-only Canvas cannot configur
  const h=harness(),get=id=>h.document.getElementById(id);
  h.hostedSettings.loading=true;h.context.renderHostedModels();assert.equal(get("settingsHostedStatus").hidden,false);assert.equal(get("settingsHostedRefresh").disabled,true);
  h.hostedSettings.loading=false;h.hostedSettings.error=true;h.context.renderHostedModels();assert.equal(get("settingsHostedSection").hidden,false);assert.equal(get("settingsHostedRefresh").disabled,false);assert.equal(get("settingsHostedStatus").textContent,"settingsHostedError");
- h.window.PENECHO_CONFIG.browserCanvasEditing=true;h.context.renderHostedModels();
+ h.window.FASTLECTURES_CONFIG.browserCanvasEditing=true;h.context.renderHostedModels();
  for(const id of ["settingsOpenApi","settingsOpenSearch","settingsOpenSystem"]){assert.equal(get(id).disabled,true);assert.equal(get(id).getAttribute("aria-describedby"),"settingsHostedBrowserNotice");}
  assert.equal(get("settingsHostedBrowserNotice").hidden,false);assert.equal(get("settingsHostedLinkDevice").hidden,false);
 });
@@ -56,7 +56,7 @@ test("local connection rows preserve model, endpoint, and accessible selection s
 
 test("online linked device adds local connections without removing hosted models or account controls",()=>{
  const h=harness(),get=id=>h.document.getElementById(id);
- Object.assign(h.window.PENECHO_CONFIG,{runtime:"cloud",browserCanvasEditing:true,linkedDeviceLinked:true,linkedDeviceOnline:true});
+ Object.assign(h.window.FASTLECTURES_CONFIG,{runtime:"cloud",browserCanvasEditing:true,linkedDeviceLinked:true,linkedDeviceOnline:true});
  h.hostedSettings.signedIn=true;h.hostedSettings.models=[{id:"model-a",displayName:"Cloud model",multiplier:1}];
  h.settings.connections=[{id:"default",provider:"api",apiModel:"Local model",apiUrl:"https://local-provider.test/v1",active:true}];
  h.context.renderConnectionLists();
@@ -70,7 +70,7 @@ test("online linked device adds local connections without removing hosted models
 
 test("linked offline state explains recovery instead of claiming no connections or asking to link again",()=>{
  const h=harness(),get=id=>h.document.getElementById(id);
- Object.assign(h.window.PENECHO_CONFIG,{runtime:"cloud",browserCanvasEditing:true,linkedDeviceLinked:true,linkedDeviceOnline:false});
+ Object.assign(h.window.FASTLECTURES_CONFIG,{runtime:"cloud",browserCanvasEditing:true,linkedDeviceLinked:true,linkedDeviceOnline:false});
  h.hostedSettings.signedIn=true;h.hostedSettings.models=[{id:"model-a",displayName:"Cloud model",multiplier:1}];
  h.context.renderConnectionLists();
  assert.equal(get("settingsHostedBrowserNotice").textContent,"settingsLinkedDeviceOffline");

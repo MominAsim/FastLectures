@@ -1,6 +1,6 @@
 // Semantic professional-diagram sources rendered inside the existing widget iframe.
   const DIAGRAM_RUNTIME = (() => {
-    const VERSION = "penecho-diagram-source-v1";
+    const VERSION = "fastlectures-diagram-source-v1";
     const FORMATS = Object.freeze([
       { id:"mermaid", label:"Mermaid", aliases:["mermaid"] },
       { id:"dot", label:"Graphviz DOT", aliases:["dot", "graphviz", "graphviz-dot", "graphviz dot"] },
@@ -46,9 +46,9 @@
     function responsiveMermaidSource(value, width, height) {
       const source = String(value || ""),
         directive = /^(\s*(?:(?:%%[^\n]*)\n\s*)*)(flowchart|graph)\s+(LR|RL|TB|TD|BT)\b/im.exec(source);
-      if (!directive || /%%\s*penecho:fixed-layout\b/i.test(source)) return { source, direction:"", responsive:false };
+      if (!directive || /%%\s*fastlectures:fixed-layout\b/i.test(source)) return { source, direction:"", responsive:false };
       const connectors = source.match(/-->|---|-\.-?>|==>/g)?.length || 0,
-        responsive = /%%\s*penecho:responsive\b/i.test(source) || connectors > 10;
+        responsive = /%%\s*fastlectures:responsive\b/i.test(source) || connectors > 10;
       if (!responsive) return { source, direction:directive[3].toUpperCase(), responsive:false };
       const original = directive[3].toUpperCase(),
         horizontal = original === "RL" ? "RL" : "LR",
@@ -56,15 +56,15 @@
         direction = width >= height * 1.35 ? horizontal : vertical,
         innerDirection = direction === horizontal ? "TB" : "LR";
       let responsiveDiagram = source.replace(directive[0], `${directive[1]}${directive[2]} ${direction}`);
-      if (/%%\s*penecho:responsive\b/i.test(source))
+      if (/%%\s*fastlectures:responsive\b/i.test(source))
         responsiveDiagram = responsiveDiagram.replace(/^(\s*direction\s+)(LR|RL|TB|TD|BT)\b/gim, `$1${innerDirection}`);
       return { source:responsiveDiagram, direction, responsive:true };
     }
     function responsiveDotSource(value, width, height) {
       const source = String(value || ""),
-        fixed = /(?:\/\/|\/\*)\s*penecho:fixed-layout\b/i.test(source),
+        fixed = /(?:\/\/|\/\*)\s*fastlectures:fixed-layout\b/i.test(source),
         edgeCount = source.match(/(?:->|--)/g)?.length || 0,
-        responsive = !fixed && (/(?:\/\/|\/\*)\s*penecho:responsive\b/i.test(source) || edgeCount > 10);
+        responsive = !fixed && (/(?:\/\/|\/\*)\s*fastlectures:responsive\b/i.test(source) || edgeCount > 10);
       let originalDirection = "",
         transformed = "",
         index = 0,
@@ -177,7 +177,7 @@
         format = config.sourceFormat;
       let resizeRender = null;
       const notify = () => {
-        try { parent.postMessage({ type:"penecho-widget-updated" }, "*"); } catch {}
+        try { parent.postMessage({ type:"fastlectures-widget-updated" }, "*"); } catch {}
       };
       const showStatus = (message, error = false) => {
         if (!status.isConnected) stage.append(status);
@@ -231,7 +231,7 @@
             const next = responsiveMermaidSource(source, stage.clientWidth, stage.clientHeight),
               version = ++renderVersion;
             if (next.direction && next.direction === renderedDirection && stage.querySelector("svg")) return;
-            const rendered = await mermaid.render(`penecho-${Math.random().toString(36).slice(2)}`, next.source);
+            const rendered = await mermaid.render(`fastlectures-${Math.random().toString(36).slice(2)}`, next.source);
             if (version !== renderVersion) return;
             stage.innerHTML = rendered.svg;
             rendered.bindFunctions?.(stage);
@@ -579,5 +579,5 @@
     });
   })();
 
-  if (typeof window === "object") window.PENECHO_DIAGRAM_RUNTIME = DIAGRAM_RUNTIME;
+  if (typeof window === "object") window.FASTLECTURES_DIAGRAM_RUNTIME = DIAGRAM_RUNTIME;
   if (typeof module === "object" && module.exports) module.exports = DIAGRAM_RUNTIME;

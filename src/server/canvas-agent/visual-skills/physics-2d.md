@@ -52,7 +52,7 @@ Avoid endless motion. One physical narrative should end in a stable canonical co
 4. Before enhancement, define initial, event, and final states. Run one automatic sequence, then settle permanently at the canonical final state.
 5. Provide replay and pause controls. With `prefers-reduced-motion: reduce`, skip the automatic transition and render the canonical final state immediately.
 6. Keep one canonical snapshot state: boundary, vectors, trajectory, state values, assumptions, axes, units, and final arrangement must be reproducible without replay history. No transient arrow, pending force, or mid-flight value may remain.
-7. Call `window.penechoWidgetReady()` after the stable first/final render when that function is available.
+7. Call `window.fastlecturesWidgetReady()` after the stable first/final render when that function is available.
 
 ## Verified Manim-Web 0.3.24 vector-field pattern
 
@@ -81,7 +81,7 @@ try {
 } catch (error) {
   console.error("Scientific enhancement failed; static SVG retained", error);
 } finally {
-  window.penechoWidgetReady?.();
+  window.fastlecturesWidgetReady?.();
 }
 ```
 
@@ -92,7 +92,7 @@ Accessibility requires a descriptive SVG title, text alternatives for states and
 The source must contain exactly one capability marker, with this exact capitalization and spelling:
 
 ```html
-<meta name="penecho-visual-skill" content="physics-2d">
+<meta name="fastlectures-visual-skill" content="physics-2d">
 ```
 
 Do not add another visual-skill marker. The shared Widget host activates scientific rendering only for one supported marker and rewrites only the exact pinned Manim-Web URL above to the local packaged mirror. Keep the static fallback complete if enhancement cannot load.

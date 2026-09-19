@@ -29,7 +29,7 @@
 #settingsPageMcp .cloud-mcp-panel { max-width:none; }
 #settingsPageMcp .cloud-mcp-panel h2 { margin:0 0 8px; font:500 15px/1.4 var(--pe-font-ui,system-ui); }
 
-/* Design source: penecho-design-language.html #current-screens, Delete / Approval family;
+/* Design source: fastlectures-design-language.html #current-screens, Delete / Approval family;
    CSS .confirm-layout / .confirm-icon, and shared surface body/footer contract. */
 .cloud-mcp-panel .cloud-button[data-pe-button="danger"] { color:var(--pe-danger); border-color:color-mix(in srgb,var(--pe-danger) 35%,var(--pe-line)); }
 .cloud-mcp-confirm { font-family:var(--pe-font-ui,system-ui); max-width:calc(100vw - 32px); }

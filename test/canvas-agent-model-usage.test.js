@@ -10,11 +10,11 @@ const ROOT=path.resolve(__dirname,"..");
 const waitFor=async(predicate,timeoutMs=3_000)=>{
   const deadline=Date.now()+timeoutMs;
   while(Date.now()<deadline){if(predicate())return;await new Promise((resolve)=>setTimeout(resolve,10));}
-  throw new Error("Timed out waiting for PenEcho Agent model usage.");
+  throw new Error("Timed out waiting for FastLectures Agent model usage.");
 };
 
 test("Harness reports local model usage metadata without conversation content",async (context)=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-agent-usage-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-agent-usage-test-"));
   context.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs");
   const reports=[],messages=[];
@@ -43,7 +43,7 @@ test("Harness reports local model usage metadata without conversation content",a
 });
 
 test("Harness never duplicates hosted usage into the local callback",async (context)=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-hosted-usage-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-hosted-usage-test-"));
   context.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs");
   const reports=[],messages=[];
@@ -63,7 +63,7 @@ test("Harness never duplicates hosted usage into the local callback",async (cont
 });
 
 test("Harness resume tokens remain bound to their server principal",async (context)=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-principal-scope-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-principal-scope-test-"));
   context.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs");
   const connection={id:"scope-cli",provider:"codex-cli",name:"Scope CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"};

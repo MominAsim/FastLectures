@@ -2,7 +2,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
-  else root.PENECHO_SELECTION = api;
+  else root.FASTLECTURES_SELECTION = api;
 })(typeof globalThis === "object" ? globalThis : this, function () {
   function clipPoint(point, limit) {
     return { x: Math.max(0, Math.min(limit, point.x)), y: Math.max(0, Math.min(limit, point.y)) };

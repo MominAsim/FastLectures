@@ -13,7 +13,7 @@ const { widgetPatchFiles } = require("../src/server/widget-patch.js");
 const ROOT = path.resolve(__dirname, "..");
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 const PERSONA = "Warm interdisciplinary knowledge guide. Favor intuition, memorable analogies, creative synthesis, conceptual connections across science and humanities, and exploratory alternatives while keeping facts and reasoning precise.";
-const TEST_CODEX_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-test-codex-home-"));
+const TEST_CODEX_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-test-codex-home-"));
 const TEST_STATE_DIRS = [];
 fs.writeFileSync(path.join(TEST_CODEX_HOME, "auth.json"), '{"auth_mode":"test"}');
 test.after(() => {
@@ -22,8 +22,8 @@ test.after(() => {
 });
 
 function testStateDir(overrides) {
-  if (Object.hasOwn(overrides, "PENECHO_STATE_DIR")) return overrides.PENECHO_STATE_DIR;
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-server-state-"));
+  if (Object.hasOwn(overrides, "FASTLECTURES_STATE_DIR")) return overrides.FASTLECTURES_STATE_DIR;
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-server-state-"));
   TEST_STATE_DIRS.push(directory);
   return directory;
 }
@@ -38,8 +38,8 @@ function serverEnv(overrides = {}) {
     CODEX_CLI_TIMEOUT_SECONDS: "",
     AI_EFFORT: "",
     NODE_ENV: "test",
-    PENECHO_TEST_OPEN_ACCESS: "1",
-    PENECHO_STATE_DIR: testStateDir(overrides),
+    FASTLECTURES_TEST_OPEN_ACCESS: "1",
+    FASTLECTURES_STATE_DIR: testStateDir(overrides),
     ...overrides,
   };
 }
@@ -55,8 +55,8 @@ function apiServerEnv(origin, overrides = {}) {
     AI_API_MODEL: "test-model",
     AI_EFFORT: "",
     NODE_ENV: "test",
-    PENECHO_TEST_OPEN_ACCESS: "1",
-    PENECHO_STATE_DIR: testStateDir(overrides),
+    FASTLECTURES_TEST_OPEN_ACCESS: "1",
+    FASTLECTURES_STATE_DIR: testStateDir(overrides),
     ...overrides,
   };
 }
@@ -72,8 +72,8 @@ function claudeServerEnv(fakeCli, overrides = {}) {
     CLAUDE_CLI_TIMEOUT_SECONDS:"",
     AI_EFFORT:"",
     NODE_ENV:"test",
-    PENECHO_TEST_OPEN_ACCESS:"1",
-    PENECHO_STATE_DIR:testStateDir(overrides),
+    FASTLECTURES_TEST_OPEN_ACCESS:"1",
+    FASTLECTURES_STATE_DIR:testStateDir(overrides),
     ...overrides,
   };
 }
@@ -214,17 +214,17 @@ function decodeLineNumberedReadView(readView, logicalLines, endsWithNewline) {
 }
 
 function parseRefineModelText(text) {
-  const stablePrefix = "PenEcho Refine stable context (JSON; cacheable across edits of this target):\n",
-    filesIntroduction = "\n\nPenEcho virtual files follow.",
+  const stablePrefix = "FastLectures Refine stable context (JSON; cacheable across edits of this target):\n",
+    filesIntroduction = "\n\nFastLectures virtual files follow.",
     stableEnd = text.indexOf(filesIntroduction), files = [];
   assert.equal(text.startsWith(stablePrefix), true);
   assert.ok(stableEnd > stablePrefix.length);
   const stableMetadata = JSON.parse(text.slice(stablePrefix.length, stableEnd));
-  let cursor = text.indexOf("\n\nPenEcho virtual file:\n", stableEnd);
+  let cursor = text.indexOf("\n\nFastLectures virtual file:\n", stableEnd);
   assert.ok(cursor > stableEnd);
-  while (text.startsWith("\n\nPenEcho virtual file:\n", cursor)) {
+  while (text.startsWith("\n\nFastLectures virtual file:\n", cursor)) {
     cursor += 2;
-    const header = /^PenEcho virtual file:\npath: ([^\n]+)\nutf8Bytes: (\d+)\nlogicalLines: (\d+)\nnumbering: nl -ba -w6 -s TAB\npatchBaselineEndsWithNewline: (true|false)\noriginalEndsWithNewline: (true|false)\n<<<BEGIN (PENECHO_VIRTUAL_FILE_[a-f0-9]{64})>>>\n/.exec(text.slice(cursor));
+    const header = /^FastLectures virtual file:\npath: ([^\n]+)\nutf8Bytes: (\d+)\nlogicalLines: (\d+)\nnumbering: nl -ba -w6 -s TAB\npatchBaselineEndsWithNewline: (true|false)\noriginalEndsWithNewline: (true|false)\n<<<BEGIN (FASTLECTURES_VIRTUAL_FILE_[a-f0-9]{64})>>>\n/.exec(text.slice(cursor));
     assert.ok(header);
     const contentStart = cursor + header[0].length, endMarker = `\n<<<END ${header[6]}>>>`, contentEnd = text.indexOf(endMarker, contentStart);
     assert.ok(contentEnd >= contentStart);
@@ -236,10 +236,10 @@ function parseRefineModelText(text) {
     files.push({ path:header[1], content, readView, utf8Bytes:Number(header[2]), logicalLines, patchBaselineEndsWithNewline, originalEndsWithNewline:header[5] === "true", boundary:header[6] });
     cursor = contentEnd + endMarker.length;
   }
-  const currentPrefix = "\n\nPenEcho current Refine request context (JSON; applies to the virtual files above):\n";
+  const currentPrefix = "\n\nFastLectures current Refine request context (JSON; applies to the virtual files above):\n";
   assert.equal(text.startsWith(currentPrefix, cursor), true);
   const currentStart = cursor + currentPrefix.length,
-    retryPrefix = "\n\nPenEcho Refine retry instruction:\n",
+    retryPrefix = "\n\nFastLectures Refine retry instruction:\n",
     retryStart = text.indexOf(retryPrefix, currentStart),
     currentEnd = retryStart < 0 ? text.length : retryStart,
     currentMetadata = JSON.parse(text.slice(currentStart, currentEnd)),
@@ -297,8 +297,8 @@ function startServer(env) {
     };
     child.stdout.on("data", chunk => {
       stdout += chunk.toString("utf8");
-      const match = stdout.match(/PenEcho: http:\/\/[^:]+:(\d+)/);
-      if (match) finish(null, { child, origin: `http://127.0.0.1:${match[1]}`, stateDir:env.PENECHO_STATE_DIR });
+      const match = stdout.match(/FastLectures: http:\/\/[^:]+:(\d+)/);
+      if (match) finish(null, { child, origin: `http://127.0.0.1:${match[1]}`, stateDir:env.FASTLECTURES_STATE_DIR });
     });
     child.stderr.on("data", chunk => { stderr += chunk.toString("utf8"); });
     child.once("exit", code => finish(new Error(`Server exited before listening (${code}).\n${stdout}\n${stderr}`)));
@@ -392,7 +392,7 @@ function validSharedCanvasBundle(id = `${Date.now()}-123e4567-e89b-12d3-a456-426
     extensions:{"example.test":{portable:true}},
     id,createdAt,updatedAt:createdAt,name:"Portable bundle",
     manifest:{
-      format:"penecho-raster-tiles",formatVersion:1,canvasSize:{width:20000,height:20000},tileSize:512,theme:"studio",
+      format:"fastlectures-raster-tiles",formatVersion:1,canvasSize:{width:20000,height:20000},tileSize:512,theme:"studio",
       view:{scale:.5,panX:120,panY:240,navigationLocked:false},animations:[],textBoxes:[],savedAt:new Date(createdAt).toISOString(),extensions:{},
     },
     assets:[
@@ -524,7 +524,7 @@ test("canvas settings expose no API secret and save validated configuration for 
     const updatedText = await fs.promises.readFile(path.join(stateDir, "config.env"), "utf8");
     assert.match(updatedText, /^AUTO_AI_DELAY_SECONDS=2\.5$/m);
     assert.match(updatedText, /^MAX_TOKENS=64000$/m);
-    assert.match(updatedText, /^PENECHO_CANVAS_AGENT_TURN_LIMIT=1000000$/m);
+    assert.match(updatedText, /^FASTLECTURES_CANVAS_AGENT_TURN_LIMIT=1000000$/m);
     const invalidMaxTokens = await fetch(`${origin}/api/settings`, { method:"POST", headers, body:JSON.stringify({ ...current, scope:"system", maxTokens:14999 }) });
     assert.equal(invalidMaxTokens.status, 400);
     const invalidLowTurnLimit = await fetch(`${origin}/api/settings`, { method:"POST", headers, body:JSON.stringify({ ...current, scope:"system", canvasAgentTurnLimit:49 }) });
@@ -582,7 +582,7 @@ test("canvas shares ten persistent API and CLI connections without a server-wide
     assert.equal(missingKimiBody.provider, "kimi-cli");
     assert.match(missingKimiBody.guidance, /code\.kimi\.com\/kimi-code\/install\.sh/);
     assert.match(missingKimiBody.guidance, /kimi login/);
-    assert.doesNotMatch(missingKimiBody.error, /Install it|restart PenEcho/);
+    assert.doesNotMatch(missingKimiBody.error, /Install it|restart FastLectures/);
     assert.doesNotMatch(missingKimiBody.guidance, /restart/i);
 
     const create = await fetch(`${origin}/api/settings/connections`, { method:"POST", headers, body:JSON.stringify({ action:"save", connection:{ provider:"codex-cli", cliModel:"gpt-5.6-sol", cliPath:"codex", effort:"high" } }) }), created = await create.json();
@@ -637,7 +637,7 @@ test("canvas shares ten persistent API and CLI connections without a server-wide
 
 test("connection manager CLI inspection returns the platform install fallback without running a model request", { timeout:10000 }, async () => {
   const env = apiServerEnv("https://api.example.test", { PATH:"", KIMI_CLI_PATH:"kimi" });
-  env.HOME = path.join(env.PENECHO_STATE_DIR, "home");
+  env.HOME = path.join(env.FASTLECTURES_STATE_DIR, "home");
   env.USERPROFILE = env.HOME;
   const { child, origin } = await startServer(env), headers = { Origin:origin, "Content-Type":"application/json" };
   try {
@@ -731,8 +731,8 @@ test("two clients independently route requests through the shared connection lis
     assert.ok(testImage.source.data.length > 0);
     assert.equal((await fetch(`${origin}/api/settings/connections`, { headers:{ Origin:origin } }).then(response => response.json())).connections.length, 2);
 
-    const clientA = fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ "Content-Type":"application/json", Accept:"application/x-ndjson", "X-PenEcho-Connection":"default" }, body:JSON.stringify(validPayload()) }),
-      clientB = fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ "Content-Type":"application/json", Accept:"application/x-ndjson", "X-PenEcho-Connection":connection.id }, body:JSON.stringify(validPayload()) });
+    const clientA = fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ "Content-Type":"application/json", Accept:"application/x-ndjson", "X-FastLectures-Connection":"default" }, body:JSON.stringify(validPayload()) }),
+      clientB = fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ "Content-Type":"application/json", Accept:"application/x-ndjson", "X-FastLectures-Connection":connection.id }, body:JSON.stringify(validPayload()) });
     const deadline = Date.now() + 3000;
     while ((!openai.requests.length || anthropic.requests.length < 2) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
     assert.equal(openai.requests.length, 1);
@@ -755,12 +755,12 @@ test("two clients independently route requests through the shared connection lis
       assert.equal(events.at(-1).data.requestId,events.at(-1).requestId);
     }
 
-    const deletedSelection = await fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ "Content-Type":"application/json", "X-PenEcho-Connection":connection.id }, body:JSON.stringify(validPayload()) });
+    const deletedSelection = await fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ "Content-Type":"application/json", "X-FastLectures-Connection":connection.id }, body:JSON.stringify(validPayload()) });
     assert.equal(deletedSelection.status, 409);
     assert.equal((await deletedSelection.json()).errorCode, "CONNECTION_STALE");
     assert.equal(openai.requests.length, 1, "stale selection must not fall back to another provider");
     assert.equal(anthropic.requests.length, 2, "deleted selection must not run another request");
-    const explicitDefault = await fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ "Content-Type":"application/json", "X-PenEcho-Connection":"default" }, body:JSON.stringify(validPayload()) });
+    const explicitDefault = await fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ "Content-Type":"application/json", "X-FastLectures-Connection":"default" }, body:JSON.stringify(validPayload()) });
     assert.equal(explicitDefault.status, 200, await explicitDefault.text());
     assert.equal(openai.requests.length, 2);
 
@@ -776,7 +776,7 @@ test("two clients independently route requests through the shared connection lis
 });
 
 test("a device can select a shared CLI connection while the server default remains API", { timeout:20000 }, async () => {
-  const openai = await startApiServer(), directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-device-cli-")),
+  const openai = await startApiServer(), directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-device-cli-")),
     fakeCli = path.join(directory, "fake-codex.js"), record = path.join(directory, "record.json");
   await fs.promises.writeFile(fakeCli, `"use strict";const fs=require("node:fs"),args=process.argv.slice(2),image=args[args.indexOf("-i")+1],output=args[args.indexOf("-o")+1];fs.writeFileSync(${JSON.stringify(record)},JSON.stringify({model:args[args.indexOf("--model")+1],imageExists:fs.existsSync(image)}));fs.writeFileSync(output,'{"intent":"none","commands":[]}');\n`);
   const { child, origin } = await startServer(apiServerEnv(openai.origin, { CODEX_HOME:TEST_CODEX_HOME })), headers = { Origin:origin, "Content-Type":"application/json" };
@@ -784,7 +784,7 @@ test("a device can select a shared CLI connection while the server default remai
     const create = await fetch(`${origin}/api/settings/connections`, { method:"POST", headers, body:JSON.stringify({ action:"save", connection:{ provider:"codex-cli", cliModel:"gpt-device", cliPath:fakeCli, effort:"high" } }) }), created = await create.json();
     assert.equal(create.status, 200, JSON.stringify(created));
     const connection = created.connections.find(item => item.provider === "codex-cli");
-    const response = await fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ ...headers, "X-PenEcho-Connection":connection.id }, body:JSON.stringify(validPayload()) });
+    const response = await fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ ...headers, "X-FastLectures-Connection":connection.id }, body:JSON.stringify(validPayload()) });
     assert.equal(response.status, 200, await response.text());
     const saved = JSON.parse(await fs.promises.readFile(record, "utf8"));
     assert.equal(saved.model, "gpt-device");
@@ -799,7 +799,7 @@ test("a device can select a shared CLI connection while the server default remai
 
 test("process-lifetime PIN gates the Canvas and local APIs, then clears on restart", { timeout:30000 }, async () => {
   const stateDir=testStateDir({}),
-    env=serverEnv({PENECHO_STATE_DIR:stateDir,PENECHO_TEST_OPEN_ACCESS:"0"});
+    env=serverEnv({FASTLECTURES_STATE_DIR:stateDir,FASTLECTURES_TEST_OPEN_ACCESS:"0"});
   let running=await startServer(env);
   try {
     const firstPage=await fetch(running.origin),firstHtml=await firstPage.text();
@@ -845,7 +845,7 @@ test("process-lifetime PIN gates the Canvas and local APIs, then clears on resta
     assert.equal(pinModeRequest.status,403);
     const authenticatedPinRequest=await fetch(`${running.origin}/api/ai/command`,{
       method:"POST",
-      headers:{"Content-Type":"application/json",Origin:running.origin,"X-PenEcho-Session":setupBody.accessSessionToken},
+      headers:{"Content-Type":"application/json",Origin:running.origin,"X-FastLectures-Session":setupBody.accessSessionToken},
       body:"{}",
     });
     assert.equal(authenticatedPinRequest.status,400);
@@ -892,7 +892,7 @@ test("process-lifetime PIN gates the Canvas and local APIs, then clears on resta
     assert.ok(open.headers.get("set-cookie"));
     const authenticatedOpenRequest=await fetch(`${running.origin}/api/ai/command`,{
       method:"POST",
-      headers:{"Content-Type":"application/json",Origin:running.origin,"X-PenEcho-Session":openBody.accessSessionToken},
+      headers:{"Content-Type":"application/json",Origin:running.origin,"X-FastLectures-Session":openBody.accessSessionToken},
       body:"{}",
     });
     assert.equal(authenticatedOpenRequest.status,400);
@@ -905,7 +905,7 @@ test("process-lifetime PIN gates the Canvas and local APIs, then clears on resta
 });
 
 test("concurrent first-run PIN choices cannot overwrite each other", { timeout:20000 }, async () => {
-  const {child,origin}=await startServer(serverEnv({PENECHO_TEST_OPEN_ACCESS:"0"}));
+  const {child,origin}=await startServer(serverEnv({FASTLECTURES_TEST_OPEN_ACCESS:"0"}));
   try {
     const submit=pin=>fetch(`${origin}/api/local-access/setup-pin`,{
       method:"POST",
@@ -927,7 +927,7 @@ test("concurrent first-run PIN choices cannot overwrite each other", { timeout:2
 });
 
 test("Claude CLI mode sends the canvas to the authenticated local CLI with the selected model and effort", { timeout:20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-server-claude-")),fakeCli=path.join(directory,"fake-claude.js"),record=path.join(directory,"record.json");
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-server-claude-")),fakeCli=path.join(directory,"fake-claude.js"),record=path.join(directory,"record.json");
   await fs.promises.writeFile(fakeCli, `"use strict";const fs=require("node:fs"),args=process.argv.slice(2),input=JSON.parse(fs.readFileSync(0,"utf8").trim()),image=input.message.content.find(part=>part.type==="image"),buffer=Buffer.from(image?.source?.data||"","base64");fs.writeFileSync(${JSON.stringify(record)},JSON.stringify({args,mediaType:image?.source?.media_type,signature:buffer.toString("ascii",0,4)}));const result={intent:"answer",observedText:"hi",message:"hello",commands:[]};process.stdout.write(JSON.stringify({type:"result",subtype:"success",result:JSON.stringify(result)}));\n`);
   const {child,origin}=await startServer(claudeServerEnv(fakeCli,{AI_EFFORT:"max"}));
   try {
@@ -953,7 +953,7 @@ test("Claude CLI mode sends the canvas to the authenticated local CLI with the s
 });
 
 test("Kimi CLI mode uses the documented prompt stream, no-tools agent, and temporary canvas reference", { timeout:20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-server-kimi-")),fakeCli=path.join(directory,"fake-kimi.js"),record=path.join(directory,"record.json");
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-server-kimi-")),fakeCli=path.join(directory,"fake-kimi.js"),record=path.join(directory,"record.json");
   await fs.promises.writeFile(fakeCli, `"use strict";const fs=require("node:fs"),path=require("node:path"),args=process.argv.slice(2),prompt=args[args.indexOf("--prompt")+1]||"",agentFile=args[args.indexOf("--agent-file")+1],image=/@(canvas-[0-9]+[.](?:png|webp))/.exec(prompt)?.[1];fs.writeFileSync(${JSON.stringify(record)},JSON.stringify({args,imageExists:Boolean(image&&fs.existsSync(path.join(process.cwd(),image))),agent:fs.readFileSync(agentFile,"utf8")}));process.stdout.write(JSON.stringify({type:"message",role:"assistant",content:[{type:"text",text:'{"intent":"answer","observedText":"hi","message":"hello","commands":[]}'}]})+"\\n");\n`);
   const {child,origin}=await startServer(serverEnv({AI_PROVIDER:"kimi-cli",KIMI_CLI_PATH:fakeCli,KIMI_CLI_MODEL:"kimi-code/k3",AI_EFFORT:"medium"}));
   try {
@@ -975,7 +975,7 @@ test("Kimi CLI mode uses the documented prompt stream, no-tools agent, and tempo
 });
 
 test("Codex CLI mode writes the configured WebP image with a .webp extension", { timeout:20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-server-codex-webp-")),fakeCli=path.join(directory,"fake-codex.js"),record=path.join(directory,"record.json");
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-server-codex-webp-")),fakeCli=path.join(directory,"fake-codex.js"),record=path.join(directory,"record.json");
   await fs.promises.writeFile(fakeCli, `"use strict";const fs=require("node:fs"),path=require("node:path"),args=process.argv.slice(2),image=args[args.indexOf("-i")+1],buffer=fs.readFileSync(image),answer='{"intent":"answer","observedText":"hi","message":"hello","commands":[]}';fs.writeFileSync(${JSON.stringify(record)},JSON.stringify({args,extension:path.extname(image),signature:buffer.toString("ascii",0,4),json:args.includes("--json")}));process.stdout.write(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:answer}})+"\\n");process.stdout.write(JSON.stringify({type:"turn.completed",usage:{}})+"\\n");setInterval(()=>{},1000);\n`);
   const {child,origin}=await startServer(serverEnv({CODEX_CLI_PATH:fakeCli}));
   try {
@@ -999,8 +999,8 @@ test("Codex CLI mode writes the configured WebP image with a .webp extension", {
 });
 
 test("Main Canvas AI rediscovers Codex CLI after its configured executable disappears and reuses the recovery", { timeout:20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-codex-recovery-")),cli=await recoverableCodexCli(directory),stateDir=path.join(directory,"state"),
-    missing=path.join(directory,"removed-codex"),env=serverEnv({PENECHO_STATE_DIR:stateDir,CODEX_CLI_PATH:missing,PATH:`${cli.bin}${path.delimiter}${process.env.PATH||""}`}),
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-codex-recovery-")),cli=await recoverableCodexCli(directory),stateDir=path.join(directory,"state"),
+    missing=path.join(directory,"removed-codex"),env=serverEnv({FASTLECTURES_STATE_DIR:stateDir,CODEX_CLI_PATH:missing,PATH:`${cli.bin}${path.delimiter}${process.env.PATH||""}`}),
     {child,origin}=await startServer(env);
   try {
     const page=await fetch(origin),cookie=page.headers.get("set-cookie")?.split(";",1)[0],headers={"Content-Type":"application/json",Origin:origin,Cookie:cookie};
@@ -1011,7 +1011,7 @@ test("Main Canvas AI rediscovers Codex CLI after its configured executable disap
     }
     const invocations=(await fs.promises.readFile(cli.record,"utf8")).trim().split(/\r?\n/);
     assert.deepEqual(invocations,["version","login","canvas","canvas"]);
-    const logText=await fs.promises.readFile(path.join(stateDir,"logs","penecho.log"),"utf8");
+    const logText=await fs.promises.readFile(path.join(stateDir,"logs","fastlectures.log"),"utf8");
     assert.match(logText,/"type":"cli-auto-recovery"/);
   } finally {
     await stopServer(child);
@@ -1020,7 +1020,7 @@ test("Main Canvas AI rediscovers Codex CLI after its configured executable disap
 });
 
 test("Claude CLI failures expose the useful upstream diagnostic", { timeout:20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-server-claude-error-")),fakeCli=path.join(directory,"fake-claude.js");
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-server-claude-error-")),fakeCli=path.join(directory,"fake-claude.js");
   await fs.promises.writeFile(fakeCli, `process.stderr.write("invalid effort value: future-model-level");process.exit(1);\n`);
   const {child,origin}=await startServer(claudeServerEnv(fakeCli,{AI_EFFORT:"future-model-level"}));
   try {
@@ -1128,7 +1128,7 @@ test("API mode consumes true upstream SSE and reports receiving before validatio
 
 test("AI progress streams send heartbeats while the model is silent", { timeout:20000 }, async () => {
   const upstream=await startApiServer('{"intent":"none","commands":[]}',{delayMs:140}),
-    running=await startServer(apiServerEnv(upstream.origin,{PENECHO_TEST_AI_PROGRESS_HEARTBEAT_MS:"25"}));
+    running=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_TEST_AI_PROGRESS_HEARTBEAT_MS:"25"}));
   try {
     const response=await fetch(`${running.origin}/api/ai/command`,{method:"POST",headers:{"Content-Type":"application/json",Accept:"application/x-ndjson"},body:JSON.stringify(validPayload())}),
       events=await progressEvents(response),heartbeats=events.filter(event=>event.type==="activity");
@@ -1142,7 +1142,7 @@ test("legacy animate_scene output is always filtered in favor of General HTML SV
   const animationCommand = { tool:"animate_scene", x:0, y:0, w:200, h:120, durationMs:1000, loop:true, objects:[{id:"dot",type:"circle",cx:20,cy:20,r:5}], motions:[{type:"spin",target:"dot",periodMs:1000}] },
     responseContent = JSON.stringify({ intent:"answer", commands:[animationCommand] }),
     upstream = await startApiServer(responseContent),
-    running = await startServer(apiServerEnv(upstream.origin, { PENECHO_AI_IMAGE_FORMAT:"png" }));
+    running = await startServer(apiServerEnv(upstream.origin, { FASTLECTURES_AI_IMAGE_FORMAT:"png" }));
   try {
     const disabledResponse = await fetch(`${running.origin}/api/ai/command`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(validPayload()) }),
       disabledBody = await disabledResponse.json(),
@@ -1192,7 +1192,7 @@ test("typed canvas text is validated and passed as authoritative model context",
 });
 
 test("open Codex mode keeps its original same-origin request behavior", { timeout: 20000 }, async () => {
-  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-server-test-"));
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-server-test-"));
   const fakeCli = path.join(directory, "fake-codex.js");
   await fs.promises.writeFile(fakeCli, "process.stderr.write('expected test failure'); process.exit(2);\n");
   const { child, origin } = await startServer(serverEnv({ CODEX_CLI_PATH: fakeCli }));
@@ -1228,7 +1228,7 @@ test("open Codex mode keeps its original same-origin request behavior", { timeou
     const authorizedInvalid = await fetch(`${origin}/api/ai/command`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie, Origin: origin }, body: "{}" });
     assert.equal(authorizedInvalid.status, 400);
     const accessStatus=await fetch(`${origin}/api/local-access/status`).then(response=>response.json());
-    const headerAuthorized=await fetch(`${origin}/api/ai/command`,{method:"POST",headers:{"Content-Type":"application/json",Origin:origin,"X-PenEcho-Session":accessStatus.accessSessionToken},body:"{}"});
+    const headerAuthorized=await fetch(`${origin}/api/ai/command`,{method:"POST",headers:{"Content-Type":"application/json",Origin:origin,"X-FastLectures-Session":accessStatus.accessSessionToken},body:"{}"});
     assert.equal(headerAuthorized.status,400);
 
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -1249,7 +1249,7 @@ test("open Codex mode keeps its original same-origin request behavior", { timeou
 });
 
 test("PIN authentication leaves the API provider request behavior unchanged", { timeout: 20000 }, async () => {
-  const upstream = await startApiServer(), { child, origin } = await startServer(apiServerEnv(upstream.origin,{PENECHO_TEST_OPEN_ACCESS:"0"}));
+  const upstream = await startApiServer(), { child, origin } = await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_TEST_OPEN_ACCESS:"0"}));
   try {
     await new Promise(resolve => setTimeout(resolve, 100));
     assert.equal(upstream.requests.length, 0);
@@ -1263,7 +1263,7 @@ test("PIN authentication leaves the API provider request behavior unchanged", { 
     const page = await httpRequest(origin,{headers:{Host:"my-pc:3888"}}), before = upstream.requests.length, body=JSON.stringify(validPayload());
     assert.equal(page.status,200);
     assert.equal(page.headers["set-cookie"],undefined);
-    const remote = await httpRequest(origin,{method:"POST",pathText:"/api/ai/command",headers:{Host:"my-pc:3888",Origin:"http://my-pc:3888","X-PenEcho-Session":setupBody.accessSessionToken,"Content-Type":"text/plain","Content-Length":Buffer.byteLength(body)},body});
+    const remote = await httpRequest(origin,{method:"POST",pathText:"/api/ai/command",headers:{Host:"my-pc:3888",Origin:"http://my-pc:3888","X-FastLectures-Session":setupBody.accessSessionToken,"Content-Type":"text/plain","Content-Length":Buffer.byteLength(body)},body});
     assert.equal(remote.status,200);
     assert.equal(upstream.requests.length, before + 1);
     assert.doesNotMatch(upstream.requests[0],new RegExp(setupBody.accessSessionToken));
@@ -1273,9 +1273,9 @@ test("PIN authentication leaves the API provider request behavior unchanged", { 
   }
 });
 
-test("shared PenEcho server canvases support authorized metadata-first CRUD", { timeout:20000 }, async () => {
+test("shared FastLectures server canvases support authorized metadata-first CRUD", { timeout:20000 }, async () => {
   const stateDir=testStateDir({}),
-    {child,origin}=await startServer(serverEnv({PENECHO_STATE_DIR:stateDir})),
+    {child,origin}=await startServer(serverEnv({FASTLECTURES_STATE_DIR:stateDir})),
     snapshot=validSharedCanvas(undefined,{version:undefined,view:{scale:0.5,panX:120,panY:240,navigationLocked:true}}),
     mutationHeaders={"Content-Type":"application/json",Origin:origin};
   try {
@@ -1336,12 +1336,12 @@ test("shared PenEcho server canvases support authorized metadata-first CRUD", { 
 });
 
 test("Canvas metadata-only lists validated document identity without content and V2 keeps its saved view region", { timeout:20000 }, async () => {
-  const stateDir=testStateDir({}),{child,origin}=await startServer(serverEnv({PENECHO_STATE_DIR:stateDir})),
+  const stateDir=testStateDir({}),{child,origin}=await startServer(serverEnv({FASTLECTURES_STATE_DIR:stateDir})),
     headers={"Content-Type":"application/json",Origin:origin},legacy=validSharedCanvas(),base=validSharedCanvasBundle(),
     documentId="document-identity-1",region={x:144,y:288,w:1200,h:800},
-    modern={...base,extensions:{...base.extensions,penechoDocument:{version:1,documentId}},manifest:{...base.manifest,view:{...base.manifest.view,region}}},
+    modern={...base,extensions:{...base.extensions,fastlecturesDocument:{version:1,documentId}},manifest:{...base.manifest,view:{...base.manifest.view,region}}},
     invalidBase=validSharedCanvasBundle(`${Date.now()}-123e4567-e89b-12d3-a456-426614174201`),
-    invalidIdentity={...invalidBase,extensions:{...invalidBase.extensions,penechoDocument:{version:99,documentId:"unknown-version-document"}}};
+    invalidIdentity={...invalidBase,extensions:{...invalidBase.extensions,fastlecturesDocument:{version:99,documentId:"unknown-version-document"}}};
   try {
     const legacyResponse=await fetch(`${origin}/api/canvases`,{method:"POST",headers,body:JSON.stringify(legacy)}),
       modernResponse=await fetch(`${origin}/api/canvases`,{method:"POST",headers,body:JSON.stringify(modern)}),
@@ -1373,12 +1373,12 @@ test("Canvas metadata-only lists validated document identity without content and
 
     const loaded=await fetch(`${origin}/api/canvases/${encodeURIComponent(base.id)}`).then(response=>response.json());
     assert.deepEqual(loaded.canvas.manifest.view.region,region);
-    assert.equal(loaded.canvas.extensions.penechoDocument.documentId,documentId);
+    assert.equal(loaded.canvas.extensions.fastlecturesDocument.documentId,documentId);
   } finally { await stopServer(child); }
 });
 
 test("shared canvas v2 is one portable bundle and server projects move without rewriting it", { timeout:20000 }, async () => {
-  const stateDir=testStateDir({}),{child,origin}=await startServer(serverEnv({PENECHO_STATE_DIR:stateDir})),
+  const stateDir=testStateDir({}),{child,origin}=await startServer(serverEnv({FASTLECTURES_STATE_DIR:stateDir})),
     headers={"Content-Type":"application/json",Origin:origin},bundle=validSharedCanvasBundle();
   try {
     const initialProjects=await fetch(`${origin}/api/canvas-projects`).then(response=>response.json());
@@ -1432,14 +1432,14 @@ test("shared canvas v2 is one portable bundle and server projects move without r
     assert.equal(imported.version,2);
     assert.equal(imported.projectId,"uncategorized");
     const importedBundle=await fetch(`${origin}/api/canvases/${encodeURIComponent(imported.id)}`).then(response=>response.json());
-    assert.equal(importedBundle.canvas.manifest.format,"penecho-raster-tiles");
+    assert.equal(importedBundle.canvas.manifest.format,"fastlectures-raster-tiles");
     assert.equal(importedBundle.canvas.assets.find(asset=>asset.kind==="widget").metadata.widgetId,"widget-1");
   } finally { await stopServer(child); }
 });
 
-test("shared PenEcho server canvases retain up to one hundred widgets, images, and animations", { timeout:20000 }, async () => {
+test("shared FastLectures server canvases retain up to one hundred widgets, images, and animations", { timeout:20000 }, async () => {
   const stateDir=testStateDir({}),
-    {child,origin}=await startServer(serverEnv({PENECHO_STATE_DIR:stateDir})),
+    {child,origin}=await startServer(serverEnv({FASTLECTURES_STATE_DIR:stateDir})),
     mutationHeaders={"Content-Type":"application/json",Origin:origin},
     widgets=Array.from({length:100},(_,index)=>({id:`widget-${index + 1}`})),
     animations=Array.from({length:100},(_,index)=>({id:`animation-${index + 1}`})),
@@ -1510,8 +1510,8 @@ test("shared PenEcho server canvases retain up to one hundred widgets, images, a
   }
 });
 
-test("shared server canvases obey the process-lifetime PenEcho PIN session", { timeout:20000 }, async () => {
-  const {child,origin}=await startServer(serverEnv({PENECHO_TEST_OPEN_ACCESS:"0"})),
+test("shared server canvases obey the process-lifetime FastLectures PIN session", { timeout:20000 }, async () => {
+  const {child,origin}=await startServer(serverEnv({FASTLECTURES_TEST_OPEN_ACCESS:"0"})),
     snapshot=validSharedCanvas();
   try {
     assert.equal((await fetch(`${origin}/api/canvases`)).status,403);
@@ -1521,7 +1521,7 @@ test("shared server canvases obey the process-lifetime PenEcho PIN session", { t
         body:JSON.stringify({pin:"271828",confirmation:"271828"}),
       }),
       setupBody=await setup.json(),
-      sessionHeaders={"X-PenEcho-Session":setupBody.accessSessionToken},
+      sessionHeaders={"X-FastLectures-Session":setupBody.accessSessionToken},
       mutationHeaders={...sessionHeaders,"Content-Type":"application/json",Origin:origin};
     assert.equal(setup.status,200,JSON.stringify(setupBody));
     const created=await fetch(`${origin}/api/canvases`,{method:"POST",headers:mutationHeaders,body:JSON.stringify(snapshot)});
@@ -1538,7 +1538,7 @@ test("enabled plugin documents reach the model and gate html_widget commands", {
   const command = (pluginId="weather", html="<!doctype html><title>Weather</title>", placement = {}) => JSON.stringify({ intent:"answer", commands:[{ tool:"html_widget", pluginId, x:100, y:200, w:1200, h:700, title:"Weather", refreshSeconds:900, html, ...placement }] }),
     upstream = await startApiServer("", { response:({index}) => {
       const professional = placement => command("flowchart", undefined, { sourceFormat:"mermaid", copyText:"flowchart LR\nA --> B", ...placement });
-      return { body:index === 0 ? command("weather", "x".repeat(200000)) : index === 2 ? command("stocks") : index === 3 ? command("weather", "x".repeat(200001)) : index === 4 ? command("weather", undefined, { x:17900, y:19300, w:2400, h:1150 }) : index === 5 ? command("image-search", undefined, { copyText:"aurora", copyLabel:"Copy query" }) : index === 6 ? command("flowchart", undefined, { diagramKind:"process", sourceFormat:"bpmn-xml", frameworkVersion:"penecho-professional-diagrams-v1", copyText:'<?xml version="1.0"?><definitions />' }) : index === 7 ? professional({ w:7800, h:2100 }) : index === 8 ? professional({ w:10000, h:20000 }) : index === 9 ? professional({ w:8000, h:6000 }) : command() };
+      return { body:index === 0 ? command("weather", "x".repeat(200000)) : index === 2 ? command("stocks") : index === 3 ? command("weather", "x".repeat(200001)) : index === 4 ? command("weather", undefined, { x:17900, y:19300, w:2400, h:1150 }) : index === 5 ? command("image-search", undefined, { copyText:"aurora", copyLabel:"Copy query" }) : index === 6 ? command("flowchart", undefined, { diagramKind:"process", sourceFormat:"bpmn-xml", frameworkVersion:"fastlectures-professional-diagrams-v1", copyText:'<?xml version="1.0"?><definitions />' }) : index === 7 ? professional({ w:7800, h:2100 }) : index === 8 ? professional({ w:10000, h:20000 }) : index === 9 ? professional({ w:8000, h:6000 }) : command() };
     } }),
     {child,origin} = await startServer(apiServerEnv(upstream.origin));
   try {
@@ -1888,7 +1888,7 @@ test("professional diagrams accept local source renderers and keep unknown forma
       sourceFile:"widget.source",
     });
     assert.equal(files[1].readView, "     1\tflowchart LR\n     2\tA --> B");
-    assert.match(modelText, /numbering: nl -ba -w6 -s TAB\n[\s\S]*?<<<BEGIN PENECHO_VIRTUAL_FILE_[a-f0-9]{64}>>>\n     1\tflowchart LR\n     2\tA --> B\n<<<END/);
+    assert.match(modelText, /numbering: nl -ba -w6 -s TAB\n[\s\S]*?<<<BEGIN FASTLECTURES_VIRTUAL_FILE_[a-f0-9]{64}>>>\n     1\tflowchart LR\n     2\tA --> B\n<<<END/);
   } finally {
     await stopServer(running.child);
     await new Promise(resolve => upstream.server.close(resolve));
@@ -1976,7 +1976,7 @@ test("custom plugin widget refinement applies one patch and rejects ambiguous pa
       version:"1",
       connect:[],
       recommendedRefreshSeconds:86400,
-      document:"---\npenecho-plugin: 1\nid: custom-diagram\nname: Custom Diagram\nversion: 1\n---\n# Custom Diagram\n\n## One-shot example\nReturn one html_widget.",
+      document:"---\nfastlectures-plugin: 1\nid: custom-diagram\nname: Custom Diagram\nversion: 1\n---\n# Custom Diagram\n\n## One-shot example\nReturn one html_widget.",
       styles:".custom-node { color: #123456; }",
     },
     payload = validPayload();
@@ -2077,7 +2077,7 @@ test("custom plugin widget refinement applies one patch and rejects ambiguous pa
     assert.match(ambiguous.error, /widget patch that could not be applied after retry/);
     assert.equal(upstream.requests.length, 3);
     const firstText = outboundModelText(upstream.requests[0]), shiftedText = outboundModelText(upstream.requests[1]),
-      currentContextMarker = "\n\nPenEcho current Refine request context (JSON; applies to the virtual files above):\n",
+      currentContextMarker = "\n\nFastLectures current Refine request context (JSON; applies to the virtual files above):\n",
       firstCurrent = firstText.indexOf(currentContextMarker), shiftedCurrent = shiftedText.indexOf(currentContextMarker);
     assert.ok(firstCurrent > 0);
     assert.equal(firstText.slice(0, firstCurrent), shiftedText.slice(0, shiftedCurrent));
@@ -2174,7 +2174,7 @@ test("widget refinement applies an exact uniquely located patch without a model 
 });
 
 test("widget refinement traces a strict overlapping-hunk rejection before retry", { timeout:20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-overlapping-hunk-trace-")),
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-overlapping-hunk-trace-")),
     patch=[
       "--- a/widget.html",
       "+++ b/widget.html",
@@ -2193,7 +2193,7 @@ test("widget refinement traces a strict overlapping-hunk rejection before retry"
       "",
     ].join("\n"),
     upstream=await startApiServer(JSON.stringify({intent:"answer",commands:[{tool:"widget_patch",patch}]})),
-    running=await startServer(apiServerEnv(upstream.origin,{PENECHO_STATE_DIR:directory,PENECHO_REQUEST_TRACE:"true",PENECHO_AI_IMAGE_FORMAT:"png"})),
+    running=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_STATE_DIR:directory,FASTLECTURES_REQUEST_TRACE:"true",FASTLECTURES_AI_IMAGE_FORMAT:"png"})),
     payload=validPayload();
   payload.trigger="manual";
   payload.userAction="answer";
@@ -2256,7 +2256,7 @@ test("widget host CSP permits on-demand HTTPS resources inside the isolated widg
     assert.match(await visualVendor.text(),/AntVInfographic/);
     assert.equal(visualRuntime.status,200);
     assert.equal(visualRuntime.headers.get("cross-origin-resource-policy"),"cross-origin");
-    assert.match(await visualRuntime.text(),/penecho-visual-explainer-diagnostics/);
+    assert.match(await visualRuntime.text(),/fastlectures-visual-explainer-diagnostics/);
 
     const privateData = await fetch(`${origin}/api/widget-fetch?url=${encodeURIComponent("https://127.0.0.1/")}`, { headers:{ Origin:origin } });
     assert.equal(privateData.status, 403);
@@ -2275,7 +2275,7 @@ test("widget host CSP permits on-demand HTTPS resources inside the isolated widg
     assert.match(await duplicateSessionHost.text(), /Invalid widget host session/);
     const sandboxedWidgetData = await fetch(`${origin}/api/widget-fetch`, {
       method:"POST",
-      headers:{ "Content-Type":"application/json", "X-PenEcho-Session":accessSession },
+      headers:{ "Content-Type":"application/json", "X-FastLectures-Session":accessSession },
       body:JSON.stringify({ url:"https://127.0.0.1:8443/image.png" }),
     });
     assert.equal(sandboxedWidgetData.status, 403);
@@ -2313,7 +2313,7 @@ test("local plugin discovery is constrained and widget prompting is conditional"
   assert.match(source, /inspect and use the entire attached input image within sourceRect as the current input/);
   assert.match(source, /return one short write_text clarification question asking what the user wants done with the visible content/);
   assert.match(source, /commands contains at least one renderable command/);
-  assert.match(source, /Return only one compact final JSON object needed by PenEcho[\s\S]*?Omit drafts, reasoning, progress or status updates, alternatives, duplicate objects, Markdown, and any wrapper text/);
+  assert.match(source, /Return only one compact final JSON object needed by FastLectures[\s\S]*?Omit drafts, reasoning, progress or status updates, alternatives, duplicate objects, Markdown, and any wrapper text/);
   assert.match(source, /"commands":\{"type":"array","minItems":1,"maxItems":16/);
   assert.match(source, /return \[base, literalTypeset \? NORMALIZE_TYPESET_POLICY : "", MANDATORY_VISIBLE_RESPONSE_PROMPT, REFINE_MODE_GATE_PROMPT, JSON_RESPONSE_SCHEMA_PROMPT\]/);
   assert.match(source, /const PLUGIN_SYSTEM_PROMPT = `Enabled plugin bundles/);
@@ -2324,14 +2324,14 @@ test("local plugin discovery is constrained and widget prompting is conditional"
   assert.match(source, /Public HTTPS reference links are allowed[\s\S]*?target="_blank"[\s\S]*?noopener noreferrer[\s\S]*?never navigate the widget itself/);
   assert.match(source, /const PLUGIN_ROUTING_PROMPT = `General HTML is mandatory and always enabled/);
   assert.match(source, /Choose exactly one command path by the defining deliverable[\s\S]*never return speculative alternatives/);
-  assert.match(source, /does not expose the PenEcho Agent Visual Explainer tool[\s\S]*General HTML as its explicit compatibility fallback/);
+  assert.match(source, /does not expose the FastLectures Agent Visual Explainer tool[\s\S]*General HTML as its explicit compatibility fallback/);
   assert.match(source, /custom behavior is primary[\s\S]*faithful quantitative chart with axes and scales[\s\S]*diagram, chart, architecture, model, structure, process, flow, or draw do not by themselves justify one/);
   assert.match(source, /filterCapabilityCommands[\s\S]*?command\?\.tool !== "animate_scene"/);
   assert.match(source, /current or changing public information such as news[\s\S]*?network-backed html_widget[\s\S]*?refreshSeconds interval[\s\S]*?update frequency and rate limits/);
   assert.match(source, /if \(pluginsEnabled\) sections\.push\(PLUGIN_ROUTING_PROMPT, PLUGIN_SYSTEM_PROMPT\)/);
   assert.match(source, /pluginsEnabled = Array\.isArray\(modelInput\?\.enabledPlugins\) && modelInput\.enabledPlugins\.length > 0/);
   assert.match(source, /function localPluginCatalog\(scope = "all"\)[\s\S]*?entry\.isFile\(\)[\s\S]*?entry\.isDirectory\(\)[\s\S]*?MAX_LOCAL_PLUGINS/);
-  assert.match(source, /process\.env\.PENECHO_PRIVATE_PLUGIN_DIR[\s\S]*?path\.resolve\(process\.env\.PENECHO_PRIVATE_PLUGIN_DIR\)/);
+  assert.match(source, /process\.env\.FASTLECTURES_PRIVATE_PLUGIN_DIR[\s\S]*?path\.resolve\(process\.env\.FASTLECTURES_PRIVATE_PLUGIN_DIR\)/);
   assert.match(source, /STATE_DIRECTORY[\s\S]*?path\.join\(STATE_DIRECTORY, "plugins", "private"\)/);
   assert.match(source, /function localPluginCatalog\(scope = "all"\)[\s\S]*?PRIVATE_PLUGIN_DIRECTORY[\s\S]*?plugins\/private[\s\S]*?scope !== "private" \|\| !builtIn/);
   assert.match(source, /function saveLocalPluginDocument\([\s\S]*?BUILTIN_PLUGIN_IDS\.has\(manifest\.id\)[\s\S]*?mkdirSync\(PRIVATE_PLUGIN_DIRECTORY/);
@@ -2346,7 +2346,7 @@ test("personal plugins use the writable desktop directory and remain fetchable",
   const stateDir=testStateDir({}),
     privateDirectory=path.join(stateDir,"desktop-plugins","private"),
     upstream=await startApiServer(),
-    running=await startServer(apiServerEnv(upstream.origin,{PENECHO_STATE_DIR:stateDir,PENECHO_PRIVATE_PLUGIN_DIR:privateDirectory})),
+    running=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_STATE_DIR:stateDir,FASTLECTURES_PRIVATE_PLUGIN_DIR:privateDirectory})),
     document=fs.readFileSync(path.join(ROOT,"public","plugins","general","plugin.md"),"utf8")
       .replace(/^id: general$/m,"id: desktop-private-test")
       .replace(/^name: General HTML$/m,"name: Desktop Private Test")
@@ -2395,7 +2395,7 @@ test("community metadata accepts an optional continuation prompt and validates t
     upstream=await startApiServer(JSON.stringify(generated)),running=await startServer(apiServerEnv(upstream.origin)),image=await sharp({create:{width:96,height:64,channels:4,background:{r:35,g:92,b:155,alpha:1}}}).webp({quality:80}).toBuffer(),
     payload={kind:"canvas",language:"en",preview:{contentType:"image/webp",width:96,height:64,dataBase64:image.toString("base64")},current:{name:"Map",description:"",category:"productivity",tags:[]},context:{title:"Map"}};
   try {
-    const response=await fetch(`${running.origin}/api/community/metadata`,{method:"POST",headers:{Origin:running.origin,"Content-Type":"application/json","X-PenEcho-Connection":"default"},body:JSON.stringify(payload)}),body=await response.json();
+    const response=await fetch(`${running.origin}/api/community/metadata`,{method:"POST",headers:{Origin:running.origin,"Content-Type":"application/json","X-FastLectures-Connection":"default"},body:JSON.stringify(payload)}),body=await response.json();
     assert.equal(response.status,200);
     assert.deepEqual(body.metadata,generated);
     assert.equal(upstream.requests.length,1);
@@ -2414,13 +2414,13 @@ test("community metadata accepts an optional continuation prompt and validates t
 });
 
 test("Widget publish metadata uses the same Codex CLI auto-recovery as Main Canvas AI", { timeout:20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-community-codex-recovery-")),cli=await recoverableCodexCli(directory),stateDir=path.join(directory,"state"),
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-community-codex-recovery-")),cli=await recoverableCodexCli(directory),stateDir=path.join(directory,"state"),
     image=await sharp({create:{width:96,height:64,channels:4,background:{r:35,g:92,b:155,alpha:1}}}).webp({quality:80}).toBuffer(),
     payload={kind:"widget",language:"en",preview:{contentType:"image/webp",width:96,height:64,dataBase64:image.toString("base64")},current:{name:"",description:"",category:"productivity",tags:[]},context:{title:"Recovered Widget"}},
-    env=serverEnv({PENECHO_STATE_DIR:stateDir,CODEX_CLI_PATH:path.join(directory,"removed-codex"),PATH:`${cli.bin}${path.delimiter}${process.env.PATH||""}`}),
+    env=serverEnv({FASTLECTURES_STATE_DIR:stateDir,CODEX_CLI_PATH:path.join(directory,"removed-codex"),PATH:`${cli.bin}${path.delimiter}${process.env.PATH||""}`}),
     running=await startServer(env);
   try {
-    const response=await fetch(`${running.origin}/api/community/metadata`,{method:"POST",headers:{Origin:running.origin,"Content-Type":"application/json","X-PenEcho-Connection":"default"},body:JSON.stringify(payload)}),body=await response.json();
+    const response=await fetch(`${running.origin}/api/community/metadata`,{method:"POST",headers:{Origin:running.origin,"Content-Type":"application/json","X-FastLectures-Connection":"default"},body:JSON.stringify(payload)}),body=await response.json();
     assert.equal(response.status,200,JSON.stringify(body));
     assert.deepEqual(body.metadata,cli.communityMetadata);
     const invocations=(await fs.promises.readFile(cli.record,"utf8")).trim().split(/\r?\n/);
@@ -2438,7 +2438,7 @@ test("Studio client persona is accepted and exact-match enforced", { timeout:200
 
   assert.ok(literal, "client Studio persona mapping is missing");
   const studioPersona = JSON.parse(literal);
-  const upstream = await startApiServer(), { child, origin } = await startServer(apiServerEnv(upstream.origin, { AI_API_FORMAT:"openai", PENECHO_AI_IMAGE_FORMAT:"png" }));
+  const upstream = await startApiServer(), { child, origin } = await startServer(apiServerEnv(upstream.origin, { AI_API_FORMAT:"openai", FASTLECTURES_AI_IMAGE_FORMAT:"png" }));
 
   try {
     const accepted = validPayload();
@@ -2472,7 +2472,7 @@ test("Studio client persona is accepted and exact-match enforced", { timeout:200
 });
 
 test("debug mode captures the raw model exchange and upstream request identifiers locally", { timeout: 20000 }, async () => {
-  const observedText="debug-observed-text",responseContent=JSON.stringify({intent:"answer",observedText,message:"debug reply",commands:[]}),upstream=await startApiServer(responseContent),{child,origin,stateDir}=await startServer(apiServerEnv(upstream.origin,{PENECHO_DEBUG_ARTIFACTS:"true"}));
+  const observedText="debug-observed-text",responseContent=JSON.stringify({intent:"answer",observedText,message:"debug reply",commands:[]}),upstream=await startApiServer(responseContent),{child,origin,stateDir}=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_DEBUG_ARTIFACTS:"true"}));
   try {
     const page=await fetch(origin),cookie=page.headers.get("set-cookie")?.split(";",1)[0],
       response=await fetch(`${origin}/api/ai/command`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(validPayload())}),body=await response.json(),file=path.join(stateDir,"logs","latest-model.json"),deadline=Date.now()+3000;
@@ -2497,7 +2497,7 @@ test("debug mode captures the raw model exchange and upstream request identifier
 });
 
 test("request tracing retains the configured number of complete image and model exchanges", { timeout: 20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-request-trace-")),responseContent=JSON.stringify({intent:"answer",observedText:"trace input",message:"trace reply",commands:[]}),upstream=await startApiServer(responseContent),{child,origin}=await startServer(apiServerEnv(upstream.origin,{PENECHO_STATE_DIR:directory,PENECHO_REQUEST_TRACE:"true",PENECHO_REQUEST_TRACE_LIMIT:"2",PENECHO_DEBUG_ARTIFACTS:"false"}));
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-request-trace-")),responseContent=JSON.stringify({intent:"answer",observedText:"trace input",message:"trace reply",commands:[]}),upstream=await startApiServer(responseContent),{child,origin}=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_STATE_DIR:directory,FASTLECTURES_REQUEST_TRACE:"true",FASTLECTURES_REQUEST_TRACE_LIMIT:"2",FASTLECTURES_DEBUG_ARTIFACTS:"false"}));
   try {
     const responses=[];
     for(let index=0;index<3;index++){
@@ -2545,7 +2545,7 @@ test("request tracing retains the configured number of complete image and model 
 });
 
 test("request tracing records upstream failures without credentials", { timeout: 20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-request-trace-error-")),upstream=await startApiServer("upstream unavailable",{status:503}),{child,origin}=await startServer(apiServerEnv(upstream.origin,{PENECHO_STATE_DIR:directory,PENECHO_REQUEST_TRACE:"true",PENECHO_REQUEST_TRACE_LIMIT:"100"}));
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-request-trace-error-")),upstream=await startApiServer("upstream unavailable",{status:503}),{child,origin}=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_STATE_DIR:directory,FASTLECTURES_REQUEST_TRACE:"true",FASTLECTURES_REQUEST_TRACE_LIMIT:"100"}));
   try {
     const response=await fetch(`${origin}/api/ai/command`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(validPayload())}),body=await response.json(),root=path.join(directory,"logs","requests"),directories=(await fs.promises.readdir(root,{withFileTypes:true})).filter(entry=>entry.isDirectory()).map(entry=>entry.name),name=directories.find(entry=>entry.endsWith(body.requestId));
     assert.equal(response.status,503);
@@ -2570,10 +2570,10 @@ test("request tracing records upstream failures without credentials", { timeout:
 });
 
 test("upstream HTML error pages remain in request traces but never reach the user", { timeout:20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-upstream-html-error-")),
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-upstream-html-error-")),
     upstreamHtml='<!DOCTYPE html><html><head><title>524: A timeout occurred</title></head><body>private proxy details</body></html>',
     upstream=await startApiServer(upstreamHtml,{status:524}),
-    {child,origin}=await startServer(apiServerEnv(upstream.origin,{PENECHO_STATE_DIR:directory,PENECHO_REQUEST_TRACE:"true"}));
+    {child,origin}=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_STATE_DIR:directory,FASTLECTURES_REQUEST_TRACE:"true"}));
   try {
     const response=await fetch(`${origin}/api/ai/command`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(validPayload())}),
       body=await response.json(),
@@ -2593,13 +2593,13 @@ test("upstream HTML error pages remain in request traces but never reach the use
 });
 
 test("disabled request recording omits detailed transport failures and per-request files", { timeout:20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-request-trace-disabled-")),
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-request-trace-disabled-")),
     upstream=await startApiServer("upstream unavailable",{status:503}),
-    {child,origin}=await startServer(apiServerEnv(upstream.origin,{PENECHO_STATE_DIR:directory,PENECHO_REQUEST_TRACE:"false"}));
+    {child,origin}=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_STATE_DIR:directory,FASTLECTURES_REQUEST_TRACE:"false"}));
   try {
     const response=await fetch(`${origin}/api/ai/command`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(validPayload())}),
       body=await response.json(),
-      logEntries=(await fs.promises.readFile(path.join(directory,"logs","penecho.log"),"utf8")).trim().split("\n").map(line=>JSON.parse(line)),
+      logEntries=(await fs.promises.readFile(path.join(directory,"logs","fastlectures.log"),"utf8")).trim().split("\n").map(line=>JSON.parse(line)),
       requestLog=logEntries.find(entry=>entry.requestId===body.requestId);
     assert.equal(response.status,503);
     assert.equal(requestLog.error,"upstream-error");
@@ -2613,16 +2613,16 @@ test("disabled request recording omits detailed transport failures and per-reque
 });
 
 test("request tracing distinguishes a truncated successful response body from an upstream model failure", { timeout:20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-request-trace-truncated-")),
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-request-trace-truncated-")),
     upstream=await startTruncatedApiServer(),
-    {child,origin}=await startServer(apiServerEnv(upstream.origin,{PENECHO_STATE_DIR:directory,PENECHO_REQUEST_TRACE:"true"}));
+    {child,origin}=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_STATE_DIR:directory,FASTLECTURES_REQUEST_TRACE:"true"}));
   try {
     const response=await fetch(`${origin}/api/ai/command`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(validPayload())}),
       body=await response.json(),
       root=path.join(directory,"logs","requests"),
       name=(await fs.promises.readdir(root)).find(entry=>entry.endsWith(body.requestId)),
       trace=JSON.parse(await fs.promises.readFile(path.join(root,name,"trace.json"),"utf8")),
-      logEntries=(await fs.promises.readFile(path.join(directory,"logs","penecho.log"),"utf8")).trim().split("\n").map(line=>JSON.parse(line)),
+      logEntries=(await fs.promises.readFile(path.join(directory,"logs","fastlectures.log"),"utf8")).trim().split("\n").map(line=>JSON.parse(line)),
       requestLog=logEntries.find(entry=>entry.requestId===body.requestId);
     assert.equal(response.status,502);
     assert.equal(trace.status,"failed");
@@ -2647,10 +2647,10 @@ test("request tracing distinguishes a truncated successful response body from an
 });
 
 test("API mode retries the original PNG only after an explicit WebP format rejection", { timeout: 20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-webp-fallback-")),responseContent=JSON.stringify({intent:"answer",observedText:"hi",message:"hello",commands:[]}),upstream=await startApiServer(responseContent,{response:({requestBody})=>{
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-webp-fallback-")),responseContent=JSON.stringify({intent:"answer",observedText:"hi",message:"hello",commands:[]}),upstream=await startApiServer(responseContent,{response:({requestBody})=>{
     const request=JSON.parse(requestBody),imageUrl=request.messages[1].content.find(part=>part.type==="image_url").image_url.url;
     return imageUrl.startsWith("data:image/webp")?{status:415,body:'{"error":{"message":"Unsupported image format: webp"}}'}:{status:200};
-  }}),{child,origin}=await startServer(apiServerEnv(upstream.origin,{PENECHO_STATE_DIR:directory,PENECHO_REQUEST_TRACE:"true"}));
+  }}),{child,origin}=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_STATE_DIR:directory,FASTLECTURES_REQUEST_TRACE:"true"}));
   try {
     const response=await fetch(`${origin}/api/ai/command`,{method:"POST",headers:{"Content-Type":"application/json",Accept:"application/x-ndjson"},body:JSON.stringify(validPayload())}),events=await progressEvents(response),body=events.at(-1).data;
     assert.equal(response.status,200);
@@ -2681,7 +2681,7 @@ test("API mode retries the original PNG only after an explicit WebP format rejec
 });
 
 test("API image format configuration can send the source PNG unchanged", { timeout: 20000 }, async () => {
-  const upstream=await startApiServer(),{child,origin}=await startServer(apiServerEnv(upstream.origin,{PENECHO_AI_IMAGE_FORMAT:"png"}));
+  const upstream=await startApiServer(),{child,origin}=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_AI_IMAGE_FORMAT:"png"}));
   try {
     const response=await fetch(`${origin}/api/ai/command`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(validPayload())}),body=await response.json();
     assert.equal(response.status,200);
@@ -2696,11 +2696,11 @@ test("API image format configuration can send the source PNG unchanged", { timeo
 });
 
 test("unsupported image format configuration fails before an upstream request", { timeout: 20000 }, async () => {
-  const upstream=await startApiServer(),{child,origin}=await startServer(apiServerEnv(upstream.origin,{PENECHO_AI_IMAGE_FORMAT:"jpeg"}));
+  const upstream=await startApiServer(),{child,origin}=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_AI_IMAGE_FORMAT:"jpeg"}));
   try {
     const response=await fetch(`${origin}/api/ai/command`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(validPayload())}),body=await response.json();
     assert.equal(response.status,400);
-    assert.match(body.error,/PENECHO_AI_IMAGE_FORMAT/);
+    assert.match(body.error,/FASTLECTURES_AI_IMAGE_FORMAT/);
     assert.equal(upstream.requests.length,0);
   } finally {
     await stopServer(child);
@@ -2727,7 +2727,7 @@ test("Anthropic API mode labels the lossless WebP payload with its matching medi
 });
 
 test("request tracing preserves an upstream response that fails model parsing", { timeout: 20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-request-trace-parse-")),upstream=await startApiServer("not-json"),{child,origin}=await startServer(apiServerEnv(upstream.origin,{PENECHO_STATE_DIR:directory,PENECHO_REQUEST_TRACE:"true"}));
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-request-trace-parse-")),upstream=await startApiServer("not-json"),{child,origin}=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_STATE_DIR:directory,FASTLECTURES_REQUEST_TRACE:"true"}));
   try {
     const response=await fetch(`${origin}/api/ai/command`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(validPayload())}),body=await response.json(),root=path.join(directory,"logs","requests"),directories=(await fs.promises.readdir(root,{withFileTypes:true})).filter(entry=>entry.isDirectory()).map(entry=>entry.name),name=directories.find(entry=>entry.endsWith(body.requestId));
     assert.equal(response.status,502);
@@ -2802,7 +2802,7 @@ test("model parsing still rejects an incomplete JSON object", { timeout: 20000 }
 });
 
 test("request tracing preserves a client-cancelled model attempt", { timeout: 20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-request-trace-cancel-")),upstream=await startApiServer('{"intent":"none","commands":[]}',{delayMs:1000}),{child,origin}=await startServer(apiServerEnv(upstream.origin,{PENECHO_STATE_DIR:directory,PENECHO_REQUEST_TRACE:"true"}));
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-request-trace-cancel-")),upstream=await startApiServer('{"intent":"none","commands":[]}',{delayMs:1000}),{child,origin}=await startServer(apiServerEnv(upstream.origin,{FASTLECTURES_STATE_DIR:directory,FASTLECTURES_REQUEST_TRACE:"true"}));
   try {
     const controller=new AbortController(),pending=fetch(`${origin}/api/ai/command`,{signal:controller.signal,method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(validPayload())});
     const requestDeadline=Date.now()+2000;
@@ -3019,7 +3019,7 @@ test("normalize does not judge or rewrite the model's supported Typeset commands
 });
 
 test("a new Codex request immediately supersedes the running request", { timeout: 20000 }, async () => {
-  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-latest-wins-test-")), fakeCli = path.join(directory, "fake-codex.js"), countFile = path.join(directory, "count.txt"), startedFile = path.join(directory, "started.txt");
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-latest-wins-test-")), fakeCli = path.join(directory, "fake-codex.js"), countFile = path.join(directory, "count.txt"), startedFile = path.join(directory, "started.txt");
   await fs.promises.writeFile(fakeCli, `"use strict";const fs=require("node:fs"),path=require("node:path"),root=__dirname,countFile=path.join(root,"count.txt"),count=Number(fs.existsSync(countFile)?fs.readFileSync(countFile,"utf8"):0)+1;fs.writeFileSync(countFile,String(count));if(count===1){fs.writeFileSync(path.join(root,"started.txt"),"ready");setInterval(()=>{},1000);}else{const at=process.argv.indexOf("-o");fs.writeFileSync(process.argv[at+1],'{"intent":"none","commands":[]}');}\n`);
   const { child, origin } = await startServer(serverEnv({ CODEX_CLI_PATH:fakeCli }));
   try {
@@ -3042,14 +3042,14 @@ test("a new Codex request immediately supersedes the running request", { timeout
 });
 
 test("local CLI requests from different Canvas clients do not supersede each other", { timeout: 20000 }, async () => {
-  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-client-isolation-test-")),
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-client-isolation-test-")),
     fakeCli = path.join(directory, "fake-codex.js"), completedFile = path.join(directory, "completed.txt");
   await fs.promises.writeFile(fakeCli, `"use strict";const fs=require("node:fs"),path=require("node:path"),at=process.argv.indexOf("-o");setTimeout(()=>{fs.appendFileSync(path.join(__dirname,"completed.txt"),"1");fs.writeFileSync(process.argv[at+1],'{"intent":"none","commands":[]}')},300);\n`);
   const { child, origin } = await startServer(serverEnv({ CODEX_CLI_PATH:fakeCli }));
   try {
     const base = { "Content-Type":"application/json", Origin:origin },
-      clientA = fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ ...base, "X-PenEcho-Client":"123e4567-e89b-12d3-a456-426614174000" }, body:JSON.stringify(validPayload()) }),
-      clientB = fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ ...base, "X-PenEcho-Client":"223e4567-e89b-12d3-a456-426614174000" }, body:JSON.stringify(validPayload()) }),
+      clientA = fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ ...base, "X-FastLectures-Client":"123e4567-e89b-12d3-a456-426614174000" }, body:JSON.stringify(validPayload()) }),
+      clientB = fetch(`${origin}/api/ai/command`, { method:"POST", headers:{ ...base, "X-FastLectures-Client":"223e4567-e89b-12d3-a456-426614174000" }, body:JSON.stringify(validPayload()) }),
       [responseA, responseB] = await Promise.all([clientA, clientB]);
     assert.equal(responseA.status, 200, await responseA.text());
     assert.equal(responseB.status, 200, await responseB.text());
@@ -3061,7 +3061,7 @@ test("local CLI requests from different Canvas clients do not supersede each oth
 });
 
 test("rapid Codex requests leave only the newest request active", { timeout: 20000 }, async () => {
-  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"penecho-latest-chain-test-")),fakeCli=path.join(directory,"fake-codex.js"),countFile=path.join(directory,"count.txt"),startedFile=path.join(directory,"started.txt");
+  const directory=await fs.promises.mkdtemp(path.join(os.tmpdir(),"fastlectures-latest-chain-test-")),fakeCli=path.join(directory,"fake-codex.js"),countFile=path.join(directory,"count.txt"),startedFile=path.join(directory,"started.txt");
   await fs.promises.writeFile(fakeCli,`"use strict";const fs=require("node:fs"),path=require("node:path"),countFile=path.join(__dirname,"count.txt"),count=Number(fs.existsSync(countFile)?fs.readFileSync(countFile,"utf8"):0)+1;fs.writeFileSync(countFile,String(count));fs.appendFileSync(path.join(__dirname,"started.txt"),String(count));if(count<3)setInterval(()=>{},1000);else{const at=process.argv.indexOf("-o");fs.writeFileSync(process.argv[at+1],'{"intent":"none","commands":[]}')}\n`);
   const {child,origin}=await startServer(serverEnv({CODEX_CLI_PATH:fakeCli}));
   try{
@@ -3114,9 +3114,9 @@ test("Codex LAN mode accepts the machine address and rejects attacker-selected H
 
 test("debug persistence redacts recognized and generated text", { timeout: 20000 }, async () => {
   const marker = `sensitive-${Date.now()}-${Math.random()}`;
-  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-redaction-test-")), fakeCli = path.join(directory, "fake-codex.js"), promptFile = path.join(directory, "prompt.txt");
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-redaction-test-")), fakeCli = path.join(directory, "fake-codex.js"), promptFile = path.join(directory, "prompt.txt");
   await fs.promises.writeFile(fakeCli, `"use strict";const fs=require("node:fs"),path=require("node:path");let input="";process.stdin.setEncoding("utf8");process.stdin.on("data",chunk=>input+=chunk);process.stdin.on("end",()=>{fs.writeFileSync(path.join(__dirname,"prompt.txt"),input);const at=process.argv.indexOf("-o");fs.writeFileSync(process.argv[at+1],'{"intent":"none","commands":[]}');});\n`);
-  const { child, origin, stateDir } = await startServer(serverEnv({ PENECHO_DEBUG_ARTIFACTS: "true", CODEX_CLI_PATH: fakeCli }));
+  const { child, origin, stateDir } = await startServer(serverEnv({ FASTLECTURES_DEBUG_ARTIFACTS: "true", CODEX_CLI_PATH: fakeCli }));
   try {
     const page = await fetch(origin), cookie = page.headers.get("set-cookie")?.split(";", 1)[0], malformed = validPayload();
     malformed.userAction = { value: marker };
@@ -3179,10 +3179,10 @@ test("static page keeps strict styles while allowing the pinned MathJax CDN", ()
     "sha256-OCf+kv5Asiwp++8PIevKBYSgnNLNUZvxAp4a7wMLuKA=",
   ]) assert.ok(server.includes(`'${hash}'`), hash);
   assert.doesNotMatch(server, /style-src 'self' 'unsafe-inline'/);
-  assert.doesNotMatch(app, /newClientRequestId|X-PenEcho-Client-Request|X-PenEcho-Replaces/);
+  assert.doesNotMatch(app, /newClientRequestId|X-FastLectures-Client-Request|X-FastLectures-Replaces/);
   assert.doesNotMatch(app, /\/api\/debug\/client|stroke-summary|stroke-outside-canvas/);
   assert.doesNotMatch(server, /\/api\/debug\/client/);
-  assert.doesNotMatch(server, /activeCliRequests|pendingCli|cliBusyError|MAX_CONCURRENCY|X-PenEcho-Replaces/);
+  assert.doesNotMatch(server, /activeCliRequests|pendingCli|cliBusyError|MAX_CONCURRENCY|X-FastLectures-Replaces/);
 });
 
 test("API mode uses one configured key without probes or fallback credentials", () => {

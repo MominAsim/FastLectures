@@ -26,8 +26,8 @@ function subprocessDirectory(rootDirectory) {
 
 function configurationArguments(client, launch) {
   const envArgs = Object.entries(launch.env || {}).flatMap(([name, value]) => ["--env", `${name}=${value}`]);
-  if (client === "codex") return ["mcp", "add", ...envArgs, "penecho", "--", launch.command, ...launch.args];
-  if (client === "claude") return ["mcp", "add", "--transport", "stdio", "--scope", "user", "penecho", ...envArgs, "--", launch.command, ...launch.args];
+  if (client === "codex") return ["mcp", "add", ...envArgs, "fastlectures", "--", launch.command, ...launch.args];
+  if (client === "claude") return ["mcp", "add", "--transport", "stdio", "--scope", "user", "fastlectures", ...envArgs, "--", launch.command, ...launch.args];
   throw new McpBridgeError("invalid_client", "Choose Codex or Claude.", 400);
 }
 
@@ -75,7 +75,7 @@ async function inspectConfiguredClients(options = {}) {
     })).slice(0, MAX_INSPECTION_CANDIDATES);
     for (const candidate of candidates) {
       try {
-        await boundedInspectionRun(runner, candidate.executable, ["mcp", "get", "penecho"], {
+        await boundedInspectionRun(runner, candidate.executable, ["mcp", "get", "fastlectures"], {
           client,
           cwd:subprocessDirectory(options.rootDirectory),
           env:options.env || process.env,
@@ -102,10 +102,10 @@ function replaceClaudeUserEntry(launch, options) {
   catch(error){if(error.code === "ENOENT")return false;throw error;}
   let config;try{config=JSON.parse(before);}catch{throw new Error("Claude user configuration is invalid JSON. Repair it before retrying.");}
   if(!config || typeof config !== "object" || Array.isArray(config))throw new Error("Claude user configuration is invalid.");
-  if(!config.mcpServers || !Object.prototype.hasOwnProperty.call(config.mcpServers,"penecho"))return false;
+  if(!config.mcpServers || !Object.prototype.hasOwnProperty.call(config.mcpServers,"fastlectures"))return false;
   if(typeof config.mcpServers !== "object" || Array.isArray(config.mcpServers))throw new Error("Claude MCP configuration is invalid.");
-  config.mcpServers.penecho={type:"stdio",command:launch.command,args:[...launch.args],env:{...launch.env}};
-  const temporary=path.join(path.dirname(file),`.penecho-mcp-${crypto.randomUUID()}.tmp`);let fd;
+  config.mcpServers.fastlectures={type:"stdio",command:launch.command,args:[...launch.args],env:{...launch.env}};
+  const temporary=path.join(path.dirname(file),`.fastlectures-mcp-${crypto.randomUUID()}.tmp`);let fd;
   try {
     fd=fs.openSync(temporary,"wx",0o600);fs.writeFileSync(fd,JSON.stringify(config,null,2)+"\n");fs.fsyncSync(fd);fs.closeSync(fd);fd=undefined;
     if(fs.readFileSync(file,"utf8")!==before)throw new Error("Claude configuration changed while updating. Try again.");
@@ -119,12 +119,12 @@ async function configureClient(client, launch, options = {}) {
     try{return require("./http-client-config.js").configureHttpClient(client,launch,options);}
     catch(error){
       const messages={
-        MCP_CONFIG_UNSUPPORTED:"The existing client configuration contains syntax PenEcho cannot safely update. Use the setup prompt to update only its PenEcho entry.",
+        MCP_CONFIG_UNSUPPORTED:"The existing client configuration contains syntax FastLectures cannot safely update. Use the setup prompt to update only its FastLectures entry.",
         MCP_CONFIG_SYMLINK:"The client configuration uses a symbolic link. Use the setup prompt to update its intended target safely.",
         MCP_CONFIG_INVALID:"The existing client configuration is invalid. Repair its syntax before retrying automatic configuration.",
-        CONFIG_CONFLICT:"The client configuration changed during setup. Check its current PenEcho entry and retry.",
-        EACCES:"PenEcho does not have permission to write this client's configuration.",
-        EPERM:"PenEcho does not have permission to write this client's configuration.",
+        CONFIG_CONFLICT:"The client configuration changed during setup. Check its current FastLectures entry and retry.",
+        EACCES:"FastLectures does not have permission to write this client's configuration.",
+        EPERM:"FastLectures does not have permission to write this client's configuration.",
         ENOSPC:"There is not enough disk space to save the client configuration.",
         EROFS:"The client configuration is on a read-only filesystem.",
       };
@@ -145,7 +145,7 @@ async function configureClient(client, launch, options = {}) {
     error:`${client === "codex" ? "Codex" : "Claude"} CLI was not found. Install or repair its official CLI, then try again.`,
     command:launch,
   };
-  const args = configurationArguments(client, launch), inspectArgs = ["mcp", "get", "penecho"], runner = options.executeFile || executeFile;
+  const args = configurationArguments(client, launch), inspectArgs = ["mcp", "get", "fastlectures"], runner = options.executeFile || executeFile;
   let lastError = null;
   for (const candidate of candidates) {
     try {
@@ -160,7 +160,7 @@ async function configureClient(client, launch, options = {}) {
     } catch (error) { lastError = error; }
   }
   const detail = String(lastError?.stderr || lastError?.stdout || lastError?.message || "Configuration failed").trim().slice(0, 800);
-  return { configured:false, client, error:detail || "The client could not save the PenEcho MCP configuration.", command:launch };
+  return { configured:false, client, error:detail || "The client could not save the FastLectures MCP configuration.", command:launch };
 }
 
 module.exports = {

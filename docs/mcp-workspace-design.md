@@ -1,19 +1,19 @@
 # MCP workspace, first version
 
-User task: continue one external conversation on its own Canvas, keep other work available, and recover from a failed operation without losing input or duplicating output. No Git, save-version history, branches or playback is introduced. Bundle V2 carries optional `penechoDocument` and `penechoWorkspace` extensions; V1/V2 documents without them remain readable.
+User task: continue one external conversation on its own Canvas, keep other work available, and recover from a failed operation without losing input or duplicating output. No Git, save-version history, branches or playback is introduced. Bundle V2 carries optional `fastlecturesDocument` and `fastlecturesWorkspace` extensions; V1/V2 documents without them remain readable.
 
-Design-source map (canonical `/Users/heack/workspace/penecho_design`):
+Design-source map (canonical `/Users/heack/workspace/fastlectures_design`):
 
 | Product region | Catalog source | Applied rule |
 | --- | --- | --- |
-| Open Canvas selector and New/Close | `penecho-design-language.html`, Canvas Library manager toolbar; controls/select examples | Compact intrinsic actions, one labeled selection, responsive wrapping, stable geometry |
-| Agent recipient selection | `penecho-design-language.html`, settings rows with a select and supporting copy | Explicit recipient, bounded selection rail, supporting neutral copy |
-| Connection / instruction failure | `penecho-design-language.html`, page-status and Canvas Library error state | Keep content usable, inline explanation, visible Retry next to the failed operation |
-| Instruction state | `penecho-design-language.html`, activity-status examples | Distinguish waiting, received, working, done and error; do not claim delivery without acknowledgement |
+| Open Canvas selector and New/Close | `fastlectures-design-language.html`, Canvas Library manager toolbar; controls/select examples | Compact intrinsic actions, one labeled selection, responsive wrapping, stable geometry |
+| Agent recipient selection | `fastlectures-design-language.html`, settings rows with a select and supporting copy | Explicit recipient, bounded selection rail, supporting neutral copy |
+| Connection / instruction failure | `fastlectures-design-language.html`, page-status and Canvas Library error state | Keep content usable, inline explanation, visible Retry next to the failed operation |
+| Instruction state | `fastlectures-design-language.html`, activity-status examples | Distinguish waiting, received, working, done and error; do not claim delivery without acknowledgement |
 
 Only the selected document has live Widget frames. Inactive documents retain source, assets, placement, feedback and conversation bindings. A tool must explicitly show an inactive Canvas before requesting pixel capture; the error includes its documentId and retry guidance. Source edits preserve placement; placement changes are distinct actions and reject new collisions. Existing annotation overlaps remain valid. User navigation never follows background changes implicitly.
 
-External instructions use a pull inbox, with explicit acknowledgement. Ordinary MCP cannot promise to wake a stopped client. Text and Canvas references are supported in the external composer; attachments remain in the composer with guidance to place them on Canvas or choose PenEcho Agent. Canvas Auto AI pauses while an external conversation is selected. Failed external delivery never silently starts a different model.
+External instructions use a pull inbox, with explicit acknowledgement. Ordinary MCP cannot promise to wake a stopped client. Text and Canvas references are supported in the external composer; attachments remain in the composer with guidance to place them on Canvas or choose FastLectures Agent. Canvas Auto AI pauses while an external conversation is selected. Failed external delivery never silently starts a different model.
 
 Save records the present document and view only. Inactive workspace recovery is local IndexedDB data, distinct from the user's selected Server/Cloud save destination. Cross-storage resolution prioritizes open unsaved state and exact locations; offline/authorization failures differ from not-found and ambiguous copies require an exact locator.
 
@@ -33,7 +33,7 @@ Save records the present document and view only. Inactive workspace recovery is 
 
 ## Recent Work workspace integration
 
-- Canvas navigation → `penecho-design-language.html` Workbench architecture: one left navigator and an unobstructed Canvas. Open documents merge into existing Recent Work groups by their saved locator; unsaved documents remain addressable by document ID.
+- Canvas navigation → `fastlectures-design-language.html` Workbench architecture: one left navigator and an unobstructed Canvas. Open documents merge into existing Recent Work groups by their saved locator; unsaved documents remain addressable by document ID.
 - New/Close and retry → catalog compact toolbar controls and recoverable error state: controls live in the navigator footer, with an inline error and explicit Retry.
 - Unread updates → user-requested small green trailing dot and matching navigator-toggle dot; no numeric badge. The catalog has no unread-dot example: this bounded addition uses its semantic success color (`--pe-success`) and a 7 px dot, with an accessible update label. Opening the document acknowledges its updates; merely opening the sidebar does not.
 - MCP activity → catalog semantic accent and opaque working-surface rules: a temporary one-pixel accent outline only, with no inner shadow, background wash or blur. Reduced motion disables the fade.
@@ -59,6 +59,6 @@ The settings page is one card instead of two loose groups: a header with live st
 | Example prompts | Catalog list rows with trailing icon action | Six full-width rows: icon, title, prompt text, per-row copy with transient done state |
 | Manual + footer | Catalog disclosure and quiet footer | Manual follows step 2 and stays collapsed; Config JSON / Skill / Guide hint; three capability notes |
 
-Step 3 examples (EN / ZH), each copied verbatim from its row: Three design options 三个设计方案, Compare architectures 新旧架构对比, Handwriting to Widget 手写内容转 Widget, Show a folder 展示文件夹内容, Echo code changes 改代码并回显重点, Revise from feedback 根据界面反馈修改. Prompt trigger words (PenEcho, echo, canvas, 画布) use bold primary text while copied prompts remain plain text. Remote browsers retain disabled host-only automatic configuration controls and readable manual host instructions; they do not receive local launch paths. Copy feedback uses the shared `mcpExampleStatus` live region and reverts after 2.4 s; the button shows a check for 1.6 s.
+Step 3 examples (EN / ZH), each copied verbatim from its row: Three design options 三个设计方案, Compare architectures 新旧架构对比, Handwriting to Widget 手写内容转 Widget, Show a folder 展示文件夹内容, Echo code changes 改代码并回显重点, Revise from feedback 根据界面反馈修改. Prompt trigger words (FastLectures, echo, canvas, 画布) use bold primary text while copied prompts remain plain text. Remote browsers retain disabled host-only automatic configuration controls and readable manual host instructions; they do not receive local launch paths. Copy feedback uses the shared `mcpExampleStatus` live region and reverts after 2.4 s; the button shows a check for 1.6 s.
 
 Verification: `test/mcp-settings.test.js` covers the radio-card configure request, Other → manual disclosure, localized example copy and the existing configure/status contracts (20/20). Full `node --test` keeps the same 21 pre-existing failures as before the change. Browser acceptance on the running 3921 service covered EN/ZH, 1280 × 800 and 700 × 900 (stacked cards), client-card selection, Other auto-opening manual details, and a real clipboard copy of the Chinese prompt; the test tab's language and viewport were restored. No commit or push was made.

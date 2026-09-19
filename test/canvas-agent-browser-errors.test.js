@@ -25,7 +25,7 @@ for (const hostName of ['CodexNativeHost', 'CanvasHarnessHost']) {
         assert.equal(op,'mcp_present_widget');
         return {ok:true,result:{artifactId:'chart',objectId:'widget',revision:9,captureFailure:{code,message:'Capture unavailable',details:{stage:'ready'}}}};
       });
-      const result = await tools.find(t=>t.name==='penecho_present_widget').execute({requestId:'chart-create',artifactId:'chart',title:'Chart',html:'<p>Chart</p>',capture:true},{callId:'1',signal:new AbortController().signal});
+      const result = await tools.find(t=>t.name==='fastlectures_present_widget').execute({requestId:'chart-create',artifactId:'chart',title:'Chart',html:'<p>Chart</p>',capture:true},{callId:'1',signal:new AbortController().signal});
       assert.equal(result.applied,true);
       assert.equal(result.pixelVerified,false);
       assert.equal(result.revision,9);
@@ -43,7 +43,7 @@ for (const hostName of ['CodexNativeHost', 'CanvasHarnessHost']) {
       controller.abort();
       return {ok:false,error:{code:'WIDGET_READY_TIMEOUT',message:'Cancelled capture'}};
     });
-    await assert.rejects(tools.find(t=>t.name==='penecho_present_widget').execute({requestId:'chart-create',artifactId:'chart',title:'Chart',html:'<p>Chart</p>',capture:true},{callId:'1',signal:controller.signal}),{code:'WIDGET_READY_TIMEOUT',message:'Cancelled capture'});
+    await assert.rejects(tools.find(t=>t.name==='fastlectures_present_widget').execute({requestId:'chart-create',artifactId:'chart',title:'Chart',html:'<p>Chart</p>',capture:true},{callId:'1',signal:controller.signal}),{code:'WIDGET_READY_TIMEOUT',message:'Cancelled capture'});
   });
 }
 

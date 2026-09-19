@@ -9,7 +9,7 @@ const { test } = require("node:test");
 const { KimiAcpClient } = require("../src/providers/kimi-acp.js");
 
 function temporaryDirectory() {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-kimi-acp-test-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-kimi-acp-test-"));
   test.after(() => fs.rmSync(directory, { recursive:true, force:true }));
   return directory;
 }
@@ -43,7 +43,7 @@ process.stdin.on("data",chunk=>{
         send({jsonrpc:"2.0",id:900,method:"session/request_permission",params:{sessionId:message.params.sessionId,toolCall:{toolCallId:"tool-1",title:"ReadMediaFile: canvas.webp"},options:[{optionId:"reject",kind:"reject_once"}]}});
         continue;
       }
-      if(text?.startsWith("ERROR: PenEcho rejected your Kimi/CLI built-in tool call")){
+      if(text?.startsWith("ERROR: FastLectures rejected your Kimi/CLI built-in tool call")){
         if(!toolAttempted||!permissionRejected||message.params.prompt.some(block=>block.type==="image")){send({jsonrpc:"2.0",id:message.id,error:{message:"invalid tool recovery"}});continue;}
         send({jsonrpc:"2.0",method:"session/update",params:{sessionId:message.params.sessionId,update:{sessionUpdate:"agent_message_chunk",content:{type:"text",text:"Recovered"}}}});
         send({jsonrpc:"2.0",id:message.id,result:{stopReason:"end_turn"}});

@@ -40,10 +40,10 @@ test("desktop settings accept a secure API configuration and reject unsafe value
   assert.throws(() => normalizeSettings(base({ apiUrl:"https://user:pass@example.com" })), /without embedded credentials/);
   assert.throws(() => normalizeSettings(base({ host:"192.168.1.2" })), /local-only or LAN/);
   assert.equal(normalizeSettings(base({ effort:"" })).updates.AI_EFFORT, "medium");
-  assert.equal(normalized.updates.PENECHO_CANVAS_AGENT_TURN_LIMIT,"100");
+  assert.equal(normalized.updates.FASTLECTURES_CANVAS_AGENT_TURN_LIMIT,"100");
   assert.throws(() => normalizeSettings(base({ canvasAgentTurnLimit:"49" })),/integer of at least 50/);
   assert.throws(() => normalizeSettings(base({ canvasAgentTurnLimit:"50.5" })),/integer of at least 50/);
-  assert.equal(normalizeSettings(base({ canvasAgentTurnLimit:"1000000" })).updates.PENECHO_CANVAS_AGENT_TURN_LIMIT,"1000000");
+  assert.equal(normalizeSettings(base({ canvasAgentTurnLimit:"1000000" })).updates.FASTLECTURES_CANVAS_AGENT_TURN_LIMIT,"1000000");
   assert.throws(() => normalizeSettings(base({ autoDelay:"1.25" })),/at most one decimal place/);
 });
 
@@ -62,11 +62,11 @@ test("desktop settings support CLI providers without exposing API secrets", () =
   assert.equal(publicSettings({ env:{} }).autoDelay, "5");
   assert.equal(publicSettings({ env:{} }).canvasAgentAutoOpen, true);
   assert.equal(publicSettings({ env:{} }).canvasAgentTurnLimit,"100");
-  assert.equal(publicSettings({ env:{ PENECHO_CANVAS_AGENT_TURN_LIMIT:"275" } }).canvasAgentTurnLimit,"275");
-  assert.equal(publicSettings({ env:{ PENECHO_CANVAS_AGENT_AUTO_OPEN:"false" } }).canvasAgentAutoOpen, false);
+  assert.equal(publicSettings({ env:{ FASTLECTURES_CANVAS_AGENT_TURN_LIMIT:"275" } }).canvasAgentTurnLimit,"275");
+  assert.equal(publicSettings({ env:{ FASTLECTURES_CANVAS_AGENT_AUTO_OPEN:"false" } }).canvasAgentAutoOpen, false);
   assert.equal(normalizeSettings(base({ autoDelay:undefined })).updates.AUTO_AI_DELAY_SECONDS, "5");
-  assert.equal(normalizeSettings(base({ canvasAgentAutoOpen:false })).updates.PENECHO_CANVAS_AGENT_AUTO_OPEN, "false");
-  assert.equal(normalizeSettings(base({ canvasAgentAutoOpen:undefined })).updates.PENECHO_CANVAS_AGENT_AUTO_OPEN, "true");
+  assert.equal(normalizeSettings(base({ canvasAgentAutoOpen:false })).updates.FASTLECTURES_CANVAS_AGENT_AUTO_OPEN, "false");
+  assert.equal(normalizeSettings(base({ canvasAgentAutoOpen:undefined })).updates.FASTLECTURES_CANVAS_AGENT_AUTO_OPEN, "true");
   const visibleKimi = publicSettings({ provider:"kimi-cli", env:{ KIMI_CLI_PATH:"kimi", KIMI_CLI_MODEL:"kimi-code/k3" } });
   assert.equal(visibleKimi.provider, "kimi-cli");
   assert.equal(visibleKimi.kimiCliPath, "kimi");
@@ -79,9 +79,9 @@ test("desktop settings expose Kimi as a global partner preset over the API provi
   }));
   assert.equal(kimi.provider, "kimi");
   assert.equal(kimi.updates.AI_PROVIDER, "api");
-  assert.equal(kimi.updates.PENECHO_DESKTOP_PROVIDER, "kimi");
-  assert.equal(kimi.updates.PENECHO_KIMI_PRODUCT, "code");
-  assert.equal(kimi.updates.PENECHO_KIMI_REGION, "global");
+  assert.equal(kimi.updates.FASTLECTURES_DESKTOP_PROVIDER, "kimi");
+  assert.equal(kimi.updates.FASTLECTURES_KIMI_PRODUCT, "code");
+  assert.equal(kimi.updates.FASTLECTURES_KIMI_REGION, "global");
   const repaired = normalizeSettings(base({
     provider:"kimi", apiFormat:"openai", apiUrl:"https://api.kimi.com/coding/v1", apiModel:"k3", kimiProduct:"platform", kimiRegion:"china",
   }));
@@ -98,7 +98,7 @@ test("desktop settings expose Kimi as a global partner preset over the API provi
   const visible = publicSettings({
     configExists:true, provider:"api", configFile:"/config.env", stateDir:"/state",
     env:{
-      PENECHO_DESKTOP_PROVIDER:"kimi", PENECHO_KIMI_PRODUCT:"platform", PENECHO_KIMI_REGION:"china",
+      FASTLECTURES_DESKTOP_PROVIDER:"kimi", FASTLECTURES_KIMI_PRODUCT:"platform", FASTLECTURES_KIMI_REGION:"china",
       AI_API_URL:"https://api.kimi.com/coding/v1", AI_API_MODEL:"k3",
     },
   });
@@ -111,17 +111,17 @@ test("desktop settings expose Kimi as a global partner preset over the API provi
   const visibleCustom = publicSettings({
     provider:"api",
     env:{
-      PENECHO_DESKTOP_PROVIDER:"kimi", PENECHO_KIMI_PRODUCT:"platform", PENECHO_KIMI_REGION:"china",
+      FASTLECTURES_DESKTOP_PROVIDER:"kimi", FASTLECTURES_KIMI_PRODUCT:"platform", FASTLECTURES_KIMI_REGION:"china",
       AI_API_URL:"https://gateway.example.com/kimi", AI_API_MODEL:"custom-kimi",
     },
   });
   assert.equal(visibleCustom.apiUrl, "https://gateway.example.com/kimi");
   assert.equal(visibleCustom.apiModel, "custom-kimi");
   assert.equal(publicSettings({
-    provider:"api", env:{ PENECHO_DESKTOP_PROVIDER:"kimi", PENECHO_KIMI_PRODUCT:"code" },
+    provider:"api", env:{ FASTLECTURES_DESKTOP_PROVIDER:"kimi", FASTLECTURES_KIMI_PRODUCT:"code" },
   }).apiModel, "k3");
   assert.equal(publicSettings({
-    provider:"api", env:{ PENECHO_DESKTOP_PROVIDER:"kimi", PENECHO_KIMI_PRODUCT:"platform" },
+    provider:"api", env:{ FASTLECTURES_DESKTOP_PROVIDER:"kimi", FASTLECTURES_KIMI_PRODUCT:"platform" },
   }).apiModel, "kimi-k3");
 });
 
@@ -152,9 +152,9 @@ test("desktop startup repairs stale built-in Kimi presets before starting the AP
   const stale = {
     provider:"api",
     env:{
-      PENECHO_DESKTOP_PROVIDER:"kimi",
-      PENECHO_KIMI_PRODUCT:"platform",
-      PENECHO_KIMI_REGION:"china",
+      FASTLECTURES_DESKTOP_PROVIDER:"kimi",
+      FASTLECTURES_KIMI_PRODUCT:"platform",
+      FASTLECTURES_KIMI_REGION:"china",
       AI_API_FORMAT:"anthropic",
       AI_API_URL:"https://api.kimi.com/coding/v1",
       AI_API_MODEL:"k3",
@@ -199,28 +199,28 @@ test("desktop LAN addresses exclude tunnels and prioritize common LAN ranges", (
 
 test("desktop settings file is not overridden by stale inherited launch values", () => {
   const env = desktopConfigurationEnvironment({
-    PATH:"/usr/bin", HTTPS_PROXY:"http://proxy.example", PENECHO_STATE_DIR:"/old-state",
-    AI_PROVIDER:"api", PENECHO_DESKTOP_PROVIDER:"kimi", AI_API_URL:"https://api.kimi.com/coding/v1",
+    PATH:"/usr/bin", HTTPS_PROXY:"http://proxy.example", FASTLECTURES_STATE_DIR:"/old-state",
+    AI_PROVIDER:"api", FASTLECTURES_DESKTOP_PROVIDER:"kimi", AI_API_URL:"https://api.kimi.com/coding/v1",
     AI_API_MODEL:"k3", AI_API_KEY:"old-secret", HOST:"0.0.0.0", PORT:"5080",
   }, "/new-state");
   assert.equal(env.PATH, "/usr/bin");
   assert.equal(env.HTTPS_PROXY, "http://proxy.example");
-  assert.equal(env.PENECHO_STATE_DIR, "/new-state");
-  for (const name of ["AI_PROVIDER", "PENECHO_DESKTOP_PROVIDER", "AI_API_URL", "AI_API_MODEL", "AI_API_KEY", "HOST", "PORT"]) {
+  assert.equal(env.FASTLECTURES_STATE_DIR, "/new-state");
+  for (const name of ["AI_PROVIDER", "FASTLECTURES_DESKTOP_PROVIDER", "AI_API_URL", "AI_API_MODEL", "AI_API_KEY", "HOST", "PORT"]) {
     assert.equal(env[name], undefined, name);
   }
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-desktop-config-test-")), configFile = path.join(directory, "config.env");
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-desktop-config-test-")), configFile = path.join(directory, "config.env");
   try {
-    fs.writeFileSync(configFile, "AI_PROVIDER=api\nPENECHO_DESKTOP_PROVIDER=api\nAI_API_URL=https://example.com/v1\nAI_API_MODEL=custom-model\nHOST=127.0.0.1\nPORT=3888\n");
+    fs.writeFileSync(configFile, "AI_PROVIDER=api\nFASTLECTURES_DESKTOP_PROVIDER=api\nAI_API_URL=https://example.com/v1\nAI_API_MODEL=custom-model\nHOST=127.0.0.1\nPORT=3888\n");
     const configuration = resolveConfiguration(parseArgs(["--config", configFile]), { cwd:directory, home:directory, env });
-    assert.equal(configuration.env.PENECHO_DESKTOP_PROVIDER, "api");
+    assert.equal(configuration.env.FASTLECTURES_DESKTOP_PROVIDER, "api");
     assert.equal(configuration.env.AI_API_URL, "https://example.com/v1");
     assert.equal(configuration.env.AI_API_MODEL, "custom-model");
   } finally { fs.rmSync(directory, { recursive:true, force:true }); }
 });
 
 test("desktop secret store compresses credentials into a user-only local file", () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-secret-test-")), file = path.join(directory, "credentials.json");
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-secret-test-")), file = path.join(directory, "credentials.json");
   try {
     writeSecret(file, "sk-private");
     assert.equal(readSecret(file), "sk-private");
@@ -249,7 +249,7 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
     forge = fs.readFileSync(path.join(ROOT, "forge.config.js"), "utf8"),
     rootPackage = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
   assert.doesNotMatch(main, /settingsWindow|configurationIsReady|save-and-test|SETTINGS_FILE/);
-  assert.match(main, /mainWindow.webContents.send\("penecho:show-connections"\)/);
+  assert.match(main, /mainWindow.webContents.send\("fastlectures:show-connections"\)/);
   assert.match(canvasPreload, /onShowConnections:listener/);
   assert.match(main, /if \(!unified\) Object.assign\(configuration.env, kimiPresetUpdates\(configuration\)\)/);
   for (const obsolete of ["preload.js", "settings/index.html", "settings/settings.js", "settings/settings.css"]) {
@@ -258,11 +258,11 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(main, /contextIsolation:true/);
   assert.match(main, /nodeIntegration:false/);
   assert.match(main, /sandbox:true/);
-  assert.match(main, /PENECHO_PRIVATE_PLUGIN_DIR/);
+  assert.match(main, /FASTLECTURES_PRIVATE_PLUGIN_DIR/);
   assert.match(main, /Object\.assign\(configuration\.env, kimiPresetUpdates\(configuration\)\)/);
   assert.match(main, /desktopConfigurationEnvironment\(process\.env, paths\.stateDir\)/);
   assert.match(main, /stateDir = app\.getPath\("userData"\)/);
-  assert.match(main, /configuration\.env\.PENECHO_CONFIG_FILE = configuration\.configFile;\s*applyEnvironment\(configuration\);[\s\S]*?server = require\("\.\.\/server\.js"\)/);
+  assert.match(main, /configuration\.env\.FASTLECTURES_CONFIG_FILE = configuration\.configFile;\s*applyEnvironment\(configuration\);[\s\S]*?server = require\("\.\.\/server\.js"\)/);
   assert.match(serverMain, /const CONNECTIONS_FILE = STATE_DIRECTORY\s*\? path\.join\(STATE_DIRECTORY, "connections\.json"\)/);
   assert.match(serverMain, /\/api\/settings\/connections\/inspect-cli/);
   assert.match(serverMain, /status:await inspectConnectionCli\(provider\)/);
@@ -276,24 +276,24 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(main, /--squirrel-\(\?:install\|updated\|uninstall\|obsolete\)/);
   assert.doesNotMatch(main, /setProgressBar/);
   assert.doesNotMatch(main, /\bautoUpdater\b/);
-  assert.match(canvasPreload, /penechoDesktopUpdate/);
-  assert.match(canvasPreload, /installCli:provider => ipcRenderer\.invoke\("penecho:install-cli", provider\)/);
+  assert.match(canvasPreload, /fastlecturesDesktopUpdate/);
+  assert.match(canvasPreload, /installCli:provider => ipcRenderer\.invoke\("fastlectures:install-cli", provider\)/);
   assert.doesNotMatch(canvasPreload, /inspectCli|get-cli-statuses/);
-  assert.doesNotMatch(canvasPreload, /pickProjectDirectory|penecho:pick-project-directory/);
-  assert.match(canvasPreload, /pickProjectFile:\(\) => ipcRenderer\.invoke\("penecho:pick-project-file"\)/);
-  assert.match(canvasPreload, /hasClipboardFile:\(\) => ipcRenderer\.sendSync\("penecho:has-clipboard-file"\)/);
-  assert.match(canvasPreload, /readClipboardFile:\(\) => ipcRenderer\.invoke\("penecho:read-clipboard-file"\)/);
-  assert.match(canvasPreload, /readClipboardFiles:\(\) => ipcRenderer\.invoke\("penecho:read-clipboard-files"\)/);
-  assert.match(canvasPreload, /openProjectFile:projectId => ipcRenderer\.invoke\("penecho:open-project-file", projectId\)/);
-  assert.match(canvasPreload, /setPageScale:scale => ipcRenderer\.invoke\("penecho:set-page-scale", scale\)/);
-  assert.match(main, /ipcMain\.on\("penecho:has-clipboard-file"[\s\S]*?fromCanvas\(event\)/);
-  assert.match(main, /ipcMain\.handle\("penecho:read-clipboard-file"[\s\S]*?fromCanvas\(event\)/);
-  assert.match(main, /ipcMain\.handle\("penecho:read-clipboard-files"[\s\S]*?fromCanvas\(event\)/);
+  assert.doesNotMatch(canvasPreload, /pickProjectDirectory|fastlectures:pick-project-directory/);
+  assert.match(canvasPreload, /pickProjectFile:\(\) => ipcRenderer\.invoke\("fastlectures:pick-project-file"\)/);
+  assert.match(canvasPreload, /hasClipboardFile:\(\) => ipcRenderer\.sendSync\("fastlectures:has-clipboard-file"\)/);
+  assert.match(canvasPreload, /readClipboardFile:\(\) => ipcRenderer\.invoke\("fastlectures:read-clipboard-file"\)/);
+  assert.match(canvasPreload, /readClipboardFiles:\(\) => ipcRenderer\.invoke\("fastlectures:read-clipboard-files"\)/);
+  assert.match(canvasPreload, /openProjectFile:projectId => ipcRenderer\.invoke\("fastlectures:open-project-file", projectId\)/);
+  assert.match(canvasPreload, /setPageScale:scale => ipcRenderer\.invoke\("fastlectures:set-page-scale", scale\)/);
+  assert.match(main, /ipcMain\.on\("fastlectures:has-clipboard-file"[\s\S]*?fromCanvas\(event\)/);
+  assert.match(main, /ipcMain\.handle\("fastlectures:read-clipboard-file"[\s\S]*?fromCanvas\(event\)/);
+  assert.match(main, /ipcMain\.handle\("fastlectures:read-clipboard-files"[\s\S]*?fromCanvas\(event\)/);
   assert.match(main, /public\.file-url[\s\S]*?text\/uri-list[\s\S]*?x-special\/gnome-copied-files/);
   assert.match(main, /CANVAS_AGENT_CLIPBOARD_FILE_LIMIT = 32 \* 1024 \* 1024/);
   assert.match(main, /CANVAS_AGENT_CLIPBOARD_FILE_COUNT_LIMIT = 5/);
-  assert.match(main, /ipcMain\.handle\("penecho:open-project-file"[\s\S]*?fromCanvas\(event\)[\s\S]*?canvasAgentDesktopProjectStore\(\)\.resolve[\s\S]*?shell\.openPath\(project\.path\)/);
-  assert.doesNotMatch(main, /penecho:pick-project-directory|properties:\["openDirectory"/);
+  assert.match(main, /ipcMain\.handle\("fastlectures:open-project-file"[\s\S]*?fromCanvas\(event\)[\s\S]*?canvasAgentDesktopProjectStore\(\)\.resolve[\s\S]*?shell\.openPath\(project\.path\)/);
+  assert.doesNotMatch(main, /fastlectures:pick-project-directory|properties:\["openDirectory"/);
   assert.match(main, /issueNativePickerGrant.*require\("\.\.\/src\/server\/canvas-agent\/native-picker-grants\.js"\)/);
   assert.doesNotMatch(canvasPreload, /openSettings/);
   assert.match(canvasPreload, /\["darwin", "win32"\]\.includes\(process\.platform\)/);
@@ -303,7 +303,7 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.match(canvasPreload, /document\.querySelector\("main > footer"\)/);
   assert.match(canvasPreload, /\(footer \|\| document\.body\)\.append\(prompt\)/);
   assert.match(updateCss, /\.desktop-update-prompt\s*\{[\s\S]*?position: static;[\s\S]*?grid-column: 4;/);
-  assert.match(updateCss, /main > footer\.penecho-desktop-update-visible/);
+  assert.match(updateCss, /main > footer\.fastlectures-desktop-update-visible/);
   assert.match(updateCss, /\.desktop-update-prompt\.is-available \.desktop-update-primary\s*\{[^}]*min-height: 28px;/);
   assert.match(main, /label:"Settings…"[\s\S]*?click:showSettings/);
   assert.match(serverMain, /canvasAgentAutoOpen:CANVAS_AGENT_AUTO_OPEN/);
@@ -338,10 +338,10 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
     return pattern.test(candidate);
   });
   assert.equal(ignoredByDesktopPackage("/docs"),false,"the docs directory must be traversed");
-  for (const iconPath of ["/build", "/build/", "/build/icons", "/build/icons/", "/build/icons/penecho.png"]) {
+  for (const iconPath of ["/build", "/build/", "/build/icons", "/build/icons/", "/build/icons/fastlectures.png"]) {
     assert.equal(ignoredByDesktopPackage(iconPath),false,"the native window icon must be packaged");
   }
-  for (const buildPath of ["/build/cache", "/build/toolchain", "/build/icons/penecho.icns", "/build/icons/penecho.png.bak", "/build/icons/private"]) {
+  for (const buildPath of ["/build/cache", "/build/toolchain", "/build/icons/fastlectures.icns", "/build/icons/fastlectures.png.bak", "/build/icons/private"]) {
     assert.equal(ignoredByDesktopPackage(buildPath),true,"unrelated build output must remain excluded");
   }
   assert.equal(ignoredByDesktopPackage("/docs/"),false,"the docs directory with a trailing slash must be traversed");
@@ -349,17 +349,17 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
   assert.equal(ignoredByDesktopPackage("/docs/mcp-agent-instructions.md"),false,"the MCP agent instructions must be packaged");
   assert.equal(ignoredByDesktopPackage("/docs/architecture.md"),true,"unrelated docs remain excluded");
   assert.equal(ignoredByDesktopPackage("/docs/mcp-setup.md.bak"),true,"only the exact reviewed MCP docs are packaged");
-  for (const directory of ["/skills", "/skills/penecho-mcp", "/src", "/src/server", "/src/server/mcp"]) {
+  for (const directory of ["/skills", "/skills/fastlectures-mcp", "/src", "/src/server", "/src/server/mcp"]) {
     assert.equal(ignoredByDesktopPackage(directory),false,`${directory} must be traversed`);
   }
-  assert.equal(ignoredByDesktopPackage("/skills/penecho-mcp/SKILL.md"),false,"the PenEcho MCP skill must be packaged");
+  assert.equal(ignoredByDesktopPackage("/skills/fastlectures-mcp/SKILL.md"),false,"the FastLectures MCP skill must be packaged");
   for (const file of fs.readdirSync(path.join(ROOT,"src","server","mcp"))) {
-    assert.equal(ignoredByDesktopPackage(`/src/server/mcp/${file}`),false,`the PenEcho MCP backend must include ${file}`);
+    assert.equal(ignoredByDesktopPackage(`/src/server/mcp/${file}`),false,`the FastLectures MCP backend must include ${file}`);
   }
   assert.match(forge, /\^\\\/tools/);
   assert.match(forge, /maker-dmg/);
   assert.match(forge, /maker-squirrel/);
-  assert.match(forge, /loadingGif:path\.join\(ROOT, "build", "icons", "penecho-install\.gif"\)/);
+  assert.match(forge, /loadingGif:path\.join\(ROOT, "build", "icons", "fastlectures-install\.gif"\)/);
   assert.match(forge, /identity:"-"/);
   assert.match(forge, /identityValidation:false/);
   assert.match(forge, /optionsForFile:\(\) => \(\{/);
@@ -398,15 +398,15 @@ test("desktop shell and Forge config keep the renderer isolated and package nati
     assert.ok(rootPackage.files.includes(asset), asset);
   }
   assert.ok(rootPackage.files.includes("public/desktop-update.css"));
-  assert.ok(rootPackage.files.includes("public/penecho-mark.png"));
+  assert.ok(rootPackage.files.includes("public/fastlectures-mark.png"));
 });
 
-test("Windows installer splash keeps a font-independent PenEcho wordmark", async () => {
+test("Windows installer splash keeps a font-independent FastLectures wordmark", async () => {
   const generator = fs.readFileSync(path.join(ROOT, "scripts", "generate-icons.js"), "utf8"),
-    splash = path.join(ROOT, "build", "icons", "penecho-install.gif"),
+    splash = path.join(ROOT, "build", "icons", "fastlectures-install.gif"),
     metadata = await sharp(splash).metadata(),
     pixels = await sharp(splash).flatten({ background:"#ffffff" }).raw().toBuffer({ resolveWithObject:true });
-  assert.match(generator, /wordmarkSource = path\.join\(ROOT, "public", "penecho-readme-header\.png"\)/);
+  assert.match(generator, /wordmarkSource = path\.join\(ROOT, "public", "fastlectures-readme-header\.png"\)/);
   assert.doesNotMatch(generator, /<text\b/);
   assert.match(generator, /insetX = 2[\s\S]*?echoMask = Buffer\.alloc\([\s\S]*?x = 41[\s\S]*?255 - Math\.min\([\s\S]*?dilateAlpha\(echoMask, width, height\)/);
   assert.equal(metadata.width, 268);
@@ -423,16 +423,16 @@ test("Windows installer splash keeps a font-independent PenEcho wordmark", async
       if (x === 179 && darkest < 120) rightEdgeInkPixels += 1;
     }
   }
-  assert.ok(inkPixels > 80, `expected a visible PenEcho wordmark, found ${inkPixels} dark pixels`);
+  assert.ok(inkPixels > 80, `expected a visible FastLectures wordmark, found ${inkPixels} dark pixels`);
   assert.equal(rightEdgeInkPixels, 0, "expected a clear safety column after the bold Echo wordmark");
 });
 
 test("desktop Canvas file picker is sender-guarded, single-file, and type-limited", () => {
   const main = fs.readFileSync(path.join(ROOT, "desktop", "main.js"), "utf8"),
     canvasPreload = fs.readFileSync(path.join(ROOT, "desktop", "canvas-preload.js"), "utf8"),
-    handler = main.match(/ipcMain\.handle\("penecho:pick-project-file", async event => \{([\s\S]*?)\n  \}\);/)?.[1] || "";
+    handler = main.match(/ipcMain\.handle\("fastlectures:pick-project-file", async event => \{([\s\S]*?)\n  \}\);/)?.[1] || "";
 
-  assert.match(canvasPreload, /pickProjectFile:\(\) => ipcRenderer\.invoke\("penecho:pick-project-file"\)/);
+  assert.match(canvasPreload, /pickProjectFile:\(\) => ipcRenderer\.invoke\("fastlectures:pick-project-file"\)/);
   assert.match(handler, /if \(!fromCanvas\(event\)\) return \{ canceled:true \}/);
   assert.match(handler, /dialog\.showOpenDialog\(mainWindow, \{/);
   assert.match(handler, /properties:\["openFile"\]/);
@@ -447,7 +447,7 @@ test("desktop Canvas file picker is sender-guarded, single-file, and type-limite
   assert.doesNotMatch(handler, /name:"All files"|extensions:\["\*"\]/);
   assert.match(handler, /if \(result\.canceled \|\| !selectedPath\) return \{ canceled:true \}/);
   assert.match(handler, /pickerToken:issueNativePickerGrant\(\{ selectedPath, kind:"file" \}\)/);
-  assert.doesNotMatch(main, /penecho:pick-project-directory|kind:"folder"/);
+  assert.doesNotMatch(main, /fastlectures:pick-project-directory|kind:"folder"/);
 });
 
 test("desktop build dependencies are isolated from normal root installs", () => {
@@ -478,8 +478,8 @@ test("desktop build dependencies are isolated from normal root installs", () => 
 });
 
 test("desktop updates resolve published GitHub Releases for each packaged target", async () => {
-  assert.equal(expectedAssetName("darwin", "arm64", "0.7.1"), "PenEcho-0.7.1-mac-arm64.zip");
-  assert.equal(expectedAssetName("win32", "x64", "0.7.1"), "PenEcho-Setup-0.7.1-win-x64.exe");
+  assert.equal(expectedAssetName("darwin", "arm64", "0.7.1"), "FastLectures-0.7.1-mac-arm64.zip");
+  assert.equal(expectedAssetName("win32", "x64", "0.7.1"), "FastLectures-Setup-0.7.1-win-x64.exe");
   const states = [], requests = [], downloads = [], installs = [], manager = createUpdateManager({
     app:{ getVersion:() => "0.6.0", getPath:name => name === "temp" ? "/tmp" : "" },
     platform:"darwin",
@@ -493,14 +493,14 @@ test("desktop updates resolve published GitHub Releases for each packaged target
         status:200,
         json:async () => ({
           tag_name:"v0.7.1",
-          name:"PenEcho 0.7.1",
+          name:"FastLectures 0.7.1",
           body:"## What's new\n- Silent update notifications\n- Update progress",
           published_at:"2026-07-01T00:00:00Z",
-          html_url:"https://github.com/penecho/penecho/releases/tag/v0.7.1",
+          html_url:"https://github.com/fastlectures/fastlectures/releases/tag/v0.7.1",
           assets:[{
-            name:"PenEcho-0.7.1-mac-arm64.zip",
+            name:"FastLectures-0.7.1-mac-arm64.zip",
             size:123456,
-            browser_download_url:"https://github.com/penecho/penecho/releases/download/v0.7.1/PenEcho-0.7.1-mac-arm64.zip",
+            browser_download_url:"https://github.com/fastlectures/fastlectures/releases/download/v0.7.1/FastLectures-0.7.1-mac-arm64.zip",
             digest:"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           }],
         }),
@@ -517,7 +517,7 @@ test("desktop updates resolve published GitHub Releases for each packaged target
 
   await manager.check(false);
   assert.equal(requests[0].url, RELEASE_API_URL);
-  assert.equal(requests[0].options.headers["User-Agent"], "PenEcho/0.6.0");
+  assert.equal(requests[0].options.headers["User-Agent"], "FastLectures/0.6.0");
   assert.equal(downloads.length, 0, "metadata checks must not start a download");
   assert.equal(manager.getState().status, "available");
   assert.equal(manager.getState().version, "0.7.1");
@@ -532,8 +532,8 @@ test("desktop updates resolve published GitHub Releases for each packaged target
   await manager.check(true);
   assert.equal(requests.length, 2);
   assert.equal(await manager.download(), true);
-  assert.equal(downloads[0].asset.name, "PenEcho-0.7.1-mac-arm64.zip");
-  assert.equal(downloads[0].destination, path.join("/tmp", "penecho-updates", "PenEcho-0.7.1-mac-arm64.zip"));
+  assert.equal(downloads[0].asset.name, "FastLectures-0.7.1-mac-arm64.zip");
+  assert.equal(downloads[0].destination, path.join("/tmp", "fastlectures-updates", "FastLectures-0.7.1-mac-arm64.zip"));
   assert.ok(states.some(state => state.status === "downloading" && state.progress === 47.2));
   assert.equal(manager.getState().status, "ready");
   assert.equal(await manager.install(), true);
@@ -566,11 +566,11 @@ test("desktop update checks stay silent when current and reset dismissal on a ne
     status:200,
     json:async () => ({
       tag_name:"v0.6.0",
-      name:"PenEcho 0.6.0",
+      name:"FastLectures 0.6.0",
       body:"Current release",
       assets:[{
-        name:"PenEcho-Setup-0.6.0-win-x64.exe",
-        browser_download_url:"https://github.com/penecho/penecho/releases/download/v0.6.0/PenEcho-Setup-0.6.0-win-x64.exe",
+        name:"FastLectures-Setup-0.6.0-win-x64.exe",
+        browser_download_url:"https://github.com/fastlectures/fastlectures/releases/download/v0.6.0/FastLectures-Setup-0.6.0-win-x64.exe",
       }],
     }),
   });
@@ -596,37 +596,37 @@ test("desktop update checks stay silent when current and reset dismissal on a ne
   assert.ok(firstStates.some(state => state.status === "up-to-date"));
 });
 
-test("unsigned desktop updater accepts only exact PenEcho release assets", () => {
+test("unsigned desktop updater accepts only exact FastLectures release assets", () => {
   const release = {
     version:"0.7.2",
     assets:[
-      { name:"PenEcho-0.7.2-mac-arm64.zip", url:"https://example.com/PenEcho.zip" },
-      { name:"PenEcho-Setup-0.7.2-win-x64.exe", url:"https://github.com/penecho/penecho/releases/download/v0.7.2/PenEcho-Setup-0.7.2-win-x64.exe" },
+      { name:"FastLectures-0.7.2-mac-arm64.zip", url:"https://example.com/FastLectures.zip" },
+      { name:"FastLectures-Setup-0.7.2-win-x64.exe", url:"https://github.com/fastlectures/fastlectures/releases/download/v0.7.2/FastLectures-Setup-0.7.2-win-x64.exe" },
     ],
   };
   assert.equal(releaseAsset(release, "darwin", "arm64"), null);
-  assert.equal(releaseAsset(release, "win32", "x64").name, "PenEcho-Setup-0.7.2-win-x64.exe");
-  const appRoot = path.join(path.parse(process.cwd()).root, "Applications", "PenEcho.app");
-  assert.equal(macBundlePath(path.join(appRoot, "Contents", "MacOS", "PenEcho")), appRoot);
-  assert.equal(macBundlePath(path.join(os.tmpdir(), "PenEcho")), "");
+  assert.equal(releaseAsset(release, "win32", "x64").name, "FastLectures-Setup-0.7.2-win-x64.exe");
+  const appRoot = path.join(path.parse(process.cwd()).root, "Applications", "FastLectures.app");
+  assert.equal(macBundlePath(path.join(appRoot, "Contents", "MacOS", "FastLectures")), appRoot);
+  assert.equal(macBundlePath(path.join(os.tmpdir(), "FastLectures")), "");
 });
 
 test("unsigned desktop update download reports progress and verifies GitHub SHA-256", async () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-update-download-")),
-    destination = path.join(directory, "PenEcho-0.7.2-mac-arm64.zip"),
-    content = Buffer.from("unsigned PenEcho update"),
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-update-download-")),
+    destination = path.join(directory, "FastLectures-0.7.2-mac-arm64.zip"),
+    content = Buffer.from("unsigned FastLectures update"),
     digest = crypto.createHash("sha256").update(content).digest("hex"),
     progress = [];
   try {
     await downloadReleaseAsset({
       asset:{
         name:path.basename(destination),
-        url:"https://github.com/penecho/penecho/releases/download/v0.7.2/PenEcho-0.7.2-mac-arm64.zip",
+        url:"https://github.com/fastlectures/fastlectures/releases/download/v0.7.2/FastLectures-0.7.2-mac-arm64.zip",
         size:content.length,
         digest:`sha256:${digest}`,
       },
       destination,
-      userAgent:"PenEcho/0.6.0",
+      userAgent:"FastLectures/0.6.0",
       signal:new AbortController().signal,
       onProgress:value => progress.push(value),
       fetchImpl:async () => new Response(content, {
@@ -639,11 +639,11 @@ test("unsigned desktop update download reports progress and verifies GitHub SHA-
     await assert.rejects(downloadReleaseAsset({
       asset:{
         name:path.basename(destination),
-        url:"https://github.com/penecho/penecho/releases/download/v0.7.2/PenEcho-0.7.2-mac-arm64.zip",
+        url:"https://github.com/fastlectures/fastlectures/releases/download/v0.7.2/FastLectures-0.7.2-mac-arm64.zip",
         digest:`sha256:${"0".repeat(64)}`,
       },
       destination,
-      userAgent:"PenEcho/0.6.0",
+      userAgent:"FastLectures/0.6.0",
       signal:new AbortController().signal,
       onProgress:() => {},
       fetchImpl:async () => new Response(content, { status:200 }),
@@ -654,10 +654,10 @@ test("unsigned desktop update download reports progress and verifies GitHub SHA-
 });
 
 test("unsigned macOS updater validates the extracted app and schedules an atomic replacement", async () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-mac-install-")),
-    target = path.join(directory, "Applications", "PenEcho.app"),
-    executable = path.join(target, "Contents", "MacOS", "PenEcho"),
-    archive = path.join(directory, "PenEcho-0.7.2-mac-arm64.zip"),
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-mac-install-")),
+    target = path.join(directory, "Applications", "FastLectures.app"),
+    executable = path.join(target, "Contents", "MacOS", "FastLectures"),
+    archive = path.join(directory, "FastLectures-0.7.2-mac-arm64.zip"),
     commands = [],
     spawns = [],
     app = {
@@ -676,10 +676,10 @@ test("unsigned macOS updater validates the extracted app and schedules an atomic
       runCommand:async (command, args) => {
         commands.push({ command, args });
         if (command === "/usr/bin/ditto") {
-          fs.mkdirSync(path.join(args[3], "PenEcho.app", "Contents"), { recursive:true });
+          fs.mkdirSync(path.join(args[3], "FastLectures.app", "Contents"), { recursive:true });
           return "";
         }
-        return args[1] === "CFBundleIdentifier" ? "app.penecho.desktop" : "0.7.2";
+        return args[1] === "CFBundleIdentifier" ? "app.fastlectures.desktop" : "0.7.2";
       },
       spawnImpl:(command, args, options) => {
         spawns.push({ command, args, options });
@@ -702,7 +702,7 @@ test("unsigned Windows updater launches the downloaded Squirrel Setup silently",
   assert.equal(await installDownloadedUpdate({
     app,
     platform:"win32",
-    downloadedPath:"C:\\Temp\\PenEcho-Setup-0.7.2-win-x64.exe",
+    downloadedPath:"C:\\Temp\\FastLectures-Setup-0.7.2-win-x64.exe",
     spawnImpl:(command, args, options) => {
       calls.push({ command, args, options });
       return { unref:() => {} };
@@ -715,7 +715,7 @@ test("unsigned Windows updater launches the downloaded Squirrel Setup silently",
 });
 
 test("desktop CLI setup uses official installers without requiring npm", () => {
-  const options = { platform:"darwin", home:"/Users/example", stateDir:"/Users/example/Library/Application Support/PenEcho" },
+  const options = { platform:"darwin", home:"/Users/example", stateDir:"/Users/example/Library/Application Support/FastLectures" },
     resolvedHome = path.resolve(options.home), resolvedStateDir = path.resolve(options.stateDir),
     kimiPath = managedCliPath("kimi-cli", options),
     codexPath = managedCliPath("codex-cli", options),
@@ -740,7 +740,7 @@ test("desktop CLI setup uses official installers without requiring npm", () => {
 });
 
 test("CLI inspection distinguishes missing, login, ready, and repair states on macOS and Windows", async () => {
-  const options = { home:"/tmp/penecho-cli-home", stateDir:"/tmp/penecho-cli-state", candidates:[] };
+  const options = { home:"/tmp/fastlectures-cli-home", stateDir:"/tmp/fastlectures-cli-state", candidates:[] };
   const missingMac = await inspectCli("codex-cli", { ...options, platform:"darwin", preflight:async () => ({ ok:false, issue:"missing" }) });
   assert.equal(missingMac.state, "missing");
   assert.equal(missingMac.installCommand, "curl -fsSL https://chatgpt.com/codex/install.sh | sh");
@@ -763,7 +763,7 @@ test("CLI inspection distinguishes missing, login, ready, and repair states on m
 });
 
 test("Windows CLI discovery uses semicolon-separated PATH entries", () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-win-path-")), first = path.join(directory, "first"), second = path.join(directory, "second");
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-win-path-")), first = path.join(directory, "first"), second = path.join(directory, "second");
   try {
     fs.mkdirSync(first);
     fs.mkdirSync(second);
@@ -773,7 +773,7 @@ test("Windows CLI discovery uses semicolon-separated PATH entries", () => {
 });
 
 test("automatic CLI setup validates the official script and installed executable", async () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cli-install-test-")), home = path.join(directory, "home"), stateDir = path.join(directory, "state"),
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cli-install-test-")), home = path.join(directory, "home"), stateDir = path.join(directory, "state"),
     expected = managedCliPath("codex-cli", { platform:"darwin", home, stateDir }), calls = [];
   try {
     const result = await installCli("codex-cli", {
@@ -808,7 +808,7 @@ test("automatic CLI setup validates the official script and installed executable
 });
 
 test("automatic Codex setup keeps the existing managed CLI when the downloaded version is not pinned", async () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-cli-version-test-")), home = path.join(directory, "home"), stateDir = path.join(directory, "state"),
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-cli-version-test-")), home = path.join(directory, "home"), stateDir = path.join(directory, "state"),
     expected = managedCliPath("codex-cli", { platform:"darwin", home, stateDir });
   try {
     fs.mkdirSync(path.dirname(expected), { recursive:true });
@@ -837,7 +837,7 @@ test("automatic Codex setup keeps the existing managed CLI when the downloaded v
 });
 
 test("Codex bundle validation requires the platform host beside the CLI", () => {
-  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-codex-host-test-")),executable=path.join(directory,"codex.exe"),host=path.join(directory,"codex-code-mode-host.exe");
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-codex-host-test-")),executable=path.join(directory,"codex.exe"),host=path.join(directory,"codex-code-mode-host.exe");
   try {
     fs.writeFileSync(executable,"codex");
     assert.throws(()=>assertCodexCliBundle(executable,"win32"),/codex-code-mode-host\.exe was not found beside codex\.exe/);
@@ -847,7 +847,7 @@ test("Codex bundle validation requires the platform host beside the CLI", () => 
 });
 
 test("automatic Windows Codex setup publishes the host and sidecars with codex.exe", async () => {
-  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-win-codex-install-test-")),home=path.join(directory,"home"),stateDir=path.join(directory,"state"),
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-win-codex-install-test-")),home=path.join(directory,"home"),stateDir=path.join(directory,"state"),
     executable=managedCliPath("codex-cli",{platform:"win32",home,stateDir}),bin=path.dirname(executable);
   try {
     const result=await installCli("codex-cli",{
@@ -870,7 +870,7 @@ test("automatic Windows Codex setup publishes the host and sidecars with codex.e
 });
 
 test("automatic Codex setup keeps the old bundle when the staged host is missing", async () => {
-  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-codex-missing-host-install-test-")),home=path.join(directory,"home"),stateDir=path.join(directory,"state"),
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-codex-missing-host-install-test-")),home=path.join(directory,"home"),stateDir=path.join(directory,"state"),
     executable=managedCliPath("codex-cli",{platform:"darwin",home,stateDir}),host=path.join(path.dirname(executable),"codex-code-mode-host");
   try {
     fs.mkdirSync(path.dirname(executable),{recursive:true});
@@ -891,7 +891,7 @@ test("automatic Codex setup keeps the old bundle when the staged host is missing
 });
 
 test("automatic Kimi CLI setup validates the official installer and managed executable", async () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-kimi-install-test-")),
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-kimi-install-test-")),
     home = path.join(directory, "home"),
     stateDir = path.join(directory, "state"),
     expected = managedCliPath("kimi-cli", { platform:"darwin", home, stateDir }),

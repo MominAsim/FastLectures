@@ -43,7 +43,7 @@ Do not use uncontrolled automatic rotation as content. Establish the stable came
 4. Define the initial and final camera/scene states before enhancement. Run one automatic explanatory sequence, then settle permanently at the canonical final state.
 5. Provide replay and pause controls for automatic motion. For an inspectable 3-D scene, explicitly enable bounded orbit controls, keep panning off unless it has a declared explanatory purpose, clamp zoom and polar angles, and provide a visible keyboard-operable **Reset view** action plus visible usage text such as “Drag to rotate · Wheel or pinch to zoom · Shift+Arrow keys to rotate · Reset view.” With `prefers-reduced-motion: reduce`, skip automatic transitions but keep useful manual camera controls available.
 6. Keep one canonical snapshot state: camera, coordinate transform, surface parameters, mesh, colors, labels, and final arrangement must be reproducible without replay history. Reset the camera to that state before capture and restore the user's prior bounded view afterward. No transient basis, pending slice, or mid-transition camera may remain.
-7. Call `window.penechoWidgetReady()` after the stable first/final render when that function is available.
+7. Call `window.fastlecturesWidgetReady()` after the stable first/final render when that function is available.
 
 ## Verified Manim-Web 0.3.24 3-D pattern
 
@@ -103,7 +103,7 @@ try {
 } catch (error) {
   console.error("Scientific enhancement failed; static fallback retained", error);
 } finally {
-  window.penechoWidgetReady?.({
+  window.fastlecturesWidgetReady?.({
     beforeSnapshot:() => {
       snapshotView = scene?.getCameraOrientation?.() || null;
       scene?.stopAmbientCameraRotation?.();
@@ -124,7 +124,7 @@ Accessibility requires a descriptive SVG title, text description of depth/orient
 The source must contain exactly one capability marker, with this exact capitalization and spelling:
 
 ```html
-<meta name="penecho-visual-skill" content="math-3d">
+<meta name="fastlectures-visual-skill" content="math-3d">
 ```
 
 Do not add another visual-skill marker. The shared Widget host activates scientific rendering only for one supported marker and rewrites only the exact pinned Manim-Web URL above to the local packaged mirror. Keep the static fallback complete if enhancement cannot load.

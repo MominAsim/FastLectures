@@ -7,7 +7,7 @@ const test = require('node:test');
 const {getAuthoringGuidance}=require('../src/server/mcp/authoring-guidance.js');
 
 test('first Agent model request contains the complete Visual Explorer design without a guidance round trip', async t => {
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),'penecho-initial-design-'));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),'fastlectures-initial-design-'));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import('../src/server/canvas-agent/runtime.mjs');
   const calls=[],messages=[];
@@ -29,7 +29,7 @@ test('first Agent model request contains the complete Visual Explorer design wit
   assert.equal(calls[0].systemPrompt.split(guidance.document).length-1,1);
   assert.match(guidance.document,/Correct a concrete mismatch found in rendered evidence/);
   const tools=JSON.parse(calls[0].prompt).availableTools;
-  assert.ok(tools.some(tool=>tool.name==='penecho_present_widget'));
+  assert.ok(tools.some(tool=>tool.name==='fastlectures_present_widget'));
   assert.ok(!tools.some(tool=>tool.name==='canvas_create'));
   assert.equal(messages.some(event=>event.type==='tool_request'),false);
 });

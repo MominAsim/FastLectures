@@ -1,4 +1,4 @@
-/* PenEcho design language — incrementally embedded from penecho_design.
+/* FastLectures design language — incrementally embedded from fastlectures_design.
    access.html loads no other stylesheet, so the Studio palette and the pe
    contract tokens are declared here with the same names and values that
    style.css uses on the Canvas surfaces. */
@@ -22,7 +22,7 @@
   --studio-text: #1c1f27;
   --studio-muted: #666d7d;
 
-  /* PenEcho semantic tokens derived from the palette. */
+  /* FastLectures semantic tokens derived from the palette. */
   --pe-surface: var(--studio-panel, #ffffff);
   --pe-surface-raised: var(--studio-panel-raised, #fbfbfc);
   --pe-surface-muted: var(--studio-toolbar, #f2f3f5);

@@ -22,7 +22,7 @@ const mainSource = fsSync.readFileSync(path.join(ROOT, "src/server/main.js"), "u
 const remoteCanvasHttpSource = fsSync.readFileSync(path.join(ROOT, "src/server/remote-canvas-http.js"), "utf8");
 
 async function fixture(t, options = {}) {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "penecho-canvas-resources-"));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "fastlectures-canvas-resources-"));
   const stateDirectory = path.join(directory, "state");
   await fs.mkdir(stateDirectory, { recursive:true, mode:0o700 });
   t.after(() => fs.rm(directory, { recursive:true, force:true }));
@@ -69,7 +69,7 @@ function conversation(index) {
   };
 }
 
-test("PenEcho Agent resource projections hide canonical folder and file paths until resolve", async t => {
+test("FastLectures Agent resource projections hide canonical folder and file paths until resolve", async t => {
   const { directory, store } = await fixture(t);
   const folder = path.join(directory, "private-parent", "selected-folder");
   const file = path.join(directory, "private-file-parent", "selected-notes.txt");
@@ -117,18 +117,18 @@ test("single-file runtime exposes one exact canonical file and no sibling-capabl
   assert.match(exactFileBlock, /session\.project\?\.kind === 'file'\) return exactSelectedFilePath/);
 
   const filePluginBlock = runtimeSource.slice(
-    runtimeSource.indexOf("const PenEchoFilePlugin"),
+    runtimeSource.indexOf("const FastLecturesFilePlugin"),
     runtimeSource.indexOf("export class CanvasHarnessHost"),
   );
   assert.match(filePluginBlock, /exactly one read-only file/);
   assert.match(filePluginBlock, /No write, edit, bash, or directory-listing capability exists/);
   assert.match(filePluginBlock, /agentCtx\.tools\.register\(project(?:Document|Image|Database|Text|Binary)ReaderTool/);
-  assert.match(runtimeSource, /const PenEchoDocumentReaderPlugin = \{[\s\S]*?name:'penecho-document-reader'[\s\S]*?agentCtx\.tools\.register\(projectDocumentReaderTool/);
-  assert.match(filePluginBlock, /agentCtx\.plugin\(PenEchoDocumentReaderPlugin/);
+  assert.match(runtimeSource, /const FastLecturesDocumentReaderPlugin = \{[\s\S]*?name:'fastlectures-document-reader'[\s\S]*?agentCtx\.tools\.register\(projectDocumentReaderTool/);
+  assert.match(filePluginBlock, /agentCtx\.plugin\(FastLecturesDocumentReaderPlugin/);
   assert.doesNotMatch(filePluginBlock, /agentCtx\.tools\.register\(projectDocumentReaderTool/);
   assert.doesNotMatch(filePluginBlock, /ToolFs\.apply|projectBashTool|projectPluginLoaderTool|projectGlobTool|projectGrepTool/);
   assert.match(runtimeSource, /meta:\{ cwd:project\?\.kind === 'folder' \? project\.path : projectRuntimeDirectory \}/);
-  assert.match(runtimeSource, /session\.project\?\.kind === 'file'\) await agentCtx\.plugin\(PenEchoFilePlugin/);
+  assert.match(runtimeSource, /session\.project\?\.kind === 'file'\) await agentCtx\.plugin\(FastLecturesFilePlugin/);
 });
 
 test("uploaded files require canonical base64, honor the 32 MiB boundary, use private modes, and delete only managed copies", async t => {
@@ -217,7 +217,7 @@ test("uploads accept every file type while unsafe specialized content falls back
   assert.equal(incompletePresentation.reader, "binary");
 
   const unknownText = Buffer.from("custom text format", "utf8"), textUpload = await store.upload({
-    name:"notes.penecho-custom", mediaType:"application/x-penecho-custom", bytes:unknownText.length, data:unknownText.toString("base64"),
+    name:"notes.fastlectures-custom", mediaType:"application/x-fastlectures-custom", bytes:unknownText.length, data:unknownText.toString("base64"),
   });
   assert.equal(textUpload.reader, "text");
   const unknownBinary = Buffer.from([0, 1, 2, 0xff]), binaryUpload = await store.upload({
@@ -285,7 +285,7 @@ test("opening an uploaded file serializes its activity touch before cleanup", as
 
 test("each upload removes safe orphan copies and their private history", async t => {
   const { store } = await fixture(t), now = 2_000_000_000_000, content = Buffer.from("orphan", "utf8");
-  const orphan = await store.upload({ name:"orphan.penecho-custom", bytes:content.length, data:content.toString("base64") }, { now });
+  const orphan = await store.upload({ name:"orphan.fastlectures-custom", bytes:content.length, data:content.toString("base64") }, { now });
   const orphanPath = (await store.resolve(orphan.id)).path, orphanDirectory = path.dirname(orphanPath), orphanHistory = path.join(store.fileHistoryDirectory, orphan.id);
   await store.writeHistory(orphan.id, { conversations:[conversation(2)] });
   await fs.writeFile(path.join(orphanDirectory, ".upload-12345678-1234-4123-8123-123456789abc.tmp"), "partial", { mode:0o600 });
@@ -299,7 +299,7 @@ test("each upload removes safe orphan copies and their private history", async t
 });
 
 test("automatic cleanup failures are logged without blocking cleanup callers or uploads", async t => {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "penecho-canvas-cleanup-failure-")), stateDirectory = path.join(directory, "state"), warnings = [];
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "fastlectures-canvas-cleanup-failure-")), stateDirectory = path.join(directory, "state"), warnings = [];
   await fs.mkdir(stateDirectory, { recursive:true, mode:0o700 });
   t.after(() => fs.rm(directory, { recursive:true, force:true }));
   class FailingCleanupStore extends CanvasAgentProjectStore {
@@ -325,22 +325,22 @@ test("automatic cleanup failures are logged without blocking cleanup callers or 
 });
 
 test("allowed server roots expose opaque IDs and relative folders while rejecting absolute, traversal, metadata, and symlink paths", async t => {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "penecho-canvas-roots-"));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "fastlectures-canvas-roots-"));
   t.after(() => fs.rm(directory, { recursive:true, force:true }));
   const stateDirectory = path.join(directory, "state"), allowedRoot = path.join(directory, "server-private-root"), outside = path.join(directory, "outside");
   await fs.mkdir(path.join(allowedRoot, "Projects", "Nested"), { recursive:true });
   await fs.mkdir(path.join(allowedRoot, ".restricted", "ApprovedProject"), { recursive:true });
-  await fs.mkdir(path.join(allowedRoot, ".penecho", "Hidden"), { recursive:true });
+  await fs.mkdir(path.join(allowedRoot, ".fastlectures", "Hidden"), { recursive:true });
   await fs.mkdir(outside, { recursive:true });
   await fs.symlink(outside, path.join(allowedRoot, "Escape"), process.platform === "win32" ? "junction" : "dir");
   await fs.mkdir(stateDirectory, { recursive:true, mode:0o700 });
   const store = new CanvasAgentProjectStore({
     stateDirectory,
-    allowedRoots:[{ path:allowedRoot, name:"Approved projects", guardPrivate:true }, path.join(allowedRoot, ".penecho")],
+    allowedRoots:[{ path:allowedRoot, name:"Approved projects", guardPrivate:true }, path.join(allowedRoot, ".fastlectures")],
   });
 
   const roots = await store.listRoots();
-  assert.equal(roots.length, 1, "a configured .penecho directory is never exposed as a root");
+  assert.equal(roots.length, 1, "a configured .fastlectures directory is never exposed as a root");
   assert.deepEqual(Object.keys(roots[0]).sort(), ["id", "name"]);
   assert.match(roots[0].id, /^root-[0-9a-f]{24}$/);
   assert.notEqual(roots[0].id, `root-${crypto.createHash("sha256").update(await fs.realpath(allowedRoot)).digest("hex").slice(0, 24)}`);
@@ -351,7 +351,7 @@ test("allowed server roots expose opaque IDs and relative folders while rejectin
   assert.equal(rootListing.path, "");
   assert.equal(rootListing.entries.some(entry => entry.name === "Projects" && entry.path === "Projects"), true);
   assert.equal(rootListing.entries.find(entry => entry.name === ".restricted")?.approvalRequired, true);
-  assert.equal(rootListing.entries.some(entry => entry.name === ".penecho" || entry.name === "Escape"), false);
+  assert.equal(rootListing.entries.some(entry => entry.name === ".fastlectures" || entry.name === "Escape"), false);
   assert.equal(JSON.stringify(rootListing).includes(allowedRoot), false);
 
   const project = await store.addFromRoot(roots[0].id, "Projects/Nested");
@@ -372,7 +372,7 @@ test("allowed server roots expose opaque IDs and relative folders while rejectin
   assert.equal((await restartedStore.resolve(approvedProject.id)).id, approvedProject.id, "approval is retained by the exact registered project");
   assertPrivateMode(await fs.stat(path.join(stateDirectory, "canvas-agent-root-id.key")), 0o600);
 
-  for (const unsafe of ["/etc", "../outside", "Projects/../outside", ".penecho", "C:\\Windows", "Projects/bad\nname", "Projects/\u202espoof"]) {
+  for (const unsafe of ["/etc", "../outside", "Projects/../outside", ".fastlectures", "C:\\Windows", "Projects/bad\nname", "Projects/\u202espoof"]) {
     await expectProjectError(store.browseRoot(roots[0].id, unsafe), "project_root_path_invalid");
   }
   await expectProjectError(store.browseRoot(roots[0].id, "Escape"), "project_unavailable");
@@ -380,7 +380,7 @@ test("allowed server roots expose opaque IDs and relative folders while rejectin
 });
 
 test("host-only roots stay separate from Cloud roots while local and LAN clients browse them in-app", async t => {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "penecho-canvas-host-roots-"));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "fastlectures-canvas-host-roots-"));
   t.after(() => fs.rm(directory, { recursive:true, force:true }));
   const stateDirectory = path.join(directory, "state"), hostRoot = path.join(directory, "host-home"), projectFolder = path.join(hostRoot, "Workspace", "ReadOnlyProject");
   await fs.mkdir(projectFolder, { recursive:true });
@@ -423,7 +423,7 @@ test("Windows host roots expose every drive letter through the built-in local an
 test("an OS-unreadable folder returns a visible non-selectable browser state instead of failing", {
   skip:process.platform === "win32" || typeof process.getuid !== "function" || process.getuid() === 0,
 }, async t => {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "penecho-canvas-denied-root-"));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "fastlectures-canvas-denied-root-"));
   const stateDirectory = path.join(directory, "state"), root = path.join(directory, "root"), blocked = path.join(root, "Blocked");
   t.after(async () => { await fs.chmod(blocked, 0o700).catch(() => {}); await fs.rm(directory, { recursive:true, force:true }); });
   await fs.mkdir(blocked, { recursive:true });
@@ -443,7 +443,7 @@ test("macOS exposes Home and mounted volumes to the linked-device root model wit
     { name:"External volumes", path:"/Volumes", guardPrivate:true, requireChild:true },
   ]);
 
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "penecho-canvas-macos-roots-"));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "fastlectures-canvas-macos-roots-"));
   t.after(() => fs.rm(directory, { recursive:true, force:true }));
   const stateDirectory = path.join(directory, "state"), home = path.join(directory, "home"), projectFolder = path.join(home, "Workspace");
   await fs.mkdir(projectFolder, { recursive:true });
@@ -494,7 +494,7 @@ test("single-file conversation history stays in private state storage, is bounde
   assertPrivateMode(await fs.stat(path.dirname(historyDirectory)), 0o700);
   assertPrivateMode(await fs.stat(historyDirectory), 0o700);
   assertPrivateMode(await fs.stat(historyFile), 0o600);
-  await assertMissing(path.join(sourceDirectory, ".penecho"));
+  await assertMissing(path.join(sourceDirectory, ".fastlectures"));
 
   await store.remove(resource.id);
   assert.equal((await fs.stat(sourceFile)).isFile(), true);
@@ -561,7 +561,7 @@ test("main resource routes separate native paths from roots and uploads and reco
   assert.match(routes, /"\/api\/canvas-agent\/roots"[\s\S]*CANVAS_AGENT_PROJECT_STORE\.listRoots\(\)/);
   assert.match(routes, /"\/api\/canvas-agent\/host-roots"[\s\S]*CANVAS_AGENT_PROJECT_STORE\.listHostRoots\(\)/);
   assert.match(routes, /canvasAgentRootEntriesMatch[\s\S]*getAll\("approved"\)[\s\S]*browseRoot\(canvasAgentRootEntriesMatch\[1\], url\.searchParams\.get\("path"\) \|\| "", \{ approved:url\.searchParams\.get\("approved"\) === "1" \}\)/);
-  assert.match(mainSource, /PENECHO_CANVAS_AGENT_ALLOWED_ROOTS[\s\S]*path\.isAbsolute\(selectedPath\)/);
+  assert.match(mainSource, /FASTLECTURES_CANVAS_AGENT_ALLOWED_ROOTS[\s\S]*path\.isAbsolute\(selectedPath\)/);
   assert.match(mainSource, /macosRemoteRoots\(os\.homedir\(\)\)[\s\S]*windowsDriveRoots\(\)[\s\S]*CANVAS_AGENT_ALLOWED_ROOTS = \[\.\.\.CANVAS_AGENT_CONFIGURED_ROOTS, \.\.\.CANVAS_AGENT_MACOS_REMOTE_ROOTS, \.\.\.CANVAS_AGENT_WINDOWS_DRIVE_ROOTS\]/);
   assert.match(mainSource, /CANVAS_AGENT_PROJECT_STORE\.cleanupUploads\(\)[^\n]*;\s*server\.listen/, "startup cleanup must not gate server listening");
 

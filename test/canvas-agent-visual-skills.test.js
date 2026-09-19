@@ -37,7 +37,7 @@ function readText(relativePath) {
 }
 
 test("scientific visual skills stay out of the cold prompt and return complete shared guidance", async t => {
-  const stateDirectory = mkdtempSync(path.join(tmpdir(), "penecho-visual-skills-prompt-"));
+  const stateDirectory = mkdtempSync(path.join(tmpdir(), "fastlectures-visual-skills-prompt-"));
   t.after(() => rmSync(stateDirectory, { recursive: true, force: true }));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
   const explorerContract = readText("src/server/canvas-agent/visual-explorer-contract.md").trim();
@@ -47,14 +47,14 @@ test("scientific visual skills stay out of the cold prompt and return complete s
     const document = readText(`src/server/canvas-agent/visual-skills/${skill}.md`).trim();
     assert.equal(document.length > 0, true);
     assert.equal(Buffer.byteLength(document, "utf8") <= 16_000, true);
-    assert.equal(document.includes(`<meta name="penecho-visual-skill" content="${skill}">`), true);
+    assert.equal(document.includes(`<meta name="fastlectures-visual-skill" content="${skill}">`), true);
     assert.equal(document.includes(MANIM_URL), true);
     const manimUrls = [...document.matchAll(/https?:\/\/[^\s`"<>]+manim-web@[^\s`"<>]+/g)].map(match => match[0]);
     assert.equal(manimUrls.length > 0, true);
     assert.deepEqual([...new Set(manimUrls)], [MANIM_URL]);
     assert.match(document, /complete[^.]*static[^.]*(?:HTML|render)|static first render/s);
     assert.match(document, /prefers-reduced-motion/);
-    assert.match(document, /window\.penechoWidgetReady\(\)/);
+    assert.match(document, /window\.fastlecturesWidgetReady\(\)/);
     return [skill, document];
   }));
 
@@ -68,7 +68,7 @@ test("scientific visual skills stay out of the cold prompt and return complete s
     callCli:async request => {
       calls.push(request);
       return calls.length === 1
-        ? JSON.stringify({ type:"tool_call", name:"penecho_get_guidance", arguments:{ id:"math-2d", detail:"full" } })
+        ? JSON.stringify({ type:"tool_call", name:"fastlectures_get_guidance", arguments:{ id:"math-2d", detail:"full" } })
         : JSON.stringify({ type:"final", text:"Loaded the selected skill." });
     },
   });
@@ -85,7 +85,7 @@ test("scientific visual skills stay out of the cold prompt and return complete s
 
   assert.equal(calls.length, 2);
   const firstRequest = JSON.parse(calls[0].prompt), secondRequest = JSON.parse(calls[1].prompt);
-  const schema = firstRequest.availableTools.find(tool => tool.name === "penecho_get_guidance");
+  const schema = firstRequest.availableTools.find(tool => tool.name === "fastlectures_get_guidance");
   assert.match(schema.description,/authoring guidance/);
   assert.deepEqual(schema.parameters.properties.id.enum,require("../src/server/mcp/authoring-guidance.js").GUIDANCE_IDS);
   assert.deepEqual(schema.parameters.required,["id"]);
@@ -169,7 +169,7 @@ test("math-3d contract provides bounded interactive camera exploration with visi
 });
 
 test("shared guidance returns the same document without cross-session state mutation", async t => {
-  const stateDirectory = mkdtempSync(path.join(tmpdir(), "penecho-visual-skills-tool-"));
+  const stateDirectory = mkdtempSync(path.join(tmpdir(), "fastlectures-visual-skills-tool-"));
   t.after(() => rmSync(stateDirectory, { recursive: true, force: true }));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
   const connection = { id:"api", provider:"api", apiFormat:"openai", apiUrl:"http://127.0.0.1:9/v1", apiModel:"test-model", apiKey:"test-key" };
@@ -183,7 +183,7 @@ test("shared guidance returns the same document without cross-session state muta
   const first = await host.connect({ clientId:"first", connectionId:connection.id, binding:{}, send:() => {} });
   const second = await host.connect({ clientId:"second", connectionId:connection.id, binding:{}, send:() => {} });
   const registry = first.handle.agent.ctx.tools;
-  const tool = registry.get("penecho_get_guidance", first.handle.agent);
+  const tool = registry.get("fastlectures_get_guidance", first.handle.agent);
   const shared=require("../src/server/mcp/authoring-guidance.js").getAuthoringGuidance("math-2d");
   const result=await tool.execute({id:"math-2d"},{callId:"visual-skill-call"});
   assert.deepEqual(result,shared);
@@ -193,20 +193,20 @@ test("shared guidance returns the same document without cross-session state muta
 });
 
 test("Visual Explorer scientific markers and manim imports are gated per loaded session", async t => {
-  const stateDirectory = mkdtempSync(path.join(tmpdir(), "penecho-visual-skills-gate-"));
+  const stateDirectory = mkdtempSync(path.join(tmpdir(), "fastlectures-visual-skills-gate-"));
   t.after(() => rmSync(stateDirectory, { recursive: true, force: true }));
   const { CanvasHarnessHost, validateVisualExplorerSkillMarkup, createCanvasTools } = await import("../src/server/canvas-agent/runtime.mjs");
-  const marker = '<meta name="penecho-visual-skill" content="math-2d">';
+  const marker = '<meta name="fastlectures-visual-skill" content="math-2d">';
   const importScript = `<script type="module">import { Scene } from "${MANIM_URL}";</script>`;
   assert.deepEqual(validateVisualExplorerSkillMarkup("<!doctype html><p>ordinary</p>"), { skill:"", markers:[], manimImports:[] });
   assert.deepEqual(validateVisualExplorerSkillMarkup(`<!-- ${marker}${importScript} -->`), { skill:"", markers:[], manimImports:[] });
   assert.deepEqual(validateVisualExplorerSkillMarkup(`<a href="${MANIM_URL}">Manim-Web docs</a>`), { skill:"", markers:[], manimImports:[] });
-  assert.throws(() => validateVisualExplorerSkillMarkup(importScript), /requires the matching penecho-visual-skill/i);
-  assert.throws(() => validateVisualExplorerSkillMarkup('<meta name="penecho-visual-skill" content="chemistry">'), /supported skill/i);
+  assert.throws(() => validateVisualExplorerSkillMarkup(importScript), /requires the matching fastlectures-visual-skill/i);
+  assert.throws(() => validateVisualExplorerSkillMarkup('<meta name="fastlectures-visual-skill" content="chemistry">'), /supported skill/i);
   assert.throws(() => validateVisualExplorerSkillMarkup(`${marker}${marker}`), /exactly one/i);
   assert.throws(() => validateVisualExplorerSkillMarkup(marker), /Load the math-2d visual skill/i);
   assert.throws(() => validateVisualExplorerSkillMarkup(marker, new Set(["math-3d"])), /Load the math-2d visual skill/i);
-  assert.throws(() => validateVisualExplorerSkillMarkup(`<meta name="PENECHO-VISUAL-SKILL" content="math-2d">${importScript}`, new Set(["math-2d"])), /matching penecho-visual-skill marker/i);
+  assert.throws(() => validateVisualExplorerSkillMarkup(`<meta name="FASTLECTURES-VISUAL-SKILL" content="math-2d">${importScript}`, new Set(["math-2d"])), /matching fastlectures-visual-skill marker/i);
   assert.throws(() => validateVisualExplorerSkillMarkup(`${marker}<script type="module" src="${MANIM_URL}"></script>`, new Set(["math-2d"])), /inline script\[type="module"\]/i);
   assert.throws(() => validateVisualExplorerSkillMarkup(`${marker}<script>import("${MANIM_URL}")</script>`, new Set(["math-2d"])), /classic, computed, and non-import/i);
   assert.throws(() => validateVisualExplorerSkillMarkup(`${marker}<script type="module">const source = "${MANIM_URL}"; import(source)</script>`, new Set(["math-2d"])), /classic, computed, and non-import/i);
@@ -216,7 +216,7 @@ test("Visual Explorer scientific markers and manim imports are gated per loaded 
     markers:["math-2d"],
     manimImports:[MANIM_URL],
   });
-  assert.deepEqual(validateVisualExplorerSkillMarkup(`<meta name=penecho-visual-skill content=math-2d>${importScript}`, new Set(["math-2d"])), {
+  assert.deepEqual(validateVisualExplorerSkillMarkup(`<meta name=fastlectures-visual-skill content=math-2d>${importScript}`, new Set(["math-2d"])), {
     skill:"math-2d",
     markers:["math-2d"],
     manimImports:[MANIM_URL],
@@ -248,7 +248,7 @@ test("Visual Explorer scientific markers and manim imports are gated per loaded 
   const item = {
     type:"widget", pluginId:"general", widgetType:"html_widget", title:"Calibrated 2-D field",
     html:`<!doctype html><head>${marker}${importScript}</head><p>Static final state</p>`,
-    sourceFormat:"penecho-visual-explorer+html", frameworkVersion:"penecho-visual-explorer/1",
+    sourceFormat:"fastlectures-visual-explorer+html", frameworkVersion:"fastlectures-visual-explorer/1",
     refreshSeconds:0, width:1200, height:800, placement:{ mode:"absolute", x:10, y:10 },
   };
   await assert.rejects(create.execute({ baseRevision:1, items:[item] }, { callId:"blocked" }), error => {

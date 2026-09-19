@@ -5,7 +5,7 @@ const {createMcpService}=require('../src/server/mcp/service.js');
 const sharp=require('sharp');
 
 test('authenticated raw upload routes through the opted-in connection without a conversation',async t=>{
- const directory=fs.mkdtempSync(path.join(os.tmpdir(),'penecho-upload-routing-'));
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'fastlectures-upload-routing-'));
  const server=http.createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const service=createMcpService({server,authorizeBrowser:()=>false,autoStartHttp:false,stateDirectory:directory,registryStateDirectory:directory,lanAddresses:()=>[],directAnnounce:()=>({close(){}})});
  let ws; t.after(async()=>{ws?.terminate();await service.close();await new Promise(resolve=>server.close(resolve));fs.rmSync(directory,{recursive:true,force:true});});
@@ -14,7 +14,7 @@ test('authenticated raw upload routes through the opted-in connection without a 
  await new Promise((resolve,reject)=>{ws.once('error',reject);ws.once('open',()=>ws.send(JSON.stringify({type:'hello',canvasId:'canvas-raw',title:'Test'})));ws.on('message',raw=>{
   const m=JSON.parse(raw);if(m.type==='ready')return resolve();if(m.type!=='call')return;calls.push(m);
   const a=m.arguments,b=Buffer.from(a.source.split(',')[1],'base64'),assetId=crypto.createHash('sha256').update(b).digest('hex');
-  ws.send(JSON.stringify({type:'result',requestId:m.requestId,ok:true,result:{documentId:a.documentId==='wrong'?'other':a.documentId,assetId,source:`penecho-asset:${assetId}`,name:a.name,mediaType:a.source.slice(5,a.source.indexOf(';')),bytes:b.length,width:32,height:24,revision:1}}));
+  ws.send(JSON.stringify({type:'result',requestId:m.requestId,ok:true,result:{documentId:a.documentId==='wrong'?'other':a.documentId,assetId,source:`fastlectures-asset:${assetId}`,name:a.name,mediaType:a.source.slice(5,a.source.indexOf(';')),bytes:b.length,width:32,height:24,revision:1}}));
  });});
  const status=await service.startDirect(),bytes=await sharp({create:{width:32,height:24,channels:4,background:'#12345688'}}).tiff().toBuffer();
  const upload=canvasId=>new Promise((resolve,reject)=>{

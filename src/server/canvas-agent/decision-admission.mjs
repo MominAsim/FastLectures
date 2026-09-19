@@ -3,7 +3,7 @@ import { validateDocumentToolArguments } from './document-tools.mjs'
 import { BlockAssembler, CallId } from '@deepseek-ai/dsh-llm'
 import { MAX_CANVAS_DECISION_TOOLS, registerCanvasDecisionBatch } from './tool-batch.mjs'
 
-export const CANVAS_DECISION_FEEDBACK_TOOL = 'penecho_canvas_decision_feedback'
+export const CANVAS_DECISION_FEEDBACK_TOOL = 'fastlectures_canvas_decision_feedback'
 export const CANVAS_DECISION_PROTOCOL_SUMMARY = 'Batch up to 16 known calls. Canvas calls run in order. Keep file contentHash and observed baseRevision exact; combine same-file edits. Never guess prior results, paths, or IDs. Combine creation and capture when supported. A failed write stops later writes, preserving successes. Correct errors using the advertised schema and continue; finish when done/blocked.'
 
 function decisionError(code, message, details = null) {
@@ -19,7 +19,7 @@ function isObject(value) {
 }
 
 function feedbackFrom(error, details = null) {
-  const code = String(error?.code || 'CANVAS_DECISION_REJECTED'), message = String(error?.message || error || 'PenEcho Agent decision was rejected.')
+  const code = String(error?.code || 'CANVAS_DECISION_REJECTED'), message = String(error?.message || error || 'FastLectures Agent decision was rejected.')
   return Object.freeze({
     code,
     message:`${message} The entire tool decision was rejected before execution; no Canvas tool ran. Return corrected standard JSON tool calls, or a final answer only when the task is complete or cannot proceed.`,
@@ -29,9 +29,9 @@ function feedbackFrom(error, details = null) {
 
 function stageFeedback(session, feedback) {
   registerCanvasDecisionBatch(session,[])
-  const id = CallId(`penecho_decision_${randomUUID()}`), callId = String(id)
+  const id = CallId(`fastlectures_decision_${randomUUID()}`), callId = String(id)
   if (!(session?.decisionFeedbackCalls instanceof Map) || !(session?.decisionFeedbackCallIds instanceof Set)) {
-    throw new Error('PenEcho Agent decision feedback storage is unavailable.')
+    throw new Error('FastLectures Agent decision feedback storage is unavailable.')
   }
   session.decisionFeedbackCalls.set(callId, feedback)
   session.decisionFeedbackCallIds.add(callId)
@@ -41,7 +41,7 @@ function stageFeedback(session, feedback) {
 
 function validateToolCall(block, availableTools, session) {
   const name=String(block?.name||'')
-  if(!availableTools.has(name))throw decisionError('CANVAS_TOOL_UNAVAILABLE',`PenEcho Agent requested an unavailable tool: ${name||'(empty)'}.`)
+  if(!availableTools.has(name))throw decisionError('CANVAS_TOOL_UNAVAILABLE',`FastLectures Agent requested an unavailable tool: ${name||'(empty)'}.`)
   let args
   try{args=JSON.parse(String(block?.arguments??''))}
   catch(error){throw decisionError('CANVAS_TOOL_ARGUMENTS_INVALID',`${name} arguments are not valid complete JSON: ${error.message}`)}
@@ -137,7 +137,7 @@ export function canvasDecisionFeedbackResult(session, exec, next) {
   if (!feedback) return next()
   session.decisionFeedbackCalls.delete(callId)
   return Promise.resolve({
-    content:[{ type:'text', text:`PenEcho Agent decision rejected: ${feedback.message}` }],
+    content:[{ type:'text', text:`FastLectures Agent decision rejected: ${feedback.message}` }],
     isError:true,
     error:{ message:feedback.message, info:{ name:'CanvasDecisionProtocolError', code:feedback.code } },
   })

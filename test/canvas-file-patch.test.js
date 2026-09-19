@@ -1,7 +1,7 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm');
 const nodeApi=require('../src/shared/canvas-file-patch'),{canvasFilePatchBundle}=require('../scripts/build-canvas-file-patch'),{createTwoFilesPatch}=require('diff');
-const context=vm.createContext({TextEncoder});vm.runInContext(canvasFilePatchBundle(),context);const browserApi=context.PenEchoCanvasFilePatch;
+const context=vm.createContext({TextEncoder});vm.runInContext(canvasFilePatchBundle(),context);const browserApi=context.FastLecturesCanvasFilePatch;
 for(const [label,before,after] of [['lf','one\ntwo\n','one\nthree\n'],['crlf','one\r\ntwo\r\n','one\r\nthree\r\n'],['no final newline','one','two'],['unicode','你好\n','你好世界\n'],['empty','','hello\n']])test('Node and browser patch parity: '+label,()=>{const patch=createTwoFilesPatch('a/context.md','b/context.md',before,after);assert.equal(nodeApi.applyCanvasFilePatch(before,patch,'context.md'),after);assert.equal(browserApi.applyCanvasFilePatch(before,patch,'context.md'),after);});
 test('strict patch repairs single-hunk counts but rejects conflicts, wrong paths, malformed bodies and oversized output in both runtimes',()=>{for(const api of [nodeApi,browserApi]){
  const patch=createTwoFilesPatch('a/context.md','b/context.md','old\n','new\n');

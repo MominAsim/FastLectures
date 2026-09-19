@@ -13,7 +13,7 @@ const ALLOWED_BUTTONS = new Set([
   "danger-primary", "segment", "menu-item", "composer-action",
 ]);
 
-test("every static product button uses a defined PenEcho control contract", () => {
+test("every static product button uses a defined FastLectures control contract", () => {
   const html = read("public/index.html"), { document } = parseHTML(html);
   const uncovered = [];
   for (const button of document.querySelectorAll("button")) {
@@ -30,7 +30,7 @@ test("every static product button uses a defined PenEcho control contract", () =
   assert.equal(document.querySelector("#studioNavigatorScrim").tagName, "DIV", "the structural scrim is not presented as a button");
 });
 
-test("PenEcho Agent composer maps tint to the defined action hierarchy", () => {
+test("FastLectures Agent composer maps tint to the defined action hierarchy", () => {
   const { document } = parseHTML(read("public/index.html"));
   const expected = {
     canvasAgentAttach:"toolbar",
@@ -50,7 +50,7 @@ test("PenEcho Agent composer maps tint to the defined action hierarchy", () => {
 
 test("the incremental stylesheet owns the canonical tint ladder without importing design CSS", () => {
   const html = read("public/index.html"), css = read("public/style.css");
-  assert.doesNotMatch(html, /penecho-design-language\.css/);
+  assert.doesNotMatch(html, /fastlectures-design-language\.css/);
   assert.doesNotMatch(css, /@import\b/);
   assert.match(css, /--pe-hover:\s*color-mix\(in srgb, var\(--studio-accent[^;]+ 6%, var\(--studio-panel/);
   assert.match(css, /--pe-selected:\s*color-mix\(in srgb, var\(--studio-accent[^;]+ 10%, var\(--studio-panel/);

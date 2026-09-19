@@ -19,6 +19,6 @@ function canvasFilePatchBundle() {
   }
   const entry=add(path.join(root,"src/shared/canvas-file-patch.js"));
   const license=fs.readFileSync(path.resolve(diffRoot,"../LICENSE"),"utf8").replace(/\*\//g,"* /");
-  return `/* diff license:\n${license}\n*/\n(function(){\nconst modules={${[...modules].map(([id,code])=>`${JSON.stringify(id)}:function(module,exports,require){\n${code}\n}`).join(",\n")}},cache={};\nfunction require(id){if(cache[id])return cache[id].exports;const module=cache[id]={exports:{}};modules[id](module,module.exports,require);return module.exports;}\nglobalThis.PenEchoCanvasFilePatch=require(${JSON.stringify(entry)});\n})();`;
+  return `/* diff license:\n${license}\n*/\n(function(){\nconst modules={${[...modules].map(([id,code])=>`${JSON.stringify(id)}:function(module,exports,require){\n${code}\n}`).join(",\n")}},cache={};\nfunction require(id){if(cache[id])return cache[id].exports;const module=cache[id]={exports:{}};modules[id](module,module.exports,require);return module.exports;}\nglobalThis.FastLecturesCanvasFilePatch=require(${JSON.stringify(entry)});\n})();`;
 }
 module.exports={canvasFilePatchBundle};

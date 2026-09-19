@@ -1,5 +1,5 @@
 ---
-penecho-plugin: 1
+fastlectures-plugin: 1
 id: stocks
 name: Stocks
 name-zh: A 股行情
@@ -30,7 +30,7 @@ Fetch JSON `GET https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={market
 
 ## Runtime rules
 
-Fetch only declared origins with `credentials:"omit"`. The HTML owns fetching and its timer. No external assets, current-frame navigation, forms, cookies, storage, or secrets. Show source, market-data caveat, loading/error state, and last successful update. After every render call `window.parent.postMessage({type:"penecho-widget-updated"}, "*")`.
+Fetch only declared origins with `credentials:"omit"`. The HTML owns fetching and its timer. No external assets, current-frame navigation, forms, cookies, storage, or secrets. Show source, market-data caveat, loading/error state, and last successful update. After every render call `window.parent.postMessage({type:"fastlectures-widget-updated"}, "*")`.
 
 ## One-shot example
 

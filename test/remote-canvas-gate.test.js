@@ -47,7 +47,7 @@ function flatten(root) {
   return out;
 }
 
-function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.penecho.test/canvas/", language = "en-US", respond, openCanvas, takeFurther, saveEcho, currentCanvasId, widgetFrames = [], nativeReads = false, fetchResponse, statusTimeout } = {}) {
+function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.fastlectures.test/canvas/", language = "en-US", respond, openCanvas, takeFurther, saveEcho, currentCanvasId, widgetFrames = [], nativeReads = false, fetchResponse, statusTimeout } = {}) {
   const topRow = new FakeElement("div");
   topRow.className = "top-row";
   const brand = new FakeElement("div");
@@ -72,8 +72,8 @@ function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.pene
   const routeUpdates = [];
   const location = {
     pathname,
-    origin:"https://cloud.penecho.test",
-    href:`https://cloud.penecho.test${pathname}`,
+    origin:"https://cloud.fastlectures.test",
+    href:`https://cloud.fastlectures.test${pathname}`,
     assign(url) { redirects.push(url); },
     replace(url) { replacements.push(url); },
   };
@@ -82,8 +82,8 @@ function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.pene
   const saveEchoCalls = [];
   const windowObject = {
     history:{ state:null, replaceState(state, title, url) { routeUpdates.push(url); location.pathname = url; } },
-    PENECHO_CONFIG:{ runtime:"cloud", remoteCanvasNativeReads:nativeReads },
-    PenEchoCloudProjects:{
+    FASTLECTURES_CONFIG:{ runtime:"cloud", remoteCanvasNativeReads:nativeReads },
+    FastLecturesCloudProjects:{
       openCanvas:openCanvas || (async (id) => { opened.push(id); }),
       saveEcho:async (name) => {
         saveEchoCalls.push(name);
@@ -91,7 +91,7 @@ function boot({ pathname = `/canvas/${CANVAS_ID}`, baseURI = "https://cloud.pene
       },
       currentCanvasId:typeof currentCanvasId === "function" ? currentCanvasId : () => currentCanvasId || null,
     },
-    PenEchoCommunityUI:{ takeFurther:takeFurther || (async (id) => { taken.push(id); }) },
+    FastLecturesCommunityUI:{ takeFurther:takeFurther || (async (id) => { taken.push(id); }) },
   };
   const windowListeners = new Map();
   windowObject.addEventListener = (type, handler) => {
@@ -177,11 +177,11 @@ test("Remote Canvas brand doubles as the way back to the console", () => {
 });
 
 test("Remote Canvas publishes the account and device status without adding a duplicate brand badge", async () => {
-  const run = boot({ respond:() => ({ account:{ name:"Remote User" }, device:{ id:SAVED_CANVAS_ID, name:"My PenEcho", platform:"darwin", online:true, ready:true, capabilities:{canvasAgent:true} } }) });
+  const run = boot({ respond:() => ({ account:{ name:"Remote User" }, device:{ id:SAVED_CANVAS_ID, name:"My FastLectures", platform:"darwin", online:true, ready:true, capabilities:{canvasAgent:true} } }) });
   await flush();
   assert.equal(run.brand.children.some((child) => child.className === "remote-canvas-status"), false);
-  assert.equal(run.window.PENECHO_REMOTE_CLOUD_STATUS.accountName, "Remote User");
-  assert.equal(run.window.PENECHO_REMOTE_CLOUD_STATUS.deviceOnline, true);
+  assert.equal(run.window.FASTLECTURES_REMOTE_CLOUD_STATUS.accountName, "Remote User");
+  assert.equal(run.window.FASTLECTURES_REMOTE_CLOUD_STATUS.deviceOnline, true);
   assert.doesNotMatch(gateCss, /\.remote-canvas-status/);
 });
 
@@ -199,26 +199,26 @@ test("Remote Canvas gate without a linked device shows the unlinked state with L
   assert.equal(run.gate.dataset.state, "checking");
   await flush();
   assert.equal(run.gate.dataset.state, "unlinked");
-  assert.equal(run.title.textContent, "Connect one PenEcho host to open this Canvas");
-  assert.equal(run.detail.textContent, "No device is linked yet. Install PenEcho, then connect one main computer from Link Device.");
+  assert.equal(run.title.textContent, "Connect one FastLectures host to open this Canvas");
+  assert.equal(run.detail.textContent, "No device is linked yet. Install FastLectures, then connect one main computer from Link Device.");
   assert.equal(run.gate.hidden, false);
   assert.deepEqual(run.actions.map((el) => el.dataset.action), ["link"]);
 });
 
 test("Remote Canvas gate shows no actions while checking and none once a linked device is offline or opening", async () => {
-  const offline = boot({ respond:() => ({ device:{ name:"My PenEcho", platform:"darwin 25.3.0", online:false } }) });
+  const offline = boot({ respond:() => ({ device:{ name:"My FastLectures", platform:"darwin 25.3.0", online:false } }) });
   assert.equal(offline.gate.dataset.state, "checking");
   assert.deepEqual(actionRevealStates("link").filter((state) => state === offline.gate.dataset.state), []);
   await flush();
   assert.equal(offline.gate.dataset.state, "offline");
-  assert.equal(offline.title.textContent, "Your linked PenEcho host is offline");
-  assert.equal(offline.detail.textContent, "My PenEcho · darwin 25.3.0 · Offline");
+  assert.equal(offline.title.textContent, "Your linked FastLectures host is offline");
+  assert.equal(offline.detail.textContent, "My FastLectures · darwin 25.3.0 · Offline");
   assert.equal(offline.gate.hidden, false);
   assert.deepEqual(offline.actions.map((el) => el.dataset.action), ["link"]);
   assert.deepEqual(actionRevealStates("link").filter((state) => state === "offline"), []);
 
   const online = boot({
-    respond:() => ({ device:{ name:"My PenEcho", platform:"darwin 25.3.0", online:true, ready:true, capabilities:{canvasAgent:true} } }),
+    respond:() => ({ device:{ name:"My FastLectures", platform:"darwin 25.3.0", online:true, ready:true, capabilities:{canvasAgent:true} } }),
     widgetFrames:[{ contentWindow:{} }],
   });
   await flush();
@@ -231,7 +231,7 @@ test("Remote Canvas gate shows no actions while checking and none once a linked 
 
 test("Cloud Canvas stays covered until every visible Widget reports rendered content", async () => {
   const firstWindow = {}, secondWindow = {}, run = boot({
-    respond:() => ({ device:{ id:SAVED_CANVAS_ID, name:"My PenEcho", platform:"darwin", online:true, ready:true, capabilities:{canvasAgent:true} } }),
+    respond:() => ({ device:{ id:SAVED_CANVAS_ID, name:"My FastLectures", platform:"darwin", online:true, ready:true, capabilities:{canvasAgent:true} } }),
     widgetFrames:[{ contentWindow:firstWindow }, { contentWindow:secondWindow }],
     nativeReads:true,
   });
@@ -239,20 +239,20 @@ test("Cloud Canvas stays covered until every visible Widget reports rendered con
   assert.equal(run.gate.dataset.state, "opening");
   assert.equal(run.gate.hidden, false);
 
-  run.window.dispatchMessage({ type:"penecho-widget-host-ready" }, firstWindow);
-  run.window.dispatchMessage({ type:"penecho-widget-host-ready" }, secondWindow);
+  run.window.dispatchMessage({ type:"fastlectures-widget-host-ready" }, firstWindow);
+  run.window.dispatchMessage({ type:"fastlectures-widget-host-ready" }, secondWindow);
   await flush();
   assert.equal(run.gate.hidden, false, "an empty Widget host must not reveal the Canvas before its document renders");
 
-  run.window.dispatchMessage({ type:"penecho-widget-capture-ready" }, firstWindow);
+  run.window.dispatchMessage({ type:"fastlectures-widget-capture-ready" }, firstWindow);
   await flush();
   assert.equal(run.gate.hidden, false, "one ready Widget must not reveal a partially loaded Canvas");
 
-  run.window.dispatchMessage({ type:"penecho-widget-capture-ready" }, secondWindow, "https://untrusted.test");
+  run.window.dispatchMessage({ type:"fastlectures-widget-capture-ready" }, secondWindow, "https://untrusted.test");
   await flush();
   assert.equal(run.gate.hidden, false, "a cross-origin ready message must be ignored");
 
-  run.window.dispatchMessage({ type:"penecho-widget-capture-ready" }, secondWindow);
+  run.window.dispatchMessage({ type:"fastlectures-widget-capture-ready" }, secondWindow);
   await flush();
   assert.equal(run.gate.hidden, true);
 });
@@ -260,7 +260,7 @@ test("Cloud Canvas stays covered until every visible Widget reports rendered con
 test("Remote public Echo uses the linked-host bridge without redirecting to a guessed LAN origin", async () => {
   const run = boot({
     pathname:`/canvas/community/${COMMUNITY_ID}`,
-    respond:() => ({ device:{ id:"device-1", name:"My PenEcho", platform:"darwin", online:true, ready:true, capabilities:{canvasAgent:true} } }),
+    respond:() => ({ device:{ id:"device-1", name:"My FastLectures", platform:"darwin", online:true, ready:true, capabilities:{canvasAgent:true} } }),
   });
   await flush();
   assert.deepEqual(run.taken, [COMMUNITY_ID]);
@@ -286,17 +286,17 @@ test("Remote Canvas gate keeps the zh copy path", async () => {
   const zh = boot({ language:"zh-CN", respond:() => ({ device:null }) });
   await flush();
   assert.equal(zh.gate.dataset.state, "unlinked");
-  assert.equal(zh.title.textContent, "连接 PenEcho 主机后即可打开");
-  assert.equal(zh.detail.textContent, "请先连接一台 PenEcho 主机。");
+  assert.equal(zh.title.textContent, "连接 FastLectures 主机后即可打开");
+  assert.equal(zh.detail.textContent, "请先连接一台 FastLectures 主机。");
   assert.deepEqual(zh.actions.map((el) => el.textContent), ["连接设备"]);
 
-  const offline = boot({ language:"zh-CN", respond:() => ({ device:{ name:"我的 PenEcho", platform:"macOS", online:false } }) });
+  const offline = boot({ language:"zh-CN", respond:() => ({ device:{ name:"我的 FastLectures", platform:"macOS", online:false } }) });
   await flush();
-  assert.equal(offline.detail.textContent, "我的 PenEcho · macOS · 离线");
+  assert.equal(offline.detail.textContent, "我的 FastLectures · macOS · 离线");
 
-  const online = boot({ language:"zh-CN", respond:() => ({ device:{ name:"我的 PenEcho", platform:"macOS", online:true, ready:true, capabilities:{canvasAgent:true} } }) });
+  const online = boot({ language:"zh-CN", respond:() => ({ device:{ name:"我的 FastLectures", platform:"macOS", online:true, ready:true, capabilities:{canvasAgent:true} } }) });
   await flush();
-  assert.equal(online.detail.textContent, "我的 PenEcho · macOS · 在线");
+  assert.equal(online.detail.textContent, "我的 FastLectures · macOS · 在线");
   assert.match(gateScript, /私人云端画布/);
   assert.match(gateScript, /Private Cloud Canvas/);
 });
@@ -311,11 +311,11 @@ test("Remote Canvas gate 401 response redirects to auth with returnTo", async ()
   const redirects = [];
   const location = {
     pathname:`/canvas/${CANVAS_ID}`,
-    origin:"https://cloud.penecho.test",
-    href:`https://cloud.penecho.test/canvas/${CANVAS_ID}`,
+    origin:"https://cloud.fastlectures.test",
+    href:`https://cloud.fastlectures.test/canvas/${CANVAS_ID}`,
     assign(url) { redirects.push(url); },
   };
-  const windowObject = { PENECHO_CONFIG:{ runtime:"cloud" }, addEventListener() {} };
+  const windowObject = { FASTLECTURES_CONFIG:{ runtime:"cloud" }, addEventListener() {} };
   windowObject.fetch = async () => ({ ok:false, status:401, json:async () => ({}) });
   vm.runInNewContext(gateScript, {
     window:windowObject, document, location, navigator:{ language:"en-US" },
@@ -395,7 +395,7 @@ test("Cloud-native Canvas opens directly even when a linked device is online", a
   await flush();
   assert.equal(run.gate.hidden, true);
   assert.deepEqual(run.opened, [CANVAS_ID]);
-  assert.equal(run.window.PENECHO_CONFIG.browserCanvasEditing, true);
+  assert.equal(run.window.FASTLECTURES_CONFIG.browserCanvasEditing, true);
   assert.equal(run.fetchCalls.some((call) => call.url.startsWith("/api/v1/remote-canvas/http")), false);
 });
 
@@ -409,7 +409,7 @@ test("native community Canvas reads open Echoes without a linked device, while t
     await flush();
     assert.equal(run.gate.dataset.state, "opening");
     assert.equal(run.gate.hidden, true);
-    assert.equal(run.window.PENECHO_CONFIG.browserCanvasEditing, true);
+    assert.equal(run.window.FASTLECTURES_CONFIG.browserCanvasEditing, true);
     assert.deepEqual(run.taken, [COMMUNITY_ID]);
     assert.deepEqual(run.opened, []);
   }
@@ -425,7 +425,7 @@ test("native community Canvas reads open Echoes without a linked device, while t
     await flush();
     assert.equal(run.gate.dataset.state, expectedState);
     assert.equal(run.gate.hidden, false);
-    assert.notEqual(run.window.PENECHO_CONFIG.browserCanvasEditing, true);
+    assert.notEqual(run.window.FASTLECTURES_CONFIG.browserCanvasEditing, true);
     assert.deepEqual(run.taken, []);
     assert.deepEqual(run.opened, []);
   }
@@ -485,7 +485,7 @@ test("hosted Cloud commands bind the live current Canvas instead of the deep-lin
   });
   const response = await run.window.fetch("/api/ai/command", {
     method:"POST",
-    headers:{ "x-penecho-connection":`hosted:${HOSTED_MODEL_ID}` },
+    headers:{ "x-fastlectures-connection":`hosted:${HOSTED_MODEL_ID}` },
     body:JSON.stringify({ action:"inspect" }),
   });
   assert.equal(response.status, 200);
@@ -517,7 +517,7 @@ test("hosted Cloud commands stop after the active Canvas changes while the fence
   });
   const request = run.window.fetch("/api/ai/command", {
     method:"POST",
-    headers:{ "x-penecho-connection":`hosted:${HOSTED_MODEL_ID}` },
+    headers:{ "x-fastlectures-connection":`hosted:${HOSTED_MODEL_ID}` },
     body:JSON.stringify({ action:"mutate" }),
   });
   await flush();
@@ -537,9 +537,9 @@ test("hosted Cloud commands stop after the active Canvas changes while the fence
 test("hosted Cloud commands run for unsaved Canvas without saving content", async () => {
   const draftId=SWITCHED_CANVAS_ID;
   const run = boot({ fetchResponse:(url) => ({ok:true,status:200,json:async()=>url === "/api/v1/hosted/draft-scopes" ? {canvasId:CANVAS_ID} : {}}) });
-  run.window.PenEchoCloudProjects={currentExecutionScope:()=>({canvasId:draftId,draft:true})};
+  run.window.FastLecturesCloudProjects={currentExecutionScope:()=>({canvasId:draftId,draft:true})};
   const response = await run.window.fetch("/api/ai/command", {
-    method:"POST", headers:{ "x-penecho-connection":`hosted:${HOSTED_MODEL_ID}` },
+    method:"POST", headers:{ "x-fastlectures-connection":`hosted:${HOSTED_MODEL_ID}` },
     body:JSON.stringify({ action:"inspect" }),
   });
   assert.equal(response.status,200);
@@ -551,7 +551,7 @@ test("hosted Cloud commands run for unsaved Canvas without saving content", asyn
 
 test("desktop runtime keeps its existing direct Cloud sync path", async () => {
   const calls = [], windowObject = {
-    PENECHO_CONFIG:{ runtime:"local" },
+    FASTLECTURES_CONFIG:{ runtime:"local" },
     fetch:async (url) => { calls.push(String(url)); return { ok:true, status:200 }; },
   };
   vm.runInNewContext(gateScript, {
@@ -567,8 +567,8 @@ test("opt-in browser editing opens stored Canvas without a device and keeps host
   await flush();
   assert.equal(run.gate.hidden,true);
   assert.deepEqual(run.opened,[CANVAS_ID]);
-  assert.equal(run.window.PENECHO_CONFIG.browserCanvasEditing,true);
-  assert.equal(run.window.PENECHO_CONFIG.canvasAgent,false);
+  assert.equal(run.window.FASTLECTURES_CONFIG.browserCanvasEditing,true);
+  assert.equal(run.window.FASTLECTURES_CONFIG.canvasAgent,false);
   const settings = await run.window.fetch("/api/settings");
   assert.deepEqual((await settings.json()).connections,[]);
   const forbidden = await run.window.fetch("/api/canvas-agent/files");
@@ -609,10 +609,10 @@ test("Remote Canvas fetch wrapper preserves the Canvas base URL on nested commun
   assert.equal(run.fetchCalls.at(-1).url, "/canvas/plugins/weather/plugin.md?v=abc123");
   assert.doesNotMatch(run.fetchCalls.at(-1).url, /^\/canvas\/community\/plugins\//);
 
-  await run.window.fetch(new URL("plugins/stocks/plugin.md", "https://cloud.penecho.test/canvas/"));
+  await run.window.fetch(new URL("plugins/stocks/plugin.md", "https://cloud.fastlectures.test/canvas/"));
   assert.equal(run.fetchCalls.at(-1).url, "/canvas/plugins/stocks/plugin.md");
 
-  await run.window.fetch(new Request("https://cloud.penecho.test/canvas/plugins/flowchart/plugin.md"));
+  await run.window.fetch(new Request("https://cloud.fastlectures.test/canvas/plugins/flowchart/plugin.md"));
   assert.equal(run.fetchCalls.at(-1).url, "/canvas/plugins/flowchart/plugin.md");
 
   await run.window.fetch("plugins/private/air-quality/plugin.md");
@@ -638,9 +638,9 @@ test("Remote Canvas gate stays compact, accessible and mobile-friendly", () => {
 test("fresh account status restores a hosted Agent capability missing from cached boot config",async()=>{
   const run=boot({nativeReads:true,respond:()=>({device:null,account:{name:'UAT user',credits:995.3},capabilities:{hostedCanvasAgent:true}})});
   await flush();
-  assert.equal(run.window.PENECHO_CONFIG.hostedCanvasAgent,true);
-  assert.equal(run.window.PENECHO_CONFIG.canvasAgent,false);
-  assert.equal(run.window.PENECHO_REMOTE_CLOUD_STATUS.credits,995.3);
+  assert.equal(run.window.FASTLECTURES_CONFIG.hostedCanvasAgent,true);
+  assert.equal(run.window.FASTLECTURES_CONFIG.canvasAgent,false);
+  assert.equal(run.window.FASTLECTURES_REMOTE_CLOUD_STATUS.credits,995.3);
   assert.equal(run.gate.hidden,true);
   assert.deepEqual(run.opened,[CANVAS_ID]);
 });
@@ -649,20 +649,20 @@ for (const mode of ["online", "offline", "absent", "denied"]) {
   test(`Legacy Widget parent public fetch uses authoritative pinned device: ${mode}`, async () => {
     const replies = [], deviceId = "123e4567-e89b-42d3-a456-426614174001";
     const source = { postMessage:(message, origin) => replies.push({ message, origin }) };
-    const frame = { contentWindow:source, src:"https://cloud.penecho.test/canvas/widget-host.html?remote-canvas=1" };
+    const frame = { contentWindow:source, src:"https://cloud.fastlectures.test/canvas/widget-host.html?remote-canvas=1" };
     const run = boot({ nativeReads:false, widgetFrames:[frame],
       respond:() => ({ device:mode === "absent" ? null : { id:deviceId, online:mode !== "offline", name:"Pinned host", platform:"mac" } }),
       fetchResponse:(url) => url.startsWith("/api/v1/remote-canvas/http") && ["offline", "denied"].includes(mode)
         ? Response.json({ error:mode === "offline" ? "device_offline" : "forbidden" }, { status:mode === "offline" ? 409 : 403 })
-        : new Response("public bytes", { headers:{ "content-type":"text/plain", "x-penecho-upstream-status":"201" } }),
+        : new Response("public bytes", { headers:{ "content-type":"text/plain", "x-fastlectures-upstream-status":"201" } }),
     });
     await flush();
-    run.window.dispatchMessage({ type:"penecho-widget-capture-ready" }, source);
-    run.window.dispatchMessage({ type:"penecho-widget-host-public-fetch", requestId:"widget-fetch-1", url:"https://example.org/data?a=b" }, source);
+    run.window.dispatchMessage({ type:"fastlectures-widget-capture-ready" }, source);
+    run.window.dispatchMessage({ type:"fastlectures-widget-host-public-fetch", requestId:"widget-fetch-1", url:"https://example.org/data?a=b" }, source);
     await flush();
     const calls = run.fetchCalls.filter(call => !call.url.startsWith("/api/v1/remote-canvas/status"));
     assert.equal(calls.length, mode === "offline" ? 2 : 1);
-    const first = new URL(calls[0].url, "https://cloud.penecho.test");
+    const first = new URL(calls[0].url, "https://cloud.fastlectures.test");
     assert.equal(first.pathname, mode === "absent" ? "/api/v1/widget-fetch" : "/api/v1/remote-canvas/http");
     if (mode !== "absent") {
       assert.equal(first.searchParams.get("deviceId"), deviceId);
@@ -670,7 +670,7 @@ for (const mode of ["online", "offline", "absent", "denied"]) {
     }
     for (const call of calls) { assert.equal(call.options.method, "GET"); assert.equal(call.options.body, undefined); }
     assert.equal(replies.length, 1);
-    assert.equal(replies[0].origin, "https://cloud.penecho.test");
+    assert.equal(replies[0].origin, "https://cloud.fastlectures.test");
     assert.equal(replies[0].message.status, mode === "denied" ? 403 : 200);
     if (mode !== "denied") assert.equal(new TextDecoder().decode(replies[0].message.body), "public bytes");
   });
@@ -679,7 +679,7 @@ for (const mode of ["online", "offline", "absent", "denied"]) {
 test("Widget parent refuses foreign origin and unowned frames", async () => {
   const source = { postMessage:() => {} }, run = boot({ nativeReads:true });
   await flush();
-  const message = { type:"penecho-widget-host-public-fetch", requestId:"widget-fetch-1", url:"https://example.org/data" };
+  const message = { type:"fastlectures-widget-host-public-fetch", requestId:"widget-fetch-1", url:"https://example.org/data" };
   run.window.dispatchMessage(message, source);
   run.window.dispatchMessage(message, source, "https://other.test");
   await flush();
@@ -692,10 +692,10 @@ test("Cloud-native editing adds pinned device capabilities while retaining Cloud
     respond:() => ({ device:{ id:deviceId, online:true, ready:true, capabilities:{canvasAgent:true} } }),
   });
   await flush();
-  assert.equal(run.window.PENECHO_CONFIG.browserCanvasEditing, true);
-  assert.equal(run.window.PENECHO_CONFIG.linkedDeviceOnline, true);
-  assert.equal(run.window.PENECHO_CONFIG.linkedDeviceLinked, true);
-  assert.equal(run.window.PENECHO_CONFIG.canvasAgent, true);
+  assert.equal(run.window.FASTLECTURES_CONFIG.browserCanvasEditing, true);
+  assert.equal(run.window.FASTLECTURES_CONFIG.linkedDeviceOnline, true);
+  assert.equal(run.window.FASTLECTURES_CONFIG.linkedDeviceLinked, true);
+  assert.equal(run.window.FASTLECTURES_CONFIG.canvasAgent, true);
   for (const [endpoint, options] of [
     ["/api/settings", {}], ["/api/settings/connections", {}],
     ["/api/canvases", {}], ["/api/canvas-projects", {}],
@@ -704,7 +704,7 @@ test("Cloud-native editing adds pinned device capabilities while retaining Cloud
     ["/api/plugins/improve", { method:"POST", body:'{"prompt":"Improve"}' }],
   ]) {
     await run.window.fetch(endpoint, options);
-    const call = run.fetchCalls.at(-1), url = new URL(call.url, "https://cloud.penecho.test");
+    const call = run.fetchCalls.at(-1), url = new URL(call.url, "https://cloud.fastlectures.test");
     assert.equal(url.pathname, "/api/v1/remote-canvas/http");
     assert.equal(url.searchParams.get("path"), endpoint);
     assert.equal(url.searchParams.get("deviceId"), deviceId);
@@ -721,8 +721,8 @@ test("Cloud-native editing adds pinned device capabilities while retaining Cloud
   await run.window.fetch("/api/mcp/status");
   assert.equal(run.fetchCalls.at(-1).url, `/api/v1/remote-canvas/mcp/status?deviceId=${deviceId}`);
   await run.window.fetch("/api/v1/remote-canvas/http?path=%2Fapi%2Fsettings&deviceId=other-device");
-  assert.equal(new URL(run.fetchCalls.at(-1).url, "https://cloud.penecho.test").searchParams.get("deviceId"), deviceId);
-  await run.window.fetch("/api/ai/command", { method:"POST", headers:{ "x-penecho-connection":`hosted:${HOSTED_MODEL_ID}` }, body:"{}" });
+  assert.equal(new URL(run.fetchCalls.at(-1).url, "https://cloud.fastlectures.test").searchParams.get("deviceId"), deviceId);
+  await run.window.fetch("/api/ai/command", { method:"POST", headers:{ "x-fastlectures-connection":`hosted:${HOSTED_MODEL_ID}` }, body:"{}" });
   assert.equal(run.fetchCalls.at(-1).url, "/api/v1/hosted/commands");
 });
 
@@ -731,10 +731,10 @@ test("Cloud-native host capability requires a valid online pinned device", async
   for (const device of [null, { id:deviceId, online:false }, { id:"", online:true, ready:true, capabilities:{canvasAgent:true} }, { id:"invalid", online:true, ready:true, capabilities:{canvasAgent:true} }]) {
     const run = boot({ nativeReads:true, respond:() => ({ device }) });
     await flush();
-    assert.equal(run.window.PENECHO_CONFIG.browserCanvasEditing, true);
-    assert.equal(run.window.PENECHO_CONFIG.linkedDeviceLinked, Boolean(device));
-    assert.equal(run.window.PENECHO_CONFIG.linkedDeviceOnline, false);
-    assert.equal(run.window.PENECHO_CONFIG.canvasAgent, false);
+    assert.equal(run.window.FASTLECTURES_CONFIG.browserCanvasEditing, true);
+    assert.equal(run.window.FASTLECTURES_CONFIG.linkedDeviceLinked, Boolean(device));
+    assert.equal(run.window.FASTLECTURES_CONFIG.linkedDeviceOnline, false);
+    assert.equal(run.window.FASTLECTURES_CONFIG.canvasAgent, false);
     for (const endpoint of ["/api/canvases", "/api/canvas-projects", "/api/canvas-agent/files", "/api/ai/command", "/api/plugins/improve", "/api/settings/connections"]) {
       const response = await run.window.fetch(endpoint, { method:"POST", body:"{}" });
       assert.equal(response.status, 409);
@@ -751,20 +751,20 @@ test("linked device refresh recovers without reopening and never switches the pi
   const run = boot({ nativeReads:true, respond:() => ({ device }) });
   await flush();
   device = { id:SAVED_CANVAS_ID, online:true, ready:true, capabilities:{canvasAgent:true} };
-  const first = run.window.PenEchoLinkedDevice.refresh();
-  assert.equal(first, run.window.PenEchoLinkedDevice.refresh(), "concurrent refreshes share one owner");
+  const first = run.window.FastLecturesLinkedDevice.refresh();
+  assert.equal(first, run.window.FastLecturesLinkedDevice.refresh(), "concurrent refreshes share one owner");
   await first;
-  assert.equal(run.window.PENECHO_CONFIG.canvasAgent, true);
+  assert.equal(run.window.FASTLECTURES_CONFIG.canvasAgent, true);
   await run.window.fetch("/api/settings");
-  assert.equal(new URL(run.fetchCalls.at(-1).url, "https://cloud.penecho.test").searchParams.get("deviceId"), SAVED_CANVAS_ID);
+  assert.equal(new URL(run.fetchCalls.at(-1).url, "https://cloud.fastlectures.test").searchParams.get("deviceId"), SAVED_CANVAS_ID);
   device = { id:CURRENT_CANVAS_ID, online:true, ready:true, capabilities:{canvasAgent:true} };
-  await run.window.PenEchoLinkedDevice.refresh();
-  assert.equal(run.window.PENECHO_CONFIG.linkedDeviceOnline, false);
-  assert.equal(run.window.PENECHO_REMOTE_CLOUD_STATUS.deviceId, SAVED_CANVAS_ID);
+  await run.window.FastLecturesLinkedDevice.refresh();
+  assert.equal(run.window.FASTLECTURES_CONFIG.linkedDeviceOnline, false);
+  assert.equal(run.window.FASTLECTURES_REMOTE_CLOUD_STATUS.deviceId, SAVED_CANVAS_ID);
   assert.equal((await run.window.fetch("/api/canvases")).status, 409);
   device = { id:SAVED_CANVAS_ID, online:true, ready:true, capabilities:{canvasAgent:true} };
-  await run.window.PenEchoLinkedDevice.refresh();
-  assert.equal(run.window.PENECHO_CONFIG.canvasAgent, true);
+  await run.window.FastLecturesLinkedDevice.refresh();
+  assert.equal(run.window.FASTLECTURES_CONFIG.canvasAgent, true);
   assert.deepEqual(run.opened, [CANVAS_ID]);
 });
 
@@ -774,21 +774,21 @@ test("device offline relay errors revoke host capabilities until an explicit ref
   });
   await flush();
   await run.window.fetch("/api/canvases");
-  assert.equal(run.window.PENECHO_CONFIG.linkedDeviceOnline, false);
-  assert.equal(run.window.PENECHO_CONFIG.canvasAgent, false);
+  assert.equal(run.window.FASTLECTURES_CONFIG.linkedDeviceOnline, false);
+  assert.equal(run.window.FASTLECTURES_CONFIG.canvasAgent, false);
   const before = run.fetchCalls.length;
   assert.equal((await run.window.fetch("/api/canvases")).status, 409);
   assert.equal(run.fetchCalls.length, before);
-  await run.window.PenEchoLinkedDevice.refresh();
-  assert.equal(run.window.PENECHO_CONFIG.canvasAgent, true);
+  await run.window.FastLecturesLinkedDevice.refresh();
+  assert.equal(run.window.FASTLECTURES_CONFIG.canvasAgent, true);
 });
 
 test("Cloud plugin ownership is unchanged for hosted improvement and catalog mutations", async () => {
   const run = boot({ nativeReads:true, respond:() => ({ device:{ id:SAVED_CANVAS_ID, online:true, ready:true, capabilities:{canvasAgent:true} } }) });
   await flush();
-  await run.window.fetch("/api/plugins/improve", { method:"POST", headers:{ "x-penecho-connection":`hosted:${HOSTED_MODEL_ID}` }, body:"{}" });
+  await run.window.fetch("/api/plugins/improve", { method:"POST", headers:{ "x-fastlectures-connection":`hosted:${HOSTED_MODEL_ID}` }, body:"{}" });
   assert.equal(run.fetchCalls.at(-1).url, "/api/plugins/improve");
-  assert.equal(run.fetchCalls.at(-1).options.headers.get("x-penecho-device"), SAVED_CANVAS_ID);
+  assert.equal(run.fetchCalls.at(-1).options.headers.get("x-fastlectures-device"), SAVED_CANVAS_ID);
   await run.window.fetch("/api/plugins", { method:"POST", body:"{}" });
   assert.equal(run.fetchCalls.at(-1).url, "/api/plugins");
 });
@@ -801,12 +801,12 @@ test("linked device status timeout releases refresh and permits recovery", async
   });
   await flush();
   hang = true;
-  await assert.rejects(run.window.PenEchoLinkedDevice.refresh(), /timed out/);
-  assert.equal(run.window.PENECHO_CONFIG.linkedDeviceOnline, false);
+  await assert.rejects(run.window.FastLecturesLinkedDevice.refresh(), /timed out/);
+  assert.equal(run.window.FASTLECTURES_CONFIG.linkedDeviceOnline, false);
   assert.equal(run.fetchCalls.at(-1).options.signal.aborted, true);
   hang = false;
-  await run.window.PenEchoLinkedDevice.refresh();
-  assert.equal(run.window.PENECHO_CONFIG.linkedDeviceOnline, true);
+  await run.window.FastLecturesLinkedDevice.refresh();
+  assert.equal(run.window.FASTLECTURES_CONFIG.linkedDeviceOnline, true);
 });
 
 
@@ -815,24 +815,24 @@ test("Cloud opens and fetches Widget data before device discovery resolves", asy
   const pending = new Promise(resolve => { release = resolve; });
   const replies = [];
   const source = { postMessage:message => replies.push(message) };
-  const frame = { contentWindow:source, src:"https://cloud.penecho.test/canvas/widget-host.html" };
+  const frame = { contentWindow:source, src:"https://cloud.fastlectures.test/canvas/widget-host.html" };
   const run = boot({ nativeReads:true, respond:() => pending, widgetFrames:[frame],
     fetchResponse:() => new Response("public data") });
-  const concurrentRefresh = run.window.PenEchoLinkedDevice.refresh();
+  const concurrentRefresh = run.window.FastLecturesLinkedDevice.refresh();
   await flush();
   assert.deepEqual(run.opened, [CANVAS_ID], "device discovery must not delay document retrieval");
-  run.window.dispatchMessage({type:"penecho-widget-host-public-fetch",requestId:"widget-fetch-2",url:"https://example.org/data"},source);
+  run.window.dispatchMessage({type:"fastlectures-widget-host-public-fetch",requestId:"widget-fetch-2",url:"https://example.org/data"},source);
   await flush();
   assert.equal(replies.length,1,"public Widget data must not wait for a device");
   assert.equal(run.fetchCalls.filter(call=>call.url.startsWith("/api/v1/widget-fetch")).length,1);
-  run.window.dispatchMessage({type:"penecho-widget-capture-ready"},source);
+  run.window.dispatchMessage({type:"fastlectures-widget-capture-ready"},source);
   await flush();
   assert.equal(run.gate.hidden,true,"ready Cloud content must be revealed while discovery is pending");
   release({device:{id:SAVED_CANVAS_ID,online:true, ready:true, capabilities:{canvasAgent:true}}});
   await concurrentRefresh;
   await flush();
   assert.equal(run.fetchCalls.filter(call=>call.url.startsWith("/api/v1/remote-canvas/status")).length,1,"startup consumers must share device discovery");
-  assert.equal(run.window.PENECHO_CONFIG.linkedDeviceOnline,true);
+  assert.equal(run.window.FASTLECTURES_CONFIG.linkedDeviceOnline,true);
   await run.window.fetch("/api/canvases");
   assert.ok(run.fetchCalls.some(call=>call.url.includes("deviceId="+SAVED_CANVAS_ID)));
   assert.deepEqual(run.opened,[CANVAS_ID],"late capabilities must not reopen the document");
@@ -843,7 +843,7 @@ test("device discovery failure leaves a successfully opened Cloud document usabl
   await flush();
   assert.equal(run.gate.hidden,true);
   assert.deepEqual(run.opened,[CANVAS_ID]);
-  assert.equal(run.window.PENECHO_CONFIG.browserCanvasEditing,true);
+  assert.equal(run.window.FASTLECTURES_CONFIG.browserCanvasEditing,true);
   await run.window.fetch("/api/cloud/library");
   assert.equal(run.fetchCalls.at(-1).url,"/api/cloud/library");
 });
@@ -852,8 +852,8 @@ test("device discovery failure leaves a successfully opened Cloud document usabl
   const run=boot({nativeReads:true,respond:()=>({device:{id:SAVED_CANVAS_ID,online:true, ready:true, capabilities:{canvasAgent:true}}})});
   await flush();
   const before=run.fetchCalls.filter(c=>c.url==="/api/v1/remote-canvas/status").length;
-  await run.window.PenEchoLinkedDevice.refresh({ifNeeded:true});
-  await run.window.PenEchoLinkedDevice.refresh({ifNeeded:true});
+  await run.window.FastLecturesLinkedDevice.refresh({ifNeeded:true});
+  await run.window.FastLecturesLinkedDevice.refresh({ifNeeded:true});
   assert.equal(run.fetchCalls.filter(c=>c.url==="/api/v1/remote-canvas/status").length,before);
  });
  test("a linked offline device reports failure instead of a successful empty connection list", async () => {
@@ -867,10 +867,10 @@ test("device discovery failure leaves a successfully opened Cloud document usabl
 test('online without capabilities acknowledgement does not enable Agent or report Connected', async () => {
   const deviceId='123e4567-e89b-42d3-a456-426614174010';let ready=false;
   const run=boot({nativeReads:true,respond:()=>({accountId:'account-a',device:{id:deviceId,online:true,ready,capabilities:{canvasAgent:true}}})});
-  await flush();assert.equal(run.window.PENECHO_CONFIG.canvasAgent,false);assert.equal(run.window.PENECHO_REMOTE_CLOUD_STATUS.deviceReady,false);
-  assert.equal(run.window.PENECHO_CONFIG.linkedDeviceId,deviceId);assert.equal(run.window.PENECHO_CONFIG.connectionAccountId,'account-a');
-  ready=true;await run.window.PenEchoLinkedDevice.refresh();assert.equal(run.window.PENECHO_CONFIG.canvasAgent,true);assert.equal(run.window.PENECHO_REMOTE_CLOUD_STATUS.deviceReady,true);
-  run.window.PenEchoLinkedDevice.invalidate();assert.equal(run.window.PENECHO_CONFIG.linkedDeviceReady,false);assert.equal(run.window.PENECHO_CONFIG.canvasAgent,false);
+  await flush();assert.equal(run.window.FASTLECTURES_CONFIG.canvasAgent,false);assert.equal(run.window.FASTLECTURES_REMOTE_CLOUD_STATUS.deviceReady,false);
+  assert.equal(run.window.FASTLECTURES_CONFIG.linkedDeviceId,deviceId);assert.equal(run.window.FASTLECTURES_CONFIG.connectionAccountId,'account-a');
+  ready=true;await run.window.FastLecturesLinkedDevice.refresh();assert.equal(run.window.FASTLECTURES_CONFIG.canvasAgent,true);assert.equal(run.window.FASTLECTURES_REMOTE_CLOUD_STATUS.deviceReady,true);
+  run.window.FastLecturesLinkedDevice.invalidate();assert.equal(run.window.FASTLECTURES_CONFIG.linkedDeviceReady,false);assert.equal(run.window.FASTLECTURES_CONFIG.canvasAgent,false);
 });
 
 
@@ -879,8 +879,8 @@ test("draft changed while resolving execution scope never submits an old command
   const run=boot({fetchResponse:async(url)=>url==="/api/v1/hosted/draft-scopes"
     ? new Promise(resolve=>{release=()=>resolve({ok:true,status:200,json:async()=>({canvasId:SAVED_CANVAS_ID})});})
     : {ok:true,status:200,json:async()=>({})}});
-  run.window.PenEchoCloudProjects.currentExecutionScope=()=>({canvasId:active,draft:true});
-  const request=run.window.fetch("/api/ai/command",{method:"POST",headers:{"x-penecho-connection":`hosted:${HOSTED_MODEL_ID}`},body:'{}'});
+  run.window.FastLecturesCloudProjects.currentExecutionScope=()=>({canvasId:active,draft:true});
+  const request=run.window.fetch("/api/ai/command",{method:"POST",headers:{"x-fastlectures-connection":`hosted:${HOSTED_MODEL_ID}`},body:'{}'});
   active=SWITCHED_CANVAS_ID;release();
   const response=await request;assert.equal(response.status,409);
   assert.equal(run.fetchCalls.some(call=>call.url.includes('/execution-fence')||call.url==='/api/v1/hosted/commands'),false);

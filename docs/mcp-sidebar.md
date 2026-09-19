@@ -1,24 +1,24 @@
 # MCP sidebar
 
-When MCP discovery is enabled (including connection setup), Recent work opens on the MCP tab and PenEcho Agent closes without automatic restoration. Repeated connection status updates do not reopen the sidebar. The MCP tab follows All and is hidden when discovery is off; disconnecting from the selected MCP tab returns to All.
+When MCP discovery is enabled (including connection setup), Recent work opens on the MCP tab and FastLectures Agent closes without automatic restoration. Repeated connection status updates do not reopen the sidebar. The MCP tab follows All and is hidden when discovery is off; disconnecting from the selected MCP tab returns to All.
 
 The MCP list reuses the Canvas group row, thumbnail, selection, search and opening behavior. Only documents with external bindings, retained MCP sessions or live MCP sessions appear. Opening the sidebar does not acknowledge updates. Background changes update existing unread dots without regenerating thumbnails; opening the corresponding Canvas clears its marker.
 
 Design sources:
 
-- Tab strip → `penecho_design/penecho-design-language.html`, “Switch / Tab / Segmented”: existing `data-pe-control="tab"`, selected state and keyboard navigation.
+- Tab strip → `fastlectures_design/fastlectures-design-language.html`, “Switch / Tab / Segmented”: existing `data-pe-control="tab"`, selected state and keyboard navigation.
 - Canvas rows → existing Recent work / Canvases group rows and canonical content-list hierarchy; preserve preview, title and metadata geometry.
 - Update state → existing workspace unread dot and sidebar launcher indicator; no new visual component.
 
 Scope: the 071 Canvas client, generated through `node scripts/build-client.js`. Existing `mcpLocal()` capability gating remains authoritative; Cloud/viewer runtimes do not expose local discovery. No Cloud mirror sync or deployment is included.
 
-Validation (2026-09-08): 60 targeted navigator, MCP settings/runtime, workspace and build-structure tests pass. The already-running 071 runtime at port 3921 was inspected in the in-app browser at 1280px and 390px widths, in English and Chinese, and at the supported 125% interface scale. Opening MCP closed Agent and selected MCP; disabling it removed the tab. Rendered inspection found and fixed clipped Canvases text (equal-width tabs) and overlapping footer actions (inherited horizontal footer layout). Tabs now size to content and footer groups stack; the checked regions have no horizontal overflow. The temporary MCP connection was disabled, language/scale restored, and test tab closed. No PenEcho process was started.
+Validation (2026-09-08): 60 targeted navigator, MCP settings/runtime, workspace and build-structure tests pass. The already-running 071 runtime at port 3921 was inspected in the in-app browser at 1280px and 390px widths, in English and Chinese, and at the supported 125% interface scale. Opening MCP closed Agent and selected MCP; disabling it removed the tab. Rendered inspection found and fixed clipped Canvases text (equal-width tabs) and overlapping footer actions (inherited horizontal footer layout). Tabs now size to content and footer groups stack; the checked regions have no horizontal overflow. The temporary MCP connection was disabled, language/scale restored, and test tab closed. No FastLectures process was started.
 
 Creating a persistent test Canvas/session for live unread-dot inspection was rejected by automatic approval review as outside the explicit temporary-discovery authorization. No test Canvas/session was created. Unread update, isolation, persistence and clearing behavior is covered by automated tests; populated-list live MCP visual inspection remains pending authorization for those test records. Safari/iPad and Electron-specific rendering were not verified by the in-app-browser pass.
 
 ## Docked MCP selection
 
-Only an open sidebar with MCP selected occupies layout space. The sidebar is an opaque flex sibling of the Canvas viewport, which is resized by its existing ResizeObserver. MCP selection removes the narrow-screen scrim and inert state; workspace focus and Canvas selection retain the dock. Selecting All, Canvases or Agent restores the existing overlay behavior, and closing the sidebar releases its space. Canvas changes consult this exact predicate before automatically opening PenEcho Agent; the saved auto-open preference remains unchanged. Explicit Agent opening is still available.
+Only an open sidebar with MCP selected occupies layout space. The sidebar is an opaque flex sibling of the Canvas viewport, which is resized by its existing ResizeObserver. MCP selection removes the narrow-screen scrim and inert state; workspace focus and Canvas selection retain the dock. Selecting All, Canvases or Agent restores the existing overlay behavior, and closing the sidebar releases its space. Canvas changes consult this exact predicate before automatically opening FastLectures Agent; the saved auto-open preference remains unchanged. Explicit Agent opening is still available.
 
 Runtime inspection confirms 1280px width → 248px sidebar + 1032px Canvas, and 390px width → 248px sidebar + 142px Canvas, without overlapping bounds. All restores Canvas x=0. Narrow MCP does not inert the Canvas or show a scrim.
 
@@ -41,7 +41,7 @@ Open state: Canvas rows in All, Canvases and MCP share metadata that starts with
 - Closed sessions reject late mutations instead of falling back to the active Canvas.
 - Sidebar metadata explicitly distinguishes Current, Open, and Not open (当前、已打开、未打开).
 
-Design-source map: sidebar metadata → `penecho_design/penecho-design-language.html`
+Design-source map: sidebar metadata → `fastlectures_design/fastlectures-design-language.html`
 list copy/state examples, retaining existing row geometry; close confirmation →
 `#dialogs` single-column modal, reusing the existing New/Load dialog and save controls.
 Rendered checks used the existing local runtime, English desktop and 390px width,

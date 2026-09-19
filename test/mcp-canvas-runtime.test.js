@@ -3,7 +3,7 @@ const {test}=require("node:test"),assert=require("node:assert/strict"),fs=requir
 function harness(){
   const widgets=new Map(),sent=[],saved=[],captureRequests=[],listeners={},state={language:"en",userRevision:1};let next=1,captures=0;
   const document={getElementById:()=>null,querySelectorAll:()=>[]};
-  const context=vm.createContext({SIZE:32768,state,document,window:{PENECHO_CONFIG:{}},location:{origin:"http://127.0.0.1"},WebSocket:{OPEN:1},AbortController,AbortSignal,setTimeout,clearTimeout,performance,
+  const context=vm.createContext({SIZE:32768,state,document,window:{FASTLECTURES_CONFIG:{}},location:{origin:"http://127.0.0.1"},WebSocket:{OPEN:1},AbortController,AbortSignal,setTimeout,clearTimeout,performance,
     addEventListener:(type,fn)=>{listeners[type]=fn;},save:()=>saved.push(true),canvasAgentObject:id=>widgets.has(id)?{kind:"widget",item:widgets.get(id)}:null,
     canvasAgentCreate:async(args,execution)=>{const item=args.items[0],id=`widget-${next++}`,widget={id,...item,x:item.placement?.x||0,y:item.placement?.y||0,contentVersion:0,contentW:execution?.widgetContentViewport?.width||item.width,contentH:execution?.widgetContentViewport?.height||item.height,w:item.width,h:item.height,hostReady:true,renderActive:true,frame:{contentWindow:{postMessage:value=>sent.push(value)}}};widgets.set(id,widget);state.userRevision++;return{receipts:[{objectId:id}]};},
     canvasAgentBox:object=>({x:object.item.x,y:object.item.y,w:object.item.w,h:object.item.h}),requestWidgetSnapshot:()=>{captures++;throw Error("not requested");},

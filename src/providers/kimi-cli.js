@@ -9,15 +9,15 @@ const { mapKimiReasoningEffort } = require("./reasoning-effort.js");
 const MAX_CAPTURE_BYTES = 1024 * 1024;
 const MAX_PUBLIC_TEXT_PREFIX_CHARS = 16_384;
 const MAX_KIMI_TOOL_RECOVERIES = 2;
-const KIMI_AGENT_FILE = "penecho-canvas-agent.md";
+const KIMI_AGENT_FILE = "fastlectures-canvas-agent.md";
 const KIMI_AGENT_DEFINITION = `---
-name: penecho-canvas
-description: Isolated response generator for PenEcho Canvas
+name: fastlectures-canvas
+description: Isolated response generator for FastLectures Canvas
 tools: []
 subagents: []
 ---
 
-You are an isolated response generator for PenEcho Canvas. Follow the user prompt exactly and return only the requested response. Use only supplied content and images, including virtual-file read views. Even if Kimi advertises built-in tools, never invoke them or access the host, network, subagents, or environment. If the prompt contains HARNESS REQUEST.availableTools, PenEcho tool access means returning its specified Harness JSON with a listed name; Harness executes it.
+You are an isolated response generator for FastLectures Canvas. Follow the user prompt exactly and return only the requested response. Use only supplied content and images, including virtual-file read views. Even if Kimi advertises built-in tools, never invoke them or access the host, network, subagents, or environment. If the prompt contains HARNESS REQUEST.availableTools, FastLectures tool access means returning its specified Harness JSON with a listed name; Harness executes it.
 `;
 
 function normalizeKimiToolName(value) {
@@ -27,7 +27,7 @@ function normalizeKimiToolName(value) {
 
 function kimiToolRecoveryPrompt(value) {
   const name = normalizeKimiToolName(value);
-  return `ERROR: PenEcho rejected your Kimi/CLI built-in tool call (${name}). Never invoke Kimi built-ins such as ReadMediaFile, Read, Bash, MCP, or Agent. Continue the same task using only the content and images already supplied, and return exactly the response required by the original prompt. If it contains HARNESS REQUEST.availableTools, request a PenEcho tool only by returning its specified tool_call JSON with a listed name; do not execute it yourself.`;
+  return `ERROR: FastLectures rejected your Kimi/CLI built-in tool call (${name}). Never invoke Kimi built-ins such as ReadMediaFile, Read, Bash, MCP, or Agent. Continue the same task using only the content and images already supplied, and return exactly the response required by the original prompt. If it contains HARNESS REQUEST.availableTools, request a FastLectures tool only by returning its specified tool_call JSON with a listed name; do not execute it yourself.`;
 }
 
 function kimiEventToolName(event) {
@@ -353,7 +353,7 @@ function imageParts(atlasImage) {
 }
 
 async function callKimiCliSpawn({ executable = "kimi", model = null, effort = null, prompt, atlasImage = null, signal, env = process.env, onText = null, onActivity = null, onUsage = null, outputFormat = "stream-json" }) {
-  const workDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "penecho-kimi-"));
+  const workDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "fastlectures-kimi-"));
   let cleanupReady = Promise.resolve(), deferCleanup = false, caughtError = null;
   try {
     await fs.promises.chmod(workDir, 0o700).catch(() => {});
@@ -416,7 +416,7 @@ async function callKimiCanvasAgentCli(options) {
 
 function kimiAcpWorkDir() {
   const uid = typeof process.getuid === "function" ? `-${process.getuid()}` : "";
-  return path.join(os.tmpdir(), `penecho-kimi-acp-work${uid}`);
+  return path.join(os.tmpdir(), `fastlectures-kimi-acp-work${uid}`);
 }
 
 function kimiHomeFromEnv(env) {

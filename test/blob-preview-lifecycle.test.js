@@ -88,7 +88,7 @@ test("Studio navigator refreshes only the visible history tab", () => {
     refreshSource = navigator.slice(navigator.indexOf("async function refreshStudioNavigatorSource("), navigator.indexOf("function refreshStudioNavigatorSources(")),
     renderActive = functionSource(navigator, "renderActiveStudioNavigatorHistory");
 
-  assert.match(renderSnapshotLists, /PenEchoStudioNavigator\?\.render\?\.\(\)/);
+  assert.match(renderSnapshotLists, /FastLecturesStudioNavigator\?\.render\?\.\(\)/);
   assert.doesNotMatch(renderSnapshotLists, /renderWork|renderCanvases|renderAgent/);
   assert.match(refreshSource, /renderActiveStudioNavigatorHistory\(\)/);
   assert.doesNotMatch(refreshSource, /renderStudioWorkHistory\(\)|renderStudioCanvasHistory\(\)|renderStudioAgentHistory\(\)/);

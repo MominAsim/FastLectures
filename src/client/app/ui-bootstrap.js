@@ -76,7 +76,7 @@
     hideEraserToolMenu();
     document.body.classList.toggle("canvas-view-mode", enabled);
     view.classList.toggle("view-mode", enabled);
-    window.PenEchoStudioNavigator?.syncCanvasView?.(enabled);
+    window.FastLecturesStudioNavigator?.syncCanvasView?.(enabled);
     canvasViewButton.setAttribute("aria-pressed", String(enabled));
     canvasViewActions.hidden = !enabled;
     const inactiveSurfaces = view.querySelectorAll([
@@ -118,7 +118,7 @@
     requestAnimationFrame(fit);
   }
   window.addEventListener("keydown", (event) => {
-    if (!state.viewMode || document.querySelector(".penecho-cloud-overlay") || canvasNavigationTextTarget(event.target)) return;
+    if (!state.viewMode || document.querySelector(".fastlectures-cloud-overlay") || canvasNavigationTextTarget(event.target)) return;
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -640,7 +640,7 @@
     event.preventDefault();
     event.stopPropagation();
     setCanvasNavigationLocked(!state.navigationLocked);
-    void window.PenEchoStudioNavigator?.flushMcpFollow?.();
+    void window.FastLecturesStudioNavigator?.flushMcpFollow?.();
   });
   function enterAIDraftHandMode() {
     if (state.mode !== "select" && state.aiDraftReturnMode === null) state.aiDraftReturnMode = state.mode;
@@ -852,7 +852,7 @@
         : ["eraser", "area-eraser"].includes(state.eraserMode) ? state.eraserMode : "eraser";
     return selectCanvasToolMode(target, { showHint:true });
   }
-  window.addEventListener("penecho:pencil-action", (event) => {
+  window.addEventListener("fastlectures:pencil-action", (event) => {
     performCanvasPencilAction(event.detail?.action);
   });
   document.querySelectorAll("[data-mode]").forEach((button) => {
@@ -1196,7 +1196,7 @@
   };
   document.querySelector("#autoDelayRange").oninput = (event) => {
     state.autoDelayMs = Math.round(Math.max(0, Math.min(10, Number(event.target.value))) * 1000);
-    localStorage.setItem("penecho-auto-delay-ms", String(state.autoDelayMs));
+    localStorage.setItem("fastlectures-auto-delay-ms", String(state.autoDelayMs));
     updateAutoControl();
     schedule();
     keepAutoDelayControlOpen();
@@ -1349,7 +1349,7 @@
   document.querySelectorAll("[data-language]").forEach((button) => {
     button.onclick = () => {
       state.language = button.dataset.language;
-      localStorage.setItem("penecho-language", state.language);
+      localStorage.setItem("fastlectures-language", state.language);
       applyLanguage();
     };
   });
@@ -1361,7 +1361,7 @@
   });
   document.querySelector("#gridToggle").onclick = () => {
     state.gridVisible = !state.gridVisible;
-    localStorage.setItem("penecho-grid", String(state.gridVisible));
+    localStorage.setItem("fastlectures-grid", String(state.gridVisible));
     updateGridButton();
     requestRender();
   };
@@ -1459,7 +1459,7 @@
   document.querySelector("#newCanvasClose").onclick = () => {
     pendingCanvasTransition?.onCancel?.();
     pendingCanvasTransition = null;
-    window.PenEchoStudioNavigator?.cancelPendingConversation?.();
+    window.FastLecturesStudioNavigator?.cancelPendingConversation?.();
     document.querySelector("#newCanvasDialog").close("cancel");
   };
   document.querySelector("#textHelpClose").onclick = closeTextHelp;
@@ -1472,7 +1472,7 @@
     else {
       pendingCanvasTransition?.onCancel?.();
       pendingCanvasTransition = null;
-      window.PenEchoStudioNavigator?.cancelPendingConversation?.();
+      window.FastLecturesStudioNavigator?.cancelPendingConversation?.();
     }
   });
   document.querySelector("#historyName").addEventListener("keydown", (event) => {
@@ -1601,7 +1601,7 @@
   settingsConnectionQuickList?.addEventListener("click", handleConnectionAction);
   document.getElementById("settingsHostedList")?.addEventListener("click", handleConnectionAction);
   document.getElementById("settingsHostedRefresh")?.addEventListener("click", () => void loadCanvasSettings());
-  window.addEventListener("penecho:cloud-account-changed", () => void loadHostedModels({ accountChanged:true }));
+  window.addEventListener("fastlectures:cloud-account-changed", () => void loadHostedModels({ accountChanged:true }));
   void loadHostedModels();
   settingsEffortToggle?.addEventListener("click", () => settingsEffortOptions.hidden ? showSettingsEffortOptions() : hideSettingsEffortOptions());
   settingsEffort?.addEventListener("pointerdown", showSettingsEffortOptions);
@@ -1619,7 +1619,7 @@
     if (!settingsEffortCombobox?.contains(event.target)) hideSettingsEffortOptions();
     if (!document.querySelector("#settingsApiModelCombobox")?.contains(event.target)) hideApiModelOptions();
   });
-  if (window.penechoDesktop) document.querySelector(".settings-links")?.remove();
+  if (window.fastlecturesDesktop) document.querySelector(".settings-links")?.remove();
   settingsProvider?.addEventListener("change", () => {
     updateSettingsProviderFields();
     selectDefaultConnectionEffort();
@@ -1788,7 +1788,7 @@
     else requestAnimationLayerRender();
   });
 
-  window.PenEchoCommunityCanvas = Object.freeze({
+  window.FastLecturesCommunityCanvas = Object.freeze({
     widgetArtifact:communityWidgetArtifact,
     canvasArtifact:communityCanvasArtifact,
     suggestMetadata:suggestCommunityMetadata,
@@ -1799,7 +1799,7 @@
     lineageForArtifact:communityLineageForArtifact,
     markPublishedOrigin:markPublishedCommunityOrigin,
   });
-  window.PenEchoCloudProjects = Object.freeze({
+  window.FastLecturesCloudProjects = Object.freeze({
     currentExecutionScope:canvasAgentCloudExecutionScope,
     currentCanvasId:() => state.currentSnapshotLocation === "cloud" && /^[0-9a-f-]{36}$/i.test(String(state.currentSnapshotId || "")) ? state.currentSnapshotId : null,
     saveEcho:saveEchoToCloud,
@@ -1807,7 +1807,7 @@
     openCanvas:openCloudCanvas,
     confirmExternalOpen:confirmExternalCanvasOpen,
   });
-  window.penechoDesktop?.onShowConnections?.(() => {
+  window.fastlecturesDesktop?.onShowConnections?.(() => {
     selectSettingsPage("connections");
     openSettings();
   });
@@ -1824,13 +1824,13 @@
   // A Cloud deep link already identifies its document. Do not prefetch a
   // remembered Server Library (including every preview) on the opening path.
   // Opening Library itself owns its refresh through openHistoryPanel().
-  if (window.PENECHO_CONFIG?.runtime !== "viewer"
-    && !(window.PENECHO_CONFIG?.runtime === "cloud" && window.PENECHO_CONFIG?.remoteCanvasNativeReads === true)) refreshSnapshots().catch(() => {});
+  if (window.FASTLECTURES_CONFIG?.runtime !== "viewer"
+    && !(window.FASTLECTURES_CONFIG?.runtime === "cloud" && window.FASTLECTURES_CONFIG?.remoteCanvasNativeReads === true)) refreshSnapshots().catch(() => {});
   fit();
   setNavigating(true);
   scheduleAIOrbIdle();
-  if(window.PENECHO_CONFIG?.runtime!=="viewer")void canvasDocumentsReady().catch(error=>canvasDocumentsReport(error,()=>canvasDocumentsReady()));
+  if(window.FASTLECTURES_CONFIG?.runtime!=="viewer")void canvasDocumentsReady().catch(error=>canvasDocumentsReport(error,()=>canvasDocumentsReady()));
   requestAnimationFrame(() => {
-    if (window.PENECHO_CONFIG?.runtime !== "viewer") void loadCanvasSettings().finally(maybeStartOnboarding);
+    if (window.FASTLECTURES_CONFIG?.runtime !== "viewer") void loadCanvasSettings().finally(maybeStartOnboarding);
   });
 })();

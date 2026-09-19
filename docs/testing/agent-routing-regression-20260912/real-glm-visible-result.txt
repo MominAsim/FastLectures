@@ -1,8 +1,8 @@
-Browser tab: 9, Title: "PenEcho | Handwritten AI Canvas", URL: "http://127.0.0.1:3939/".
-1 AXWebArea PenEcho | Handwritten AI Canvas, URL: 127.0.0.1:3939/
+Browser tab: 9, Title: "FastLectures | Handwritten AI Canvas", URL: "http://127.0.0.1:3939/".
+1 AXWebArea FastLectures | Handwritten AI Canvas, URL: 127.0.0.1:3939/
 	2 container
 		3 container
-			4 heading PenEcho, Value: 1
+			4 heading FastLectures, Value: 1
 				5 text Pen
 				6 text Echo
 			7 container canvasDocumentMeta
@@ -13,10 +13,10 @@ Browser tab: 9, Title: "PenEcho | Handwritten AI Canvas", URL: "http://127.0.0.1
 			137 text Ready
 			13 container canvasFileActions
 				14 button Description: New, ID: newCanvasBtn
-				15 button Description: Share Canvas to PenEcho Cloud, ID: shareCanvasBtn
+				15 button Description: Share Canvas to FastLectures Cloud, ID: shareCanvasBtn
 				16 button Description: Export PNG, ID: exportPngBtn
 				17 button (collapsed) Description: Canvas Library, ID: historyBtn, Secondary Actions: Expand
-			18 button (collapsed) Description: PenEcho Cloud, Help: Open PenEcho Cloud, ID: cloudAccountBtn, Secondary Actions: Expand
+			18 button (collapsed) Description: FastLectures Cloud, Help: Open FastLectures Cloud, ID: cloudAccountBtn, Secondary Actions: Expand
 			19 button (collapsed) Description: Settings, ID: settingsBtn, Secondary Actions: Expand
 		20 container Board tools
 			21 button (collapsed) Description: Open recent work, ID: studioNavigatorToggle, Secondary Actions: Expand
@@ -47,7 +47,7 @@ Browser tab: 9, Title: "PenEcho | Handwritten AI Canvas", URL: "http://127.0.0.1
 			46 checkbox Description: Hide canvas grid, Value: 1, ID: gridToggle
 			47 container canvasAgentControl
 				48 checkbox Description: MCP Server · Make canvases discoverable to external AI, Help: Make canvases discoverable to external AI, Value: 0, ID: mcpToolbarToggle
-				49 pop up button (expanded) Description: Open PenEcho Agent, ID: canvasAgentToggle, Secondary Actions: Collapse
+				49 pop up button (expanded) Description: Open FastLectures Agent, ID: canvasAgentToggle, Secondary Actions: Collapse
 		50 container Description: Zoomable handwritten AI canvas, ID: viewport
 			51 button Description: Fit all content, ID: canvasFitContents
 			52 checkbox Description: Lock canvas navigation, Value: 0, ID: canvasNavigationLock
@@ -55,26 +55,26 @@ Browser tab: 9, Title: "PenEcho | Handwritten AI Canvas", URL: "http://127.0.0.1
 			122 container 用户登录认证时序图（JWT 签发流程）. Refine and replace this widget using its content and the current canvas
 			58 container Description: Studio assistant, ID: aiEmbodiment
 				59 button Description: Run Auto AI now, ID: aiOrb
-		60 container Description: PenEcho Agent, ID: canvasAgentPanel
-			61 splitter Description: Resize PenEcho Agent from the left edge, Value: 390, ID: canvasAgentResizeLeft
-			62 container Description: Drag to move PenEcho Agent, ID: canvasAgentHead
+		60 container Description: FastLectures Agent, ID: canvasAgentPanel
+			61 splitter Description: Resize FastLectures Agent from the left edge, Value: 390, ID: canvasAgentResizeLeft
+			62 container Description: Drag to move FastLectures Agent, ID: canvasAgentHead
 				63 container
-					64 text PenEcho Agent
+					64 text FastLectures Agent
 					138 text Ready
 				66 pop up button (collapsed) Description: Sessions on this Canvas, ID: canvasAgentHistory, Secondary Actions: Expand
-				67 button Description: New PenEcho Agent conversation, ID: canvasAgentNew
-				68 button Description: Close PenEcho Agent, ID: canvasAgentClose
+				67 button Description: New FastLectures Agent conversation, ID: canvasAgentNew
+				68 button Description: Close FastLectures Agent, ID: canvasAgentClose
 			111 container canvasAgentTranscript
 				112 container
 					113 text You 不要只返回源代码；请先在 Canvas 上以图文结合的方式创建并展示渲染后的时序图，再在聊天中返回可编辑的 Mermaid 或 PlantUML 源码，不要返回 HTML。
-				114 container PenEcho Agent
+				114 container FastLectures Agent
 					115 text 进展：正在读取画布可视化规范，随后在 Canvas 上渲染登录认证时序图并给出 Mermaid 源码。
 				116 button (collapsed) Read canvas object · visual-explorer Done, Secondary Actions: Expand
 					117 text Read canvas object · visual-explorer
 					118 text Done
-				119 container PenEcho Agent
+				119 container FastLectures Agent
 					123 text 进展：规范已确认。由于本轮未指定具体主题，我将以经典示例「JWT 登录认证」渲染时序图，含说明文字、图例与要点注释。
-				124 container PenEcho Agent
+				124 container FastLectures Agent
 					125 container
 						126 text The call was rejected because  presentation.size  cannot be combined with explicit width/height. Retrying with corrected parameters (keeping explicit width/height, dropping size preset):
 				127 container Building the canvas result. Turning confirmed content into a visible result
@@ -84,7 +84,7 @@ Browser tab: 9, Title: "PenEcho | Handwritten AI Canvas", URL: "http://127.0.0.1
 				131 button (collapsed) Create canvas content Done, Secondary Actions: Expand
 					132 text Create canvas content
 					133 text Done
-				134 container PenEcho Agent
+				134 container FastLectures Agent
 					139 text 已完成两步交付：
 					140 container
 						141 text 1. Canvas 渲染图（已应用并通过像素校验）  — Widget「用户登录认证时序图（JWT 签发流程）」已放置在画布上，图文结合包含：5 个参与者（浏览器 / Web 应用 / API 服务 / 认证服务 / 数据库）、①–⑩ 共 10 步消息（实线青色=请求，虚线灰色=响应）、激活条、角色副标签、图例，以及「安全要点」「令牌策略」两张注释卡。图中编号与下方源码步骤一一对应。
@@ -127,7 +127,7 @@ Browser tab: 9, Title: "PenEcho | Handwritten AI Canvas", URL: "http://127.0.0.1
 					155 text More
 				95 pop up button Description: Choose AI connection: glm-5.3-flash, ID: canvasAgentConnection
 					96 text glm-5.3-flash
-				97 text entry area (settable) Description: Message PenEcho Agent, ID: canvasAgentInput
+				97 text entry area (settable) Description: Message FastLectures Agent, ID: canvasAgentInput
 				98 button Description: Attach files and images, Help: Attach up to five files and images, ID: canvasAgentAttach
 				99 button (collapsed) Description: Reference a Widget, Help: Pick a Widget to reference, ID: canvasAgentReference, Secondary Actions: Expand
 				100 checkbox Description: Type with keyboard, Value: 1, ID: canvasAgentTextMode
@@ -136,4 +136,4 @@ Browser tab: 9, Title: "PenEcho | Handwritten AI Canvas", URL: "http://127.0.0.1
 				103 button Description: Send, ID: canvasAgentSend
 		104 text x 10000 · y 10000 · 50%
 
-The focused UI element is 1 AXWebArea PenEcho | Handwritten AI Canvas, URL: 127.0.0.1:3939/
+The focused UI element is 1 AXWebArea FastLectures | Handwritten AI Canvas, URL: 127.0.0.1:3939/

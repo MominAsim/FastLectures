@@ -2,7 +2,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
-  else root.PENECHO_MIXED_TEXT = api;
+  else root.FASTLECTURES_MIXED_TEXT = api;
 })(typeof globalThis === "object" ? globalThis : this, function () {
   const NAMED_TEX_COMMANDS = new Set([
     "alpha", "beta", "gamma", "delta", "epsilon", "varepsilon", "zeta", "eta", "theta", "vartheta", "iota", "kappa", "lambda", "mu", "nu", "xi", "pi", "varpi", "rho", "varrho", "sigma", "tau", "upsilon", "phi", "varphi", "chi", "psi", "omega",

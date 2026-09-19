@@ -6,7 +6,7 @@ const fs = require("node:fs"), os = require("node:os"), path = require("node:pat
 const modelId = "00000000-0000-4000-8000-000000000101";
 
 test("hosted models use local account authorization without exposing the credential to the browser", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-hosted-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-hosted-test-"));
   const originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}), defaultOrigin:"https://example.com" });
@@ -29,7 +29,7 @@ test("hosted models use local account authorization without exposing the credent
 });
 
 test("late catalog responses cannot cross a local account change", async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-hosted-race-test-"));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-hosted-race-test-"));
   const originalFetch = global.fetch;
   try {
     const connector = new CloudConnector({ stateDir, executeRequest:async () => ({}), defaultOrigin:"https://example.com" });

@@ -13,15 +13,15 @@ export function documentSessionId(session) {
 }
 
 export function validateDocumentToolArguments(name, input, session) {
-  if (!name.startsWith('penecho_')) return
-  if(name==='penecho_get_guidance')return validateToolArguments(name,input)
+  if (!name.startsWith('fastlectures_')) return
+  if(name==='fastlectures_get_guidance')return validateToolArguments(name,input)
   const id=documentSessionId(session)
   if(input?.sessionId!==undefined&&input.sessionId!==id)throw Object.assign(new Error('Omit sessionId; the host binds the current Canvas.'),{code:'SESSION_SCOPE_MISMATCH'})
-  if(name==='penecho_upload_image' && input?.attachmentId!==undefined) {
+  if(name==='fastlectures_upload_image' && input?.attachmentId!==undefined) {
     if(input.source!==undefined)throw new Error('Supply source or attachmentId, not both.')
-    if(typeof input.attachmentId!=='string'||!session.attachmentRefs?.has(input.attachmentId))throw Object.assign(new Error('Image attachment is not owned by this PenEcho Agent session.'),{code:'ATTACHMENT_SCOPE_MISMATCH'})
+    if(typeof input.attachmentId!=='string'||!session.attachmentRefs?.has(input.attachmentId))throw Object.assign(new Error('Image attachment is not owned by this FastLectures Agent session.'),{code:'ATTACHMENT_SCOPE_MISMATCH'})
     const {attachmentId,...rest}=input
-    return validateToolArguments(name,{...rest,source:'penecho-asset:'+'0'.repeat(64),sessionId:id})
+    return validateToolArguments(name,{...rest,source:'fastlectures-asset:'+'0'.repeat(64),sessionId:id})
   }
   return validateToolArguments(name,{...input,sessionId:id})
 }
@@ -31,12 +31,12 @@ export const DOCUMENT_TOOL_INSTRUCTIONS = `${CANVAS_RENDERING_ROUTING} The host 
 export function createDocumentTools(session, { wrap, output, saveImage, readImage, onGuidance } = {}) {
   const names = new Set(BOUND_CANVAS_TOOL_NAMES)
   const boundId = documentSessionId(session)
-  const bound = session.documentToolSession ||= { id:boundId, connection:null, mutationRequests:new Map(), title:'PenEcho Agent', status:'working', steps:[], events:[] }
-  return TOOLS.filter(tool=>names.has(tool.name)||tool.name==='penecho_get_guidance').map(definition=>{
+  const bound = session.documentToolSession ||= { id:boundId, connection:null, mutationRequests:new Map(), title:'FastLectures Agent', status:'working', steps:[], events:[] }
+  return TOOLS.filter(tool=>names.has(tool.name)||tool.name==='fastlectures_get_guidance').map(definition=>{
     const schema=structuredClone(definition.inputSchema)
     if (schema.properties.sessionId) schema.required=(schema.required||[]).filter(key=>key!=='sessionId')
     delete schema.properties.sessionId
-    if(definition.name==='penecho_upload_image') {
+    if(definition.name==='fastlectures_upload_image') {
       schema.required=schema.required.filter(key=>key!=='source')
       schema.properties.attachmentId={type:'string',description:'Instead of source, use an image attachmentId from this session host references. Never supply a host path.'}
       schema.oneOf=[{required:['source']},{required:['attachmentId']}]
@@ -46,7 +46,7 @@ export function createDocumentTools(session, { wrap, output, saveImage, readImag
       output, timeoutMs:45_000,
       isConcurrencySafe:()=>false,
       async execute(input, exec) {
-        if (definition.name==='penecho_get_guidance') {
+        if (definition.name==='fastlectures_get_guidance') {
           const args=validateToolArguments(definition.name,input),guidance=getAuthoringGuidance(args.id,args.detail)
           onGuidance?.(guidance)
           return guidance
@@ -54,7 +54,7 @@ export function createDocumentTools(session, { wrap, output, saveImage, readImag
         if (input?.sessionId!==undefined && input.sessionId!==boundId) throw Object.assign(new Error('This tool is bound to the current Canvas conversation. Omit sessionId.'),{code:'SESSION_SCOPE_MISMATCH'})
         validateDocumentToolArguments(definition.name,input,session)
         let args={...input,sessionId:boundId}
-        if(definition.name==='penecho_upload_image' && args.attachmentId!==undefined) {
+        if(definition.name==='fastlectures_upload_image' && args.attachmentId!==undefined) {
           const ref=session.attachmentRefs.get(args.attachmentId)
           if(typeof readImage!=='function')throw new Error('Image attachment reader is unavailable.')
           const stored=await readImage(ref,exec.signal)

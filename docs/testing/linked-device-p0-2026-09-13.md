@@ -18,7 +18,7 @@ Implementation is local only; no deployment, remote push, credential change or p
 - Final Cloud relay/remote/provider suite: 73 passed, 0 failed. Covers same-name/different-UUID selection on client; same-instance and cross-instance socket replacement; capabilities persistence/ack races; early settings requests; timeout and disconnect.
 - Hosted runtime mirror, adapter, Agent and failure-trace tests: 18 passed, 0 failed.
 - Broader earlier Canvas Agent regression: 477/478 passed. Existing `public/style.css` worktree changes to Agent panel material conflict with the old assertion in `test/canvas-agent-activity.test.js`; this repair does not alter that CSS or weaken that assertion.
-- Isolated Chromium rendering with mocked network: English wide, Chinese narrow, and 2x-scale equivalent viewport. No page exceptions in the final pass; draft retained and actionable recovery text visible. No PenEcho application service was started. The browser was closed after verification.
+- Isolated Chromium rendering with mocked network: English wide, Chinese narrow, and 2x-scale equivalent viewport. No page exceptions in the final pass; draft retained and actionable recovery text visible. No FastLectures application service was started. The browser was closed after verification.
 - Client generator/check, syntax and diff checks passed. Impeccable detector reported no findings for the changed interaction files.
 - Reviewed selective sync/check passed for public Canvas app, remote bridge, Cloud controls and Chinese locale, plus shared Agent router/peer/runtime. Existing unrelated mirrors were preserved.
 

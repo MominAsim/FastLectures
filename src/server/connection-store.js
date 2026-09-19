@@ -19,7 +19,7 @@ function readStoredFile(file) {
   catch (error) { if (error instanceof SyntaxError) throw new Error("AI connection storage contains malformed JSON; repair connections.json before saving."); throw error; }
 }
 function writeConnectionStore(file, store) {
-  if (!file) throw new Error("This PenEcho process does not have writable connection storage.");
+  if (!file) throw new Error("This FastLectures process does not have writable connection storage.");
   validateStore(store);
   // Never turn a damaged existing file into an apparently successful empty save.
   try { readStoredFile(file); } catch (error) { if (error.code !== "ENOENT") throw error; }
@@ -52,11 +52,11 @@ function isUsableConnection(connection) {
   try { const url = new URL(connection.apiUrl); return ["https:", "http:"].includes(url.protocol) && Boolean(url.hostname) && !url.username && !url.password; } catch { return false; }
 }
 function connectionEnvironment(connection) {
-  const values = Object.fromEntries(["AI_PROVIDER", "AI_API_FORMAT", "AI_API_URL", "AI_API_MODEL", "AI_API_KEY", "AI_EFFORT", "PENECHO_API_PRESET", "OPENAI_API_FORMAT", "OPENAI_API_URL", "OPENAI_MODEL", "OPENAI_API_KEY", "KIMI_CLI_MODEL", "KIMI_CLI_PATH", "CODEX_CLI_MODEL", "CODEX_CLI_PATH", "CLAUDE_CLI_MODEL", "CLAUDE_CLI_PATH"].map(key => [key, ""]));
+  const values = Object.fromEntries(["AI_PROVIDER", "AI_API_FORMAT", "AI_API_URL", "AI_API_MODEL", "AI_API_KEY", "AI_EFFORT", "FASTLECTURES_API_PRESET", "OPENAI_API_FORMAT", "OPENAI_API_URL", "OPENAI_MODEL", "OPENAI_API_KEY", "KIMI_CLI_MODEL", "KIMI_CLI_PATH", "CODEX_CLI_MODEL", "CODEX_CLI_PATH", "CLAUDE_CLI_MODEL", "CLAUDE_CLI_PATH"].map(key => [key, ""]));
   if (!connection) return values;
   values.AI_PROVIDER = connection.provider || "";
   values.AI_EFFORT = connection.effort || "";
-  if (connection.provider === "api") Object.assign(values, { AI_API_FORMAT:connection.apiFormat || "", AI_API_URL:connection.apiUrl || "", AI_API_MODEL:connection.apiModel || "", AI_API_KEY:connection.apiKey || "", PENECHO_API_PRESET:connection.apiPreset || "" });
+  if (connection.provider === "api") Object.assign(values, { AI_API_FORMAT:connection.apiFormat || "", AI_API_URL:connection.apiUrl || "", AI_API_MODEL:connection.apiModel || "", AI_API_KEY:connection.apiKey || "", FASTLECTURES_API_PRESET:connection.apiPreset || "" });
   const prefix = { "kimi-cli":"KIMI_CLI", "codex-cli":"CODEX_CLI", "claude-cli":"CLAUDE_CLI" }[connection.provider];
   if (prefix) Object.assign(values, { [`${prefix}_MODEL`]:connection.cliModel || "", [`${prefix}_PATH`]:connection.cliPath || connection.provider.replace("-cli", "") });
   return values;
@@ -69,7 +69,7 @@ function withConnectionOverride(store, override = {}) {
   if (!["api", "kimi-cli", "codex-cli", "claude-cli"].includes(provider)) return store;
   const prefix = { "kimi-cli":"KIMI_CLI", "codex-cli":"CODEX_CLI", "claude-cli":"CLAUDE_CLI" }[provider];
   const connection = { id:first?.id || "cli-override", provider, effort:env.AI_EFFORT || "",
-    ...(provider === "api" ? { apiFormat:env.AI_API_FORMAT, apiUrl:env.AI_API_URL, apiModel:env.AI_API_MODEL, apiKey:env.AI_API_KEY, apiPreset:env.PENECHO_API_PRESET } : { cliModel:env[`${prefix}_MODEL`] || "", cliPath:env[`${prefix}_PATH`] || provider.replace("-cli", "") }) };
+    ...(provider === "api" ? { apiFormat:env.AI_API_FORMAT, apiUrl:env.AI_API_URL, apiModel:env.AI_API_MODEL, apiKey:env.AI_API_KEY, apiPreset:env.FASTLECTURES_API_PRESET } : { cliModel:env[`${prefix}_MODEL`] || "", cliPath:env[`${prefix}_PATH`] || provider.replace("-cli", "") }) };
   return { ...store, connections:[connection, ...store.connections.slice(1)] };
 }
 module.exports = { CONNECTION_STORE_VERSION, readConnectionStore, writeConnectionStore, isUsableConnection, connectionEnvironment, withConnectionOverride };

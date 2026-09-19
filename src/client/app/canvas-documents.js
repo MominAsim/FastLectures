@@ -1,36 +1,36 @@
   // One visible Canvas; inactive documents contain data, never hidden iframe trees.
   // Ordinary saves carry this extension in bundle V2. This is not version history.
   var canvasDocuments = { records:new Map(), activeId:null, ready:null, db:null, switching:false, epoch:0, error:null, retry:null, receipts:new Map(), write:Promise.resolve() };
-  const CANVAS_DOCUMENT_EXTENSION = "penechoDocument", CANVAS_WORKSPACE_EXTENSION = "penechoWorkspace", CANVAS_DOCUMENT_LIMIT = 64;
+  const CANVAS_DOCUMENT_EXTENSION = "fastlecturesDocument", CANVAS_WORKSPACE_EXTENSION = "fastlecturesWorkspace", CANVAS_DOCUMENT_LIMIT = 64;
   const CANVAS_IMAGE_ASSET_TYPE="image-attachment", CANVAS_IMAGE_ASSET_LIMIT=64, CANVAS_IMAGE_ASSET_BYTES=16000000;
   function canvasImageAssets(doc=canvasDocumentsCurrent()) {
     return (canvasDocumentsIsActive(doc)?state.currentSnapshotPreservedAssets:doc.stored?.item?.preservedAssets)||[];
   }
   function canvasImageAssetMetadata(asset) {
-    return {assetId:asset.metadata.resourceId,source:`penecho-asset:${asset.metadata.resourceId}`,name:asset.metadata.name,mediaType:asset.contentType,bytes:asset.metadata.bytes,width:asset.metadata.width,height:asset.metadata.height};
+    return {assetId:asset.metadata.resourceId,source:`fastlectures-asset:${asset.metadata.resourceId}`,name:asset.metadata.name,mediaType:asset.contentType,bytes:asset.metadata.bytes,width:asset.metadata.width,height:asset.metadata.height};
   }
   function canvasImageAsset(doc,source) {
-    const id=/^penecho-asset:([a-f0-9]{64})$/.exec(source)?.[1];
+    const id=/^fastlectures-asset:([a-f0-9]{64})$/.exec(source)?.[1];
     const asset=id&&canvasImageAssets(doc).find(a=>a.kind==="resource"&&a.metadata?.resourceType===CANVAS_IMAGE_ASSET_TYPE&&a.metadata.resourceId===id);
     if(!asset)throw canvasDocumentsError("RESOURCE_NOT_FOUND","Image attachment is not in this Canvas. Upload it to this session first.");
     return asset;
   }
   function canvasImageAssetsForHtml(html,doc=canvasDocumentsCurrent()) {
-    const sources=[...new Set(String(html||"").match(/penecho-asset:[a-f0-9]{64}/g)||[])],result={};
+    const sources=[...new Set(String(html||"").match(/fastlectures-asset:[a-f0-9]{64}/g)||[])],result={};
     let total=0;
     for(const source of sources){const asset=canvasImageAsset(doc,source),data=`data:${asset.contentType};base64,${asset.dataBase64}`;
       if(!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(data)||data.length>800000||(total+=data.length)>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("INVALID_IMAGE","The Widget image attachments exceed the supported limits.");
       result[source]=data;
     }
     let expanded=String(html||"").length;
-    for(const source of String(html||"").match(/penecho-asset:[a-f0-9]{64}/g)||[])if((expanded+=result[source].length-source.length)>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("ASSET_LIMIT","Widget image expansion exceeds the supported limit.");
+    for(const source of String(html||"").match(/fastlectures-asset:[a-f0-9]{64}/g)||[])if((expanded+=result[source].length-source.length)>CANVAS_IMAGE_ASSET_BYTES)throw canvasDocumentsError("ASSET_LIMIT","Widget image expansion exceeds the supported limit.");
     return result;
   }
   async function canvasImageSource(doc,source) {
     let blob;
     if(typeof source!=="string")throw canvasDocumentsError("INVALID_IMAGE","An image source is required.");
-    if(source.startsWith("penecho-asset:")){const asset=canvasImageAsset(doc,source);blob=dataUrlBlob(`data:${asset.contentType};base64,${asset.dataBase64}`);}
-    else if(source.startsWith("penecho-ref:")){const match=/^penecho-ref:objects\/([^/]+)\/image$/.exec(source),object=match&&canvasDocumentsObject(doc,decodeURIComponent(match[1]));if(object?.kind!=="image")throw canvasDocumentsError("RESOURCE_NOT_FOUND","Use an image reference from this Canvas.");blob=object.item.blob;}
+    if(source.startsWith("fastlectures-asset:")){const asset=canvasImageAsset(doc,source);blob=dataUrlBlob(`data:${asset.contentType};base64,${asset.dataBase64}`);}
+    else if(source.startsWith("fastlectures-ref:")){const match=/^fastlectures-ref:objects\/([^/]+)\/image$/.exec(source),object=match&&canvasDocumentsObject(doc,decodeURIComponent(match[1]));if(object?.kind!=="image")throw canvasDocumentsError("RESOURCE_NOT_FOUND","Use an image reference from this Canvas.");blob=object.item.blob;}
     else {if(source.length>800000||!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(source))throw canvasDocumentsError("INVALID_IMAGE","Use a bounded PNG, JPEG or WebP Data URL.");blob=dataUrlBlob(source);}
     if(!blob||!["image/png","image/jpeg","image/webp"].includes(blob.type)||blob.size>MAX_IMAGE_SOURCE_BYTES)throw canvasDocumentsError("INVALID_IMAGE","Image attachment exceeds the 800000-byte Data URL limit. Resize it before upload.");
     const signature=new Uint8Array(await blob.slice(0,12).arrayBuffer()),matches=blob.type==="image/png"?[137,80,78,71,13,10,26,10].every((value,index)=>signature[index]===value):blob.type==="image/jpeg"?signature[0]===255&&signature[1]===216&&signature[2]===255:[82,73,70,70].every((value,index)=>signature[index]===value)&&[87,69,66,80].every((value,index)=>signature[index+8]===value);
@@ -80,7 +80,7 @@
       if(canvasDocumentsIsActive(doc)){state.images.push(record);retained=true;}else {const {image,...stored}=record;doc.stored.item.images.push(stored);}
       canvasDocumentsEndEdit(doc,"image",record.id);
       if(!args.region&&session&&canvasDocumentsIsActive(doc))mcpQueueView(session,record);
-      return {applied:true,objectId:record.id,source:args.source.startsWith("data:")?`penecho-ref:objects/${encodeURIComponent(record.id)}/image`:args.source,revision:doc.revision};
+      return {applied:true,objectId:record.id,source:args.source.startsWith("data:")?`fastlectures-ref:objects/${encodeURIComponent(record.id)}/image`:args.source,revision:doc.revision};
     }finally{if(!retained)decoded.image.close();}
   }
   function canvasDocumentsCopy(en,zh) { return state.language === "zh" ? zh : en; }
@@ -106,7 +106,7 @@
     return record;
   }
   function canvasDocumentsMetadata(doc) {
-    return {version:1,documentId:doc.id,title:doc.title,context:doc.context||"",bindings:doc.bindings||[],locators:doc.locators||[],processor:doc.processor||{kind:"penecho"}};
+    return {version:1,documentId:doc.id,title:doc.title,context:doc.context||"",bindings:doc.bindings||[],locators:doc.locators||[],processor:doc.processor||{kind:"fastlectures"}};
   }
   function canvasDocumentsCurrent() {
     if (canvasDocuments.activeId && canvasDocuments.records.has(canvasDocuments.activeId)) return canvasDocuments.records.get(canvasDocuments.activeId);
@@ -116,7 +116,7 @@
     return doc;
   }
   function canvasDocumentsRecord(meta,stored=null) {
-    return {id:meta.documentId,title:meta.title||canvasDocumentsCopy("Untitled Canvas","未命名画布"),context:meta.context||"",bindings:meta.bindings||[],locators:meta.locators||[],processor:{kind:"penecho"},stored,
+    return {id:meta.documentId,title:meta.title||canvasDocumentsCopy("Untitled Canvas","未命名画布"),context:meta.context||"",bindings:meta.bindings||[],locators:meta.locators||[],processor:{kind:"fastlectures"},stored,
       revision:1,savedRevision:0,feedback:[],feedbackSequence:0,messages:[],messageSequence:0,changes:[],changeSequence:0,sessions:[],internalSessions:[],unseen:0,undo:[],redo:[],receipts:new Map()};
   }
   function canvasDocumentsUnseen(value) { return Number.isSafeInteger(value) && value >= 0 ? value : 0; }
@@ -152,7 +152,7 @@
   }
   async function canvasDocumentsDb() {
     if(canvasDocuments.db)return canvasDocuments.db;
-    const request=indexedDB.open("penecho-workspace-documents",1);
+    const request=indexedDB.open("fastlectures-workspace-documents",1);
     request.onupgradeneeded=()=>request.result.createObjectStore("documents",{keyPath:"id"});
     canvasDocuments.db=await canvasDocumentsBound(requestResult(request));return canvasDocuments.db;
   }
@@ -213,7 +213,7 @@
     if(canvasDocumentsIsActive(doc)) { if(doc.unseen){doc.unseen=0;canvasDocumentsRender();await canvasDocumentsPersist(doc);} return {documentId:id,active:true}; }
     if(canvasDocuments.switching||snapshotLoadInProgress||typeof snapshotSaveInProgress!=="undefined"&&snapshotSaveInProgress)throw canvasDocumentsError("CANVAS_BUSY",canvasDocumentsCopy("A Canvas is opening or saving. Retry after it finishes.","画布正在打开或保存，完成后请重试。"));
     if(state.drawing||state.widgetGesture||state.imageGesture||state.selectionGesture)throw canvasDocumentsError("CANVAS_BUSY",canvasDocumentsCopy("Finish the current gesture, then retry switching Canvas.","请完成当前操作，再重试切换画布。"));
-    if(typeof canvasAgent!=="undefined"&&(canvasAgent.running||canvasAgent.requestPending))throw canvasDocumentsError("CANVAS_BUSY",canvasDocumentsCopy("PenEcho Agent is working on this Canvas. Wait or use Stop, then retry switching.","PenEcho Agent 正在处理当前画布。请等待完成或点击停止，再重试切换。"));
+    if(typeof canvasAgent!=="undefined"&&(canvasAgent.running||canvasAgent.requestPending))throw canvasDocumentsError("CANVAS_BUSY",canvasDocumentsCopy("FastLectures Agent is working on this Canvas. Wait or use Stop, then retry switching.","FastLectures Agent 正在处理当前画布。请等待完成或点击停止，再重试切换。"));
     if(typeof canvasAgent!=="undefined"&&(canvasAgent.attachments?.length||canvasAgent.inkPresent))throw canvasDocumentsError("CANVAS_BUSY",canvasDocumentsCopy("Send or remove the Agent's attachments or handwriting before switching, then retry. Your draft is kept.","请先发送或移除 Agent 中的附件、手写输入，再重试切换。草稿已保留。"));
     canvasDocuments.switching=true;canvasDocumentsRender();
     let decoded=null;
@@ -252,7 +252,7 @@
       canvasAgentCanvasDidChange(doc.locator||{id:doc.id,location:"workspace"},{clearProject:true});
       if(typeof canvasAgentInput!=="undefined"){canvasAgentInput.value=doc.agentDraft||"";canvasAgentResizeInput();}
       doc.unseen=0;canvasDocuments.error=null;canvasDocuments.retry=null;render();canvasAgentSyncAutomaticAIStatus();mcpRenderCanvasStatus();
-      window.PenEchoStudioNavigator?.updateDocument?.();await canvasDocumentsPersist(doc);return {documentId:id,active:true};
+      window.FastLecturesStudioNavigator?.updateDocument?.();await canvasDocumentsPersist(doc);return {documentId:id,active:true};
     } finally {if(decoded?.size)releaseSnapshotTileCanvases(decoded);canvasDocuments.switching=false;canvasDocumentsRender();}
   }
   function canvasDocumentsApplyView(view) {
@@ -272,7 +272,7 @@
   }
   function canvasDocumentsSaveMetadata({copy=false}={}) {
     const doc=canvasDocumentsCurrent(),metadata=canvasDocumentsMetadata(doc);
-    if(copy){metadata.documentId=canvasDocumentsId();metadata.bindings=[];metadata.locators=[];metadata.processor={kind:"penecho"};}
+    if(copy){metadata.documentId=canvasDocumentsId();metadata.bindings=[];metadata.locators=[];metadata.processor={kind:"fastlectures"};}
     return {...snapshotCanvasObjectExtensions(),[CANVAS_DOCUMENT_EXTENSION]:metadata,[CANVAS_WORKSPACE_EXTENSION]:copy?{version:1}:canvasDocumentsWorkspaceData(doc)};
   }
   async function canvasDocumentsDidSave(item,location,storedId,tileEntries=[]) {
@@ -323,7 +323,7 @@
     const item=object.item,name=parts[2];
     if(name==="geometry.json")return json(canvasDocumentsBounds(object));
     if(object.kind==="text"&&name==="content.txt")return String(item.text||"");
-    if(object.kind==="image"&&name==="image.json")return json({id:item.id,source:`penecho-ref:objects/${encodeURIComponent(item.id)}/image`,naturalW:item.naturalW,naturalH:item.naturalH,sourceName:item.sourceName||""});
+    if(object.kind==="image"&&name==="image.json")return json({id:item.id,source:`fastlectures-ref:objects/${encodeURIComponent(item.id)}/image`,naturalW:item.naturalW,naturalH:item.naturalH,sourceName:item.sourceName||""});
     if(object.kind==="widget") {
       if(name==="widget.html"&&item.widgetType!=="diagram_source")return String(item.html||"");
       if(name==="widget.source")return String(item.widgetType==="diagram_source"?item.source||"":item.copyText||"");
@@ -572,7 +572,7 @@
       if(!widget)canvasDocumentsCapacity(doc,"widget");
       const presentation=mcpPresentation(args,previous),size=mcpPresentationSize(args,doc);
       const plan=widget?null:canvasDocumentsPlace(doc,size.width,size.height,session,presentation);
-      const record=canvasDocumentsWidgetRecord({id:widget?.id||canvasDocumentsObjectId(doc,"widget"),widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:widget?.x??plan.placement.x,y:widget?.y??plan.placement.y,w:widget?.w||size.width,h:widget?.h||size.height,contentW:widget?.contentW||size.contentWidth||size.width,contentH:widget?.contentH||size.contentHeight||size.height,refreshSeconds:0});
+      const record=canvasDocumentsWidgetRecord({id:widget?.id||canvasDocumentsObjectId(doc,"widget"),widgetType:"html_widget",pluginId:"general",sourceFormat:"fastlectures-mcp+html",title:args.title,html:args.html,x:widget?.x??plan.placement.x,y:widget?.y??plan.placement.y,w:widget?.w||size.width,h:widget?.h||size.height,contentW:widget?.contentW||size.contentWidth||size.width,contentH:widget?.contentH||size.contentHeight||size.height,refreshSeconds:0});
       if(!record)throw canvasDocumentsError("INVALID_WIDGET","Widget source is invalid. Correct it and retry.");
       canvasAgentAssertToolExecution(execution);canvasDocumentsBeginEdit(doc);
       if(widget)Object.assign(widget,record);else{widget=record;item.widgets.push(widget);session.layout=plan.layout;}
@@ -622,7 +622,7 @@
     item.images=item.images.filter(i=>!exclude.has(i.id));item.textBoxes=item.textBoxes.filter(t=>!exclude.has(t.id));
     for(const entry of records)item[entry.kind==="text"?"textBoxes":"images"].push(entry.record);
     // Store the same new-text foreground rule without touching the visible Canvas.
-    if(!previous&&records.some(entry=>entry.kind==="text"))item.bundleExtensions={...snapshotExtensionObject(item.bundleExtensions),penechoObjectOrder:{version:1,frontKind:"text-box",placedKind:"text-box"}};
+    if(!previous&&records.some(entry=>entry.kind==="text"))item.bundleExtensions={...snapshotExtensionObject(item.bundleExtensions),fastlecturesObjectOrder:{version:1,frontKind:"text-box",placedKind:"text-box"}};
     const objectIds=records.map(r=>r.record.id);session.artifacts.set(args.artifactId,{kind,title:args.title,objectId:objectIds[0],objectIds,origin,worldPerPixel,presentation:mcpPresentation(args,previous),elements:[...elements]});if(plan)session.layout=plan.layout;
     canvasDocumentsEndEdit(doc,kind);return {artifactId:args.artifactId,objectId:objectIds[0],objectIds,kind,revision:doc.revision,feedbackCursor:doc.feedbackSequence,visible:false};
   }
@@ -714,12 +714,12 @@
     canvasAgentAssertToolExecution(execution);
     if(activeId!==canvasDocuments.activeId||epoch!==canvasDocuments.epoch)throw canvasDocumentsError("CANVAS_BUSY","The Canvas changed while preparing this operation.");
     let session=mcpRuntime.sessions.get(key);
-    if(session&&(session.closed||!session.internalAgent||session.documentId!==activeId||session.client!=="PenEcho Agent"))throw canvasDocumentsError("BINDING_CONFLICT","This conversation belongs to a different Canvas.");
+    if(session&&(session.closed||!session.internalAgent||session.documentId!==activeId||session.client!=="FastLectures Agent"))throw canvasDocumentsError("BINDING_CONFLICT","This conversation belongs to a different Canvas.");
     if(!session){
       const doc=canvasDocuments.records.get(activeId);
       const conflict=[...canvasDocuments.records.values()].find(other=>other.id!==activeId&&(other.internalSessions||[]).some(saved=>saved.sessionKey===key));
       if(conflict)throw canvasDocumentsError("BINDING_CONFLICT","This conversation belongs to a different Canvas.");
-      session=canvasDocumentsSession(doc,{sessionId:key,sessionKey:key,client:"PenEcho Agent",title:"PenEcho Agent",target:"current"},{internalAgent:true});
+      session=canvasDocumentsSession(doc,{sessionId:key,sessionKey:key,client:"FastLectures Agent",title:"FastLectures Agent",target:"current"},{internalAgent:true});
       // Retain recent identities without consuming external MCP binding slots.
       const prior=[...mcpRuntime.sessions.values()].filter(s=>s.internalAgent&&s.documentId===activeId);
       if(prior.length>=64){doc.internalSessions=canvasDocumentsWorkspaceData(doc).internalSessions||[];for(const old of prior.slice(0,prior.length-63)){mcpRuntime.sessions.delete(old.sessionId);mcpRuntime.pendingView?.delete(old.sessionId);}}
@@ -823,7 +823,7 @@
       if(name==="mcp_patch_file") {
         const path=canvasDocumentsPath(args.path),source=canvasDocumentsFile(doc,path),contentHash=await canvasAgentHash(source);
         if(contentHash!==args.expectedHash)throw canvasDocumentsError("SOURCE_CONFLICT","This file changed after reading. Read it again and retry with its new hash.",{currentHash:contentHash});
-        const content=globalThis.PenEchoCanvasFilePatch.applyCanvasFilePatch(source,args.patch,path);
+        const content=globalThis.FastLecturesCanvasFilePatch.applyCanvasFilePatch(source,args.patch,path);
         result={...await canvasDocumentsApplyFile(doc,{...args,content},execution),sourcePath:path};
       }
       else if(name==="mcp_edit_canvas")result=await canvasDocumentsEdit(doc,args,execution);
@@ -851,7 +851,7 @@
             const captured=artifactId?await canvasDocumentsCaptureArtifact(doc,session,{...args,artifactId},execution):await canvasDocumentsExecute("mcp_capture_canvas",{sessionId:session.sessionId,target:result.objectId?"object":"viewport",objectId:result.objectId,quality:args.quality},execution);
             result={...result,...captured,pixelVerified:true};
           } catch(error) {
-            result={...result,pixelVerified:false,captureFailure:{code:error.code||"CAPTURE_FAILED",message:String(error.message),retryTool:"penecho_capture_canvas",retryArguments:{sessionId:session.sessionId,...(args.artifactId?{target:"artifact",artifactId:args.artifactId}:result.objectId?{target:"object",objectId:result.objectId}:{target:"viewport"})}}};
+            result={...result,pixelVerified:false,captureFailure:{code:error.code||"CAPTURE_FAILED",message:String(error.message),retryTool:"fastlectures_capture_canvas",retryArguments:{sessionId:session.sessionId,...(args.artifactId?{target:"artifact",artifactId:args.artifactId}:result.objectId?{target:"object",objectId:result.objectId}:{target:"viewport"})}}};
           }
         }
         if(args.completion&&!result.captureFailure) {
@@ -903,7 +903,7 @@
     const text=String(options.textOverride===undefined?canvasAgentInput.value:options.textOverride).trim();
     if(!text)return false;
     if(canvasAgent.attachments.length||canvasAgent.inkPresent) {
-      canvasDocumentsReport(canvasDocumentsCopy("External instructions currently support text and Canvas references. Place attachments on the Canvas, or select PenEcho Agent to send them.","外部指令目前支持文字和画布引用。请把附件放到画布上，或选择 PenEcho Agent 发送。"));return false;
+      canvasDocumentsReport(canvasDocumentsCopy("External instructions currently support text and Canvas references. Place attachments on the Canvas, or select FastLectures Agent to send them.","外部指令目前支持文字和画布引用。请把附件放到画布上，或选择 FastLectures Agent 发送。"));return false;
     }
     if(text.length>16000){canvasDocumentsReport(canvasDocumentsCopy("This instruction is too long. Shorten it and retry.","这条指令过长，请精简后重试。"));return false;}
     if(doc.messages.filter(m=>!["done","cancelled"].includes(m.status)).length>=100){canvasDocumentsReport(canvasDocumentsCopy("The external inbox is full. Finish or cancel pending messages before retrying.","外部待办已满。请先处理或取消待办，再重试。"));return false;}
@@ -923,7 +923,7 @@
   function canvasDocumentsRender() {
     const root=document.getElementById("canvasWorkspace"),doc=canvasDocuments.records.get(canvasDocuments.activeId);
     if(doc)doc.title=(typeof currentCanvasDisplayName==="function"?currentCanvasDisplayName():state.currentSnapshotName)||doc.title;
-    window.PenEchoStudioNavigator?.workspaceChanged?.();
+    window.FastLecturesStudioNavigator?.workspaceChanged?.();
     if(!root||!doc)return;
     root.hidden=false;
     const close=document.getElementById("canvasWorkspaceClose");

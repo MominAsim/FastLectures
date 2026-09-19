@@ -116,7 +116,7 @@ test("feature tour follows the requested concise order with stable targets", () 
   assert.match(app, /closeCanvasAgent\(\{ focus:false, animate:false \}\)/);
 });
 
-test("PenEcho Agent tour preview is connection-free and restores only tour-opened panels", () => {
+test("FastLectures Agent tour preview is connection-free and restores only tour-opened panels", () => {
   const app = read("public/app.js"), panel = { hidden:true }, featureTour = { canvasAgentOpenedForTour:false }, calls = [],
     sync = vm.runInNewContext(`(()=>{${functionSource(app, "syncFeatureTourPreview")}return syncFeatureTourPreview;})()`, {
       featureTour,
@@ -143,7 +143,7 @@ test("PenEcho Agent tour preview is connection-free and restores only tour-opene
 test("feature tour persists seen ids, supports replay, and repositions accessibly", () => {
   const app = read("public/app.js"),
     css = read("public/style.css");
-  assert.match(app, /FEATURE_TOUR_STORAGE_KEY = "penecho-tour-progress"/);
+  assert.match(app, /FEATURE_TOUR_STORAGE_KEY = "fastlectures-tour-progress"/);
   assert.match(app, /TOUR\.unseenSteps\(FEATURE_TOUR_STEPS, progress\)/);
   assert.match(app, /startFeatureTour\(FEATURE_TOUR_STEPS, \{ replay: true, newOnly: false \}\)/);
   assert.match(app, /markFeatureTourStepsSeen\(availableFeatureTourSteps\(FEATURE_TOUR_STEPS\)\)/);
@@ -203,13 +203,13 @@ test("1.3.0 release notes include Canvas Agent and MCP in both languages", () =>
   for (const id of ["changelogIntro", "changelogCurrentVersion", "changelogDone"]) assert.doesNotMatch(layer, new RegExp(`id="${id}"`));
   assert.match(layer, />1\.3\.0</);
   assert.doesNotMatch(layer, /class="changelog-release changelog-earlier"/);
-  assert.match(layer, /<img src="penecho-architecture\.webp"[^>]*loading="lazy"/);
-  assert.ok(read("public/penecho-architecture.webp").length > 0);
-  assert.match(app, /CHANGELOG_STORAGE_KEY = "penecho-changelog-seen"/);
+  assert.match(layer, /<img src="fastlectures-architecture\.webp"[^>]*loading="lazy"/);
+  assert.ok(read("public/fastlectures-architecture.webp").length > 0);
+  assert.match(app, /CHANGELOG_STORAGE_KEY = "fastlectures-changelog-seen"/);
   assert.match(app, /CHANGELOG_VERSION = "1\.3\.0"/);
   assert.match(app, /localStorage\.getItem\(CHANGELOG_STORAGE_KEY\) === CHANGELOG_VERSION/);
   assert.match(app, /localStorage\.setItem\(CHANGELOG_STORAGE_KEY, CHANGELOG_VERSION\)/);
-  assert.match(app, /function maybeStartOnboarding\(\)\s*\{\s*if \(window\.PENECHO_CONFIG\?\.runtime === "viewer" \|\| settings\.open\) return false;\s*if \(!maybeStartFeatureTour\(\)\) maybeShowChangelog\(\);/);
+  assert.match(app, /function maybeStartOnboarding\(\)\s*\{\s*if \(window\.FASTLECTURES_CONFIG\?\.runtime === "viewer" \|\| settings\.open\) return false;\s*if \(!maybeStartFeatureTour\(\)\) maybeShowChangelog\(\);/);
   assert.match(app, /function closeFeatureTour[\s\S]*?maybeShowChangelog\(\)/);
   assert.match(app, /changelogLayer\.addEventListener\("keydown", handleChangelogKeydown\)/);
   assert.match(css, /\.changelog-layer\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;[^}]*place-items:\s*center/);

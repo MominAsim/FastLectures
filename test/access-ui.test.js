@@ -81,9 +81,9 @@ async function boot(mode, { palette="indigo", theme=null, legacyTheme=null } = {
   const calls = [];
   const storedSession = new Map();
   const storedAppearance = new Map([
-    ["penecho-language", "en"],
-    ...(palette === null ? [] : [["penecho-studio-palette", palette]]),
-    ...(theme === null ? [] : [["penecho-theme", theme]]),
+    ["fastlectures-language", "en"],
+    ...(palette === null ? [] : [["fastlectures-studio-palette", palette]]),
+    ...(theme === null ? [] : [["fastlectures-theme", theme]]),
     ...(legacyTheme === null ? [] : [["ghostboard-theme", legacyTheme]]),
   ]);
   let redirected = false;
@@ -129,7 +129,7 @@ test("access PIN setup and unlock submit once on the sixth digit", async () => {
   const setupRequests = setup.calls.filter((call) => call.url === "/api/local-access/setup-pin");
   assert.equal(setupRequests.length, 1);
   assert.deepEqual(JSON.parse(setupRequests[0].options.body), { pin:"271828", confirmation:"271828" });
-  assert.equal(setup.storedSession.get("penecho-access-session"),"test-access-session");
+  assert.equal(setup.storedSession.get("fastlectures-access-session"),"test-access-session");
 
   const unlock = await boot("pin");
   clickDigits(unlock.elements["#accessKeypad"], "271828");
@@ -137,7 +137,7 @@ test("access PIN setup and unlock submit once on the sixth digit", async () => {
   const unlockRequests = unlock.calls.filter((call) => call.url === "/api/local-access/unlock");
   assert.equal(unlockRequests.length, 1);
   assert.deepEqual(JSON.parse(unlockRequests[0].options.body), { pin:"271828" });
-  assert.equal(unlock.storedSession.get("penecho-access-session"),"test-access-session");
+  assert.equal(unlock.storedSession.get("fastlectures-access-session"),"test-access-session");
 });
 
 test("access setup follows the current Studio palette with accessible workbench states", async () => {
@@ -164,7 +164,7 @@ test("access setup migrates removed themes to the default teal Studio palette", 
     assert.equal(run.document.documentElement.dataset.studioPalette, "teal");
     assert.equal(run.body.dataset.studioPalette, "teal");
     assert.equal(run.themeColor.attributes.get("content"), "#f6faf9");
-    assert.equal(run.storedAppearance.get("penecho-theme"), "studio");
-    assert.equal(run.storedAppearance.get("penecho-studio-palette"), "teal");
+    assert.equal(run.storedAppearance.get("fastlectures-theme"), "studio");
+    assert.equal(run.storedAppearance.get("fastlectures-studio-palette"), "teal");
   }
 });

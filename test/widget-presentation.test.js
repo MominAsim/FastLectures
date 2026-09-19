@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 
 const source=fs.readFileSync(path.join(__dirname,'../src/client/app/canvas-navigation.js'),'utf8');
 const helperSource=source.slice(0,source.indexOf('\n  function canvasNavigationTextTarget'));
-const PRESENTATION_KEY='penecho.widgetInteractionPresentation';
+const PRESENTATION_KEY='fastlectures.widgetInteractionPresentation';
 
 class FakeElement {
  constructor(tagName) {

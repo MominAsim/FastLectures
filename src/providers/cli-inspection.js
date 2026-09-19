@@ -35,7 +35,7 @@ function cliInspectionStatus(provider, result, platform = process.platform) {
 async function inspectCli(provider, options = {}) {
   const platform = options.platform || process.platform, sourceEnv = options.env || process.env,
     home = path.resolve(options.home || sourceEnv.HOME || sourceEnv.USERPROFILE || os.homedir()),
-    stateDir = path.resolve(options.stateDir || sourceEnv.PENECHO_STATE_DIR || path.join(home, ".penecho")),
+    stateDir = path.resolve(options.stateDir || sourceEnv.FASTLECTURES_STATE_DIR || path.join(home, ".fastlectures")),
     item = cliDefinition(provider), env = { ...sourceEnv, HOME:home, USERPROFILE:home, KIMI_CODE_NO_AUTO_UPDATE:"1" },
     configuredPath = String(options.configuredPath ?? env[item.envName] ?? "").trim(),
     candidates = Array.isArray(options.candidates) ? options.candidates : cliCandidates(provider, { platform, home, stateDir, env, configuredPath }),

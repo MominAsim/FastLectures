@@ -92,21 +92,21 @@ test("toolbar ships a left-navigation Favorites workbench with list and grid vie
   assert.match(locale, /savedSearchLabel: "搜索收藏"/);
   assert.match(locale, /savedNoMatches: "没有匹配的收藏。"/);
 
-  const craftsCss = css.slice(css.indexOf("/* Favorite Crafts picker"), css.indexOf("/* Harness-backed PenEcho Agent"));
+  const craftsCss = css.slice(css.indexOf("/* Favorite Crafts picker"), css.indexOf("/* Harness-backed FastLectures Agent"));
   assert.notEqual(craftsCss, "");
   assert.doesNotMatch(craftsCss, /Favorites keeps its original title \+ tabs \+ list structure/);
   const modalRule = craftsCss.match(/\.crafts-modal\s*\{([^}]*)\}/)?.[1] ?? "";
   assert.match(modalRule, /width:\s*min\(960px,\s*100%\)/);
   assert.match(modalRule, /height:\s*min\(680px,\s*calc\(100dvh - 48px\)\)/);
   assert.match(modalRule, /grid-template-columns:\s*228px minmax\(0,\s*1fr\)/);
-  assert.match(modalRule, /background:\s*var\(--penecho-large-dialog-surface\)/);
-  assert.match(modalRule, /box-shadow:\s*var\(--penecho-large-dialog-shadow\)/);
-  assert.match(modalRule, /backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter\)/);
+  assert.match(modalRule, /background:\s*var\(--fastlectures-large-dialog-surface\)/);
+  assert.match(modalRule, /box-shadow:\s*var\(--fastlectures-large-dialog-shadow\)/);
+  assert.match(modalRule, /backdrop-filter:\s*var\(--fastlectures-large-dialog-surface-filter\)/);
   assert.match(craftsCss, /\.crafts-sidebar\s*\{[^}]*border-right:\s*1px solid/);
-  assert.match(craftsCss, /\.crafts-sidebar\s*\{[^}]*background:\s*var\(--penecho-workbench-navigation-surface\)[^}]*backdrop-filter:\s*var\(--penecho-workbench-navigation-filter\)/);
+  assert.match(craftsCss, /\.crafts-sidebar\s*\{[^}]*background:\s*var\(--fastlectures-workbench-navigation-surface\)[^}]*backdrop-filter:\s*var\(--fastlectures-workbench-navigation-filter\)/);
   assert.match(craftsCss, /\.crafts-workspace\s*\{[^}]*grid-template-rows:\s*50px minmax\(0,\s*1fr\)/);
-  assert.match(craftsCss, /\.crafts-workspace\s*\{[^}]*background:\s*var\(--penecho-workbench-content-surface\)/);
-  assert.match(craftsCss, /\.crafts-head\s*\{[^}]*background:\s*var\(--penecho-workbench-navigation-surface\)[^}]*backdrop-filter:\s*var\(--penecho-workbench-navigation-filter\)/);
+  assert.match(craftsCss, /\.crafts-workspace\s*\{[^}]*background:\s*var\(--fastlectures-workbench-content-surface\)/);
+  assert.match(craftsCss, /\.crafts-head\s*\{[^}]*background:\s*var\(--fastlectures-workbench-navigation-surface\)[^}]*backdrop-filter:\s*var\(--fastlectures-workbench-navigation-filter\)/);
   assert.match(craftsCss, /\.crafts-search\s*\{[^}]*height:\s*30px[^}]*border-radius:\s*5px/);
   assert.match(craftsCss, /\.crafts-head-actions\s*\{[^}]*min-width:\s*0[^}]*flex:\s*0 1 384px/);
   assert.match(craftsCss, /\.crafts-search input\[data-pe-control="input"\]\s*\{[^}]*height:\s*28px[^}]*border:\s*0/);
@@ -150,7 +150,7 @@ test("toolbar ships a left-navigation Favorites workbench with list and grid vie
     "savedAdd", "savedAdding", "savedOpen", "savedOpening", "savedCanvas", "savedWidget", "savedRemoveTitle", "savedRemoveConfirmTitle", "savedRemoveConfirmDescription", "savedRemoveAction", "savedSourceLocal", "savedSourceCloud", "savedSourceCommunity",
     "savedSourceSynced", "savedSourceSyncedTitle", "savedSourceLocalTitle", "savedSourceCloudTitle", "savedErrorAdd", "savedErrorOpen", "savedErrorToggle",
     "closeSavedCrafts", "shareCanvasCloud", "shareWidget", "snapshotCloudSignInRequired", "snapshotCloudSignInHint",
-    "openPenEchoCloud", "openPenEchoCloudExternal", "opensInNewTab", "openCloudCanvasUnsaved", "openInNewPage",
+    "openFastLecturesCloud", "openFastLecturesCloudExternal", "opensInNewTab", "openCloudCanvasUnsaved", "openInNewPage",
     "openCanvas", "addToCanvas", "favorites", "all", "canvases", "widgets", "favoriteCanvases", "favoriteWidgets", "projects", "explore",
   ];
   for (const key of bilingualKeys) {
@@ -158,7 +158,7 @@ test("toolbar ships a left-navigation Favorites workbench with list and grid vie
     assert.match(locale, new RegExp(`\\b${key}:`), `Chinese locale is missing ${key}`);
   }
   assert.match(app, /const t = \(key\) => I18N\[state\.language\]\?\.\[key\] \|\| I18N\.en\[key\] \|\| key;/);
-  assert.match(app, /window\.PenEchoI18n = Object\.freeze\(\{[\s\S]*?\bt,[\s\S]*?currentLanguage:\(\) => state\.language/);
+  assert.match(app, /window\.FastLecturesI18n = Object\.freeze\(\{[\s\S]*?\bt,[\s\S]*?currentLanguage:\(\) => state\.language/);
 });
 
 test("personal favorite synchronization is local-to-Cloud only", () => {

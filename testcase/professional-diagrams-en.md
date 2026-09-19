@@ -16,7 +16,7 @@ Hyphenated terms and format names count as one word.
 
 ## Local Renderer Cases
 
-These must return `diagram_source`. PenEcho supplies the iframe, renderer,
+These must return `diagram_source`. FastLectures supplies the iframe, renderer,
 shared styling, and Copy button; the model must not return HTML, CSS,
 JavaScript, or external URLs in `source`.
 
@@ -32,7 +32,7 @@ JavaScript, or external URLs in `source`.
 
 ## Professional HTML Fallback Cases
 
-These formats are intentionally outside PenEcho's local renderer list. They
+These formats are intentionally outside FastLectures's local renderer list. They
 must return `html_widget`, not native `draw` or `diagram_source`. The iframe
 must render a usable professional view, while `copyText` contains the complete
 editable source named by `sourceFormat`. The HTML view and copied source must

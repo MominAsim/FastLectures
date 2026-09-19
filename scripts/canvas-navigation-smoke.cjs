@@ -3,9 +3,9 @@
 // product bundle, user profile, provider credentials, or a real saved canvas.
 const {app,BrowserWindow,nativeTheme}=require('electron');
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict'),{Readable}=require('node:stream');
-const root=path.resolve(__dirname,'..'),directory=fs.mkdtempSync(path.join(os.tmpdir(),'penecho-navigation-'));
+const root=path.resolve(__dirname,'..'),directory=fs.mkdtempSync(path.join(os.tmpdir(),'fastlectures-navigation-'));
 app.setPath('userData',path.join(directory,'profile'));
-Object.assign(process.env,{NODE_ENV:'test',PENECHO_TEST_OPEN_ACCESS:'1',PENECHO_STATE_DIR:path.join(directory,'state'),HOST:'127.0.0.1',PORT:'0',AI_PROVIDER:'api',AI_API_KEY:'navigation-test',AI_API_URL:'http://127.0.0.1:1/v1',AI_API_MODEL:'test',PENECHO_CANVAS_AGENT_AUTO_OPEN:'false',PENECHO_REQUEST_TRACE:'false'});
+Object.assign(process.env,{NODE_ENV:'test',FASTLECTURES_TEST_OPEN_ACCESS:'1',FASTLECTURES_STATE_DIR:path.join(directory,'state'),HOST:'127.0.0.1',PORT:'0',AI_PROVIDER:'api',AI_API_KEY:'navigation-test',AI_API_URL:'http://127.0.0.1:1/v1',AI_API_MODEL:'test',FASTLECTURES_CANVAS_AGENT_AUTO_OPEN:'false',FASTLECTURES_REQUEST_TRACE:'false'});
 const readStream=fs.createReadStream;
 fs.createReadStream=function(file,...args){
  if(path.resolve(String(file))===path.join(root,'public/app.js')){

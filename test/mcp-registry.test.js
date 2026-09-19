@@ -8,12 +8,12 @@ const crypto = require("node:crypto");
 const { test } = require("node:test");
 const { createMcpService } = require("../src/server/mcp/service.js");
 const { registryStateDirectory, recordsDirectory, readRecords, writeRecord, discoverRecords } = require("../src/server/mcp/records.js");
-const { PenEchoStdioServer, selectRecord } = require("../src/server/mcp/stdio.js");
+const { FastLecturesStdioServer, selectRecord } = require("../src/server/mcp/stdio.js");
 
 test("desktop and CLI share home registry across application state directories", async t => {
-  const home = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "penecho-shared-registry-"));
+  const home = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "fastlectures-shared-registry-"));
   t.mock.method(os, "homedir", () => home);
-  const desktopState = path.join(home, "AppData", "PenEcho");
+  const desktopState = path.join(home, "AppData", "FastLectures");
   const cliState = path.join(home, "cli-state");
   const servers = [];
   const services = [desktopState, cliState].map(stateDirectory => {
@@ -26,7 +26,7 @@ test("desktop and CLI share home registry across application state directories",
   try {
     await Promise.all(servers.map(server => new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); })));
     services.forEach((service, index) => service.register(servers[index].address()));
-    const shared = path.join(home, ".penecho");
+    const shared = path.join(home, ".fastlectures");
     assert.equal(registryStateDirectory(), shared);
     assert.equal(recordsDirectory(), path.join(shared, "mcp", "instances"));
     assert.equal(readRecords(recordsDirectory()).length, 2);
@@ -39,7 +39,7 @@ test("desktop and CLI share home registry across application state directories",
       const status=await response.json();
       assert.deepEqual(status.config.args.slice(-2), ["--state-directory", path.join(shared,"mcp")]);
     }
-    const bridge = new PenEchoStdioServer({stateDirectory:desktopState});
+    const bridge = new FastLecturesStdioServer({stateDirectory:desktopState});
     assert.deepEqual(new Set(bridge.records().map(record => record.instanceId)), new Set(services.map(service => service.instanceId)));
     assert.equal(selectRecord({stateDirectory:cliState, instanceId:services[1].instanceId}).instanceId, services[1].instanceId);
     assert.deepEqual(await bridge.listCanvases(), {canvases:[], discovery:{status:"no-opted-in-canvas", instances:2, reachable:2}});

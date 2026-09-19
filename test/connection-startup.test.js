@@ -16,7 +16,7 @@ function extract(name) {
 }
 function routing(runtime) {
   const calls=[], settings={ startupConnectionsChecked:false };
-  const context=vm.createContext({ settings, window:{PENECHO_CONFIG:{runtime}}, selectSettingsPage:page=>calls.push(page), openSettings:()=>calls.push("open") });
+  const context=vm.createContext({ settings, window:{FASTLECTURES_CONFIG:{runtime}}, selectSettingsPage:page=>calls.push(page), openSettings:()=>calls.push("open") });
   vm.runInContext(extract("routeStartupConnections"),context);
   return {calls,context};
 }
@@ -50,13 +50,13 @@ test("startup and Agent share one in-flight configuration request",async()=>{
 test("selection falls back to first saved connection and preserves explicit saved choice",()=>{
   const first="11111111-1111-4111-8111-111111111111",second="22222222-2222-4222-8222-222222222222";
   const settings={connections:[{id:first},{id:second}]},storage=new Map();
-  const context=vm.createContext({window:{PENECHO_CONFIG:{}},location:{origin:"http://localhost:3888"},settings,AI_CONNECTION_STORAGE_KEY:"connection",localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)}});
+  const context=vm.createContext({window:{FASTLECTURES_CONFIG:{}},location:{origin:"http://localhost:3888"},settings,AI_CONNECTION_STORAGE_KEY:"connection",localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)}});
   vm.runInContext(["aiConnectionScope","aiConnectionStorageKey","selectedAiConnectionId","storeAiConnectionSelection","syncLocalConnectionSelection"].map(extract).join("\n"),context);
   context.syncLocalConnectionSelection();assert.equal(context.selectedAiConnectionId(),first);assert.equal(settings.connections[0].active,true);
   assert.equal(storage.get("connection:local:http://localhost:3888"),first);
   context.storeAiConnectionSelection(second);context.syncLocalConnectionSelection();assert.equal(context.selectedAiConnectionId(),second);assert.equal(settings.connections[1].active,true);
   settings.connections=[];context.syncLocalConnectionSelection();assert.equal(settings.connections.length,0);
-  Object.assign(context.window.PENECHO_CONFIG,{browserCanvasEditing:true,linkedDeviceOnline:false});
+  Object.assign(context.window.FASTLECTURES_CONFIG,{browserCanvasEditing:true,linkedDeviceOnline:false});
   context.syncLocalConnectionSelection();assert.equal(context.selectedAiConnectionId(),second,"offline must not silently select a different local model");
 });
 test("desktop Settings menu reveals the existing Canvas and sends the shared-page event",()=>{
@@ -64,7 +64,7 @@ test("desktop Settings menu reveals the existing Canvas and sends the shared-pag
   const context=vm.createContext({mainWindow:{isDestroyed:()=>false,show:()=>calls.push("show"),focus:()=>calls.push("focus"),webContents:{send:channel=>calls.push(channel)}}});
   vm.runInContext(main.slice(main.indexOf("function showSettings()"),main.indexOf("function createMainWindow(")),context);
   context.showSettings();
-  assert.deepEqual(calls,["show","focus","penecho:show-connections"]);
+  assert.deepEqual(calls,["show","focus","fastlectures:show-connections"]);
 });
 test("desktop bootstrap starts Canvas without checking whether AI is configured",async()=>{
   const main=fs.readFileSync(path.join(__dirname,"../desktop/main.js"),"utf8"),calls=[],configuration={};

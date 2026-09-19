@@ -18,7 +18,7 @@
 | 本地检查点 | 071 `9b6d1e9`；Cloud `6ce8fb7`，保存修改前已有工作 |
 | 实现提交 | 071 `974069e` MCP 核心；`3ab921b` 发布回归修复；`f4aba91` Sharp 安全补丁；`1855396` 单段补丁计数修正 |
 | 工具链 | macOS arm64 / Windows x64；构建 Node 22.23.2；打包 Electron 43.2.0 / Node 24.18.0 |
-| UAT | `internaltest.penecho.ai`；本机私有入口 18082；独立文档 worker 无公开端口 |
+| UAT | `internaltest.fastlectures.ai`；本机私有入口 18082；独立文档 worker 无公开端口 |
 
 测试安装包与用户已安装应用隔离，未覆盖原安装。测试运行状态、凭据和临时服务的清理结果见最终交付记录。
 
@@ -96,7 +96,7 @@ Token 是固定字符估算：初始化 1,543 → 181；Skill 5,125 → 182；�
 
 ## 最终安装包与可复核证据
 
-macOS arm64 运行代码为 `1855396`。DMG 位于 `out/make/PenEcho-1.3.0.dmg`，ZIP 位于 `out/make/zip/darwin/arm64/PenEcho-darwin-arm64-1.3.0.zip`。DMG SHA-256：`e7479fa3cc651db7446a0209c8ca2f028a548c048a33d0b49e85a7e9796ca80d`；ZIP SHA-256：`a04d997caceb7adb5465ee4d4adb63e87ddce75c1fae9bd64e6a22196e7259c3`。
+macOS arm64 运行代码为 `1855396`。DMG 位于 `out/make/FastLectures-1.3.0.dmg`，ZIP 位于 `out/make/zip/darwin/arm64/FastLectures-darwin-arm64-1.3.0.zip`。DMG SHA-256：`e7479fa3cc651db7446a0209c8ca2f028a548c048a33d0b49e85a7e9796ca80d`；ZIP SHA-256：`a04d997caceb7adb5465ee4d4adb63e87ddce75c1fae9bd64e6a22196e7259c3`。
 
 包内主页面、样式、补丁、MCP 协议与服务、窗口 PNG 图标逐字节匹配最终源码，48,676 个 ASAR 条目未包含被禁止的根级配置、测试目录或构建缓存。Electron 内实际加载 Sharp 0.35.4/libheif 1.23.2，WebP/AVIF 编解码通过。`codesign --verify --deep --strict` 通过，签名仍为 ad-hoc，不是正式签名/公证。
 
@@ -108,7 +108,7 @@ macOS arm64 运行代码为 `1855396`。DMG 位于 `out/make/PenEcho-1.3.0.dmg`�
 - [原生 HTML 按钮 Clicked](release-readiness-20260912/mac-final-widget-clicked.png)
 - [最终 ZCode 可见结果](release-readiness-20260912/zcode-frozen-widget.png)
 
-Windows x64 最终 Squirrel 安装包：`out/make/windows-x64/PenEcho-Setup-1.3.0-win-x64-1855396.exe`，253,029,376 字节，Mac/Windows 两端 SHA-256 一致：`40e5f711bcb46c52138a54de435eef558aef709abfef5ae79bdbd6513384ae5c`。包内 191 个分发源码文件逐字节匹配最终提交，48,670 个 ASAR 条目通过排除检查；实际 EXE 的 WebP/AVIF、HTTPS 信任、无凭据拒绝和 19 工具会话检查通过。实际 EXE 的 7 次 MCP 调用通过，包括正常补丁、错误计数单 hunk 一次成功（该次 23.8ms）、最终截图与源码/hash 一致。
+Windows x64 最终 Squirrel 安装包：`out/make/windows-x64/FastLectures-Setup-1.3.0-win-x64-1855396.exe`，253,029,376 字节，Mac/Windows 两端 SHA-256 一致：`40e5f711bcb46c52138a54de435eef558aef709abfef5ae79bdbd6513384ae5c`。包内 191 个分发源码文件逐字节匹配最终提交，48,670 个 ASAR 条目通过排除检查；实际 EXE 的 WebP/AVIF、HTTPS 信任、无凭据拒绝和 19 工具会话检查通过。实际 EXE 的 7 次 MCP 调用通过，包括正常补丁、错误计数单 hunk 一次成功（该次 23.8ms）、最终截图与源码/hash 一致。
 
 - [Windows 构建及安装包摘要](release-readiness-20260912/windows-final-build.json)
 - [Windows 包内源码审计](release-readiness-20260912/windows-final-audit.json)
@@ -131,7 +131,7 @@ Windows 最终 EXE 服务的浏览器入口也完成实际拖动和缩放：x/y/
 
 ## 清理与交付状态
 
-本次临时 macOS/Windows PenEcho 进程及 SSH 转发已关闭；Mac 的 3937/3938/3941/3942/23922、Windows 的 3942/3943/13922/50903/61010 测试端口已释放。仅删除本次自建的测试状态目录、AI 连接副本、浏览器 cookie 和临时凭据；保留源码、安装包及脱敏证据。用户原有 macOS 应用进程及 Windows 原安装的 9 个进程均未终止。UAT 保留运行供后续复核，测试付款自动续费已取消，测试会话已撤销。
+本次临时 macOS/Windows FastLectures 进程及 SSH 转发已关闭；Mac 的 3937/3938/3941/3942/23922、Windows 的 3942/3943/13922/50903/61010 测试端口已释放。仅删除本次自建的测试状态目录、AI 连接副本、浏览器 cookie 和临时凭据；保留源码、安装包及脱敏证据。用户原有 macOS 应用进程及 Windows 原安装的 9 个进程均未终止。UAT 保留运行供后续复核，测试付款自动续费已取消，测试会话已撤销。
 
 运行代码已本地提交：客户端 `1855396`、Cloud `52a81ad`；本报告及证据另作纯文档提交，不改变被验收安装包的运行源码。未推送 GitHub、未删除分支、未发布或部署生产。
 

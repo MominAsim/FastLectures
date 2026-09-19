@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#05050a">
+  <link rel="icon" type="image/png" href="fastlectures-mark.png">
+  <title>School Dashboard | FastLectures</title>
+  <link rel="stylesheet" href="auth.css">
+  <link rel="stylesheet" href="school-dashboard.css">
+</head>
+<body>
+  <div class="school-layout">
+    <!-- Sidebar -->
+    <aside class="school-sidebar" role="navigation" aria-label="School navigation">
+      <div class="school-sidebar-header">
+        <a class="school-brand" href="/">
+          <svg class="school-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6c-.8-.9-2-1.5-3.4-1.6H6.6C5 3 3.5 3.6 2.4 4.8 1.3 6 1 7.5 1.6 9l2.3 12.8c.2 1.2 1.2 2.1 2.5 2.2h9.2c1.3.1 2.3-1 2.5-2.2L22.4 9c.6-1.5.3-3-.8-4.4zM8 17l-1.5-8.8h2L10 17H8zm4 0h2.1l.6-3.6.8-4.5H13L12.2 17zm6.5 0h-2.2l-1.4-8H19l1.5 8z"/></svg>
+          <span class="school-name">FastLectures</span>
+        </a>
+      </div>
+      <nav class="school-nav">
+        <button class="school-nav-item school-nav-item-active" data-nav="students" aria-current="page">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 12a4 4 0 1 0-8 0 4 4 0 0 0 8 0z"/><path d="M4 6h16v2H4V6zm0 4h16v2H4v-2zm0 4h10v2H4v-2z"/></svg>
+          <span>Students</span>
+        </button>
+        <button class="school-nav-item" data-nav="billing">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 14h16M4 21h16"/><path d="M9 8h6v8H9V8z"/></svg>
+          <span>Billing</span>
+        </button>
+        <button class="school-nav-item" data-nav="settings">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z"/><path d="M12 4v2"/><path d="M12 18v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M4 12h2"/><path d="M18 12h2"/><path d="M8.5 3.5l1.41 1.41"/><path d="M14.5 16.5l1.41 1.41"/></svg>
+          <span>Settings</span>
+        </button>
+        <button class="school-nav-item" data-nav="teachers">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          <span>Teacher Tools</span>
+        </button>
+        <button class="school-nav-item" data-nav="logout" id="school-logout-btn">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l-2 2 2 2"/><path d="M9 9v6h2V9H9z"/><path d="M5 13h14"/></svg>
+          <span>Sign out</span>
+        </button>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="school-main">
+      <header class="school-header">
+        <h1 class="school-title">School Dashboard</h1>
+        <p class="school-subtitle">Manage students, billing, and school settings</p>
+      </header>
+
+      <section class="school-content">
+        <!-- Stats Cards -->
+        <div class="school-stats-grid">
+          <div class="school-card">
+            <div class="school-card-header">
+              <h3 class="school-card-title">Total Students</h3>
+            </div>
+            <div class="school-card-body">
+              <div class="school-stat-value" id="stat-total-students">-</div>
+              <div class="school-stat-label">Active accounts</div>
+            </div>
+          </div>
+
+          <div class="school-card">
+            <div class="school-card-header">
+              <h3 class="school-card-title">Monthly Cost</h3>
+            </div>
+            <div class="school-card-body">
+              <div class="school-stat-value" id="stat-monthly-cost">-</div>
+              <div class="school-stat-label">At $20/student</div>
+            </div>
+          </div>
+
+          <div class="school-card">
+            <div class="school-card-header">
+              <h3 class="school-card-title">Total Rebate</h3>
+            </div>
+            <div class="school-card-body">
+              <div class="school-stat-value" id="stat-rebate">-</div>
+              <div class="school-stat-label">Savings earned</div>
+            </div>
+          </div>
+
+          <div class="school-card">
+            <div class="school-card-header">
+              <h3 class="school-card-title">Active Licenses</h3>
+            </div>
+            <div class="school-card-body">
+              <div class="school-stat-value" id="stat-licenses">-</div>
+              <div class="school-stat-label">Remaining slots</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Students Section -->
+        <section class="school-section">
+          <div class="school-section-header">
+            <h2 class="school-section-title">Student Management</h2>
+            <button class="btn-primary" type="button" id="add-student-btn">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              Add Student
+            </button>
+          </div>
+
+          <div class="school-table-container">
+            <table class="school-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Status</th>
+                  <th>Enrolled</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="students-table-body">
+                <!-- Students will be rendered here -->
+              </tbody>
+            </table>
+          </div>
+
+          <div id="empty-students" class="school-empty-state" hidden>
+            <svg viewBox="0 0 24 24" class="school-empty-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 15v-2"/></svg>
+            <h3>No students yet</h3>
+            <p>Add your first student to get started.</p>
+          </div>
+        </section>
+
+        <!-- Billing Section -->
+        <section class="school-section">
+          <div class="school-section-header">
+            <h2 class="school-section-title">Billing Information</h2>
+          </div>
+
+          <div class="school-billing-cards">
+            <div class="school-card school-card-billing">
+              <div class="school-card-body">
+                <div class="billing-summary">
+                  <div class="billing-item">
+                    <span class="billing-key">Total Accounts</span>
+                    <span class="billing-value" id="billing-total-accounts">0</span>
+                  </div>
+                  <div class="billing-item">
+                    <span class="billing-key">Total Cost</span>
+                    <span class="billing-value" id="billing-total-cost">$0.00</span>
+                  </div>
+                  <div class="billing-item">
+                    <span class="billing-key">Rebate Applied</span>
+                    <span class="billing-value" id="billing-rebate-applied">$0.00</span>
+                  </div>
+                  <div class="billing-item billing-item-highlight">
+                    <span class="billing-key">Net Cost</span>
+                    <span class="billing-value" id="billing-net-cost">$0.00</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section class="school-section">
+          <div class="school-section-header">
+            <h2 class="school-section-title">School Settings</h2>
+          </div>
+
+          <div class="school-card">
+            <div class="school-card-header">
+              <h3 class="school-card-title">School Information</h3>
+            </div>
+            <div class="school-card-body">
+              <form id="school-settings-form">
+                <div class="school-form-group">
+                  <label for="school-name">School Name</label>
+                  <input id="school-name" type="text" required placeholder="Enter school name">
+                </div>
+                <div class="school-form-group">
+                  <label for="school-email">School Email</label>
+                  <input id="school-email" type="email" required placeholder="admin@school.edu">
+                </div>
+                <div class="school-form-group">
+                  <label for="school-address">Address</label>
+                  <textarea id="school-address" rows="2" placeholder="123 School Street, City"></textarea>
+                </div>
+                <div class="school-form-group">
+                  <label for="school-phone">Phone</label>
+                  <input id="school-phone" type="tel" placeholder="(555) 123-4567">
+                </div>
+                <div class="school-form-group">
+                  <label for="school-website">Website</label>
+                  <input id="school-website" type="url" placeholder="https://school.edu">
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div class="school-card">
+            <div class="school-card-header">
+              <h3 class="school-card-title">Notification Preferences</h3>
+            </div>
+            <div class="school-card-body">
+              <form id="notification-settings-form">
+                <div class="school-notification-group">
+                  <label class="school-toggle-label">
+                    <input type="checkbox" id="notif-student-signup" checked>
+                    <span class="school-toggle-slider"></span>
+                    <span>Student signup notifications</span>
+                  </label>
+                  <p class="school-notification-hint">Get alerted when a new student registers</p>
+                </div>
+                <div class="school-notification-group">
+                  <label class="school-toggle-label">
+                    <input type="checkbox" id="notif-billing" checked>
+                    <span class="school-toggle-slider"></span>
+                    <span>Billing alerts</span>
+                  </label>
+                  <p class="school-notification-hint">Receive notifications about charges and payments</p>
+                </div>
+                <div class="school-notification-group">
+                  <label class="school-toggle-label">
+                    <input type="checkbox" id="notif-reports">
+                    <span class="school-toggle-slider"></span>
+                    <span>Weekly usage reports</span>
+                  </label>
+                  <p class="school-notification-hint">Get a summary of platform usage each week</p>
+                </div>
+                <button type="submit" class="btn-primary" id="save-settings-btn">Save Settings</button>
+              </form>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <!-- Add Student Modal -->
+  <dialog id="add-student-modal" class="school-modal" role="dialog" aria-modal="true" aria-labelledby="add-student-title">
+    <form method="dialog" class="school-modal-content">
+      <header class="school-modal-header">
+        <h2 id="add-student-title">Add Student</h2>
+        <button type="button" class="school-modal-close" aria-label="Close" id="close-add-student-modal">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="school-modal-body">
+        <form id="add-student-form">
+          <div class="school-modal-fields">
+            <div class="field">
+              <label for="add-student-name">Student name</label>
+              <input id="add-student-name" type="text" required placeholder="e.g., Alex Johnson">
+            </div>
+            <div class="field">
+              <label for="add-student-email">Student email</label>
+              <input id="add-student-email" type="email" required placeholder="student@school.edu">
+            </div>
+            <div class="field">
+              <label for="add-student-grade">Grade/Year (optional)</label>
+              <input id="add-student-grade" type="text" placeholder="e.g., 10th Grade">
+            </div>
+          </div>
+          <div id="add-student-error" class="auth-error" role="alert" hidden></div>
+          <p class="school-modal-footer">
+            <button type="submit" class="btn-primary">Add Student</button>
+          </p>
+        </form>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Delete Student Modal -->
+  <dialog id="delete-student-modal" class="school-modal" role="dialog" aria-modal="true" aria-labelledby="delete-student-title">
+    <form method="dialog" class="school-modal-content">
+      <header class="school-modal-header">
+        <h2 id="delete-student-title">Remove Student</h2>
+        <button type="button" class="school-modal-close" aria-label="Close" id="close-delete-student-modal">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="school-modal-body">
+        <p id="delete-student-name" class="school-modal-name"></p>
+        <div class="school-warning">
+          <p><strong>Are you sure?</strong></p>
+          <p>This student will lose access to all courses and data.</p>
+        </div>
+        <div id="delete-student-error" class="auth-error" role="alert" hidden></div>
+        <p class="school-modal-footer">
+          <button type="button" class="btn-secondary" id="cancel-delete-student">Cancel</button>
+          <button type="submit" class="btn-danger" id="confirm-delete-student">Remove</button>
+        </p>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="school-dashboard.js"></script>
+</body>
+</html>

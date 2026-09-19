@@ -5,8 +5,8 @@ const path = require("node:path");
 const test = require("node:test");
 
 async function fixture(t, { stale = false, valid = true } = {}) {
-  const rootDirectory = await mkdtemp(path.join(tmpdir(), "penecho-public-api-root-"));
-  const stateDirectory = await mkdtemp(path.join(tmpdir(), "penecho-public-api-state-"));
+  const rootDirectory = await mkdtemp(path.join(tmpdir(), "fastlectures-public-api-root-"));
+  const stateDirectory = await mkdtemp(path.join(tmpdir(), "fastlectures-public-api-state-"));
   t.after(() => Promise.all([rm(rootDirectory, { recursive:true, force:true }), rm(stateDirectory, { recursive:true, force:true })]));
   const dataDirectory = path.join(rootDirectory, "src/server/canvas-agent/public-api-data");
   await mkdir(dataDirectory, { recursive:true });

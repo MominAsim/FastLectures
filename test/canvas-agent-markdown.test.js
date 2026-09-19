@@ -55,7 +55,7 @@ function messageAppender(document,clipboardWrites){
   });
 }
 
-test("PenEcho Agent final replies use the quiet workbench typography hierarchy",()=>{
+test("FastLectures Agent final replies use the quiet workbench typography hierarchy",()=>{
   assert.match(css,/\.canvas-agent-message\.assistant:not\(\.error\):not\(\.canvas-agent-public-progress\)\s*\{[\s\S]*?width:\s*min\(100%, 68ch\);[\s\S]*?max-width:\s*100%;/);
   assert.match(css,/\.canvas-agent-message\.assistant:not\(\.error\):not\(\.canvas-agent-public-progress\) \.canvas-agent-message-role\s*\{[^}]*display:\s*none;/);
   assert.match(css,/\.canvas-agent-message\.assistant:not\(\.error\):not\(\.canvas-agent-public-progress\) \.canvas-agent-message-body\s*\{[^}]*padding:\s*0;[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*background:\s*transparent;/);
@@ -69,7 +69,7 @@ test("PenEcho Agent final replies use the quiet workbench typography hierarchy",
   assert.doesNotMatch(css,/\.canvas-agent-message\.interrupted \.canvas-agent-message-body\s*\{[^}]*opacity:\s*\.68;/);
 });
 
-test("PenEcho Agent final messages render safe compact Markdown while user and streaming text stay literal",()=>{
+test("FastLectures Agent final messages render safe compact Markdown while user and streaming text stay literal",()=>{
   const {document}=parseHTML("<!doctype html><html><body><div id=body></div></body></html>"),body=document.querySelector("#body"),render=renderer(document);
   render(body,"# 总结\n\n- **已完成** 画布布局\n- 查看 [参考资料](https://example.com/source)\n\n> 可见结果已核对\n\n行内 `canvas` 代码","assistant");
   assert.equal(body.classList.contains("is-markdown"),true);
@@ -94,7 +94,7 @@ test("PenEcho Agent final messages render safe compact Markdown while user and s
   assert.equal(body.querySelector("strong"),null);
 });
 
-test("PenEcho Agent renders inline and multiline display TeX in final summaries",async()=>{
+test("FastLectures Agent renders inline and multiline display TeX in final summaries",async()=>{
   const {document}=parseHTML("<!doctype html><html><body><div id=body></div></body></html>"),body=document.querySelector("#body"),calls=[],MathJax={
     async tex2svgPromise(tex,options){
       calls.push({tex,options});
@@ -114,7 +114,7 @@ test("PenEcho Agent renders inline and multiline display TeX in final summaries"
   assert.match(calls[1].tex,/H\^4\(W,\\partial W;\\mathbb Z\)\\cong/);
 });
 
-test("PenEcho Agent preserves literal TeX when MathJax output is unavailable or unsafe",async()=>{
+test("FastLectures Agent preserves literal TeX when MathJax output is unavailable or unsafe",async()=>{
   const {document}=parseHTML("<!doctype html><html><body><div id=body></div></body></html>"),body=document.querySelector("#body"),unsafeMathJax={
     async tex2svgPromise(){
       const container=document.createElement("mjx-container"),svg=document.createElement("svg"),link=document.createElement("a");
@@ -128,7 +128,7 @@ test("PenEcho Agent preserves literal TeX when MathJax output is unavailable or 
   assert.equal(body.querySelector("a"),null);
 });
 
-test("PenEcho Agent keeps display delimiters literal inside inline code",async()=>{
+test("FastLectures Agent keeps display delimiters literal inside inline code",async()=>{
   const {document}=parseHTML("<!doctype html><html><body><div id=body></div></body></html>"),body=document.querySelector("#body"),calls=[],MathJax={
     async tex2svgPromise(tex){
       calls.push(tex);
@@ -142,7 +142,7 @@ test("PenEcho Agent keeps display delimiters literal inside inline code",async()
   assert.deepEqual(calls,["x^2"]);
 });
 
-test("PenEcho Agent Markdown never executes model HTML or unsafe links and preserves fenced payloads",()=>{
+test("FastLectures Agent Markdown never executes model HTML or unsafe links and preserves fenced payloads",()=>{
   const {document}=parseHTML("<!doctype html><html><body><div id=body></div></body></html>"),body=document.querySelector("#body"),render=renderer(document);
   render(body,'<img src=x onerror="alert(1)"> [bad](javascript:alert(1)) [credentials](https://user:pass@example.com)',"assistant");
   assert.equal(body.querySelector("img"),null);
@@ -168,7 +168,7 @@ test("PenEcho Agent Markdown never executes model HTML or unsafe links and prese
   assert.doesNotMatch(renderingSource,/\.innerHTML\s*=/);
 });
 
-test("PenEcho Agent Markdown has a bounded fallback for pathological final text",()=>{
+test("FastLectures Agent Markdown has a bounded fallback for pathological final text",()=>{
   const {document}=parseHTML("<!doctype html><html><body><div id=body></div></body></html>"),body=document.querySelector("#body"),render=renderer(document),pathological=`**title** ${"\\".repeat(300)}`;
   render(body,pathological,"assistant");
   assert.equal(body.classList.contains("is-markdown"),false);
@@ -182,7 +182,7 @@ test("PenEcho Agent Markdown has a bounded fallback for pathological final text"
   assert.equal(body.classList.contains("is-markdown"),false,"bare TeX is bounded even without dense delimiter markers");
 });
 
-test("PenEcho Agent live and persisted messages share one explicit display limit",()=>{
+test("FastLectures Agent live and persisted messages share one explicit display limit",()=>{
   const messageText=vm.runInNewContext(`(()=>{${functionSource("canvasAgentMessageText")}return canvasAgentMessageText;})()`,{CANVAS_AGENT_HISTORY_TEXT_LIMIT:20000}),bounded=messageText("x".repeat(25000)),emojiBoundary=messageText(`${"x".repeat(19998)}😀tail`);
   assert.equal(bounded.length,20000);
   assert.equal(bounded.endsWith("…"),true);
@@ -212,7 +212,7 @@ function assistantEventHarness(initialTargets=[]) {
   return {canvasAgent,created,rendered,handleEvent};
 }
 
-test("PenEcho Agent final assistant_message is authoritative over its streamed deltas",()=>{
+test("FastLectures Agent final assistant_message is authoritative over its streamed deltas",()=>{
   const handle=functionSource("canvasAgentHandleEvent");
   assert.match(handle,/assistant_delta[\s\S]*?canvasAgentScheduleAssistantRender\(target\)/);
   assert.match(handle,/assistant_message[\s\S]*?if\(typeof event\.text==="string"\)target\.messageText=canvasAgentVisibleAssistantText\(event\.text\)[\s\S]*?canvasAgentRenderFinalAssistantMessage\(target\)[\s\S]*?historyItem\.text=target\.messageText/);
@@ -231,7 +231,7 @@ test("PenEcho Agent final assistant_message is authoritative over its streamed d
   assert.equal(rendered[0].options.final,true);
 });
 
-test("PenEcho Agent keeps completed assistant messages distinct and appends the final summary",()=>{
+test("FastLectures Agent keeps completed assistant messages distinct and appends the final summary",()=>{
   const progress={messageText:"Progress: translating the widget",body:{},historyItem:{type:"message",role:"assistant",text:"Progress: translating the widget",eventKey:"1:0:progress",turn:1,step:0,final:true},row:{classList:{add(){}}}},
     harness=assistantEventHarness([progress]);
   harness.handleEvent({kind:"assistant_message",turn:1,text:"Translation completed."});
@@ -246,7 +246,7 @@ test("PenEcho Agent keeps completed assistant messages distinct and appends the 
   assert.notEqual(harness.created[0].historyItem.eventKey,harness.created[1].historyItem.eventKey);
 });
 
-test("PenEcho Agent starts a new streaming row after a completed assistant message",()=>{
+test("FastLectures Agent starts a new streaming row after a completed assistant message",()=>{
   const completed={messageText:"First completed message",body:{},historyItem:{type:"message",role:"assistant",text:"First completed message",eventKey:"5:3:complete",turn:5,step:3,final:true},row:{classList:{add(){}}}},
     harness=assistantEventHarness([completed]);
   harness.handleEvent({kind:"assistant_delta",turn:5,step:3,text:"New streamed draft"});
@@ -260,7 +260,7 @@ test("PenEcho Agent starts a new streaming row after a completed assistant messa
   assert.equal(harness.created[0].historyItem.final,true);
 });
 
-test("PenEcho Agent enables response copy only for the last completed assistant step in a turn",()=>{
+test("FastLectures Agent enables response copy only for the last completed assistant step in a turn",()=>{
   const intermediateItem={type:"message",role:"assistant",turn:4,step:1,final:true,copyable:false},toolItem={type:"tool",turn:4,step:2},summaryItem={type:"message",role:"assistant",turn:4,step:3,final:true,copyable:false},otherTurnItem={type:"message",role:"assistant",turn:3,step:8,final:true,copyable:false},
     intermediate={messageText:"Inspecting the canvas",historyItem:intermediateItem},summary={messageText:"Final summary",historyItem:summaryItem},otherTurn={messageText:"Other turn",historyItem:otherTurnItem},marked=[],
     canvasAgent={currentConversation:{items:[intermediateItem,toolItem,summaryItem,otherTurnItem]},assistantRows:new Map([["4:1:intermediate",intermediate],["3:8:other",otherTurn],["4:3:summary",summary]])};
@@ -276,7 +276,7 @@ test("PenEcho Agent enables response copy only for the last completed assistant 
   assert.deepEqual(marked,[]);
 });
 
-test("PenEcho Agent restores copy only on final summaries from legacy history",()=>{
+test("FastLectures Agent restores copy only on final summaries from legacy history",()=>{
   const restore=vm.runInNewContext(`(()=>{${functionSource("canvasAgentRestoreLegacyCopyableSummaries")}return canvasAgentRestoreLegacyCopyableSummaries;})()`),items=[
     {type:"message",role:"user",text:"change the canvas"},
     {type:"message",role:"assistant",text:"I will inspect it",final:true},
@@ -291,7 +291,7 @@ test("PenEcho Agent restores copy only on final summaries from legacy history",(
   assert.equal(items[5].copyable,false);
 });
 
-test("PenEcho Agent copies only the authoritative final assistant response",async()=>{
+test("FastLectures Agent copies only the authoritative final assistant response",async()=>{
   const {document}=parseHTML("<!doctype html><html><body><div id=transcript><details>hidden tool execution and reasoning</details></div></body></html>"),clipboardWrites=[],renderer=messageAppender(document,clipboardWrites),append=renderer.append,transcript=document.querySelector("#transcript");
   const partial=append({role:"assistant",text:"temporary streamed draft",final:false},[],true);
   assert.equal(partial.row.getAttribute("aria-label"),"canvasAgent","the visually quiet assistant row keeps an accessible role name");

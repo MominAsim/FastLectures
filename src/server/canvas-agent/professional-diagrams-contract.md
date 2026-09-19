@@ -1,8 +1,8 @@
-# PenEcho Agent Existing Professional Diagram Editing
+# FastLectures Agent Existing Professional Diagram Editing
 
 This optional contract is edit-only and exists only when the Professional Diagrams plugin is enabled. It applies only to a Professional Diagram Widget that is already present on the current Canvas.
 
-Never create a new Professional Diagram. Do not call `canvas_create` with `pluginId:"flowchart"`, `widgetType:"diagram_source"`, `frameworkVersion:"penecho-professional-diagrams-v1"`, or a professional source format. A request for a new Widget must use Visual Explorer or an enabled HTML route instead.
+Never create a new Professional Diagram. Do not call `canvas_create` with `pluginId:"flowchart"`, `widgetType:"diagram_source"`, `frameworkVersion:"fastlectures-professional-diagrams-v1"`, or a professional source format. A request for a new Widget must use Visual Explorer or an enabled HTML route instead.
 
 ## Identify and read the existing Widget
 

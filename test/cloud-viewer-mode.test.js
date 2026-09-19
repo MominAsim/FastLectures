@@ -26,26 +26,26 @@ test("the read-only viewer mode ships inert locally and activates only on /canva
   assert.match(html, /<link rel="stylesheet" href="viewer\.css">/);
   assert.match(html, /<script src="viewer\.js" defer><\/script>/);
   assert.match(js, /canvas\\\/view\\\//);
-  assert.match(js, /PenEchoCommunityCanvas/);
+  assert.match(js, /FastLecturesCommunityCanvas/);
   assert.match(js, /importWidget|viewCanvas/);
   assert.doesNotMatch(js, /\/api\/cloud\/library/);
   assert.doesNotMatch(js, /bridge\.importCanvas\(/);
   assert.match(js, /\/api\/v1\/auth\/session/);
   assert.match(js, /Read-only — link a device to edit/);
-  assert.doesNotMatch(js, /PENECHO_CONFIG\?\.viewer/);
+  assert.doesNotMatch(js, /FASTLECTURES_CONFIG\?\.viewer/);
   assert.match(css, /html\.viewer-mode \.topbar[,\s]/);
   assert.match(css, /pointer-events: none !important/);
   assert.match(css, /viewer-topbar/);
-  assert.match(core, /window\.PENECHO_CONFIG\?\.runtime === "viewer"[\s\S]*?\? "device"/);
-  assert.match(bootstrap, /window\.PENECHO_CONFIG\?\.runtime !== "viewer"\s*&& !\(window\.PENECHO_CONFIG\?\.runtime === "cloud" && window\.PENECHO_CONFIG\?\.remoteCanvasNativeReads === true\)\) refreshSnapshots\(\)\.catch/);
-  assert.match(built, /window\.PENECHO_CONFIG\?\.runtime === "viewer"[\s\S]*?\? "device"/);
-  assert.match(built, /window\.PENECHO_CONFIG\?\.runtime !== "viewer"\s*&& !\(window\.PENECHO_CONFIG\?\.runtime === "cloud" && window\.PENECHO_CONFIG\?\.remoteCanvasNativeReads === true\)\) refreshSnapshots\(\)\.catch/);
+  assert.match(core, /window\.FASTLECTURES_CONFIG\?\.runtime === "viewer"[\s\S]*?\? "device"/);
+  assert.match(bootstrap, /window\.FASTLECTURES_CONFIG\?\.runtime !== "viewer"\s*&& !\(window\.FASTLECTURES_CONFIG\?\.runtime === "cloud" && window\.FASTLECTURES_CONFIG\?\.remoteCanvasNativeReads === true\)\) refreshSnapshots\(\)\.catch/);
+  assert.match(built, /window\.FASTLECTURES_CONFIG\?\.runtime === "viewer"[\s\S]*?\? "device"/);
+  assert.match(built, /window\.FASTLECTURES_CONFIG\?\.runtime !== "viewer"\s*&& !\(window\.FASTLECTURES_CONFIG\?\.runtime === "cloud" && window\.FASTLECTURES_CONFIG\?\.remoteCanvasNativeReads === true\)\) refreshSnapshots\(\)\.catch/);
 });
 
 test("startup history stays private in Viewer and defers native Cloud reads to Library", () => {
   for (const file of ["src/client/app/ui-bootstrap.js", "public/app.js"]) {
     const source = read(file);
-    const guard = source.match(/if \(window\.PENECHO_CONFIG\?\.runtime !== "viewer"[^;{}]*?refreshSnapshots\(\)\.catch\(\(\) => \{\}\);/)?.[0];
+    const guard = source.match(/if \(window\.FASTLECTURES_CONFIG\?\.runtime !== "viewer"[^;{}]*?refreshSnapshots\(\)\.catch\(\(\) => \{\}\);/)?.[0];
     assert.ok(guard, `${file} exposes the guarded startup refresh`);
     for (const [config, expected] of [
       [{ runtime:"viewer" }, 0],
@@ -57,7 +57,7 @@ test("startup history stays private in Viewer and defers native Cloud reads to L
     ]) {
       let refreshes = 0;
       vm.runInNewContext(guard, {
-        window:{ PENECHO_CONFIG:config },
+        window:{ FASTLECTURES_CONFIG:config },
         refreshSnapshots() { refreshes++; return Promise.resolve(); },
       });
       assert.equal(refreshes, expected, `${file}: ${JSON.stringify(config)}`);
@@ -71,10 +71,10 @@ test("the viewer localizes its actions and responsively frames Widgets and compl
   assert.equal((js.match(/takeFurther:"Echo"/g) || []).length, 2);
   assert.match(js, /backTitle:"Back to Echoes"/);
   assert.match(js, /backTitle:"返回 Echoes"/);
-  assert.match(js, /PenEchoI18n\?\.currentLanguage/);
-  assert.match(js, /penecho:languagechange/);
+  assert.match(js, /FastLecturesI18n\?\.currentLanguage/);
+  assert.match(js, /fastlectures:languagechange/);
   assert.match(js, /fitViewport:true/);
-  assert.match(js, /if \(artifact\?\.format === "penecho-widget"\) await bridge\.importWidget\(artifact, null, \{ fitViewport:true \}\);/);
+  assert.match(js, /if \(artifact\?\.format === "fastlectures-widget"\) await bridge\.importWidget\(artifact, null, \{ fitViewport:true \}\);/);
   assert.match(js, /else await bridge\.viewCanvas\(artifact\);/);
   assert.match(canvas, /viewerAutoFitWidgetId/);
   assert.match(canvas, /viewerAutoFitCanvas/);
@@ -148,14 +148,14 @@ test("Widget hosts stay same-origin in Viewer and Cloud while the local app keep
         canvasAssetUrl:(name) => new URL(name, new URL(canvasRoot, page.origin)).href,
         configuredAccessSession:"",
         location:{ origin:page.origin },
-        window:{ PENECHO_CONFIG:{ runtime } },
+        window:{ FASTLECTURES_CONFIG:{ runtime } },
       })({ id:"general", connect });
     };
 
   for (const page of [
     "http://127.0.0.1:18082/canvas/view/2c01",
     "http://localhost:18082/canvas/view/2c01",
-    "https://penecho.ai/canvas/view/2c01",
+    "https://fastlectures.ai/canvas/view/2c01",
   ]) {
     const host = new URL(resolveHost("viewer", page, ["https://api.example"]));
     assert.equal(host.origin, new URL(page).origin);
@@ -177,11 +177,11 @@ test("Widget hosts stay same-origin in Viewer and Cloud while the local app keep
   assert.equal(localName.origin, "http://127.0.0.1:18081");
   assert.equal(localName.searchParams.get("parent-origin"), "http://localhost:18081");
 
-  const cloudRoot = path.resolve(root, "..", "penecho_cloud"),
+  const cloudRoot = path.resolve(root, "..", "fastlectures_cloud"),
     cloudWidgetRoutePath = path.join(cloudRoot, "src", "routes", "plugins.mjs"),
     cloudAppPath = path.join(cloudRoot, "src", "app.mjs");
   if (!fs.existsSync(cloudWidgetRoutePath) || !fs.existsSync(cloudAppPath)) {
-    t.diagnostic("Sibling PenEcho Cloud checkout is unavailable; local Viewer origin assertions still passed.");
+    t.diagnostic("Sibling FastLectures Cloud checkout is unavailable; local Viewer origin assertions still passed.");
     return;
   }
   const cloudWidgetRoute = fs.readFileSync(cloudWidgetRoutePath, "utf8"),
@@ -241,7 +241,7 @@ test("Viewer Widget initialization recovers when the host's first ready message 
   assert.match(functionSource(canvas, "mountWidget"), /addEventListener\("load"[\s\S]*?probeWidgetHost\(widget\)/);
   assert.equal(runtime.probeWidgetHost(widget), true);
   assert.equal(sentToHost.length, 1);
-  assert.equal(sentToHost[0].message.type, "penecho-widget-host-probe");
+  assert.equal(sentToHost[0].message.type, "fastlectures-widget-host-probe");
   assert.equal(sentToHost[0].targetOrigin, origin);
 
   const sentToParent = [],
@@ -251,20 +251,20 @@ test("Viewer Widget initialization recovers when the host's first ready message 
       ${functionSource(host, "respondToWidgetHostProbe")}
       return respondToWidgetHostProbe;
     })()`, { parent:parentWindow, parentOrigin:origin, snapshotDebugLog() {} });
-  assert.equal(hostHandshake({ source:parentWindow, origin:"http://localhost:18082", data:{ type:"penecho-widget-host-probe" } }), false);
+  assert.equal(hostHandshake({ source:parentWindow, origin:"http://localhost:18082", data:{ type:"fastlectures-widget-host-probe" } }), false);
   assert.equal(sentToParent.length, 0);
-  assert.equal(hostHandshake({ source:parentWindow, origin, data:{ type:"penecho-widget-host-probe" } }), true);
-  assert.equal(sentToParent[0].message.type, "penecho-widget-host-ready");
+  assert.equal(hostHandshake({ source:parentWindow, origin, data:{ type:"fastlectures-widget-host-probe" } }), true);
+  assert.equal(sentToParent[0].message.type, "fastlectures-widget-host-ready");
   assert.equal(sentToParent[0].targetOrigin, origin);
 
   await runtime.handleWidgetMessage({ source:hostWindow, origin, data:sentToParent[0].message });
   assert.equal(widget.hostReady, true);
   assert.equal(widget.initialized, true);
   assert.equal(sentToHost.length, 3);
-  assert.equal(sentToHost[1].message.type, "penecho-widget-init");
+  assert.equal(sentToHost[1].message.type, "fastlectures-widget-init");
   assert.equal(sentToHost[1].message.html, widget.html);
   assert.equal(sentToHost[1].targetOrigin, origin);
-  assert.equal(sentToHost[2].message.type, "penecho-widget-state");
+  assert.equal(sentToHost[2].message.type, "fastlectures-widget-state");
   assert.equal(sentToHost[2].message.active, true);
   assert.equal(sentToHost[2].targetOrigin, origin);
 });
@@ -368,32 +368,32 @@ test("Viewer skips onboarding observers and hidden plugin preview hosts, with a 
     TestNode = class TestNode {},
     body = new TestNode();
 
-  const deviceWindow = { PENECHO_CONFIG:{ runtime:"device" } };
+  const deviceWindow = { FASTLECTURES_CONFIG:{ runtime:"device" } };
   assert.equal(vm.runInNewContext(`(${targetSource})`, { document:{ body }, Node:TestNode, window:deviceWindow })(), body);
   assert.equal(vm.runInNewContext(`(${targetSource})`, { document:{ body:{} }, Node:TestNode, window:deviceWindow })(), null);
   assert.equal(vm.runInNewContext(`(${targetSource})`, { document:{ body:null }, Node:TestNode, window:deviceWindow })(), null);
   assert.equal(vm.runInNewContext(`(${targetSource})`, { document:{ body:{} }, window:deviceWindow })(), null);
-  assert.equal(vm.runInNewContext(`(${targetSource})`, { document:{ body }, Node:TestNode, window:{ PENECHO_CONFIG:{ runtime:"viewer" } } })(), null);
+  assert.equal(vm.runInNewContext(`(${targetSource})`, { document:{ body }, Node:TestNode, window:{ FASTLECTURES_CONFIG:{ runtime:"viewer" } } })(), null);
   assert.match(activeObserver, /const target = featureTourObserverTarget\(\);[\s\S]*?!target[\s\S]*?\.observe\(target,/);
   assert.match(pendingObserver, /const target = featureTourObserverTarget\(\);[\s\S]*?!target[\s\S]*?\.observe\(target,/);
 
   let featureTourStarts = 0, changelogStarts = 0;
   const startViewerOnboarding = vm.runInNewContext(`(${onboardingSource})`, {
-    window:{ PENECHO_CONFIG:{ runtime:"viewer" } },
+    window:{ FASTLECTURES_CONFIG:{ runtime:"viewer" } },
     maybeStartFeatureTour:() => { featureTourStarts++; return false; },
     maybeShowChangelog:() => { changelogStarts++; },
   });
   assert.equal(startViewerOnboarding(), false);
   assert.equal(featureTourStarts, 0);
   assert.equal(changelogStarts, 0);
-  assert.match(previewSource, /window\.PENECHO_CONFIG\?\.runtime === "viewer"\) return;/);
+  assert.match(previewSource, /window\.FASTLECTURES_CONFIG\?\.runtime === "viewer"\) return;/);
 });
 
 test("the cloud sync allow-list carries the viewer assets", (t) => {
-  const cloudRoot = path.resolve(root, "..", "penecho_cloud");
+  const cloudRoot = path.resolve(root, "..", "fastlectures_cloud");
   const syncPath = path.join(cloudRoot, "tools", "sync-public-canvas.mjs");
   if (!fs.existsSync(syncPath)) {
-    t.skip("Sibling PenEcho Cloud checkout is unavailable in this CI job.");
+    t.skip("Sibling FastLectures Cloud checkout is unavailable in this CI job.");
     return;
   }
   const sync = fs.readFileSync(syncPath, "utf8");

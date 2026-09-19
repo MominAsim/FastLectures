@@ -26,7 +26,7 @@ test('host presentation cancels observers and frames on exit, preserving legacy 
 });
 test('host presentation defers snapshot geometry and ignores its own marker mutations',()=>{
  const h=harness();h.ctx.activeSnapshot={};h.ctx.setPresentationLayout();h.flush();assert.equal(h.messages.length,0);
- h.ctx.activeSnapshot=null;h.mutations[0].callback([{target:{},attributeName:'data-penecho-fit-scroll'}]);assert.equal(h.frames.size,0);
+ h.ctx.activeSnapshot=null;h.mutations[0].callback([{target:{},attributeName:'data-fastlectures-fit-scroll'}]);assert.equal(h.frames.size,0);
  h.mutations[0].callback([{target:{},attributeName:'class'}]);h.flush();assert.equal(h.messages.length,1);
 });
 test('host presentation caps dimensions before sending',()=>{
@@ -44,7 +44,7 @@ test('maximized viewport-height layouts expand and authored styles and markers r
  const viewport=new Element({height:'450px',minHeight:'0px',overflowY:'visible',overflowX:'visible'});
  const minimum=new Element({height:'650px',minHeight:'450px',overflowY:'visible',overflowX:'visible'});
  const control=new Element({height:'450px',minHeight:'450px',overflowY:'auto',overflowX:'auto'},true);
- viewport.setAttribute('data-penecho-fit-scroll','authored');
+ viewport.setAttribute('data-fastlectures-fit-scroll','authored');
  const nodes=[viewport,minimum,control],sheet={disabled:false,textContent:''};
  const ctx={widgetState:{maximized:true},innerHeight:450,HTMLElement:Element,getComputedStyle:element=>element.authored,
  document:{body:{querySelectorAll:()=>nodes},head:{append(){}},createElement:()=>sheet}};
@@ -53,13 +53,13 @@ test('maximized viewport-height layouts expand and authored styles and markers r
  vm.runInContext(source.slice(begin,start),ctx);
  ctx.setFitContentLayout(true,true);
  assert.match(sheet.textContent,/overscroll-behavior:auto!important/);
- assert.match(sheet.textContent,/\[data-penecho-fit-scroll="0"\]\{height:auto!important/);
- assert.match(sheet.textContent,/\[data-penecho-fit-scroll="1"\]\{min-height:0!important/);
- assert.equal(control.getAttribute('data-penecho-fit-scroll'),null);
+ assert.match(sheet.textContent,/\[data-fastlectures-fit-scroll="0"\]\{height:auto!important/);
+ assert.match(sheet.textContent,/\[data-fastlectures-fit-scroll="1"\]\{min-height:0!important/);
+ assert.equal(control.getAttribute('data-fastlectures-fit-scroll'),null);
  ctx.widgetState.maximized=false;ctx.setFitContentLayout(true,true);
- assert.doesNotMatch(sheet.textContent,/data-penecho-fit-scroll/);
+ assert.doesNotMatch(sheet.textContent,/data-fastlectures-fit-scroll/);
  assert.doesNotMatch(sheet.textContent,/overscroll-behavior:auto/);
- assert.equal(viewport.getAttribute('data-penecho-fit-scroll'),'authored');
+ assert.equal(viewport.getAttribute('data-fastlectures-fit-scroll'),'authored');
  ctx.setFitContentLayout(false);assert.equal(sheet.disabled,true);
  assert.equal(viewport.authored.height,'450px');assert.equal(minimum.authored.minHeight,'450px');
 });

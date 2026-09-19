@@ -13,7 +13,7 @@ for(const fullContent of [false,true])test(`snapshot fullContent=${fullContent} 
  withTimeout:async p=>p,parent:{postMessage:m=>messages.push(m)},runtimeVersion:1,activeSnapshotRender:null};
  vm.createContext(context);vm.runInContext(captureSource,context);
  await context.snapshotDocument({requestId:'test',width:800,height:400,highResolution:true,fullContent});
- assert.equal(messages[0].type,'penecho-widget-snapshot');
+ assert.equal(messages[0].type,'fastlectures-widget-snapshot');
  assert.deepEqual(sizes,[[800,fullContent?1400:400]]);
  assert.equal(messages[0].height,fullContent?2100:600);
  assert.equal(messages[0].contentHeight,fullContent?1400:400);

@@ -1,19 +1,19 @@
 # MCP presentation and attention
 
-PenEcho is a shared work surface. A session carries status; an artifact carries
+FastLectures is a shared work surface. A session carries status; an artifact carries
 something useful to understand, compare, review, or keep. New sessions create no
 progress Widget. Existing saved progress boards remain editable and compatible.
 
 ## Shared visual authority
 
-MCP `penecho_visual_explorer` uses the same design section of
-`src/server/canvas-agent/visual-explorer-contract.md` as PenEcho Agent. The MCP
+MCP `fastlectures_visual_explorer` uses the same design section of
+`src/server/canvas-agent/visual-explorer-contract.md` as FastLectures Agent. The MCP
 adapter adds purpose, delivery, sizing, and feedback rules; it does not fork the
 Agent's visual design principles or expose its internal tools.
 
 Design source map:
 
-- Session progress → `penecho_design/penecho-design-language.html`, Agent activity
+- Session progress → `fastlectures_design/fastlectures-design-language.html`, Agent activity
   example (`activity-status`, one-line progress): metadata belongs in the existing
   compact session controls, not a large permanent Canvas progress board.
 - Show new content → incumbent MCP control, existing secondary compact action:

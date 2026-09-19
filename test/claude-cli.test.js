@@ -12,7 +12,7 @@ const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCA
 const WEBP = "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA4AAAAvAAAAAAcQEf0PRET/Aw==";
 
 function temporaryDirectory() {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "penecho-claude-test-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fastlectures-claude-test-"));
   test.after(() => fs.rmSync(directory, { recursive:true, force:true }));
   return directory;
 }

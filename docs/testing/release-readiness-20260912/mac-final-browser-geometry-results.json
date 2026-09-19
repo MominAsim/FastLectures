@@ -62,49 +62,49 @@
   },
   "samples": [
     {
-      "name": "penecho_start_session",
+      "name": "fastlectures_start_session",
       "ms": 11.418333000000004,
       "error": false,
       "bytes": 591
     },
     {
-      "name": "penecho_present_widget",
+      "name": "fastlectures_present_widget",
       "ms": 40.28958300000001,
       "error": false,
       "bytes": 433
     },
     {
-      "name": "penecho_read_file",
+      "name": "fastlectures_read_file",
       "ms": 18.625208999999984,
       "error": false,
       "bytes": 599
     },
     {
-      "name": "penecho_read_file",
+      "name": "fastlectures_read_file",
       "ms": 3.4254589999999894,
       "error": false,
       "bytes": 420
     },
     {
-      "name": "penecho_read_file",
+      "name": "fastlectures_read_file",
       "ms": 8.914708000003884,
       "error": false,
       "bytes": 475
     },
     {
-      "name": "penecho_patch_file",
+      "name": "fastlectures_patch_file",
       "ms": 189.48487500000192,
       "error": false,
       "bytes": 772
     },
     {
-      "name": "penecho_read_file",
+      "name": "fastlectures_read_file",
       "ms": 36.23912500000006,
       "error": false,
       "bytes": 475
     },
     {
-      "name": "penecho_read_file",
+      "name": "fastlectures_read_file",
       "ms": 19.026499999999942,
       "error": false,
       "bytes": 599

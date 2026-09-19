@@ -3,11 +3,11 @@
 // click into its document, and inactive front shells block underlying Widgets.
 
   function widgetInteractionPresentation() {
-    try { return localStorage.getItem("penecho.widgetInteractionPresentation") || "maximized"; }
+    try { return localStorage.getItem("fastlectures.widgetInteractionPresentation") || "maximized"; }
     catch { return "maximized"; }
   }
   function switchWidgetPresentation(widget, maximized) {
-    try { localStorage.setItem("penecho.widgetInteractionPresentation", maximized ? "maximized" : "canvas"); } catch {}
+    try { localStorage.setItem("fastlectures.widgetInteractionPresentation", maximized ? "maximized" : "canvas"); } catch {}
     setWidgetMaximized(widget, maximized);
     requestInteractionLayerRender();
   }
@@ -323,7 +323,7 @@
     if (!state.trackpadGesture) return;
     event.preventDefault();
     state.trackpadGesture = null;
-    void window.PenEchoStudioNavigator?.flushMcpFollow?.();
+    void window.FastLecturesStudioNavigator?.flushMcpFollow?.();
   }
   function canvasFitViewportSize() {
     const metrics = canvasViewportMetrics();
@@ -383,7 +383,7 @@
       state.wheelZoom = !state.wheelZoom;
       wheelZoomSetting.setAttribute('aria-checked', String(state.wheelZoom));
       wheelZoomSetting.classList.toggle('on', state.wheelZoom);
-      localStorage.setItem('penecho-wheel-zoom', String(state.wheelZoom));
+      localStorage.setItem('fastlectures-wheel-zoom', String(state.wheelZoom));
     });
   }
   window.addEventListener('keydown', (event) => {

@@ -22,9 +22,9 @@ function isSupportedNodeVersion(value = process.versions.node) {
 function unsupportedNodeMessage(value = process.versions.node) {
   const current = String(value || "unknown").replace(/^v/, "");
   return [
-    `PenEcho ${PACKAGE_JSON.version} requires Node.js ${MINIMUM_NODE_VERSION} or newer (current: ${current}).`,
-    "Upgrade Node.js, then run the PenEcho update again:",
-    "  npm install --global penecho@latest",
+    `FastLectures ${PACKAGE_JSON.version} requires Node.js ${MINIMUM_NODE_VERSION} or newer (current: ${current}).`,
+    "Upgrade Node.js, then run the FastLectures update again:",
+    "  npm install --global fastlectures@latest",
     "Download Node.js: https://nodejs.org/",
   ].join("\n");
 }

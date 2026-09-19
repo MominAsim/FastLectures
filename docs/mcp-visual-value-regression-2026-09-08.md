@@ -2,7 +2,7 @@
 
 ## 范围与基线
 
-本轮沿用 Computer Use 操作 ZCode 的原生 PenEcho MCP 工具和 Edge 中的 071 画布。测试文档：`MCP ZCode 回归 2026-09-08`，documentId `36b62853-8569-4a03-8489-d72143ee6c40`，原 3921 实例。仅测试文档有内容修改；不发布生产版本。
+本轮沿用 Computer Use 操作 ZCode 的原生 FastLectures MCP 工具和 Edge 中的 071 画布。测试文档：`MCP ZCode 回归 2026-09-08`，documentId `36b62853-8569-4a03-8489-d72143ee6c40`，原 3921 实例。仅测试文档有内容修改；不发布生产版本。
 
 071 本地 HEAD `e4b87f1aa8b6f81feeb4e3b908926136419a8237`，前轮记录的远端 main `84d4f8dc45cf5970193895f7d8b084d172f2dd7b`。本轮改进是基于已经有未提交修复的工作区，不把工作区全部 diff 算作本轮修改。Cloud 原有业务修改保留，仅同步允许列表中的 `public/canvas/app.js`、配套 `style.css` 及其来源清单（保留并检查同期侧栏任务的配套变更）。
 
@@ -49,7 +49,7 @@ ZCode 修订报告：revision 8，pixelVerified=true，runtime errors=[]。主�
 
 ## 代码与验证
 
-修改集中在 `src/server/mcp/{guidance,schema,stdio}.js`、`src/client/app/mcp-runtime.js`、`skills/penecho-mcp/SKILL.md` 和对应回归测试；重建客户端。同步已安装的 MCP 技能，并将用户的可交互预览/收益成本偏好记入既有 PenEcho 工程技能。
+修改集中在 `src/server/mcp/{guidance,schema,stdio}.js`、`src/client/app/mcp-runtime.js`、`skills/fastlectures-mcp/SKILL.md` 和对应回归测试；重建客户端。同步已安装的 MCP 技能，并将用户的可交互预览/收益成本偏好记入既有 FastLectures 工程技能。
 
 - `node --test test/mcp-schema.test.js test/mcp-stdio.test.js test/mcp-canvas-runtime.test.js`：32 passed，0 failed。
 - 其中涵盖尺寸互斥、默认不截图、stdio精简结果、直接done/error、attention元数据、显式聚焦/自动不扰动，以及隐页/锁定/活跃手势/文本编辑/Widget交互/设置/队列均不被显式Show绕过。
@@ -72,7 +72,7 @@ Cloud 的前端镜像不等于 Cloud 获得独立公网 MCP 服务。此次真�
 - Codex list_canvases 发现 ZCode 同一071连接。
 - Codex unique key 创建 session `e2fab565-7565-43ec-8bd2-c50a1f092e2b`，绑定另一文档 `doc-fallback-c1d98b8b00552499-73`。
 - 在独立文档后台 present 成功，inspect `browser.visible=false`、revision2；真实浏览器继续停留于 ZCode 原文档，侧栏出现“Codex 独立文档并发验收 / New updates”。
-- Codex 尝试 inspect ZCode session `88ec29b0-cd89-46c2-8261-a6df1db51ac5` 被拒：This MCP connection does not own that PenEcho session。
+- Codex 尝试 inspect ZCode session `88ec29b0-cd89-46c2-8261-a6df1db51ac5` 被拒：This MCP connection does not own that FastLectures session。
 - Codex 完成状态已入队。独立session/document正常，不等于为每个会话自动创建一个独立浏览器标签。
 
 另修复发现接口吞错：stdio此前把Promise.allSettled失败与无开放画布统一返回空列表。现仅在空/部分失败时返回 bounded discovery，区分 no-local-instance、no-opted-in-canvas、instance-unavailable、partial；最多8项issue，只有实例ID/固定错误码，不输出secret、路径、URL或原始错误。完整成功有画布时保持原返回形状，无新增常规输出负担。正常、空、部分/全部连接失败、非法身份/数组响应、脱敏和上限均有测试。本项请求Astra/low实现子代理，主任务查看代码和测试后验收；实际服务模型元数据不可见。

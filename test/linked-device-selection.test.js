@@ -5,31 +5,31 @@ const agent=fs.readFileSync(path.join(__dirname,'../src/client/app/canvas-agent-
 const A='11111111-1111-4111-8111-111111111111',B='22222222-2222-4222-8222-222222222222';
 function fn(source,name){const match=new RegExp(`  (?:async )?function ${name}\\(`).exec(source);assert.ok(match,name);return source.slice(match.index,source.indexOf('\n  }',match.index)+4);}
 function fixture(){
- const data=new Map(),c={window:{PENECHO_CONFIG:{runtime:'cloud',linkedDeviceId:'mac',connectionAccountId:'account-a'}},location:{origin:'https://cloud.test'},localStorage:{getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v)},AI_CONNECTION_STORAGE_KEY:'penecho-ai-connection-id',settings:{connections:[]},hostedSettings:{models:[]},t:k=>k,authenticatedApiHeaders:()=>({}),renderConnectionLists:()=>{},AbortSignal,fetch:async()=>({ok:true,json:async()=>({connections:[]})}),loadHostedModels:async()=>{},canvasAgent:{},canvasAgentRestoreScopedSession:()=>{},data};
+ const data=new Map(),c={window:{FASTLECTURES_CONFIG:{runtime:'cloud',linkedDeviceId:'mac',connectionAccountId:'account-a'}},location:{origin:'https://cloud.test'},localStorage:{getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v)},AI_CONNECTION_STORAGE_KEY:'fastlectures-ai-connection-id',settings:{connections:[]},hostedSettings:{models:[]},t:k=>k,authenticatedApiHeaders:()=>({}),renderConnectionLists:()=>{},AbortSignal,fetch:async()=>({ok:true,json:async()=>({connections:[]})}),loadHostedModels:async()=>{},canvasAgent:{},canvasAgentRestoreScopedSession:()=>{},data};
  vm.createContext(c);
  for(const name of ['aiConnectionScope','aiConnectionStorageKey','selectedAiConnectionId','storeAiConnectionSelection','aiConnectionSelectionError','syncLocalConnectionSelection','validateAiConnectionSelection'])vm.runInContext(fn(core,name),c);
  return c;
 }
 test('same-name model UUIDs stay isolated by device, account, origin and hosted runtime',()=>{
  const c=fixture();c.storeAiConnectionSelection(A);
- c.window.PENECHO_CONFIG.linkedDeviceId='windows';assert.equal(c.selectedAiConnectionId(),'default');c.storeAiConnectionSelection(B);
- c.window.PENECHO_CONFIG.linkedDeviceId='mac';assert.equal(c.selectedAiConnectionId(),A);
- c.storeAiConnectionSelection(`hosted:${A}`);c.window.PENECHO_CONFIG.linkedDeviceId='windows';assert.equal(c.selectedAiConnectionId(),`hosted:${A}`);
+ c.window.FASTLECTURES_CONFIG.linkedDeviceId='windows';assert.equal(c.selectedAiConnectionId(),'default');c.storeAiConnectionSelection(B);
+ c.window.FASTLECTURES_CONFIG.linkedDeviceId='mac';assert.equal(c.selectedAiConnectionId(),A);
+ c.storeAiConnectionSelection(`hosted:${A}`);c.window.FASTLECTURES_CONFIG.linkedDeviceId='windows';assert.equal(c.selectedAiConnectionId(),`hosted:${A}`);
  c.storeAiConnectionSelection(B);assert.equal(c.selectedAiConnectionId(),B);
- c.window.PENECHO_CONFIG.connectionAccountId='account-b';assert.equal(c.selectedAiConnectionId(),'default');
- c.window.PENECHO_CONFIG.connectionAccountId='account-a';c.location.origin='https://uat.test';assert.equal(c.selectedAiConnectionId(),'default');
+ c.window.FASTLECTURES_CONFIG.connectionAccountId='account-b';assert.equal(c.selectedAiConnectionId(),'default');
+ c.window.FASTLECTURES_CONFIG.connectionAccountId='account-a';c.location.origin='https://uat.test';assert.equal(c.selectedAiConnectionId(),'default');
 });
 test('legacy UUID migrates only after exact device catalog membership; deleted choice never switches model',()=>{
  const c=fixture();c.data.set(c.AI_CONNECTION_STORAGE_KEY,A);c.settings.connections=[{id:B,apiModel:'glm-5.3-flash'}];c.syncLocalConnectionSelection();assert.equal(c.selectedAiConnectionId(),'default');
  c.settings.connections=[{id:A}];c.syncLocalConnectionSelection();assert.equal(c.selectedAiConnectionId(),A);
  c.settings.connections=[{id:B}];c.syncLocalConnectionSelection();assert.equal(c.selectedAiConnectionId(),A);assert.equal(c.settings.connections[0].active,false);
- c.window.PENECHO_CONFIG.linkedDeviceId='windows';c.syncLocalConnectionSelection();assert.equal(c.settings.connections.length,0);assert.equal(c.selectedAiConnectionId(),'default');
+ c.window.FASTLECTURES_CONFIG.linkedDeviceId='windows';c.syncLocalConnectionSelection();assert.equal(c.settings.connections.length,0);assert.equal(c.selectedAiConnectionId(),'default');
 });
 test('late catalog from replaced device is discarded before selection or connection list changes',async()=>{
  const c=fixture();c.storeAiConnectionSelection(A);let release;
  c.fetch=async()=>{await new Promise(resolve=>release=resolve);return{ok:true,json:async()=>({connections:[{id:A}]})};};
  const pending=c.validateAiConnectionSelection(A,c.aiConnectionScope());await new Promise(setImmediate);
- c.window.PENECHO_CONFIG.linkedDeviceId='windows';c.storeAiConnectionSelection(B);release();
+ c.window.FASTLECTURES_CONFIG.linkedDeviceId='windows';c.storeAiConnectionSelection(B);release();
  await assert.rejects(pending,e=>e.code==='CONNECTION_STALE');assert.equal(c.selectedAiConnectionId(),B);assert.equal(c.settings.connections.length,0);
 });
 test('preflight rejects deleted UUID and never uses same-name/default connection',async()=>{

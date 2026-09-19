@@ -9,7 +9,7 @@ const MOBILE_ROOT = __dirname;
 const APP_PACKAGE = require(path.join(ROOT, "package.json"));
 const CAPACITOR_BIN = path.join(MOBILE_ROOT, "node_modules", ".bin", process.platform === "win32" ? "cap.cmd" : "cap");
 const RELEASE_DIR = path.join(ROOT, "release", "mobile");
-const ICON_SOURCE = path.join(ROOT, "build", "icons", "penecho-1024.png");
+const ICON_SOURCE = path.join(ROOT, "build", "icons", "fastlectures-1024.png");
 
 function fail(message) {
   console.error(`Mobile packaging error: ${message}`);
@@ -56,7 +56,7 @@ async function writeSplash(target) {
   const height = metadata.height || 2732;
   const logoSize = Math.max(96, Math.round(Math.min(width, height) * 0.28));
   const logo = await sharp(ICON_SOURCE).resize(logoSize, logoSize, { fit:"contain" }).png().toBuffer();
-  const temporary = `${target}.penecho.png`;
+  const temporary = `${target}.fastlectures.png`;
   await sharp({
     create:{ width, height, channels:4, background:{ r:16, g:24, b:39, alpha:1 } },
   }).composite([{ input:logo, gravity:"center" }]).png().toFile(temporary);
@@ -134,13 +134,13 @@ function configureIosNetwork() {
     NSAllowsArbitraryLoadsInWebContent:true,
     NSAllowsLocalNetworking:true,
   };
-  info.NSLocalNetworkUsageDescription = "Connect to a PenEcho server on your local network.";
+  info.NSLocalNetworkUsageDescription = "Connect to a FastLectures server on your local network.";
   info.ITSAppUsesNonExemptEncryption = false;
   fs.writeFileSync(plistPath, plist.build(info));
 }
 
 function ensurePlatform(platform) {
-  fs.copyFileSync(ICON_SOURCE, path.join(MOBILE_ROOT, "web", "penecho-mark.png"));
+  fs.copyFileSync(ICON_SOURCE, path.join(MOBILE_ROOT, "web", "fastlectures-mark.png"));
   const directory = path.join(MOBILE_ROOT, platform);
   if (!fs.existsSync(directory)) cap("add", platform);
   cap("sync", platform);
@@ -150,7 +150,7 @@ function ensurePlatform(platform) {
 function copyArtifact(source, extension, suffix) {
   if (!fs.existsSync(source)) throw new Error(`Expected build artifact was not found: ${source}`);
   ensureDir(RELEASE_DIR);
-  const target = path.join(RELEASE_DIR, `PenEcho-${APP_PACKAGE.version}-${suffix}.${extension}`);
+  const target = path.join(RELEASE_DIR, `FastLectures-${APP_PACKAGE.version}-${suffix}.${extension}`);
   fs.copyFileSync(source, target);
   console.log(target);
 }
@@ -208,7 +208,7 @@ async function buildIos() {
   cap("sync", "ios");
   const signing = iosSigning();
   const projectVersion = String(iosBuildNumber());
-  const archiveRoot = path.join(RELEASE_DIR, "ios", "PenEcho.xcarchive");
+  const archiveRoot = path.join(RELEASE_DIR, "ios", "FastLectures.xcarchive");
   fs.rmSync(archiveRoot, { recursive:true, force:true });
   const archiveArgs = [
     "archive",
@@ -243,7 +243,7 @@ async function buildIos() {
       signingStyle:"manual",
       signingCertificate:signing.identity,
       teamID:signing.teamId,
-      provisioningProfiles:{ "ai.penecho.mobile":signing.profile },
+      provisioningProfiles:{ "ai.fastlectures.mobile":signing.profile },
       manageAppVersionAndBuildNumber:false,
       stripSwiftSymbols:true,
       uploadSymbols:true,
@@ -264,8 +264,8 @@ async function buildIos() {
   const payloadRoot = path.join(RELEASE_DIR, "ios", "Payload");
   fs.rmSync(payloadRoot, { recursive:true, force:true });
   ensureDir(payloadRoot);
-  fs.cpSync(appPath, path.join(payloadRoot, "PenEcho.app"), { recursive:true });
-  const ipa = path.join(RELEASE_DIR, `PenEcho-${APP_PACKAGE.version}-ios-unsigned.ipa`);
+  fs.cpSync(appPath, path.join(payloadRoot, "FastLectures.app"), { recursive:true });
+  const ipa = path.join(RELEASE_DIR, `FastLectures-${APP_PACKAGE.version}-ios-unsigned.ipa`);
   fs.rmSync(ipa, { force:true });
   run("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", "Payload", ipa], path.join(RELEASE_DIR, "ios"));
   console.log(ipa);

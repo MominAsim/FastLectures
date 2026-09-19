@@ -1,5 +1,5 @@
 ---
-penecho-plugin: 1
+fastlectures-plugin: 1
 id: weather
 name: Weather
 name-zh: 天气
@@ -35,7 +35,7 @@ Read values and units from `current`, `current_units`, `daily`, and `daily_units
 
 ## Runtime rules
 
-Fetch only the declared origins with `credentials:"omit"`. The HTML owns its initial fetch and 900-second refresh timer; PenEcho never proxies or refreshes data. Do not use external assets, current-frame navigation, forms, cookies, storage, or secrets. After every success or error render, call `window.parent.postMessage({type:"penecho-widget-updated"}, "*")` so PNG export receives the current view.
+Fetch only the declared origins with `credentials:"omit"`. The HTML owns its initial fetch and 900-second refresh timer; FastLectures never proxies or refreshes data. Do not use external assets, current-frame navigation, forms, cookies, storage, or secrets. After every success or error render, call `window.parent.postMessage({type:"fastlectures-widget-updated"}, "*")` so PNG export receives the current view.
 
 ## One-shot example
 

@@ -10,14 +10,14 @@ const {importCredentials}=require('../src/server/mcp/discovery-client.js');
 function run(command,args){return new Promise((resolve,reject)=>{const child=spawn(command,args,{stdio:['ignore','pipe','pipe']});let stdout='',stderr='';child.stdout.on('data',s=>stdout+=s);child.stderr.on('data',s=>stderr+=s);child.once('error',reject);child.once('close',code=>resolve({code,stdout,stderr}));});}
 const sha=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 test('skill generated client command uploads client-only files through real HTTPS normalization and resolves HTML/CSS',async t=>{
- const dir=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'penecho-skill-')));
+ const dir=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'fastlectures-skill-')));
  const clientDir=path.join(dir,'agent machine'),serverDir=path.join(dir,'host');fs.mkdirSync(clientDir);
  const assets=new Map();let callbacks=0;
  const service=createDirectHttpService({preferredPort:0,stateDirectory:serverDir,getHostnames:()=>[],getAddresses:()=>[],announce:()=>({close(){}}),disposeOwner:()=>{},callTool:async()=>{throw Error('Raw upload must not initialize MCP');},uploadImage:async args=>{
   callbacks++;assert.equal(args.canvasId,'selected-canvas');assert.equal(args.documentId,'current-document');
   assert.match(args.source,/^data:image\/(png|jpeg|webp);base64,/);assert.ok(!args.source.includes(clientDir));
   const bytes=Buffer.from(args.source.split(',')[1],'base64'),assetId=sha(bytes);assets.set(assetId,args);
-  return {source:'penecho-asset:'+assetId,assetId,inputSha256:args.inputSha256,name:args.name,mediaType:args.mimeType,bytes:bytes.length,width:args.width,height:args.height,revision:1,canvasId:args.canvasId,documentId:args.documentId,requestId:args.requestId};
+  return {source:'fastlectures-asset:'+assetId,assetId,inputSha256:args.inputSha256,name:args.name,mediaType:args.mimeType,bytes:bytes.length,width:args.width,height:args.height,revision:1,canvasId:args.canvasId,documentId:args.documentId,requestId:args.requestId};
  }});
  t.after(async()=>{await service.close();fs.rmSync(dir,{recursive:true,force:true});});
  const status=await service.start(),stateDirectory=path.join(clientDir,'isolated credentials');

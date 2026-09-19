@@ -2,7 +2,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
-  else root.PENECHO_TOUR = api;
+  else root.FASTLECTURES_TOUR = api;
 })(typeof globalThis === "object" ? globalThis : this, function () {
   const SCHEMA = 1;
 

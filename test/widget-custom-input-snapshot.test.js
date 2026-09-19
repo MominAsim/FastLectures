@@ -1,6 +1,6 @@
 "use strict";
 const {test}=require("node:test"),assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),vm=require("node:vm");
-const host=fs.readFileSync(path.join(__dirname,"../public/widget-host.js"),"utf8"),vendor=fs.readFileSync(path.join(__dirname,"../public/vendor/penecho-dom-renderer.js"),"utf8");
+const host=fs.readFileSync(path.join(__dirname,"../public/widget-host.js"),"utf8"),vendor=fs.readFileSync(path.join(__dirname,"../public/vendor/fastlectures-dom-renderer.js"),"utf8");
 function fn(name){const start=host.indexOf(`    function ${name}(`),end=host.indexOf("\n    function ",start+1);return host.slice(start,end);}
 function element(tagName="DIV"){
   const attributes=new Map(),styles=new Map(),children=[];
@@ -18,7 +18,7 @@ function harness({native=false,fail=false}={}){
   const root=element(),parent=element(),input=element("INPUT"),unchecked=element("INPUT"),tail=element();unchecked.checked=false;root.appendChild(parent);parent.appendChild(input);parent.appendChild(unchecked);parent.appendChild(tail);
   const inputStyle=computed({appearance:native?"auto":"none",position:"relative",transform:"matrix(0.9, 0, 0, 0.9, 0, 0)","transform-origin":"10px 10px","border-left-width":"2px","border-top-width":"2px",opacity:"0.8"}),
     after=computed({content:'"✓"',display:"flex",position:"absolute",inset:"0px",color:"rgb(255, 255, 255)","font-size":"15px"}),none=computed({content:"none"});
-  const context={document:{documentElement:root,activeElement:input,querySelectorAll:()=>[parent,input,unchecked,tail],createElement:tag=>{if(fail&&tag==="penecho-snapshot-input")throw Error("carrier failed");return element(tag.toUpperCase());}},
+  const context={document:{documentElement:root,activeElement:input,querySelectorAll:()=>[parent,input,unchecked,tail],createElement:tag=>{if(fail&&tag==="fastlectures-snapshot-input")throw Error("carrier failed");return element(tag.toUpperCase());}},
     SNAPSHOT_GENERATED_PSEUDOS:[{selector:"::before",placement:"prepend"},{selector:"::after",placement:"append"}],
     getComputedStyle:(item,pseudo)=>!pseudo?inputStyle:item===input&&pseudo==="::after"?after:none};
   vm.runInNewContext(fn("snapshotPseudoContentText")+fn("materializeSnapshotGeneratedContent")+";this.materialize=materializeSnapshotGeneratedContent;",context);
@@ -28,20 +28,20 @@ test("custom checkbox pseudo uses an adjacent containing box without moving the 
   const h=harness(),originalChildren=[...h.parent.children],restore=h.materialize(),carrier=h.parent.children.at(-1);
   assert.equal(h.parent.children[0],h.input);assert.equal(h.input.children.length,0);assert.equal(h.document.activeElement,h.input);assert.equal(h.input.checked,true);
   assert.equal(h.input.nextSibling,h.unchecked);assert.equal(h.unchecked.nextSibling,h.tail);
-  assert.equal(carrier.tagName,"PENECHO-SNAPSHOT-INPUT");assert.equal(carrier.styles.get("left"),"42px");assert.equal(carrier.styles.get("top"),"27px");assert.equal(carrier.styles.get("width"),"20px");
+  assert.equal(carrier.tagName,"FASTLECTURES-SNAPSHOT-INPUT");assert.equal(carrier.styles.get("left"),"42px");assert.equal(carrier.styles.get("top"),"27px");assert.equal(carrier.styles.get("width"),"20px");
   assert.equal(carrier.styles.get("transform"),"matrix(0.9, 0, 0, 0.9, 0, 0)");assert.equal(carrier.styles.get("transform-origin"),"10px 10px");assert.equal(carrier.styles.get("border-left-width"),"2px");
   assert.equal(carrier.styles.get("background-color"),"transparent");assert.equal(carrier.children[0].textContent,"✓");assert.equal(carrier.children[0].styles.get("display"),"flex");
-  assert.equal(h.input.hasAttribute("data-penecho-snapshot-custom-input"),true);assert.equal(h.unchecked.hasAttribute("data-penecho-snapshot-custom-input"),true);
-  restore();assert.deepEqual(h.parent.children,originalChildren);assert.equal(h.input.hasAttribute("data-penecho-snapshot-custom-input"),false);assert.equal(h.unchecked.hasAttribute("data-penecho-snapshot-custom-input"),false);assert.equal(h.document.activeElement,h.input);
+  assert.equal(h.input.hasAttribute("data-fastlectures-snapshot-custom-input"),true);assert.equal(h.unchecked.hasAttribute("data-fastlectures-snapshot-custom-input"),true);
+  restore();assert.deepEqual(h.parent.children,originalChildren);assert.equal(h.input.hasAttribute("data-fastlectures-snapshot-custom-input"),false);assert.equal(h.unchecked.hasAttribute("data-fastlectures-snapshot-custom-input"),false);assert.equal(h.document.activeElement,h.input);
 });
 test("cleanup restores an existing marker, including materialization failures",()=>{
-  const h=harness();h.input.setAttribute("data-penecho-snapshot-custom-input","previous");const restore=h.materialize();restore();assert.equal(h.input.getAttribute("data-penecho-snapshot-custom-input"),"previous");
-  const failed=harness({fail:true}),originalChildren=[...failed.parent.children];assert.throws(()=>failed.materialize(),/carrier failed/);assert.deepEqual(failed.parent.children,originalChildren);assert.equal(failed.input.hasAttribute("data-penecho-snapshot-custom-input"),false);
+  const h=harness();h.input.setAttribute("data-fastlectures-snapshot-custom-input","previous");const restore=h.materialize();restore();assert.equal(h.input.getAttribute("data-fastlectures-snapshot-custom-input"),"previous");
+  const failed=harness({fail:true}),originalChildren=[...failed.parent.children];assert.throws(()=>failed.materialize(),/carrier failed/);assert.deepEqual(failed.parent.children,originalChildren);assert.equal(failed.input.hasAttribute("data-fastlectures-snapshot-custom-input"),false);
 });
 test("renderer uses normal CSS for marked custom inputs and retains native input rendering otherwise",()=>{
   const source=vendor.slice(vendor.indexOf("VB=function")+3,vendor.indexOf(",kB=function")),
     plain=class Plain{},native=class Native{},context={ur:plain,pB:native,_B:node=>node.tagName==="INPUT"};
   for(const predicate of ["$B","zB","qB","WB","ZB","tn","en","An"])context[predicate]=()=>false;
   const factory=vm.runInNewContext(`(${source})`,context),input=element("INPUT");
-  assert.ok(factory({},input) instanceof native);input.setAttribute("data-penecho-snapshot-custom-input","");assert.ok(factory({},input) instanceof plain);
+  assert.ok(factory({},input) instanceof native);input.setAttribute("data-fastlectures-snapshot-custom-input","");assert.ok(factory({},input) instanceof plain);
 });

@@ -30,15 +30,15 @@ test("model evaluation forwarding uses the Cloud API and a bounded request", asy
   await forwardModelEvaluation(async (url, options) => {
     call = { url:String(url), options };
     return { ok:true, status:202 };
-  }, "https://penecho.ai", "paired-device-token", valid, 10_000);
-  assert.equal(call.url, "https://penecho.ai/api/v1/device-sync/model-evaluation");
+  }, "https://fastlectures.ai", "paired-device-token", valid, 10_000);
+  assert.equal(call.url, "https://fastlectures.ai/api/v1/device-sync/model-evaluation");
   assert.equal(call.options.method, "POST");
   assert.equal(call.options.redirect, "error");
   assert.equal(call.options.headers.authorization, "Bearer paired-device-token");
   assert.equal(call.options.signal instanceof AbortSignal, true);
   assert.deepEqual(JSON.parse(call.options.body), valid);
   await assert.rejects(
-    forwardModelEvaluation(async () => ({ ok:true }), "https://penecho.ai", "", valid, 10_000),
+    forwardModelEvaluation(async () => ({ ok:true }), "https://fastlectures.ai", "", valid, 10_000),
     (error) => error?.code === "cloud_auth_required",
   );
 });

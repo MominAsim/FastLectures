@@ -6,8 +6,8 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFile, spawn } = require("node:child_process");
 
-const UPDATE_OWNER = "penecho";
-const UPDATE_REPOSITORY = "penecho";
+const UPDATE_OWNER = "fastlectures";
+const UPDATE_REPOSITORY = "fastlectures";
 const UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const FIRST_CHECK_DELAY_MS = 20 * 1000;
 const RELEASE_REQUEST_TIMEOUT_MS = 15 * 1000;
@@ -21,7 +21,7 @@ function parsedVersion(value) {
 
 function compareVersions(left, right) {
   const a = parsedVersion(left), b = parsedVersion(right);
-  if (!a || !b) throw new Error("The release service returned an invalid PenEcho version.");
+  if (!a || !b) throw new Error("The release service returned an invalid FastLectures version.");
   for (let index = 0; index < 3; index++) {
     if (a.numbers[index] !== b.numbers[index]) return a.numbers[index] > b.numbers[index] ? 1 : -1;
   }
@@ -35,8 +35,8 @@ function releaseVersion(value) {
 }
 
 function expectedAssetName(platform, arch, version) {
-  if (platform === "darwin" && ["arm64", "x64"].includes(arch)) return `PenEcho-${version}-mac-${arch}.zip`;
-  if (platform === "win32" && ["arm64", "x64"].includes(arch)) return `PenEcho-Setup-${version}-win-${arch}.exe`;
+  if (platform === "darwin" && ["arm64", "x64"].includes(arch)) return `FastLectures-${version}-mac-${arch}.zip`;
+  if (platform === "win32" && ["arm64", "x64"].includes(arch)) return `FastLectures-Setup-${version}-win-${arch}.exe`;
   return "";
 }
 
@@ -162,14 +162,14 @@ exit 1
 
 async function installMacUpdate(options) {
   const target = macBundlePath(options.app.getPath("exe"));
-  if (!target || path.basename(target) !== "PenEcho.app") throw new Error("PenEcho must be run from an installed PenEcho.app before it can update itself.");
+  if (!target || path.basename(target) !== "FastLectures.app") throw new Error("FastLectures must be run from an installed FastLectures.app before it can update itself.");
   await fs.promises.access(path.dirname(target), fs.constants.W_OK);
   const directory = path.dirname(options.downloadedPath),
     token = `${Date.now()}-${process.pid}`,
     staging = path.join(directory, `install-${token}`),
-    candidate = path.join(staging, "PenEcho.app"),
+    candidate = path.join(staging, "FastLectures.app"),
     helper = path.join(directory, `install-${token}.sh`),
-    backup = `${target}.penecho-backup-${token}`,
+    backup = `${target}.fastlectures-backup-${token}`,
     runCommand = options.runCommand || runFile;
   await fs.promises.mkdir(staging, { recursive:true });
   try {
@@ -177,7 +177,7 @@ async function installMacUpdate(options) {
     const info = path.join(candidate, "Contents", "Info.plist"),
       identifier = await runCommand("/usr/bin/plutil", ["-extract", "CFBundleIdentifier", "raw", "-o", "-", info]),
       version = await runCommand("/usr/bin/plutil", ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", info]);
-    if (identifier !== "app.penecho.desktop") throw new Error("The update archive is not a PenEcho desktop application.");
+    if (identifier !== "app.fastlectures.desktop") throw new Error("The update archive is not a FastLectures desktop application.");
     if (version !== options.version) throw new Error(`The update archive contains v${version || "unknown"} instead of v${options.version}.`);
     await fs.promises.writeFile(helper, macInstallerScript(), { encoding:"utf8", mode:0o700 });
     const child = (options.spawnImpl || spawn)("/bin/sh", [
@@ -219,7 +219,7 @@ function createUpdateManager(options) {
     arch = options.arch || process.arch,
     currentVersion = String(options.currentVersion || app.getVersion()),
     supported = Boolean(expectedAssetName(platform, arch, currentVersion)),
-    updateDirectory = options.updateDirectory || path.join(app.getPath?.("temp") || os.tmpdir(), "penecho-updates");
+    updateDirectory = options.updateDirectory || path.join(app.getPath?.("temp") || os.tmpdir(), "fastlectures-updates");
   let checkingMetadata = false,
     downloadActive = false,
     downloadReady = false,
@@ -247,7 +247,7 @@ function createUpdateManager(options) {
       ...updates,
       ready:downloadReady,
     });
-    try { onStateChange(getState()); } catch (error) { logger.warn?.(`PenEcho update UI failed: ${error.message || error}`); }
+    try { onStateChange(getState()); } catch (error) { logger.warn?.(`FastLectures update UI failed: ${error.message || error}`); }
     return getState();
   }
 
@@ -261,7 +261,7 @@ function createUpdateManager(options) {
       const response = await fetchImpl(RELEASE_API_URL, {
         headers:{
           Accept:"application/vnd.github+json",
-          "User-Agent":`PenEcho/${currentVersion}`,
+          "User-Agent":`FastLectures/${currentVersion}`,
           "X-GitHub-Api-Version":"2022-11-28",
         },
         redirect:"follow",
@@ -273,7 +273,7 @@ function createUpdateManager(options) {
       if (!version) throw new Error("GitHub Releases returned an invalid version.");
       return {
         version,
-        title:String(value?.name || `PenEcho ${version}`).trim().slice(0, 200),
+        title:String(value?.name || `FastLectures ${version}`).trim().slice(0, 200),
         notes:String(value?.body || "").trim().slice(0, 8000),
         publishedAt:String(value?.published_at || "").trim(),
         releaseUrl:String(value?.html_url || "").trim(),
@@ -299,7 +299,7 @@ function createUpdateManager(options) {
       return true;
     }
     if (checkingMetadata || downloadActive || dismissed && !manual) return false;
-    if (!supported || process.env.PENECHO_DISABLE_AUTO_UPDATE === "1") {
+    if (!supported || process.env.FASTLECTURES_DISABLE_AUTO_UPDATE === "1") {
       if (manual) publish("error", {
         visible:true,
         error:"Automatic updates currently support macOS and Windows on arm64 or x64.",
@@ -320,17 +320,17 @@ function createUpdateManager(options) {
         return true;
       }
       const asset = releaseAsset(latest, platform, arch);
-      if (!asset) throw new Error(`PenEcho v${latest.version} does not include ${expectedAssetName(platform, arch, latest.version) || "a compatible installer"}.`);
+      if (!asset) throw new Error(`FastLectures v${latest.version} does not include ${expectedAssetName(platform, arch, latest.version) || "a compatible installer"}.`);
       publish("available", {
         visible:true, version:latest.version, title:latest.title, notes:latest.notes,
         publishedAt:latest.publishedAt, releaseUrl:latest.releaseUrl,
       });
       return true;
     } catch (error) {
-      logger.warn?.(`PenEcho update check failed: ${error.message || error}`);
+      logger.warn?.(`FastLectures update check failed: ${error.message || error}`);
       publish("error", {
         visible:Boolean(manual),
-        error:`PenEcho could not check GitHub Releases. ${String(error?.message || error || "").trim()}`.trim().slice(0, 500),
+        error:`FastLectures could not check GitHub Releases. ${String(error?.message || error || "").trim()}`.trim().slice(0, 500),
       });
       return false;
     } finally {
@@ -347,7 +347,7 @@ function createUpdateManager(options) {
     if (state.status !== "available" || downloadActive) return false;
     const asset = releaseAsset(release, platform, arch);
     if (!asset) {
-      publish("error", { visible:true, error:"The release does not include a compatible PenEcho installer." });
+      publish("error", { visible:true, error:"The release does not include a compatible FastLectures installer." });
       return false;
     }
     dismissed = false;
@@ -363,7 +363,7 @@ function createUpdateManager(options) {
         destination,
         fetchImpl,
         signal:downloadController.signal,
-        userAgent:`PenEcho/${currentVersion}`,
+        userAgent:`FastLectures/${currentVersion}`,
         onProgress:progress => {
           const rounded = progress === null ? null : Math.floor(progress);
           if (rounded === lastProgress) return;
@@ -379,7 +379,7 @@ function createUpdateManager(options) {
     } catch (error) {
       downloadActive = false;
       downloadController = null;
-      logger.warn?.(`PenEcho update download failed: ${error.message || error}`);
+      logger.warn?.(`FastLectures update download failed: ${error.message || error}`);
       publish("error", {
         visible:true,
         error:`The update could not be downloaded. ${String(error?.message || error || "").trim()}`.trim().slice(0, 500),
@@ -411,7 +411,7 @@ function createUpdateManager(options) {
       });
       return true;
     } catch (error) {
-      logger.warn?.(`PenEcho could not install the downloaded update: ${error.message || error}`);
+      logger.warn?.(`FastLectures could not install the downloaded update: ${error.message || error}`);
       publish("error", {
         visible:true,
         error:`The downloaded update could not be installed. ${String(error?.message || error || "").trim()}`.trim().slice(0, 500),
@@ -421,7 +421,7 @@ function createUpdateManager(options) {
   }
 
   function start() {
-    if (!supported || process.env.PENECHO_DISABLE_AUTO_UPDATE === "1") return false;
+    if (!supported || process.env.FASTLECTURES_DISABLE_AUTO_UPDATE === "1") return false;
     firstTimer = setTimeout(() => void check(false), FIRST_CHECK_DELAY_MS);
     intervalTimer = setInterval(() => void check(false), UPDATE_INTERVAL_MS);
     firstTimer.unref?.();

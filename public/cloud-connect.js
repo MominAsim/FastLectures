@@ -6,7 +6,7 @@
   if (!cloudButton || !shareCanvasButton) return;
   // The read-only viewer shell has its own minimal header; the Cloud Center and
   // its local-server API calls must stay silent there.
-  if (window.PENECHO_CONFIG?.runtime === "viewer") return;
+  if (window.FASTLECTURES_CONFIG?.runtime === "viewer") return;
 
   const CATEGORIES = ["education", "productivity", "data", "design", "developer", "science", "business", "lifestyle", "other", "guidance", "collaboration", "learning"];
   const CATEGORY_LABEL_KEYS = {
@@ -24,10 +24,10 @@
     learning:"categoryLearning",
   };
   const PUBLICATION_TERMS_VERSION = "2026-08-12";
-  const sessionToken = String(window.PENECHO_CONFIG?.accessSessionToken || sessionStorage.getItem("penecho-access-session") || "");
-  const configuredCloudOrigin = String(window.PENECHO_CONFIG?.runtime === "cloud" ? location.origin : window.PENECHO_CONFIG?.cloudOrigin || "https://penecho.ai");
-  const configuredCloudEnvironment = String(window.PENECHO_CONFIG?.cloudEnvironment || "prod");
-  const localHostControlsAvailable = window.PENECHO_CONFIG?.runtime !== "cloud";
+  const sessionToken = String(window.FASTLECTURES_CONFIG?.accessSessionToken || sessionStorage.getItem("fastlectures-access-session") || "");
+  const configuredCloudOrigin = String(window.FASTLECTURES_CONFIG?.runtime === "cloud" ? location.origin : window.FASTLECTURES_CONFIG?.cloudOrigin || "https://fastlectures.ai");
+  const configuredCloudEnvironment = String(window.FASTLECTURES_CONFIG?.cloudEnvironment || "prod");
+  const localHostControlsAvailable = window.FASTLECTURES_CONFIG?.runtime !== "cloud";
   const BROWSER_SIGN_IN_POLL_MS = 800;
   const BROWSER_SIGN_IN_TIMEOUT_MS = 10 * 60_000;
   const DEVICE_CONNECTION_POLL_MS = 2_000;
@@ -35,7 +35,7 @@
     en:Object.freeze({
       close:"Close",
       cloudSubtitle:"Private canvases and favorites, synced to your account.",
-      cloudArea:"PenEcho Cloud area",
+      cloudArea:"FastLectures Cloud area",
       cloudProjects:"Projects",
       cloudProjectsHint:"Private, versioned canvases",
       favorites:"Favorites",
@@ -57,22 +57,22 @@
       accountCanvases:"Canvases",
       signIn:"Sign in",
       openAccount:"Open account",
-      cloudUser:"PenEcho user",
+      cloudUser:"FastLectures user",
       credits:"{count} credits",
       subscriptionValidUntil:"Subscription valid until {date}",
       refreshAccount:"Refresh account",
       openDashboard:"Cloud Dashboard ↗",
       signOutHost:"Sign out on this host",
-      signOutConfirm:"Sign out on this PenEcho host? The device link will remain available.",
+      signOutConfirm:"Sign out on this FastLectures host? The device link will remain available.",
       localSignInHelp:"Sign in for private projects and favorites; API keys stay on this device.",
       waitingBrowser:"Waiting for browser…",
       continueBrowser:"Continue in browser",
       signInBrowser:"Sign in with browser",
       openSignIn:"Open sign-in page ↗",
       openAgain:"Open again ↗",
-      browserComplete:"Complete sign-in there; PenEcho will connect here automatically.",
+      browserComplete:"Complete sign-in there; FastLectures will connect here automatically.",
       desktopBrowserOpen:"Your default browser is open. ",
-      browserBlocked:"Your browser blocked the sign-in window. Select Open sign-in page below; PenEcho will still connect automatically.",
+      browserBlocked:"Your browser blocked the sign-in window. Select Open sign-in page below; FastLectures will still connect automatically.",
       signedInReady:"Signed in. Your Cloud account is ready.",
       browserExpired:"Browser sign-in expired. Select Sign in with browser to try again.",
       linkThisDevice:"Link device",
@@ -93,13 +93,13 @@
       removeThisLink:"Remove this link",
       removeLinkConfirm:"Remove this device link? Remote access will stop, but you can enable it again later without a pairing code.",
       generatePairingBefore:"Generate a pairing key in ",
-      penechoDevices:"PenEcho Cloud → Devices",
+      fastlecturesDevices:"FastLectures Cloud → Devices",
       generatePairingAfter:", then enter it below.",
       pairingKey:"Pairing key",
       deviceName:"Device name",
-      myPenEcho:"My PenEcho",
+      myFastLectures:"My FastLectures",
       linkDevice:"Link device",
-      requestFailed:"PenEcho Cloud request failed.",
+      requestFailed:"FastLectures Cloud request failed.",
       signInProjects:"Sign in to view private projects and pick up your work on any device.",
       cloudSavingNotReady:"Cloud project saving is not ready yet.",
       used:"{size} used",
@@ -134,17 +134,17 @@
       noFavoriteCanvases:"No favorite Canvases yet. Favorite one in Echoes to keep it here.",
       noFavoriteWidgets:"No favorite Widgets yet. Favorite one in Echoes or from a Canvas.",
       byAuthor:"by {name}",
-      creator:"PenEcho creator",
+      creator:"FastLectures creator",
       addToCanvas:"Add to this Canvas",
       addingToCanvas:"Adding…",
       viewDetails:"Details ↗",
       favoriteLoadFailed:"Could not load favorites.",
       untitledWidget:"Untitled Widget",
       communityWidget:"Favorite Widget",
-      widgetImportUnavailable:"This PenEcho version cannot import Widgets yet.",
-      communityWidgetImportUnavailable:"This PenEcho version cannot import community Widgets yet.",
-      communityCanvasImportUnavailable:"This PenEcho version cannot import community Canvases yet.",
-      incompatibleCraft:"This Craft is not compatible with this PenEcho version.",
+      widgetImportUnavailable:"This FastLectures version cannot import Widgets yet.",
+      communityWidgetImportUnavailable:"This FastLectures version cannot import community Widgets yet.",
+      communityCanvasImportUnavailable:"This FastLectures version cannot import community Canvases yet.",
+      incompatibleCraft:"This Craft is not compatible with this FastLectures version.",
       signInTakeFurther:"Sign in to Echo this Craft.",
       shareTitle:"Preserve this moment",
       shareSubtitle:"It does not need to be finished. It only needs to invite understanding or an Echo.",
@@ -176,11 +176,11 @@
       publicationAgreementBeforeLink:"I have the right to publish this work and accept the ",
       publicationAgreementLink:"Publication Agreement",
       publicationAgreementAfterLink:".",
-      shareSignInRequired:"Please sign in to PenEcho Cloud before sharing.",
+      shareSignInRequired:"Please sign in to FastLectures Cloud before sharing.",
       tagLimit:"Use no more than 8 tags.",
       tagLength:"Each tag must be 32 characters or fewer.",
       tagStart:"Tags must start with a letter or number.",
-      shareNote:"A rough sketch can be the first surviving record of a great idea. PenEcho captures this {kind} automatically—no image upload—and preserves every attributed step. The validated WebP is at most 2048 × 2048 and 4 MB.",
+      shareNote:"A rough sketch can be the first surviving record of a great idea. FastLectures captures this {kind} automatically—no image upload—and preserves every attributed step. The validated WebP is at most 2048 × 2048 and 4 MB.",
       usesCurrentAi:"Uses the AI connection currently active on this device.",
       nameLabel:"Title",
       descriptionLabel:"Description",
@@ -197,7 +197,7 @@
       publishAgreementRequired:"Accept the Publication Agreement before publishing.",
       addingLineage:"Adding your step to the Craft lineage…",
       publishingFirstStep:"Publishing the first step of this Craft…",
-      publishedCraftMissing:"PenEcho Cloud did not return the published Craft.",
+      publishedCraftMissing:"FastLectures Cloud did not return the published Craft.",
       publishedLocalLinkAttention:"Craft published safely, but its local continuation link needs attention below. Do not publish again.",
       publishedFavoriteRetry:"Craft published safely. Saving it to Favorites can be retried from its public page.",
       publishedAndSaved:"Craft published and added to Favorites.",
@@ -226,7 +226,7 @@
       shareLinkFailed:"Could not share the public link.",
       shareImageEmbedCopied:"Linked image embed code copied.",
       shareImageEmbedFailed:"Could not copy the image embed code.",
-      nativeShareText:"View and Echo this {kind} on PenEcho.",
+      nativeShareText:"View and Echo this {kind} on FastLectures.",
       shareFailed:"Could not share this item.",
       cancel:"Cancel",
       askingAi:"Asking your current AI to improve the listing…",
@@ -241,13 +241,13 @@
       previewReady:"Preview ready.",
       previewFailed:"Could not generate the preview.",
       sharingUnavailable:"Sharing is unavailable until the preview is valid.",
-      favoriteUnsupported:"This PenEcho version does not support widget favorites.",
+      favoriteUnsupported:"This FastLectures version does not support widget favorites.",
       favoriteLocalOnlyQuota:"Cloud storage is full. Saved locally only.",
     }),
     zh:Object.freeze({
       close:"关闭",
       cloudSubtitle:"私有画布与收藏，已同步到你的账号。",
-      cloudArea:"PenEcho Cloud 区域",
+      cloudArea:"FastLectures Cloud 区域",
       cloudProjects:"项目",
       cloudProjectsHint:"私有的版本化画布",
       favorites:"收藏",
@@ -269,23 +269,23 @@
       accountCanvases:"画布",
       signIn:"登录",
       openAccount:"前往账户",
-      cloudUser:"PenEcho 用户",
+      cloudUser:"FastLectures 用户",
       credits:"{count} 积分",
       subscriptionValidUntil:"订阅有效期至 {date}",
       refreshAccount:"刷新账户",
       openDashboard:"云端 Dashboard ↗",
       signOutHost:"在此主机退出",
-      signOutConfirm:"要在此 PenEcho 主机退出吗？设备连接会继续保留。",
+      signOutConfirm:"要在此 FastLectures 主机退出吗？设备连接会继续保留。",
       localSignInHelp:"登录后即可使用私有项目和收藏；API 密钥仍保存在此设备。",
       waitingBrowser:"等待浏览器登录…",
       continueBrowser:"在浏览器中继续",
       signInBrowser:"通过浏览器登录",
       openSignIn:"打开登录页面 ↗",
       openAgain:"再次打开 ↗",
-      browserComplete:"请在浏览器中完成登录，PenEcho 会自动在这里连接。",
+      browserComplete:"请在浏览器中完成登录，FastLectures 会自动在这里连接。",
       desktopBrowserOpen:"默认浏览器已打开。",
-      browserBlocked:"浏览器阻止了登录窗口。请选择下方“打开登录页面”，PenEcho 仍会自动连接。",
-      signedInReady:"登录成功，PenEcho Cloud 账户已就绪。",
+      browserBlocked:"浏览器阻止了登录窗口。请选择下方“打开登录页面”，FastLectures 仍会自动连接。",
+      signedInReady:"登录成功，FastLectures Cloud 账户已就绪。",
       browserExpired:"浏览器登录已过期，请重新选择“通过浏览器登录”。",
       linkThisDevice:"连接设备",
       linkDeviceHint:"在 Cloud 使用本机模型配置、文件夹和本地画布。一键启用，无需配对码；之前连接的设备将立即失效。",
@@ -305,13 +305,13 @@
       removeThisLink:"移除此连接",
       removeLinkConfirm:"要移除此设备连接吗？远程访问会停止，之后可直接再次启用，无需配对码。",
       generatePairingBefore:"请在 ",
-      penechoDevices:"PenEcho Cloud → 设备",
+      fastlecturesDevices:"FastLectures Cloud → 设备",
       generatePairingAfter:" 生成配对密钥，然后在下方输入。",
       pairingKey:"配对密钥",
       deviceName:"设备名称",
-      myPenEcho:"我的 PenEcho",
+      myFastLectures:"我的 FastLectures",
       linkDevice:"连接设备",
-      requestFailed:"PenEcho Cloud 请求失败。",
+      requestFailed:"FastLectures Cloud 请求失败。",
       signInProjects:"登录后查看私有项目，在任意设备上继续创作。",
       cloudSavingNotReady:"Cloud 项目保存功能尚未就绪。",
       used:"已使用 {size}",
@@ -346,17 +346,17 @@
       noFavoriteCanvases:"还没有收藏的画布。可在 Echoes 中收藏后回到这里打开。",
       noFavoriteWidgets:"还没有收藏的组件。可在 Echoes 或画布中收藏。",
       byAuthor:"作者：{name}",
-      creator:"PenEcho 创作者",
+      creator:"FastLectures 创作者",
       addToCanvas:"加入当前画布",
       addingToCanvas:"加入中…",
       viewDetails:"详情 ↗",
       favoriteLoadFailed:"无法加载收藏。",
       untitledWidget:"未命名组件",
       communityWidget:"收藏的组件",
-      widgetImportUnavailable:"此 PenEcho 版本暂不支持导入组件。",
-      communityWidgetImportUnavailable:"此 PenEcho 版本暂不支持导入社区组件。",
-      communityCanvasImportUnavailable:"此 PenEcho 版本暂不支持导入社区画布。",
-      incompatibleCraft:"此创作与当前 PenEcho 版本不兼容。",
+      widgetImportUnavailable:"此 FastLectures 版本暂不支持导入组件。",
+      communityWidgetImportUnavailable:"此 FastLectures 版本暂不支持导入社区组件。",
+      communityCanvasImportUnavailable:"此 FastLectures 版本暂不支持导入社区画布。",
+      incompatibleCraft:"此创作与当前 FastLectures 版本不兼容。",
       signInTakeFurther:"请先登录，再 Echo 此创作。",
       shareTitle:"保存这一刻",
       shareSubtitle:"它不必已经完成，只需值得理解或 Echo。",
@@ -388,11 +388,11 @@
       publicationAgreementBeforeLink:"我有权发布此作品，并接受",
       publicationAgreementLink:"《发布协议》",
       publicationAgreementAfterLink:"。",
-      shareSignInRequired:"请先登录 PenEcho Cloud，再进行分享。",
+      shareSignInRequired:"请先登录 FastLectures Cloud，再进行分享。",
       tagLimit:"标签不能超过 8 个。",
       tagLength:"每个标签不能超过 32 个字符。",
       tagStart:"标签必须以字母或数字开头。",
-      shareNote:"一张草图也可能成为伟大想法最早保留下来的记录。PenEcho 会自动捕获此{kind}，无需上传图片，并保留每一步的署名。经验证的 WebP 最大为 2048 × 2048、4 MB。",
+      shareNote:"一张草图也可能成为伟大想法最早保留下来的记录。FastLectures 会自动捕获此{kind}，无需上传图片，并保留每一步的署名。经验证的 WebP 最大为 2048 × 2048、4 MB。",
       usesCurrentAi:"使用此设备上当前启用的 AI 连接。",
       nameLabel:"标题",
       descriptionLabel:"描述",
@@ -409,7 +409,7 @@
       publishAgreementRequired:"发布前请接受《发布协议》。",
       addingLineage:"正在将你的步骤加入创作谱系…",
       publishingFirstStep:"正在发布此创作的第一步…",
-      publishedCraftMissing:"PenEcho Cloud 未返回已发布的创作。",
+      publishedCraftMissing:"FastLectures Cloud 未返回已发布的创作。",
       publishedLocalLinkAttention:"创作已安全发布，但本地续作连接需要在下方处理。请勿重复发布。",
       publishedFavoriteRetry:"创作已安全发布。可在公开页面重试收藏。",
       publishedAndSaved:"创作已发布并加入收藏。",
@@ -438,7 +438,7 @@
       shareLinkFailed:"无法分享公开链接。",
       shareImageEmbedCopied:"带链接的图片嵌入代码已复制。",
       shareImageEmbedFailed:"无法复制图片嵌入代码。",
-      nativeShareText:"在 PenEcho 查看并 Echo 此{kind}。",
+      nativeShareText:"在 FastLectures 查看并 Echo 此{kind}。",
       shareFailed:"无法分享此内容。",
       cancel:"取消",
       askingAi:"正在请当前 AI 优化发布信息…",
@@ -453,7 +453,7 @@
       previewReady:"预览已就绪。",
       previewFailed:"无法生成预览。",
       sharingUnavailable:"预览验证通过后才能分享。",
-      favoriteUnsupported:"此 PenEcho 版本不支持收藏组件。",
+      favoriteUnsupported:"此 FastLectures 版本不支持收藏组件。",
       favoriteLocalOnlyQuota:"云端空间已满，已仅保存在本地。",
     }),
   });
@@ -473,7 +473,7 @@
   };
 
   function cloudT(key, replacements = {}) {
-    const shared = window.PenEchoI18n?.t?.(key);
+    const shared = window.FastLecturesI18n?.t?.(key);
     let value = shared && shared !== key ? shared : (document.documentElement.lang || "").toLowerCase().startsWith("zh")
       ? CLOUD_COPY.zh[key] || CLOUD_COPY.en[key] || key
       : CLOUD_COPY.en[key] || key;
@@ -486,7 +486,7 @@
   }
 
   function isCloudRuntime() {
-    return window.PENECHO_CONFIG?.runtime === "cloud";
+    return window.FASTLECTURES_CONFIG?.runtime === "cloud";
   }
 
   function runtimeApiPath(path, method = "GET") {
@@ -518,7 +518,7 @@
   function linkedImageEmbed(item, name) {
     const href = htmlAttribute(communityUrl(item));
     const src = htmlAttribute(communitySocialCardUrl(item));
-    const alt = htmlAttribute(`${String(name || item?.name || "PenEcho Craft")} — PenEcho Echoes`);
+    const alt = htmlAttribute(`${String(name || item?.name || "FastLectures Craft")} — FastLectures Echoes`);
     return `<a href="${href}" target="_blank" rel="noopener noreferrer"><img src="${src}" alt="${alt}" width="1200" height="630" loading="lazy" decoding="async" style="max-width:100%;height:auto"></a>`;
   }
 
@@ -540,14 +540,14 @@
   }
 
   function apiHeaders(json = false) {
-    const csrf = window.PENECHO_CONFIG?.runtime === "cloud"
-      ? document.cookie.split(";").map(value => value.trim()).find(value => value.startsWith("penecho_csrf="))?.slice("penecho_csrf=".length) || ""
+    const csrf = window.FASTLECTURES_CONFIG?.runtime === "cloud"
+      ? document.cookie.split(";").map(value => value.trim()).find(value => value.startsWith("fastlectures_csrf="))?.slice("fastlectures_csrf=".length) || ""
       : "";
     return {
       accept:"application/json",
       ...(json ? { "content-type":"application/json" } : {}),
-      ...(sessionToken ? { "x-penecho-session":sessionToken } : {}),
-      ...(csrf ? { "x-penecho-csrf":decodeURIComponent(csrf) } : {}),
+      ...(sessionToken ? { "x-fastlectures-session":sessionToken } : {}),
+      ...(csrf ? { "x-fastlectures-csrf":decodeURIComponent(csrf) } : {}),
     };
   }
 
@@ -638,32 +638,32 @@
   }
 
   function dialogShell({ title, subtitle = "", share = false, variant = "" }) {
-    const overlay = el("div", { class:"penecho-cloud-overlay" });
+    const overlay = el("div", { class:"fastlectures-cloud-overlay" });
     overlay._restoreFocus = document.activeElement;
     const dialogId = ++cloudDialogSequence;
-    const titleId = `penecho-cloud-dialog-title-${dialogId}`;
-    const subtitleId = `penecho-cloud-dialog-subtitle-${dialogId}`;
+    const titleId = `fastlectures-cloud-dialog-title-${dialogId}`;
+    const subtitleId = `fastlectures-cloud-dialog-subtitle-${dialogId}`;
     const isCloudCenter = variant === "cloud-center";
     const dialog = el("section", {
-      class:["penecho-cloud-dialog", share ? "share" : "", variant, isCloudCenter ? "penecho-workbench-dialog" : ""].filter(Boolean).join(" "),
+      class:["fastlectures-cloud-dialog", share ? "share" : "", variant, isCloudCenter ? "fastlectures-workbench-dialog" : ""].filter(Boolean).join(" "),
       role:"dialog",
       "aria-modal":"true",
       "aria-labelledby":titleId,
       ...(subtitle ? { "aria-describedby":subtitleId } : {}),
     });
     const close = el("button", { class:"cloud-dialog-close", type:"button", "aria-label":cloudT("close"), onclick:() => closeOverlay(overlay) }, lineIcon(["M6 6l12 12M18 6 6 18"]));
-    const heading = el("div", { class:`cloud-dialog-heading${isCloudCenter ? " penecho-workbench-heading" : ""}` }, [
+    const heading = el("div", { class:`cloud-dialog-heading${isCloudCenter ? " fastlectures-workbench-heading" : ""}` }, [
       el("h2", { id:titleId, text:title }),
       subtitle ? el("p", { id:subtitleId, text:subtitle }) : null,
     ]);
-    const mark = el("span", { class:`cloud-dialog-mark${isCloudCenter ? " penecho-workbench-icon" : ""}`, "aria-hidden":"true", ...(isCloudCenter ? {} : { text:"P" }) });
+    const mark = el("span", { class:`cloud-dialog-mark${isCloudCenter ? " fastlectures-workbench-icon" : ""}`, "aria-hidden":"true", ...(isCloudCenter ? {} : { text:"P" }) });
     if (isCloudCenter) mark.append(lineIcon(["M7 18.5h10.5a4 4 0 0 0 .4-8A6.2 6.2 0 0 0 6 9.2 4.7 4.7 0 0 0 7 18.5Z"]));
-    const identity = el("div", { class:`cloud-dialog-identity${isCloudCenter ? " penecho-workbench-identity" : ""}` }, [
+    const identity = el("div", { class:`cloud-dialog-identity${isCloudCenter ? " fastlectures-workbench-identity" : ""}` }, [
       mark,
       heading,
     ]);
-    dialog.append(el("header", { class:`cloud-dialog-titlebar${isCloudCenter ? " penecho-workbench-header" : ""}` }, [identity, close]));
-    const body = el("div", { class:"penecho-cloud-body" });
+    dialog.append(el("header", { class:`cloud-dialog-titlebar${isCloudCenter ? " fastlectures-workbench-header" : ""}` }, [identity, close]));
+    const body = el("div", { class:"fastlectures-cloud-body" });
     dialog.append(body);
     overlay.append(dialog);
     overlay.addEventListener("mousedown", (event) => { if (event.target === overlay) closeOverlay(overlay); });
@@ -687,7 +687,7 @@
 
   function accountSignedIn() {
     return isCloudRuntime()
-      ? Boolean(window.PENECHO_REMOTE_CLOUD_STATUS?.accountName)
+      ? Boolean(window.FASTLECTURES_REMOTE_CLOUD_STATUS?.accountName)
       : Boolean(state.status?.accountSession?.signedIn);
   }
 
@@ -706,25 +706,25 @@
 
   function updateCloudButton() {
     const account = state.status?.account;
-    const remote = window.PENECHO_CONFIG?.runtime === "cloud" ? window.PENECHO_REMOTE_CLOUD_STATUS : null;
+    const remote = window.FASTLECTURES_CONFIG?.runtime === "cloud" ? window.FASTLECTURES_REMOTE_CLOUD_STATUS : null;
     const connected = remote ? Boolean(remote.deviceReady) : Boolean(state.status?.device?.connected && !state.statusUnavailable);
     const signedIn = remote ? Boolean(remote.accountName) : accountSignedIn();
     const accountName = String(remote?.accountName || account?.name || "");
     const credits = account?.credits ?? remote?.credits;
     cloudButton.dataset.state = connected ? "connected" : signedIn ? "signed-in" : "signed-out";
     cloudButton.querySelector(".cloud-account-label").textContent = accountName ? accountName.split(/\s+/)[0] : "Cloud";
-    cloudButton.title = remote?.deviceOnline && !remote.deviceReady ? `PenEcho Cloud · ${cloudT("connecting")}` : connected
-      ? `PenEcho Cloud · ${cloudT("deviceLinked")}`
+    cloudButton.title = remote?.deviceOnline && !remote.deviceReady ? `FastLectures Cloud · ${cloudT("connecting")}` : connected
+      ? `FastLectures Cloud · ${cloudT("deviceLinked")}`
       : signedIn
-        ? `PenEcho Cloud · ${cloudT("credits", { count:credits == null ? "—" : Number(credits).toLocaleString(undefined,{maximumFractionDigits:1}) })}`
-        : cloudT("openPenEchoCloud", { fallback:"Connect PenEcho Cloud" });
+        ? `FastLectures Cloud · ${cloudT("credits", { count:credits == null ? "—" : Number(credits).toLocaleString(undefined,{maximumFractionDigits:1}) })}`
+        : cloudT("openFastLecturesCloud", { fallback:"Connect FastLectures Cloud" });
   }
 
   let statusRequestSeq = 0;
 
   async function refreshStatus(force = false) {
     if (isCloudRuntime()) {
-      const remote = window.PENECHO_REMOTE_CLOUD_STATUS || {};
+      const remote = window.FASTLECTURES_REMOTE_CLOUD_STATUS || {};
       state.status = {
         ...(state.status || {}),
         account:remote.accountName ? { ...(state.status?.account || {}), name:remote.accountName } : null,
@@ -743,7 +743,7 @@
       if (seq !== statusRequestSeq) return state.status;
       state.status = status;
       state.statusUnavailable = false;
-      if (typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") window.dispatchEvent(new CustomEvent("penecho:cloud-account-changed"));
+      if (typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") window.dispatchEvent(new CustomEvent("fastlectures:cloud-account-changed"));
       if (previouslySignedIn !== accountSignedIn()) {
         state.library = null;
         state.favoriteCanvases = null;
@@ -844,11 +844,11 @@
     state.browserSignIn.authorizationUrl = String(started?.authorizationUrl || "");
     state.browserSignIn.popupBlocked = !popup && !externalOpened;
     browserSignInMessage(popup || externalOpened
-      ? `${window.penechoDesktop ? cloudT("desktopBrowserOpen") : ""}${cloudT("browserComplete")}`
+      ? `${window.fastlecturesDesktop ? cloudT("desktopBrowserOpen") : ""}${cloudT("browserComplete")}`
       : cloudT("browserBlocked"), popup || externalOpened ? "" : "error");
 
     const renderIfOpen = () => {
-      if (document.querySelector(".penecho-cloud-overlay") || document.querySelector('#settingsPageMcp:not([hidden])')) render?.();
+      if (document.querySelector(".fastlectures-cloud-overlay") || document.querySelector('#settingsPageMcp:not([hidden])')) render?.();
     };
     const poll = async () => {
       if (id !== state.browserSignIn.id || !state.browserSignIn.active || state.browserSignIn.polling) return;
@@ -884,7 +884,7 @@
   }
 
   function accountPanel(render, setRefreshing) {
-    const panel = el("section", { class:"penecho-cloud-panel cloud-account-panel" });
+    const panel = el("section", { class:"fastlectures-cloud-panel cloud-account-panel" });
     panel.append(pageHeading(cloudT("cloudAccount"), accountSignedIn() ? cloudT("accountHint") : cloudT("localSignInHelp")));
     if (accountSignedIn()) {
       const account = state.status.account || {};
@@ -897,7 +897,7 @@
           el("div", { class:"cloud-account-copy" }, [
             el("div", { class:"cloud-account-title" }, [
               el("strong", { class:"cloud-account-name", text:account.name || cloudT("cloudUser") }),
-              hasMembership ? el("span", { class:`cloud-membership-badge cloud-membership-${membership.tier}`, text:membership.tier.toUpperCase(), "aria-label":`PenEcho ${membership.tier === "pro" ? "Pro" : "Plus"}` }) : null,
+              hasMembership ? el("span", { class:`cloud-membership-badge cloud-membership-${membership.tier}`, text:membership.tier.toUpperCase(), "aria-label":`FastLectures ${membership.tier === "pro" ? "Pro" : "Plus"}` }) : null,
             ]),
             el("span", { text:cloudT("credits", { count:Number(account.credits || 0).toLocaleString() }) }),
             hasMembership ? el("span", { class:"cloud-subscription-expiry", text:cloudT("subscriptionValidUntil", { date:membershipDate }) }) : null,
@@ -978,7 +978,7 @@
       role:browserSignIn.tone === "error" ? "alert" : "status",
       "aria-live":browserSignIn.tone === "error" ? "assertive" : "polite",
     });
-    const signIn = el("button", { class:"cloud-button primary cloud-account-sign-in", type:"button", text:browserSignIn.active ? cloudT("waitingBrowser") : window.penechoDesktop ? cloudT("continueBrowser") : cloudT("signInBrowser"), ...(browserSignIn.active ? { disabled:"" } : {}), onclick:async () => {
+    const signIn = el("button", { class:"cloud-button primary cloud-account-sign-in", type:"button", text:browserSignIn.active ? cloudT("waitingBrowser") : window.fastlecturesDesktop ? cloudT("continueBrowser") : cloudT("signInBrowser"), ...(browserSignIn.active ? { disabled:"" } : {}), onclick:async () => {
       await beginCloudSignIn(render);
     } });
     const browserActions = el("div", { class:"cloud-button-row" }, signIn);
@@ -991,8 +991,8 @@
   }
 
   async function beginCloudSignIn(render) {
-      const desktopApp = Boolean(window.penechoDesktop);
-      const popup = desktopApp ? null : window.open("about:blank", "penecho-cloud-sign-in", "popup,width=760,height=760");
+      const desktopApp = Boolean(window.fastlecturesDesktop);
+      const popup = desktopApp ? null : window.open("about:blank", "fastlectures-cloud-sign-in", "popup,width=760,height=760");
       await action(render, async () => {
         try {
           const started = await api("/api/cloud/sign-in/start", { method:"POST", body:JSON.stringify({ origin:cloudOrigin() }) });
@@ -1006,14 +1006,14 @@
       });
   }
 
-  window.PenEchoCloudSettings = {
+  window.FastLecturesCloudSettings = {
     api, origin:cloudOrigin,
     signInState:()=>({active:state.browserSignIn.active,url:state.browserSignIn.authorizationUrl,message:state.browserSignIn.message}),
     signIn:refresh=>isCloudRuntime() ? window.open(new URL('/auth.html',cloudOrigin()).toString(),'_blank','noopener') : beginCloudSignIn(refresh),
   };
 
   function devicePanel(render) {
-    const panel = el("section", { class:"penecho-cloud-panel cloud-device-panel" });
+    const panel = el("section", { class:"fastlectures-cloud-panel cloud-device-panel" });
     panel.append(pageHeading(cloudT("linkThisDevice"), cloudT("linkDeviceHint")));
     const device = state.status.device || {};
     if (device.configured) {
@@ -1089,12 +1089,12 @@
   }
 
   async function openProjectCanvasHere(canvasId, owner, control) {
-    const bridge = window.PenEchoCloudProjects;
+    const bridge = window.FastLecturesCloudProjects;
     if (!bridge?.openCanvas) return window.alert(cloudT("cloudSavingNotReady"));
     if (state.busy) return false;
     state.busy = true;
     if (control) control.disabled = true;
-    closeOverlay(owner?.closest?.(".penecho-cloud-overlay") || document.querySelector(".penecho-cloud-overlay"));
+    closeOverlay(owner?.closest?.(".fastlectures-cloud-overlay") || document.querySelector(".fastlectures-cloud-overlay"));
     try {
       await bridge.openCanvas(canvasId);
       return true;
@@ -1112,7 +1112,7 @@
   }
 
   function cloudProjectsPanel(setRefreshing) {
-    const panel = el("section", { class:"penecho-cloud-panel cloud-projects-panel" });
+    const panel = el("section", { class:"fastlectures-cloud-panel cloud-projects-panel" });
     if (!accountSignedIn()) {
       panel.append(cloudSignInEmpty("signInProjects"));
       return panel;
@@ -1123,14 +1123,14 @@
     function rememberProject(projectId) {
       state.selectedProjectId = projectId || null;
       try {
-        if (state.selectedProjectId) sessionStorage.setItem("penecho-cloud-center-project", state.selectedProjectId);
-        else sessionStorage.removeItem("penecho-cloud-center-project");
+        if (state.selectedProjectId) sessionStorage.setItem("fastlectures-cloud-center-project", state.selectedProjectId);
+        else sessionStorage.removeItem("fastlectures-cloud-center-project");
       } catch {}
     }
 
     function selectedProject(projects) {
       if (!state.selectedProjectId) {
-        try { state.selectedProjectId = sessionStorage.getItem("penecho-cloud-center-project"); } catch {}
+        try { state.selectedProjectId = sessionStorage.getItem("fastlectures-cloud-center-project"); } catch {}
       }
       const selected = projects.find((project) => project.id === state.selectedProjectId)
         || projects.find((project) => project.systemKey !== "uncategorized")
@@ -1141,9 +1141,9 @@
     }
 
     async function openProjectHistory(projectId) {
-      const bridge = window.PenEchoCloudProjects;
+      const bridge = window.FastLecturesCloudProjects;
       if (!bridge?.openHistory) return window.alert(cloudT("cloudSavingNotReady"));
-      closeOverlay(panel.closest(".penecho-cloud-overlay"));
+      closeOverlay(panel.closest(".fastlectures-cloud-overlay"));
       await bridge.openHistory(projectId || null);
     }
 
@@ -1284,7 +1284,7 @@
       add.textContent = cloudT("addingToCanvas");
       try {
         await addCraftToCanvas(merged);
-        closeOverlay(owner.closest(".penecho-cloud-overlay"));
+        closeOverlay(owner.closest(".fastlectures-cloud-overlay"));
       } catch (error) {
         add.disabled = false;
         add.textContent = cloudT("addToCanvas");
@@ -1307,7 +1307,7 @@
   }
 
   function cloudFavoritesPanel(setRefreshing) {
-    const panel = el("section", { class:"penecho-cloud-panel cloud-favorites-panel" });
+    const panel = el("section", { class:"fastlectures-cloud-panel cloud-favorites-panel" });
     panel.append(el("header", { class:"cloud-content-heading" }, [
       el("h3", { "data-pe-region":"title", text:cloudT("favorites") }),
       el("p", { class:"cloud-favorites-hint", text:cloudT("favoritesHint") }),
@@ -1401,7 +1401,7 @@
 
   async function openCloud() {
     cloudButton.setAttribute("aria-expanded", "true");
-    const shell = dialogShell({ title:"PenEcho Cloud", subtitle:cloudT("cloudSubtitle"), variant:"cloud-center" });
+    const shell = dialogShell({ title:"FastLectures Cloud", subtitle:cloudT("cloudSubtitle"), variant:"cloud-center" });
     shell.dialog.dataset.peSurface = "manager";
     shell.dialog.dataset.peSize = "xl";
     shell.dialog.dataset.peLayout = "nav-content";
@@ -1409,7 +1409,7 @@
     shell.dialog.querySelector(".cloud-dialog-titlebar")?.setAttribute("data-pe-region", "header");
     shell.body.dataset.peRegion = "body";
     activeCloudOverlay = shell.overlay;
-    const layout = el("div", { class:"penecho-cloud-layout" });
+    const layout = el("div", { class:"fastlectures-cloud-layout" });
     shell.body.append(layout);
     function render() {
       const workspace = el("div", { class:"cloud-workspace" });
@@ -1436,7 +1436,7 @@
           "aria-controls":"cloud-section-panel",
           tabindex:active ? "0" : "-1",
           onclick:() => {
-            if(value==="mcp") { closeOverlay(shell.overlay); window.dispatchEvent(new CustomEvent("penecho:show-mcp-settings")); return; }
+            if(value==="mcp") { closeOverlay(shell.overlay); window.dispatchEvent(new CustomEvent("fastlectures:show-mcp-settings")); return; }
             state.cloudSection = value;
             render();
             startDeviceConnectionWatch(render, shell.overlay);
@@ -1498,7 +1498,7 @@
       sectionPanel.setAttribute("role", "tabpanel");
       sectionPanel.setAttribute("aria-labelledby", `cloud-tab-${state.cloudSection}`);
       workspace.append(sectionPanel);
-      const navigation = el("aside", { class:"cloud-navigation penecho-workbench-navigation", "aria-label":cloudT("cloudArea") });
+      const navigation = el("aside", { class:"cloud-navigation fastlectures-workbench-navigation", "aria-label":cloudT("cloudArea") });
       navigation.dataset.peRegion = "navigator";
       layout.classList.toggle("remote-cloud-runtime", !localHostControlsAvailable);
       navigation.append(sectionToolbar);
@@ -1612,7 +1612,7 @@
       void openCloud();
       return;
     }
-    const title = cloudT("shareTitle"), bridge=window.PenEchoCommunityCanvas;
+    const title = cloudT("shareTitle"), bridge=window.FastLecturesCommunityCanvas;
     const kindLabel = cloudT(kind === "widget" ? "widgetKind" : "canvasKind");
     const shell = dialogShell({ title, subtitle:cloudT("shareSubtitle"), share:true });
     const name = el("input", { type:"text", maxlength:"160", required:"", "aria-required":"true", placeholder:cloudT(kind === "widget" ? "widgetNamePlaceholder" : "canvasNamePlaceholder") });
@@ -1735,7 +1735,7 @@
         artifact=kind==="widget"?await bridge.widgetArtifact(widgetId):await bridge.canvasArtifact();
         lineage=bridge.lineageForArtifact?.(kind,artifact)||null;
         const draftIdentity=lineage?.parentItemId||(kind==="widget"?artifact.widget?.id:artifact.name)||"current";
-        draftKey=`penecho.community.publish.${kind}.${String(draftIdentity).slice(0,180)}`;
+        draftKey=`fastlectures.community.publish.${kind}.${String(draftIdentity).slice(0,180)}`;
         if(lineage){
           shell.body.insertBefore(field(cloudT("contributionLabel"),contribution),permissionLabel);
           const parentStep=Number.isInteger(lineage.parentGeneration)?cloudT("stepNumber", { number:lineage.parentGeneration+1 }):cloudT("publishedStep"), parentName=lineage.parentName?` “${lineage.parentName}”`:"";
@@ -1757,8 +1757,8 @@
   async function takeFurther(itemId, importOptions = null) {
     const encodedItemId = encodeURIComponent(itemId);
     let downloaded;
-    if (window.PENECHO_CONFIG?.runtime === "cloud") {
-      // The browser is already authenticated to PenEcho Cloud. Fetch the
+    if (window.FASTLECTURES_CONFIG?.runtime === "cloud") {
+      // The browser is already authenticated to FastLectures Cloud. Fetch the
       // published Craft from Cloud itself, then import it through the linked
       // host bridge; requiring a second account session on that host makes a
       // valid Remote Canvas deep link fail with a misleading sign-in error.
@@ -1775,19 +1775,19 @@
     }
     const item = downloaded.item;
     if (item?.kind === "widget") {
-      if (!window.PenEchoCommunityCanvas?.importWidget) throw new Error(cloudT("communityWidgetImportUnavailable"));
-      await window.PenEchoCommunityCanvas.importWidget(downloaded.artifact, item, importOptions);
+      if (!window.FastLecturesCommunityCanvas?.importWidget) throw new Error(cloudT("communityWidgetImportUnavailable"));
+      await window.FastLecturesCommunityCanvas.importWidget(downloaded.artifact, item, importOptions);
     } else if (item?.kind === "canvas") {
-      if (!window.PenEchoCommunityCanvas?.importCanvas) throw new Error(cloudT("communityCanvasImportUnavailable"));
-      await window.PenEchoCommunityCanvas.importCanvas(downloaded.artifact, item);
+      if (!window.FastLecturesCommunityCanvas?.importCanvas) throw new Error(cloudT("communityCanvasImportUnavailable"));
+      await window.FastLecturesCommunityCanvas.importCanvas(downloaded.artifact, item);
     } else throw new Error(cloudT("incompatibleCraft"));
-    closeOverlay(document.querySelector(".penecho-cloud-overlay"));
+    closeOverlay(document.querySelector(".fastlectures-cloud-overlay"));
     return item;
   }
 
-  window.PenEchoCommunityUI = Object.freeze({
+  window.FastLecturesCommunityUI = Object.freeze({
     takeFurther,
-    label: (key) => window.PenEchoI18n?.t?.(key) || key,
+    label: (key) => window.FastLecturesI18n?.t?.(key) || key,
   });
 
   /* Favorites picker: the toolbar ➕ lists favorited Canvases and Widgets. */
@@ -1822,9 +1822,9 @@
   let selectedCraftView = "list";
   let craftsRestoreFocus = null;
   const savedT = (key, fallback) => {
-    const translated = window.PenEchoI18n?.t?.(key);
+    const translated = window.FastLecturesI18n?.t?.(key);
     if (translated && translated !== key) return translated;
-    return document.documentElement.lang.startsWith("zh") ? (window.PENECHO_LOCALES?.zh || {})[key] || fallback : fallback;
+    return document.documentElement.lang.startsWith("zh") ? (window.FASTLECTURES_LOCALES?.zh || {})[key] || fallback : fallback;
   };
 
   function updateCraftFilterTabs() {
@@ -2013,7 +2013,7 @@
       itemId = communityId || remoteItemId;
     if (cloudFavoriteId) return isCloudRuntime() ? remoteThumbnail : `/api/cloud/favorites/${encodeURIComponent(cloudFavoriteId)}/thumbnail`;
     if (/^\/api\/favorites\/[0-9a-f]{64}\/thumbnail(?:[?#].*)?$/i.test(remoteThumbnail)) return remoteThumbnail;
-    // Community API paths belong to PenEcho Cloud. A relative Cloud URL on a
+    // Community API paths belong to FastLectures Cloud. A relative Cloud URL on a
     // local Canvas resolves against 192.168/localhost and returns 404, so every
     // community image must use the approved local/Remote Canvas proxy.
     return itemId ? communityThumbnailUrl(itemId) : null;
@@ -2027,7 +2027,7 @@
 
   /* One-click favorite on a widget: local snapshot always, cloud copy when signed in. */
   async function toggleWidgetFavorite(widgetId, current = null) {
-    const bridge = window.PenEchoCommunityCanvas;
+    const bridge = window.FastLecturesCommunityCanvas;
     if (!bridge?.widgetArtifact || !bridge.setWidgetFavorite) throw new Error(cloudT("favoriteUnsupported"));
     if (current?.favorite === true) {
       const sha256 = /^[0-9a-f]{64}$/i.test(String(current.favoriteArtifactSha256 || ""))
@@ -2293,9 +2293,9 @@
     badge.className = "crafts-source";
     const types = sources.map((source) => source.type), local = types.includes("local"),
       cloud = types.includes("cloud") || types.includes("community") || sources.some((source) => source.type === "local" && source.entry?.cloudId);
-    if (cloud && local) { badge.textContent = savedT("savedSourceSynced", "Cloud + local"); badge.title = savedT("savedSourceSyncedTitle", "On PenEcho Cloud and this device"); }
-    else if (cloud) { badge.textContent = types.includes("community") ? savedT("savedSourceCommunity", "Cloud community") : savedT("savedSourceCloud", "Cloud"); badge.title = savedT("savedSourceCloudTitle", "On PenEcho Cloud"); }
-    else { badge.textContent = savedT("savedSourceLocal", "local"); badge.title = savedT("savedSourceLocalTitle", "On this device only — it uploads to PenEcho Cloud once you sign in"); }
+    if (cloud && local) { badge.textContent = savedT("savedSourceSynced", "Cloud + local"); badge.title = savedT("savedSourceSyncedTitle", "On FastLectures Cloud and this device"); }
+    else if (cloud) { badge.textContent = types.includes("community") ? savedT("savedSourceCommunity", "Cloud community") : savedT("savedSourceCloud", "Cloud"); badge.title = savedT("savedSourceCloudTitle", "On FastLectures Cloud"); }
+    else { badge.textContent = savedT("savedSourceLocal", "local"); badge.title = savedT("savedSourceLocalTitle", "On this device only — it uploads to FastLectures Cloud once you sign in"); }
     return badge;
   }
 
@@ -2304,9 +2304,9 @@
       cloud = merged.sources.find((entry) => entry.type === "cloud"),
       community = merged.sources.find((entry) => entry.type === "community");
     if (local) {
-      if (!window.PenEchoCommunityCanvas?.importWidget) throw new Error(cloudT("widgetImportUnavailable"));
+      if (!window.FastLecturesCommunityCanvas?.importWidget) throw new Error(cloudT("widgetImportUnavailable"));
       const favorite = await fullLocalFavorite(local.entry);
-      await window.PenEchoCommunityCanvas.importWidget(
+      await window.FastLecturesCommunityCanvas.importWidget(
         favorite.artifact,
         favorite.sourceItemId ? { id:favorite.sourceItemId, name:favorite.name } : null,
         favoriteWidgetImportOptions(favorite, { cloudFavoriteId:favorite.cloudId || cloud?.entry?.id, communityItemId:community?.entry?.id }),
@@ -2315,9 +2315,9 @@
     }
     if (community) return takeFurther(community.entry.id, favoriteWidgetImportOptions(community.entry, { communityItemId:community.entry.id }));
     const cloudEntry = cloud?.entry;
-    if (!window.PenEchoCommunityCanvas?.importWidget) throw new Error(cloudT("widgetImportUnavailable"));
+    if (!window.FastLecturesCommunityCanvas?.importWidget) throw new Error(cloudT("widgetImportUnavailable"));
     const favorite = await fullCloudFavorite(cloudEntry);
-    await window.PenEchoCommunityCanvas.importWidget(
+    await window.FastLecturesCommunityCanvas.importWidget(
       favorite.artifact,
       favorite.sourceItemId ? { id:favorite.sourceItemId, name:favorite.name } : null,
       favoriteWidgetImportOptions(favorite, { cloudFavoriteId:favorite.id }),
@@ -2549,9 +2549,9 @@
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   });
-  window.addEventListener("penecho:languagechange", () => {
+  window.addEventListener("fastlectures:languagechange", () => {
     updateCloudButton();
-    const overlay = document.querySelector(".penecho-cloud-overlay");
+    const overlay = document.querySelector(".fastlectures-cloud-overlay");
     if (overlay?._cloudRender) {
       const subtitle = overlay.querySelector("header p"), close = overlay.querySelector(".cloud-dialog-close");
       if (subtitle) subtitle.textContent = cloudT("cloudSubtitle");
@@ -2560,7 +2560,7 @@
     }
     if (craftsPopover && !craftsPopover.hidden) void openCrafts();
   });
-  window.addEventListener("penecho:remote-cloud-status", updateCloudButton);
+  window.addEventListener("fastlectures:remote-cloud-status", updateCloudButton);
 
   cloudButton.addEventListener("click", openCloud);
   document.getElementById("settingsCloudSetupLink")?.addEventListener("click", (event) => {
@@ -2570,7 +2570,7 @@
     void openCloud();
   });
   shareCanvasButton.addEventListener("click", async () => { await refreshStatus(); shareDialog({ kind:"canvas" }); });
-  window.addEventListener("penecho:community-widget-action", async (event) => {
+  window.addEventListener("fastlectures:community-widget-action", async (event) => {
     const actionName = event.detail?.action;
     const widgetId = event.detail?.widgetId;
     if (!widgetId || !["favorite", "share"].includes(actionName)) return;
@@ -2581,7 +2581,7 @@
     }
     if (state.favoriteWidgetOperations.has(widgetId)) return;
     state.favoriteWidgetOperations.add(widgetId);
-    const bridge = window.PenEchoCommunityCanvas;
+    const bridge = window.FastLecturesCommunityCanvas;
     bridge?.setWidgetFavorite?.(widgetId, undefined, true);
     let completed = false;
     try {
@@ -2602,7 +2602,7 @@
     }
   });
   window.addEventListener("message", async (event) => {
-    if (event.origin !== location.origin || event.data?.type !== "penecho:cloud-sign-in-result") return;
+    if (event.origin !== location.origin || event.data?.type !== "fastlectures:cloud-sign-in-result") return;
     const previouslySignedIn = accountSignedIn();
     await refreshStatus();
     if (!previouslySignedIn && accountSignedIn()) {
@@ -2632,6 +2632,6 @@
   });
   // Remote Canvas has its own Cloud account/device gate. Avoid relaying a
   // redundant local /api/cloud/status request while that gate is opening.
-  if (window.PENECHO_CONFIG?.runtime === "cloud") updateCloudButton();
+  if (window.FASTLECTURES_CONFIG?.runtime === "cloud") updateCloudButton();
   else void refreshStatus();
 })();

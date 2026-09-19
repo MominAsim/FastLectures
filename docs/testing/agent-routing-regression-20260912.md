@@ -13,7 +13,7 @@
 - `origin/main` 的 1.2.0（84d4f8d）首次系统提示注入完整 Visual Explorer 合约，包含响应式 HTML/CSS/SVG Widget 交付要求。
 - `cb22fc4` 将 Agent 切换到共享 MCP 工具和按需指导；schema 适配白名单删除 maxItems/minimum/maximum 等限制，而执行端仍严格校验。
 - `974069e` 进一步删除初始 document-tools 提示中的 Widget/native tool 映射及 ROUTING，并将指导默认返回改为 brief。该改动确实削弱了首次工具选择指引；它没有引入 schema 白名单，但继承了该缺陷。
-- Windows 已安装 PenEcho 1.3.0，17:22:21 请求实际使用 glm-5.3-flash/xhigh，首先读取 visual-explorer brief，随后公开进度明确说“先在 Canvas 上原生绘制”。因此不能归因为“没有读指导”，也不能声称知道模型内部如何理解“不要返回 HTML”。
+- Windows 已安装 FastLectures 1.3.0，17:22:21 请求实际使用 glm-5.3-flash/xhigh，首先读取 visual-explorer brief，随后公开进度明确说“先在 Canvas 上原生绘制”。因此不能归因为“没有读指导”，也不能声称知道模型内部如何理解“不要返回 HTML”。
 - 实际发送给模型的 draw.items 只有 array/items，没有 24 项限制，strokeWidth 只有 number，没有 1..12。拒绝中存在笼统 items is invalid，无法指导准确修正。
 - 后续快照显示该请求于 17:51:10 取消，共 18 次已计费模型调用、72,764 output tokens；这是后续快照，不与此前 10 次/12 分钟快照混用。本次排查没有中断该用户请求。
 - 初始图片只是“你好！”及欢迎答复，没有具体时序图业务主题。不能凭空把某个业务主题当作用户原始题目。
@@ -98,7 +98,7 @@
 精确提交 `47b567d` 在独立 Windows 构建目录正常 `make` 完成，exit 0。针对性测试 **116/116 pass，0 fail / 0 skip**。实际打包 Electron 执行完整 runtime 导入、13 个工具 SDK 验证，25 项拒绝且 browser RPC 为 0。主任务另将 7 个包内文件 SHA-256 与 Git 提交内容逐一核对，全部一致。Squirrel nupkg 中嵌入的 app.asar 与已测试 app.asar 哈希一致。
 
 - [Windows 最终包及包内验证摘要](agent-routing-regression-20260912/windows-final-summary.json)
-- 本机安装包：`/tmp/penecho-agent-routing-20260912/windows-build/PenEcho-Setup-1.3.0-win-x64-47b567d.exe`
+- 本机安装包：`/tmp/fastlectures-agent-routing-20260912/windows-build/FastLectures-Setup-1.3.0-win-x64-47b567d.exe`
 - 大小：253,030,912 bytes；SHA-256：`310789345f8cfcfb7b13e26f94c477e48caf50a6466e7b7bdbd5a362b9404a4d`，主任务再次计算确认。
 
 此项是 Windows 实际包内运行验证，未操作新包原生窗口、未进行新包真实模型调用，也未覆盖旧用户应用。不能用 macOS 浏览器结果代替这些未完成项。

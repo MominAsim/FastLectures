@@ -44,11 +44,11 @@ function rpc(status,method,params,session,id=1) {
   });
 }
 const initialize = async app => (await rpc(app.status,'initialize',{})).session;
-const start = (app,session,args,id=1) => rpc(app.status,'tools/call',{name:'penecho_start_session',arguments:{title:'Research',client:'Test AI',...args}},session,id);
+const start = (app,session,args,id=1) => rpc(app.status,'tools/call',{name:'fastlectures_start_session',arguments:{title:'Research',client:'Test AI',...args}},session,id);
 const output = response => { assert.equal(response.code,200); assert.equal(response.body.result.isError,undefined,JSON.stringify(response.body)); return response.body.result.structuredContent; };
 
 test('automatic HTTPS startup and persistent conversations route latest only when unbound',async t => {
-  const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'penecho-routing-')); let current=await app(directory);
+  const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'fastlectures-routing-')); let current=await app(directory);
   t.after(async()=>{await current.close();fs.rmSync(directory,{recursive:true,force:true});});
   const initialStatus=current.status;
   assert.match(current.service.status().http.discoveryCliUrl,/192\.168\.42\.8/);
@@ -61,7 +61,7 @@ test('automatic HTTPS startup and persistent conversations route latest only whe
   assert.equal(configured.http.clientIdleMs,1800000);
   assert.equal(configured.http.initialUrl,configured.http.urls[0]);
   const configDir=path.join(directory,'client-config');fs.mkdirSync(path.join(configDir,'.codex'),{recursive:true});
-  fs.writeFileSync(path.join(configDir,'.codex','config.toml'),'[mcp_servers.penecho]\ncommand="node"\nargs=["old-client.js","--idle-exit-ms","60000"]\n[mcp_servers.other]\ncommand="keep"\n');
+  fs.writeFileSync(path.join(configDir,'.codex','config.toml'),'[mcp_servers.fastlectures]\ncommand="node"\nargs=["old-client.js","--idle-exit-ms","60000"]\n[mcp_servers.other]\ncommand="keep"\n');
   const configuredClient=await require('../src/server/mcp/configure.js').configureClient('codex',configured.config,{home:configDir,env:{}});
   assert.equal(configuredClient.configured,true);assert.equal(configuredClient.trustRequired,false);
   const savedLaunch=fs.readFileSync(configuredClient.configFile,'utf8');
@@ -83,7 +83,7 @@ test('automatic HTTPS startup and persistent conversations route latest only whe
   const second=await initialize(current);
   const resumed=output(await start(current,second,{sessionKey:'conversation-a',target:'current'})); assert.equal(resumed.documentId,original.documentId); assert.equal(resumed.canvasId,'browser-a'); assert.notEqual(resumed.sessionId,original.sessionId);
   assert.equal(a.calls.at(-1).arguments.target,undefined); assert.equal(a.calls.at(-1).arguments.documentId,original.documentId);
-  const ownership=await rpc(current.status,'tools/call',{name:'penecho_inspect_session',arguments:{sessionId:original.sessionId}},second);assert.equal(ownership.body.result.isError,true);
+  const ownership=await rpc(current.status,'tools/call',{name:'fastlectures_inspect_session',arguments:{sessionId:original.sessionId}},second);assert.equal(ownership.body.result.isError,true);
   const otherClient=output(await start(current,second,{sessionKey:'conversation-a',client:'Other AI'}));assert.equal(otherClient.canvasId,'browser-b');assert.notEqual(otherClient.documentId,original.documentId);
   await a.close(); while(current.service.listCanvases().some(c=>c.canvasId==='browser-a'))await pause();
   const migrated=output(await start(current,second,{sessionKey:'conversation-a'}));assert.equal(migrated.canvasId,'browser-b');assert.equal(migrated.documentId,original.documentId);assert.equal(b.calls.at(-1).arguments.documentId,original.documentId);
@@ -93,7 +93,7 @@ test('automatic HTTPS startup and persistent conversations route latest only whe
 });
 
 test('restoration rejects unrelated documents and accepts only explicit missing-document replacement',async t=>{
-  const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'penecho-recovery-')); const current=await app(directory);
+  const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'fastlectures-recovery-')); const current=await app(directory);
   t.after(async()=>{await current.close();fs.rmSync(directory,{recursive:true,force:true});});
   const a=await browser(current,'browser-a');const first=await initialize(current);
   const original=output(await start(current,first,{sessionKey:'key'}));await a.close();while(current.service.listCanvases().length)await pause();
@@ -104,14 +104,14 @@ test('restoration rejects unrelated documents and accepts only explicit missing-
 });
 
 test('simultaneous protocol owners share one logical binding without creating two documents',async t=>{
-  const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'penecho-race-routing-'));const current=await app(directory);
+  const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'fastlectures-race-routing-'));const current=await app(directory);
   t.after(async()=>{await current.close();fs.rmSync(directory,{recursive:true,force:true});});
   const a=await browser(current,'browser-a');const sessions=await Promise.all([initialize(current),initialize(current)]);
   const results=await Promise.all(sessions.map(session=>start(current,session,{sessionKey:'same-key'})));
   assert.equal(output(results[0]).documentId,output(results[1]).documentId);assert.equal(a.calls[0].arguments.documentId,undefined);assert.equal(a.calls[1].arguments.documentId,output(results[0]).documentId);
 });
 test('HTTP reset route refreshes credentials and protocol owner disposal retains durable bindings',async t=>{
-  const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'penecho-reset-routing-'));const current=await app(directory);
+  const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'fastlectures-reset-routing-'));const current=await app(directory);
   t.after(async()=>{await current.close();fs.rmSync(directory,{recursive:true,force:true});});
   await browser(current,'browser-a');const first=await initialize(current);const original=output(await start(current,first,{sessionKey:'keep-me'}));
   const previous=current.status;
@@ -123,7 +123,7 @@ test('HTTP reset route refreshes credentials and protocol owner disposal retains
   const resumed=output(await start(current,await initialize(current),{sessionKey:'keep-me'}));assert.equal(resumed.documentId,original.documentId);
 });
 test('business idle pressure releases browser runtime, retains documents and scopes expired handles',async t=>{
-  const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'penecho-business-idle-'));let clock=0;
+  const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'fastlectures-business-idle-'));let clock=0;
   const current=await app(directory,{businessNow:()=>clock,businessOwnerLimit:2});
   t.after(async()=>{await current.close();fs.rmSync(directory,{recursive:true,force:true});});
   const a=await browser(current,'browser-a'), first=await initialize(current);
@@ -132,16 +132,16 @@ test('business idle pressure releases browser runtime, retains documents and sco
   assert.equal((await start(current,first,{sessionKey:'third'})).body.result.structuredContent.code,'session_limit');
   clock=61000;output(await start(current,first,{sessionKey:'third'}));
   while(!a.disposed.includes(original.sessionId))await pause();
-  const expired=await rpc(current.status,'tools/call',{name:'penecho_inspect_session',arguments:{sessionId:original.sessionId}},first);
+  const expired=await rpc(current.status,'tools/call',{name:'fastlectures_inspect_session',arguments:{sessionId:original.sessionId}},first);
   assert.equal(expired.body.result.structuredContent.code,'session_expired');assert.equal(expired.body.result.structuredContent.details.documentId,original.documentId);
-  const other=await initialize(current), unauthorized=await rpc(current.status,'tools/call',{name:'penecho_inspect_session',arguments:{sessionId:original.sessionId}},other);
+  const other=await initialize(current), unauthorized=await rpc(current.status,'tools/call',{name:'fastlectures_inspect_session',arguments:{sessionId:original.sessionId}},other);
   assert.equal(unauthorized.body.result.structuredContent.code,'session_not_found');assert.equal(unauthorized.body.result.structuredContent.details,undefined);
   const resumed=output(await start(current,first,{sessionKey:'original'}));assert.equal(resumed.documentId,original.documentId);
   const before=a.calls.length;output(await start(current,first,{sessionKey:'original',show:true}));assert.equal(a.calls.length,before+1);assert.equal(a.calls.at(-1).arguments.documentId,original.documentId);assert.equal(a.calls.at(-1).arguments.show,true);
   assert.equal(current.service.status().http.businessLimits.sessions,4096);
 });
 test('business pressure never evicts a conversation while its browser restore is pending',async t=>{
-  const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'penecho-business-active-'));let clock=0;
+  const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'fastlectures-business-active-'));let clock=0;
   const current=await app(directory,{businessNow:()=>clock,businessOwnerLimit:1});
   t.after(async()=>{await current.close();fs.rmSync(directory,{recursive:true,force:true});});
   const a=await browser(current,'browser-a'),session=await initialize(current);

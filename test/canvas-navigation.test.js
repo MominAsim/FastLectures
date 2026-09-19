@@ -5,7 +5,7 @@ function harness(overrides={}) {
  const changes=[],widgets=[{id:'rear'},{id:'front'}];
  const state={mode:'pen',viewMode:false,viewTool:'hand',spacePan:false,interactingWidgetId:null,navigationLocked:false,scale:1,panX:0,panY:0,widgets,...overrides};
  const classList={toggle(name,value){changes.push([name,value]);}},view={classList},screen={};
- const ctx={setCanvasMode(mode){state.mode=mode;},state,view,screen,Math,Number,Boolean,document:{querySelector:()=>null,activeElement:null},window:{PenEchoStudioNavigator:{flushMcpFollow(){changes.push(['flush']);}}},syncWidgetHostStates(){},resetCanvasCursor(){},requestInteractionLayerRender(){},visibleWidgets:()=>widgets,clientPoint:e=>({x:e.clientX,y:e.clientY}),handObjectToolbarTargetAtPoint:()=>({kind:'widget',object:widgets[1]}),canvasViewportMetrics:()=>({width:1000,height:800}),moveCanvas:(dx,dy)=>{state.panX+=dx;state.panY+=dy;},zoomCanvasAt:(x,y,delta)=>{changes.push(['zoom',x,y,delta]);},requestCoordinatesUpdate(){},wheelNavigating(){}};
+ const ctx={setCanvasMode(mode){state.mode=mode;},state,view,screen,Math,Number,Boolean,document:{querySelector:()=>null,activeElement:null},window:{FastLecturesStudioNavigator:{flushMcpFollow(){changes.push(['flush']);}}},syncWidgetHostStates(){},resetCanvasCursor(){},requestInteractionLayerRender(){},visibleWidgets:()=>widgets,clientPoint:e=>({x:e.clientX,y:e.clientY}),handObjectToolbarTargetAtPoint:()=>({kind:'widget',object:widgets[1]}),canvasViewportMetrics:()=>({width:1000,height:800}),moveCanvas:(dx,dy)=>{state.panX+=dx;state.panY+=dy;},zoomCanvasAt:(x,y,delta)=>{changes.push(['zoom',x,y,delta]);},requestCoordinatesUpdate(){},wheelNavigating(){}};
  const api=vm.runInNewContext(`${source.slice(0,source.indexOf("\n  document.querySelector('#canvasViewHand')"))};({enterWidgetInteraction,canvasWidgetSelectionEnabled,canvasWidgetInteractive,canvasWidgetAtEvent,setWidgetInteraction,setCanvasViewTool,setSpacePan,handleCanvasWheel,beginCanvasTrackpadGesture,updateCanvasTrackpadGesture,endCanvasTrackpadGesture})`,ctx);
  const wheel=(values={})=>{let prevented=false;const event={target:view,deltaX:0,deltaY:0,deltaMode:0,clientX:200,clientY:300,preventDefault(){prevented=true;},...values};api.handleCanvasWheel(event);return prevented;};
  return {api,state,changes,widgets,wheel,view,ctx};
@@ -76,7 +76,7 @@ function gestureHarness(overrides={}) {
  const view={classList:{toggle(){}},clientWidth:1000,clientHeight:800,addEventListener(type,listener){(listeners[type]||(listeners[type]=[])).push(listener);}};
  const ctx={state,view,screen:{},Math,Number,Boolean,String,JSON,
   document:{querySelector:()=>null,activeElement:null},
-  window:{addEventListener(){},PenEchoStudioNavigator:{flushMcpFollow(){}}},
+  window:{addEventListener(){},FastLecturesStudioNavigator:{flushMcpFollow(){}}},
   localStorage:{setItem(){},getItem:()=>null},
   syncWidgetHostStates(){},resetCanvasCursor(){},requestInteractionLayerRender(){},requestCoordinatesUpdate(){},wheelNavigating(){},
   visibleWidgets:()=>widgets,clientPoint:e=>({x:e.clientX,y:e.clientY}),

@@ -11,7 +11,7 @@ const activity = require("../public/canvas-agent-activity.js");
 const ROOT = path.resolve(__dirname,"..");
 const read = file => fs.readFileSync(path.join(ROOT,file),"utf8");
 
-test("PenEcho Agent activity derives bounded public labels without exposing paths",()=>{
+test("FastLectures Agent activity derives bounded public labels without exposing paths",()=>{
   assert.equal(activity.activityPhaseFromIntent("Inspect canvas"),"inspect");
   assert.equal(activity.activityPhaseFromIntent("搜索互联网"),"search");
   assert.equal(activity.activityPhaseFromIntent("Update widget · private summary"),"edit");
@@ -31,7 +31,7 @@ test("PenEcho Agent activity derives bounded public labels without exposing path
   assert.ok(`Progress: ${activity.extractActivityCue(`Progress: ${"long ".repeat(30)}`)}`.length<=48);
 });
 
-test("PenEcho Agent activity keeps cancellation visible until the authoritative stop",()=>{
+test("FastLectures Agent activity keeps cancellation visible until the authoritative stop",()=>{
   assert.equal(activity.activityShouldBeVisible("ready",true,true),true,"a submitted request is visible before turn_start");
   assert.equal(activity.activityShouldBeVisible("running",true),true);
   assert.equal(activity.activityShouldBeVisible("error",false),true,"an active Stop control means the turn has not ended");
@@ -42,11 +42,11 @@ test("PenEcho Agent activity keeps cancellation visible until the authoritative 
   assert.equal(activity.activityPresentationVisible(true,false,false),false,"canvas focus suppresses the user-only overlay");
 });
 
-test("PenEcho Agent activity appears on submit and fades only after the running state ends",async()=>{
+test("FastLectures Agent activity appears on submit and fades only after the running state ends",async()=>{
   const {document,window}=parseHTML(`<!doctype html><html lang="zh"><body><div id="viewport"><div id="canvasAgentWidgetPickerLayer"></div><aside id="canvasAgentPanel" data-status="ready"><div id="canvasAgentTranscript"></div><form id="canvasAgentForm"><textarea id="canvasAgentInput"></textarea><button id="canvasAgentSend" type="submit">Send</button></form><button id="canvasAgentStop" hidden>Stop</button></aside></div></body></html>`);
   const form=document.querySelector("#canvasAgentForm"),input=document.querySelector("#canvasAgentInput"),send=document.querySelector("#canvasAgentSend"),stop=document.querySelector("#canvasAgentStop"),panel=document.querySelector("#canvasAgentPanel"),transcript=document.querySelector("#canvasAgentTranscript"),viewport=document.querySelector("#viewport"),picker=document.querySelector("#canvasAgentWidgetPickerLayer");
   form.addEventListener("submit",event=>{event.preventDefault();input.disabled=true;send.disabled=true;});
-  window.PENECHO_CONFIG={};
+  window.FASTLECTURES_CONFIG={};
   let frame=0;
   class TestResizeObserver { observe(){} }
   const context=vm.createContext({window,document,module:{exports:{}},Intl,Element:window.Element,MutationObserver:window.MutationObserver,ResizeObserver:TestResizeObserver,requestAnimationFrame(callback){const id=++frame;queueMicrotask(callback);return id;},queueMicrotask});
@@ -99,11 +99,11 @@ test("PenEcho Agent activity appears on submit and fades only after the running 
   assert.equal(root.parentElement,viewport);
 });
 
-test("PenEcho Agent dialog adds one bounded local explanation per observable tool phase",async()=>{
+test("FastLectures Agent dialog adds one bounded local explanation per observable tool phase",async()=>{
   const {document,window}=parseHTML(`<!doctype html><html lang="zh"><body><div id="viewport"><div id="canvasAgentWidgetPickerLayer"></div><aside id="canvasAgentPanel" data-status="ready"><div id="canvasAgentTranscript"></div><form id="canvasAgentForm"><textarea id="canvasAgentInput"></textarea><button id="canvasAgentSend" type="submit">Send</button></form><button id="canvasAgentStop" hidden>Stop</button></aside></div></body></html>`);
   const panel=document.querySelector("#canvasAgentPanel"),transcript=document.querySelector("#canvasAgentTranscript"),form=document.querySelector("#canvasAgentForm"),input=document.querySelector("#canvasAgentInput"),send=document.querySelector("#canvasAgentSend"),stop=document.querySelector("#canvasAgentStop");
   form.addEventListener("submit",event=>{event.preventDefault();input.disabled=true;send.disabled=true;});
-  window.PENECHO_CONFIG={};
+  window.FASTLECTURES_CONFIG={};
   let frame=0;
   class TestResizeObserver { observe(){} }
   const context=vm.createContext({window,document,module:{exports:{}},Intl,Element:window.Element,MutationObserver:window.MutationObserver,ResizeObserver:TestResizeObserver,requestAnimationFrame(callback){const id=++frame;queueMicrotask(callback);return id;},queueMicrotask});
@@ -123,7 +123,7 @@ test("PenEcho Agent dialog adds one bounded local explanation per observable too
   assert.equal(notes[0].dataset.phase,"understand");
   assert.match(notes[0].querySelector(".canvas-agent-dialog-progress-meta").textContent,/2 项操作/);
   assert.equal(inspect.parentElement,transcript,"tool rows remain in their canonical DOM positions");
-  assert.equal(notes[0].dataset.penechoModelHidden,"true");
+  assert.equal(notes[0].dataset.fastlecturesModelHidden,"true");
   assert.equal(notes[0].dataset.html2canvasIgnore,"true");
   inspect.classList.remove("running");capture.classList.remove("running");
   await new Promise(resolve=>setImmediate(resolve));
@@ -142,10 +142,10 @@ test("PenEcho Agent dialog adds one bounded local explanation per observable too
   assert.equal(transcript.querySelectorAll(".canvas-agent-dialog-progress").length,4,"history-view tool rows never pollute the live activity timeline");
 });
 
-test("PenEcho Agent dialog reuses a fresh public Progress cue instead of duplicating it",async()=>{
+test("FastLectures Agent dialog reuses a fresh public Progress cue instead of duplicating it",async()=>{
   const {document,window}=parseHTML(`<!doctype html><html lang="zh"><body><div id="viewport"><div id="canvasAgentWidgetPickerLayer"></div><aside id="canvasAgentPanel" data-status="ready"><div id="canvasAgentTranscript"></div><form id="canvasAgentForm"><textarea id="canvasAgentInput"></textarea><button id="canvasAgentSend" type="submit">Send</button></form><button id="canvasAgentStop" hidden>Stop</button></aside></div></body></html>`);
   const panel=document.querySelector("#canvasAgentPanel"),transcript=document.querySelector("#canvasAgentTranscript"),form=document.querySelector("#canvasAgentForm"),input=document.querySelector("#canvasAgentInput"),send=document.querySelector("#canvasAgentSend"),stop=document.querySelector("#canvasAgentStop");
-  form.addEventListener("submit",event=>{event.preventDefault();input.disabled=true;send.disabled=true;});window.PENECHO_CONFIG={};
+  form.addEventListener("submit",event=>{event.preventDefault();input.disabled=true;send.disabled=true;});window.FASTLECTURES_CONFIG={};
   let frame=0;class TestResizeObserver { observe(){} }
   vm.runInContext(read("public/canvas-agent-activity.js"),vm.createContext({window,document,module:{exports:{}},Intl,Element:window.Element,MutationObserver:window.MutationObserver,ResizeObserver:TestResizeObserver,requestAnimationFrame(callback){const id=++frame;queueMicrotask(callback);return id;},queueMicrotask}),{filename:"canvas-agent-activity.js"});
   form.dispatchEvent(new window.Event("submit",{bubbles:true,cancelable:true}));panel.dataset.status="running";stop.hidden=false;
@@ -186,7 +186,7 @@ test("PenEcho Agent dialog reuses a fresh public Progress cue instead of duplica
   assert.equal(oldCue.classList.contains("canvas-agent-public-progress"),false);
 });
 
-test("PenEcho Agent activity chooses free Canvas space and compacts around a large panel",()=>{
+test("FastLectures Agent activity chooses free Canvas space and compacts around a large panel",()=>{
   const desktop=activity.activityPosition({left:0,top:0,width:1200,height:800},{left:900,top:160,right:1180,bottom:780},true);
   assert.equal(desktop.compact,false);
   assert.ok(desktop.x<700,"desktop activity should sit left of the Agent panel");
@@ -204,12 +204,12 @@ test("PenEcho Agent activity chooses free Canvas space and compacts around a lar
   }
 });
 
-test("PenEcho Agent activity is a removable user-only sibling outside capture and object state",()=>{
+test("FastLectures Agent activity is a removable user-only sibling outside capture and object state",()=>{
   const html=read("public/index.html"),css=read("public/canvas-agent-activity.css"),source=read("public/canvas-agent-activity.js"),runtime=read("src/client/app/canvas-agent-runtime.js"),serverRuntime=read("src/server/canvas-agent/runtime.mjs"),pkg=require("../package.json");
   assert.match(html,/<link rel="stylesheet" href="canvas-agent-activity\.css">/);
   assert.match(html,/<script src="app\.js"><\/script>[\s\S]*?<script src="canvas-agent-activity\.js"><\/script>/);
   assert.match(source,/viewport\.insertBefore\(root,picker\|\|panel\)/);
-  assert.match(source,/dataset\.penechoModelHidden="true"/);
+  assert.match(source,/dataset\.fastlecturesModelHidden="true"/);
   assert.match(source,/dataset\.html2canvasIgnore="true"/);
   const baseRule=css.match(/\.canvas-agent-activity\s*\{[\s\S]*?\n\}/)?.[0]||"";
   assert.match(baseRule,/z-index:\s*40;/);
@@ -223,7 +223,7 @@ test("PenEcho Agent activity is a removable user-only sibling outside capture an
   assert.doesNotMatch(css,/canvas-agent-activity-ring|canvas-agent-activity-orbit-reverse|@keyframes canvas-agent-activity-orbit\b/);
   assert.match(css,/\.canvas-agent-activity\s*\{[\s\S]*?--canvas-agent-activity-accent:\s*var\(--studio-accent,[^)]+\)[\s\S]*?--canvas-agent-activity-surface:\s*var\(--studio-agent-overlay, rgba\(255,255,255,\.88\)\)[\s\S]*?--canvas-agent-activity-surface-raised:\s*color-mix\(in srgb, var\(--studio-agent-overlay,[\s\S]*?25%, var\(--studio-panel-raised, #f8fafc\) 75%\)/,"the activity card uses the denser Studio Agent overlay surface over Canvas content");
   assert.match(css,/\.canvas-agent-activity-core\s*\{[\s\S]*?background:\s*rgba\(255,255,255,\.88\)[\s\S]*?background:\s*var\(--canvas-agent-activity-surface\)[\s\S]*?box-shadow:\s*0 8px 14px[\s\S]*?-webkit-backdrop-filter:\s*saturate\(1\.08\) blur\(30px\)[\s\S]*?backdrop-filter:\s*saturate\(1\.08\) blur\(30px\)/,"the activity card matches the Studio Agent frost coefficients with a denser overlay surface");
-  assert.match(read("public/style.css"),/--studio-glass:\s*color-mix\(in srgb, var\(--studio-titlebar\) 62%, transparent\)[\s\S]*?--studio-agent-glass:\s*linear-gradient\(var\(--penecho-workbench-content-surface\), var\(--penecho-workbench-content-surface\)\), var\(--penecho-large-dialog-surface\)[\s\S]*?body\[data-theme="studio"\]\.studio-agent-docked \.canvas-agent-panel\s*\{[\s\S]*?background:\s*var\(--studio-agent-glass\)[\s\S]*?-webkit-backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter\)[\s\S]*?backdrop-filter:\s*var\(--penecho-large-dialog-surface-filter\)/,"the activity contract keeps the Studio Agent sidebar on the shared layered workbench material");
+  assert.match(read("public/style.css"),/--studio-glass:\s*color-mix\(in srgb, var\(--studio-titlebar\) 62%, transparent\)[\s\S]*?--studio-agent-glass:\s*linear-gradient\(var\(--fastlectures-workbench-content-surface\), var\(--fastlectures-workbench-content-surface\)\), var\(--fastlectures-large-dialog-surface\)[\s\S]*?body\[data-theme="studio"\]\.studio-agent-docked \.canvas-agent-panel\s*\{[\s\S]*?background:\s*var\(--studio-agent-glass\)[\s\S]*?-webkit-backdrop-filter:\s*var\(--fastlectures-large-dialog-surface-filter\)[\s\S]*?backdrop-filter:\s*var\(--fastlectures-large-dialog-surface-filter\)/,"the activity contract keeps the Studio Agent sidebar on the shared layered workbench material");
   assert.match(css,/\[data-phase="search"\],[\s\S]*?\[data-phase="create"\],[\s\S]*?\[data-phase="edit"\][\s\S]*?--canvas-agent-activity-accent:\s*var\(--studio-accent,[^)]+\)/,"live request phases inherit the selected Studio accent");
   assert.match(css,/\.canvas-agent-dialog-progress strong\s*\{[^}]*color:\s*var\(--studio-text, #1f2937\)/,"ordinary dialog steps use the theme text color");
   assert.match(css,/\.canvas-agent-dialog-progress\s*\{[^}]*align-items:\s*center/ ,"dialog progress restores the compact scale-90 row alignment");
@@ -250,7 +250,7 @@ test("PenEcho Agent activity is a removable user-only sibling outside capture an
   assert.doesNotMatch(source,/\bfetch\s*\(|\bXMLHttpRequest\b|\bWebSocket\b|sendFollowUpMessage|canvasAgentSendEnvelope/,"the activity layer must not call a model or network service");
   assert.doesNotMatch(source,/root\.style|setAttribute\(["']style/,"strict CSP positioning stays class/data driven");
   assert.match(serverRuntime,/Public progress: before substantial tool work[\s\S]*?meaningful finding[\s\S]*?Never expose hidden reasoning, paths, IDs, arguments, or unverified results/);
-  assert.doesNotMatch(runtime,/canvasAgentActivityOverlay|penechoModelHidden|canvas-agent-activity/);
+  assert.doesNotMatch(runtime,/canvasAgentActivityOverlay|fastlecturesModelHidden|canvas-agent-activity/);
   for(const name of ["canvasAgentCapture","canvasAgentAllObjects","canvasAgentDigest","canvasAgentRead"]){
     const start=runtime.indexOf(`function ${name}(`);
     assert.notEqual(start,-1,name);

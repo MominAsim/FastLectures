@@ -38,7 +38,7 @@ const minimalPdf=text=>{
 const waitFor=async(predicate,timeoutMs=2000)=>{
   const deadline=Date.now()+timeoutMs;
   while(Date.now()<deadline){if(predicate())return;await new Promise(resolve=>setTimeout(resolve,10));}
-  throw new Error("Timed out waiting for PenEcho Agent test state.");
+  throw new Error("Timed out waiting for FastLectures Agent test state.");
 };
 
 // Legacy kernel regression runner: executes createCanvasTools directly. It never
@@ -84,7 +84,7 @@ async function legacyKernelFixture() {
   };
 }
 
-test("PenEcho Agent applies only a same-turn LLM title and retries naming an unsaved Canvas",async()=>{
+test("FastLectures Agent applies only a same-turn LLM title and retries naming an unsaved Canvas",async()=>{
   const persistence=read("src/client/app/persistence.js"),agent=read("src/client/app/canvas-agent-runtime.js"),runtimeSource=read("src/server/canvas-agent/runtime.mjs"),
     native=read("src/server/canvas-agent/codex-native-host.mjs"),peer=read("src/server/canvas-agent/peer.mjs"),updates={document:0,agent:0},state={
     currentSnapshotName:"Aug 30, 2026, 9:00 AM",
@@ -92,7 +92,7 @@ test("PenEcho Agent applies only a same-turn LLM title and retries naming an uns
     currentCanvasSuggestedName:"",
   },apply=vm.runInNewContext(`(()=>{${functionSource(persistence,"currentCanvasNeedsAgentName")}\n${functionSource(persistence,"applyCurrentCanvasGeneratedName")}\nreturn applyCurrentCanvasGeneratedName;})()`,{
     state,
-    window:{PenEchoStudioNavigator:{updateDocument:()=>updates.document++,renderAgent:()=>updates.agent++}},
+    window:{FastLecturesStudioNavigator:{updateDocument:()=>updates.document++,renderAgent:()=>updates.agent++}},
   });
   assert.equal(apply("  画布结构优化方案  "),true);
   assert.equal(state.currentCanvasSuggestedName,"画布结构优化方案");
@@ -119,57 +119,57 @@ test("PenEcho Agent applies only a same-turn LLM title and retries naming an uns
   requestState.currentSnapshotId=null;
   requestState.currentCanvasSuggestedName="已有建议标题";
   assert.equal(shouldRequestTitle({items:[{type:"message",role:"assistant",text:"第一轮回复",final:true}]}),false);
-  assert.equal(visibleAssistantText("<penecho_canvas_title>旧标题</penecho_canvas_title>\n历史回答"),"历史回答");
-  assert.equal(visibleAssistantText("历史回答\n\n<penecho_canvas_title>旧标题</penecho_canvas_title>"),"历史回答");
-  assert.equal(visibleAssistantText("完成说明\n\n<penecho_canvas_title>旧标题</penecho_canvas_title>\n\n历史回答"),"完成说明\n\n历史回答");
-  assert.equal(visibleAssistantText("<phenecho_canvas_title>拼写容错标题</penecho_canvas_title>\n历史回答"),"历史回答");
-  assert.equal(visibleAssistantText("<penecho_canvas_title>格式错误但正常回答"),"<penecho_canvas_title>格式错误但正常回答");
+  assert.equal(visibleAssistantText("<fastlectures_canvas_title>旧标题</fastlectures_canvas_title>\n历史回答"),"历史回答");
+  assert.equal(visibleAssistantText("历史回答\n\n<fastlectures_canvas_title>旧标题</fastlectures_canvas_title>"),"历史回答");
+  assert.equal(visibleAssistantText("完成说明\n\n<fastlectures_canvas_title>旧标题</fastlectures_canvas_title>\n\n历史回答"),"完成说明\n\n历史回答");
+  assert.equal(visibleAssistantText("<phenecho_canvas_title>拼写容错标题</fastlectures_canvas_title>\n历史回答"),"历史回答");
+  assert.equal(visibleAssistantText("<fastlectures_canvas_title>格式错误但正常回答"),"<fastlectures_canvas_title>格式错误但正常回答");
   assert.match(submit,/canvasTitleNeeded:canvasAgentShouldRequestCanvasTitle\(canvasAgent\.currentConversation\)/);
   assert.match(submit,/reasoningEffort:state\.reasoningEffort/);
   assert.doesNotMatch(submit,/applyCurrentCanvasGeneratedName|suggestCurrentCanvasNameFromQuestion/);
   assert.match(agent,/function canvasAgentHandleEvent[\s\S]*?event\.reason\?\.kind==="completed"[\s\S]*?applyCurrentCanvasGeneratedName\(event\.canvasTitle\)/);
   assert.doesNotMatch(applySource,/saveSnapshot|fetch|currentSnapshotName\s*=/);
-  assert.deepEqual(parseCanvasTitleEnvelope("<penecho_canvas_",false),{matched:false,complete:false,title:"",text:""});
-  assert.deepEqual(parseCanvasTitleEnvelope("<penecho_canvas_title>画布结构优化方案</penecho_canvas_title>\n正常回答",true),{matched:true,complete:true,title:"画布结构优化方案",text:"正常回答"});
-  assert.deepEqual(parseCanvasTitleEnvelope("正常回答\n\n<penecho_canvas_title>尾部标题</penecho_canvas_title>",true),{matched:true,complete:true,title:"尾部标题",text:"正常回答"});
-  assert.deepEqual(parseCanvasTitleEnvelope("完成说明\n\n<penecho_canvas_title>中间标题</penecho_canvas_title>\n\n正常回答",true),{matched:true,complete:true,title:"中间标题",text:"完成说明\n\n正常回答"});
-  assert.deepEqual(parseCanvasTitleEnvelope("正文前 <penecho_canvas_title>\n  问候语 \n 核心概念  \n</penecho_canvas_title> 正文后",true),{matched:true,complete:true,title:"问候语 核心概念",text:"正文前  正文后"});
-  assert.deepEqual(parseCanvasTitleEnvelope("正文<penecho_canvas_title>  并列标题  </penecho_canvas_title>后文",true),{matched:true,complete:true,title:"并列标题",text:"正文后文"});
-  assert.deepEqual(parseCanvasTitleEnvelope("<phenecho_canvas_title>Canvas性能优化架构分析</penecho_canvas_title>\n正常回答",true),{matched:true,complete:true,title:"Canvas性能优化架构分析",text:"正常回答"});
-  assert.deepEqual(parseCanvasTitleEnvelope("<penecho_canvas_title>结束标签拼写容错</phenecho_canvas_title>\n正常回答",true),{matched:true,complete:true,title:"结束标签拼写容错",text:"正常回答"});
-  assert.deepEqual(parseCanvasTitleEnvelope("<pheneco_canvas_title>不应宽泛匹配</penecho_canvas_title>\n正常回答",true),{matched:false,complete:true,title:"",text:"<pheneco_canvas_title>不应宽泛匹配</penecho_canvas_title>\n正常回答"});
-  assert.equal(parseCanvasTitleEnvelope(`<penecho_canvas_title>${"a".repeat(47)} b</penecho_canvas_title>`,true).title,"a".repeat(47));
-  assert.deepEqual(parseCanvasTitleEnvelope("<penecho_canvas_title>格式错误但正常回答",true),{matched:false,complete:true,title:"",text:"<penecho_canvas_title>格式错误但正常回答"});
+  assert.deepEqual(parseCanvasTitleEnvelope("<fastlectures_canvas_",false),{matched:false,complete:false,title:"",text:""});
+  assert.deepEqual(parseCanvasTitleEnvelope("<fastlectures_canvas_title>画布结构优化方案</fastlectures_canvas_title>\n正常回答",true),{matched:true,complete:true,title:"画布结构优化方案",text:"正常回答"});
+  assert.deepEqual(parseCanvasTitleEnvelope("正常回答\n\n<fastlectures_canvas_title>尾部标题</fastlectures_canvas_title>",true),{matched:true,complete:true,title:"尾部标题",text:"正常回答"});
+  assert.deepEqual(parseCanvasTitleEnvelope("完成说明\n\n<fastlectures_canvas_title>中间标题</fastlectures_canvas_title>\n\n正常回答",true),{matched:true,complete:true,title:"中间标题",text:"完成说明\n\n正常回答"});
+  assert.deepEqual(parseCanvasTitleEnvelope("正文前 <fastlectures_canvas_title>\n  问候语 \n 核心概念  \n</fastlectures_canvas_title> 正文后",true),{matched:true,complete:true,title:"问候语 核心概念",text:"正文前  正文后"});
+  assert.deepEqual(parseCanvasTitleEnvelope("正文<fastlectures_canvas_title>  并列标题  </fastlectures_canvas_title>后文",true),{matched:true,complete:true,title:"并列标题",text:"正文后文"});
+  assert.deepEqual(parseCanvasTitleEnvelope("<phenecho_canvas_title>Canvas性能优化架构分析</fastlectures_canvas_title>\n正常回答",true),{matched:true,complete:true,title:"Canvas性能优化架构分析",text:"正常回答"});
+  assert.deepEqual(parseCanvasTitleEnvelope("<fastlectures_canvas_title>结束标签拼写容错</phenecho_canvas_title>\n正常回答",true),{matched:true,complete:true,title:"结束标签拼写容错",text:"正常回答"});
+  assert.deepEqual(parseCanvasTitleEnvelope("<pheneco_canvas_title>不应宽泛匹配</fastlectures_canvas_title>\n正常回答",true),{matched:false,complete:true,title:"",text:"<pheneco_canvas_title>不应宽泛匹配</fastlectures_canvas_title>\n正常回答"});
+  assert.equal(parseCanvasTitleEnvelope(`<fastlectures_canvas_title>${"a".repeat(47)} b</fastlectures_canvas_title>`,true).title,"a".repeat(47));
+  assert.deepEqual(parseCanvasTitleEnvelope("<fastlectures_canvas_title>格式错误但正常回答",true),{matched:false,complete:true,title:"",text:"<fastlectures_canvas_title>格式错误但正常回答"});
   const session={canvasTitleRequested:true,canvasTitleCandidate:"",canvasTitleStreams:new Map()},event=(type,data)=>({type,data});
-  assert.equal(publicSessionEvent(event("assistant/chunk",{turn:1,step:2,chunk:{type:"text-delta",text:"<penecho_canvas_"}}),session),null);
-  assert.deepEqual(publicSessionEvent(event("assistant/chunk",{turn:1,step:2,chunk:{type:"text-delta",text:"title>画布结构优化方案</penecho_canvas_title>\n正常"}}),session),{kind:"assistant_delta",turn:1,step:2,text:"正常"});
+  assert.equal(publicSessionEvent(event("assistant/chunk",{turn:1,step:2,chunk:{type:"text-delta",text:"<fastlectures_canvas_"}}),session),null);
+  assert.deepEqual(publicSessionEvent(event("assistant/chunk",{turn:1,step:2,chunk:{type:"text-delta",text:"title>画布结构优化方案</fastlectures_canvas_title>\n正常"}}),session),{kind:"assistant_delta",turn:1,step:2,text:"正常"});
   assert.deepEqual(publicSessionEvent(event("assistant/chunk",{turn:1,step:2,chunk:{type:"text-delta",text:"回答"}}),session),{kind:"assistant_delta",turn:1,step:2,text:"回答"});
-  assert.deepEqual(publicSessionEvent(event("assistant/message",{turn:1,step:2,message:{content:[{type:"text",text:"<penecho_canvas_title>画布结构优化方案</penecho_canvas_title>\n正常回答"}]}}),session),{kind:"assistant_message",turn:1,step:2,text:"正常回答",interrupted:false});
+  assert.deepEqual(publicSessionEvent(event("assistant/message",{turn:1,step:2,message:{content:[{type:"text",text:"<fastlectures_canvas_title>画布结构优化方案</fastlectures_canvas_title>\n正常回答"}]}}),session),{kind:"assistant_message",turn:1,step:2,text:"正常回答",interrupted:false});
   assert.deepEqual(publicSessionEvent(event("turn/end",{turn:1,reason:{kind:"completed"}}),session),{kind:"turn_end",turn:1,reason:{kind:"completed"},canvasTitle:"画布结构优化方案"});
   assert.equal(session.canvasTitleRequested,false);
   const footerSession={canvasTitleRequested:true,canvasTitleCandidate:"",canvasTitleStreams:new Map()};
-  assert.deepEqual(publicSessionEvent(event("assistant/chunk",{turn:1,step:3,chunk:{type:"text-delta",text:"正常回答\n\n<penecho_canvas_"}}),footerSession),{kind:"assistant_delta",turn:1,step:3,text:"正常回答\n\n"});
-  assert.equal(publicSessionEvent(event("assistant/chunk",{turn:1,step:3,chunk:{type:"text-delta",text:"title>尾部标题</penecho_canvas_title>"}}),footerSession),null);
-  assert.deepEqual(publicSessionEvent(event("assistant/message",{turn:1,step:3,message:{content:[{type:"text",text:"正常回答\n\n<penecho_canvas_title>尾部标题</penecho_canvas_title>"}]}}),footerSession),{kind:"assistant_message",turn:1,step:3,text:"正常回答",interrupted:false});
+  assert.deepEqual(publicSessionEvent(event("assistant/chunk",{turn:1,step:3,chunk:{type:"text-delta",text:"正常回答\n\n<fastlectures_canvas_"}}),footerSession),{kind:"assistant_delta",turn:1,step:3,text:"正常回答\n\n"});
+  assert.equal(publicSessionEvent(event("assistant/chunk",{turn:1,step:3,chunk:{type:"text-delta",text:"title>尾部标题</fastlectures_canvas_title>"}}),footerSession),null);
+  assert.deepEqual(publicSessionEvent(event("assistant/message",{turn:1,step:3,message:{content:[{type:"text",text:"正常回答\n\n<fastlectures_canvas_title>尾部标题</fastlectures_canvas_title>"}]}}),footerSession),{kind:"assistant_message",turn:1,step:3,text:"正常回答",interrupted:false});
   assert.deepEqual(publicSessionEvent(event("turn/end",{turn:1,reason:{kind:"completed"}}),footerSession),{kind:"turn_end",turn:1,reason:{kind:"completed"},canvasTitle:"尾部标题"});
   const typoSession={canvasTitleRequested:true,canvasTitleCandidate:"",canvasTitleStreams:new Map()};
   assert.equal(publicSessionEvent(event("assistant/chunk",{turn:1,step:4,chunk:{type:"text-delta",text:"<phenecho_canvas_"}}),typoSession),null);
-  assert.deepEqual(publicSessionEvent(event("assistant/chunk",{turn:1,step:4,chunk:{type:"text-delta",text:"title>Canvas性能优化架构分析</penecho_canvas_title>\n正常回答"}}),typoSession),{kind:"assistant_delta",turn:1,step:4,text:"正常回答"});
+  assert.deepEqual(publicSessionEvent(event("assistant/chunk",{turn:1,step:4,chunk:{type:"text-delta",text:"title>Canvas性能优化架构分析</fastlectures_canvas_title>\n正常回答"}}),typoSession),{kind:"assistant_delta",turn:1,step:4,text:"正常回答"});
   assert.deepEqual(publicSessionEvent(event("turn/end",{turn:1,reason:{kind:"completed"}}),typoSession),{kind:"turn_end",turn:1,reason:{kind:"completed"},canvasTitle:"Canvas性能优化架构分析"});
   const laterSession={canvasTitleRequested:false,canvasTitleCandidate:"",canvasTitleStreams:new Map()};
-  assert.equal(publicSessionEvent(event("assistant/chunk",{turn:2,step:1,chunk:{type:"text-delta",text:"<penecho_canvas_"}}),laterSession),null);
-  assert.deepEqual(publicSessionEvent(event("assistant/chunk",{turn:2,step:1,chunk:{type:"text-delta",text:"title>后续标题不能显示</penecho_canvas_title>\n后续回答"}}),laterSession),{kind:"assistant_delta",turn:2,step:1,text:"后续回答"});
-  assert.deepEqual(publicSessionEvent(event("assistant/message",{turn:2,step:1,message:{content:[{type:"text",text:"<penecho_canvas_title>后续标题不能显示</penecho_canvas_title>\n后续回答"}]}}),laterSession),{kind:"assistant_message",turn:2,step:1,text:"后续回答",interrupted:false});
+  assert.equal(publicSessionEvent(event("assistant/chunk",{turn:2,step:1,chunk:{type:"text-delta",text:"<fastlectures_canvas_"}}),laterSession),null);
+  assert.deepEqual(publicSessionEvent(event("assistant/chunk",{turn:2,step:1,chunk:{type:"text-delta",text:"title>后续标题不能显示</fastlectures_canvas_title>\n后续回答"}}),laterSession),{kind:"assistant_delta",turn:2,step:1,text:"后续回答"});
+  assert.deepEqual(publicSessionEvent(event("assistant/message",{turn:2,step:1,message:{content:[{type:"text",text:"<fastlectures_canvas_title>后续标题不能显示</fastlectures_canvas_title>\n后续回答"}]}}),laterSession),{kind:"assistant_message",turn:2,step:1,text:"后续回答",interrupted:false});
   assert.deepEqual(publicSessionEvent(event("turn/end",{turn:2,reason:{kind:"completed"}}),laterSession),{kind:"turn_end",turn:2,reason:{kind:"completed"}});
   assert.equal(laterSession.canvasTitleCandidate,"");
-  assert.match(runtimeSource,/Without a tool call, separate task, or extra model request[\s\S]*?<penecho_canvas_title>title<\/penecho_canvas_title>/);
+  assert.match(runtimeSource,/Without a tool call, separate task, or extra model request[\s\S]*?<fastlectures_canvas_title>title<\/fastlectures_canvas_title>/);
   assert.match(runtimeSource,/projected\.canvasTitle=session\.canvasTitleCandidate/);
   assert.match(native,/parseCanvasTitleEnvelope\(value,true\)/);
   assert.match(native,/canvasTitle:active\.canvasTitleCandidate/);
   assert.match(peer,/envelope\.payload\?\.canvasTitleNeeded === true/);
 });
 
-test("PenEcho Agent function graphs become persistent image objects through the dense host plot renderer",()=>{
+test("FastLectures Agent function graphs become persistent image objects through the dense host plot renderer",()=>{
   const agent=read("src/client/app/canvas-agent-runtime.js"),ai=read("src/client/app/ai-runtime.js"),prepare=functionSource(agent,"canvasAgentPrepareCreateItems"),plotObjectImage=functionSource(ai,"plotObjectImage"),plot=functionSource(ai,"plot");
   assert.match(prepare,/type === "plot"[\s\S]*await plotObjectImage\(\{expression[\s\S]*imageRecord\(\{[\s\S]*plotExpression:expression[\s\S]*kind:"image"/);
   assert.match(prepare,/\["formula","drawing"\]\.includes\(type\)/);
@@ -178,7 +178,7 @@ test("PenEcho Agent function graphs become persistent image objects through the 
   assert.match(plot,/midpointY = joined \? evaluate\(\(previousX \+ x\) \/ 2\)[\s\S]*discontinuity = joined[\s\S]*q\.moveTo\(px, py\)/);
 });
 
-test("PenEcho Agent handwriting keeps full-size strokes with synthetic whitespace and WebP-first encoding",async()=>{
+test("FastLectures Agent handwriting keeps full-size strokes with synthetic whitespace and WebP-first encoding",async()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),pixels=new Uint8ClampedArray(80*60*4),paintCalls=[],outputContext={
     fillStyle:"",fillRect(...args){paintCalls.push(["fillRect",this.fillStyle,...args]);},drawImage:(...args)=>paintCalls.push(["drawImage",...args]),
   };
@@ -212,7 +212,7 @@ test("PenEcho Agent handwriting keeps full-size strokes with synthetic whitespac
   assert.equal(file.file.type,"image/webp");
 });
 
-test("PenEcho Agent handwriting uses PNG only when WebP encoding is unavailable",async()=>{
+test("FastLectures Agent handwriting uses PNG only when WebP encoding is unavailable",async()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),pixels=new Uint8ClampedArray(4),outputContext={fillStyle:"",fillRect(){},drawImage(){}},
     output={width:0,height:0,getContext:()=>outputContext},inkCanvas={width:1,height:1},blobCalls=[];
   pixels[3]=255;
@@ -241,7 +241,7 @@ test("PenEcho Agent handwriting uses PNG only when WebP encoding is unavailable"
   assert.equal(file.file.type,"image/png");
 });
 
-test("PenEcho Agent treats ink as user-authored message text while ordinary images keep the generic prompt",()=>{
+test("FastLectures Agent treats ink as user-authored message text while ordinary images keep the generic prompt",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),core=read("src/client/app/core.js"),zh=read("public/locales/zh.js"),harness=read("src/server/canvas-agent/runtime.mjs"),native=read("src/server/canvas-agent/codex-native-host.mjs"),submit=functionSource(source,"canvasAgentSubmitMessage");
   assert.match(submit,/outgoingAttachments=inkAttachment\?\[\.\.\.imageAttachments,inkAttachment\]:imageAttachments/);
   assert.match(submit,/const prompt=inkAttachment[\s\S]*?\[text,t\("canvasAgentInkPrompt"\)\]\.filter\(Boolean\)\.join\("\\n\\n"\)[\s\S]*?: text\|\|t\("canvasAgentImagePrompt"\)/);
@@ -253,7 +253,7 @@ test("PenEcho Agent treats ink as user-authored message text while ordinary imag
   assert.match(native,/for \(const attachment of attachments\)[\s\S]*input\.push\(\{ type:'image', url:/);
 });
 
-test("PenEcho Agent normalizes generated ink through the same client wire as added images",()=>{
+test("FastLectures Agent normalizes generated ink through the same client wire as added images",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),prepare=functionSource(source,"canvasAgentPrepareAttachment"),add=functionSource(source,"canvasAgentAddAttachments"),ink=functionSource(source,"canvasAgentPrepareInkAttachment");
   assert.doesNotMatch(prepare,/preserveOriginal/);
   assert.match(prepare,/wire = await canvasAgentWireImage\(file,image\)/);
@@ -265,7 +265,7 @@ test("PenEcho Agent normalizes generated ink through the same client wire as add
   assert.doesNotMatch(ink,/canvasAgentPrepareAttachment\([\s\S]*,true\)/);
 });
 
-test("PenEcho Agent resizes oversized image dimensions before WebP admission",async()=>{
+test("FastLectures Agent resizes oversized image dimensions before WebP admission",async()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),wireSource=functionSource(source,"canvasAgentWireImage").replace(/^function /,"async function "),canvases=[],
     image={naturalWidth:20000,naturalHeight:10000},file={type:"image/webp",size:4*1024*1024},
     wire=vm.runInNewContext(`(()=>{${wireSource}return canvasAgentWireImage;})()`,{
@@ -285,7 +285,7 @@ test("PenEcho Agent resizes oversized image dimensions before WebP admission",as
   assert.doesNotMatch(source,/CANVAS_AGENT_MAX_IMAGE_DIMENSION|CANVAS_AGENT_MAX_IMAGE_PIXELS/);
 });
 
-test("PenEcho Agent traces handwriting upload admission and final LLM image requests on both engines",()=>{
+test("FastLectures Agent traces handwriting upload admission and final LLM image requests on both engines",()=>{
   const store=read("src/server/canvas-agent/image-attachments.mjs"),runtime=read("src/server/canvas-agent/runtime.mjs"),native=read("src/server/canvas-agent/codex-native-host.mjs");
   assert.match(store,/async readImageRequest\(ref, policy, signal\)[\s\S]*requestImageObserver\?\.\(\{ ref, policy, image:output \}\)/);
   assert.match(functionSource(runtime,"isCanvasAgentHandwritingImageName"),/canvas-agent-message[\s\S]*webp\|png/);
@@ -297,7 +297,7 @@ test("PenEcho Agent traces handwriting upload admission and final LLM image requ
   assert.match(native,/traceModelRequestImage\(\{ ref, policy, image \}\)[\s\S]*isCanvasAgentHandwritingImageName[\s\S]*stage:'llm-request'[\s\S]*byteIdenticalToAdmitted[\s\S]*transformedForModel[\s\S]*data:image\.data/);
 });
 
-test("PenEcho Agent shows the complete model-bound handwriting image inside the user message",()=>{
+test("FastLectures Agent shows the complete model-bound handwriting image inside the user message",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),css=read("public/style.css"),render=functionSource(source,"canvasAgentAppendMessageElement");
   assert.match(render,/image\.src = attachment\.dataUrl/);
   assert.match(render,/canvas-agent-message[\s\S]*webp\|png[\s\S]*images\.classList\.add\("has-handwriting"\)[\s\S]*image\.classList\.add\("canvas-agent-message-handwriting"\)/);
@@ -306,7 +306,7 @@ test("PenEcho Agent shows the complete model-bound handwriting image inside the 
   assert.match(css,/\.canvas-agent-message-images img\.canvas-agent-message-handwriting\s*\{[^}]*width: auto;[^}]*height: auto;[^}]*max-width: min\(100%, 360px\);[^}]*max-height: 220px;[^}]*object-fit: contain;/);
 });
 
-test("PenEcho Agent hides its empty-state hint as soon as handwriting mode expands",()=>{
+test("FastLectures Agent hides its empty-state hint as soon as handwriting mode expands",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),classes=new Set(),makeModeButton=()=>({
     classList:{toggle(name,enabled){if(enabled)classes.add(name);else classes.delete(name);}},
     setAttribute(){},
@@ -327,7 +327,7 @@ test("PenEcho Agent hides its empty-state hint as soon as handwriting mode expan
   assert.equal(canvasAgentInputHint.hidden,false);
 });
 
-test("PenEcho Agent dismisses the virtual keyboard after every successful send",()=>{
+test("FastLectures Agent dismisses the virtual keyboard after every successful send",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),setMode=functionSource(source,"canvasAgentSetInputMode"),submit=functionSource(source,"canvasAgentSubmitMessage");
   assert.match(setMode,/canvasAgentSetInputMode\(mode,focus=true\)/);
   assert.match(setMode,/if\(focus\)\(ink\?canvasAgentInkCanvas:canvasAgentInput\)\.focus\?\.\(\)/);
@@ -336,7 +336,7 @@ test("PenEcho Agent dismisses the virtual keyboard after every successful send",
   assert.match(submit,/if\(focusComposerAfterSubmit\)\(canvasAgent\.inputMode==="ink"\?canvasAgentInkCanvas:canvasAgentInput\)\.focus\(\)/);
 });
 
-test("PenEcho Agent panel movement and edge resizing accept pen and scoped touch input",()=>{
+test("FastLectures Agent panel movement and edge resizing accept pen and scoped touch input",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),css=read("public/style.css"),pointerCanManipulate=vm.runInNewContext(`(()=>{${functionSource(source,"canvasAgentPanelPointerCanManipulate")}return canvasAgentPanelPointerCanManipulate;})()`);
   assert.equal(pointerCanManipulate({pointerType:"pen",button:0,buttons:1}),true);
   assert.equal(pointerCanManipulate({pointerType:"pen",button:-1,buttons:1}),true);
@@ -356,7 +356,7 @@ test("PenEcho Agent panel movement and edge resizing accept pen and scoped touch
   assert.match(css,/@media \(min-width: 701px\) and \(any-pointer: coarse\)\s*\{[\s\S]*?body\[data-theme="studio"\]\.studio-agent-docked \.canvas-agent-resize-edge\.left::after\s*\{[^}]*left: 21px;/);
 });
 
-test("PenEcho Agent docked width can grow to half the page",()=>{
+test("FastLectures Agent docked width can grow to half the page",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),css=read("public/style.css"),maximumWidthSource=functionSource(source,"canvasAgentMaximumPanelWidth"),widthState={docked:true},context={
     CANVAS_AGENT_WIDTH_MIN:360,
     canvasAgentFrame:{clientWidth:2000},
@@ -416,7 +416,7 @@ const DIRECT_HARNESS_DEPENDENCIES = [
   "@deepseek-ai/dsh-user-approval",
 ];
 
-test("PenEcho Agent protocol rejects malformed and replayed envelope facts",async()=>{
+test("FastLectures Agent protocol rejects malformed and replayed envelope facts",async()=>{
   const { parseClientEnvelope } = await import("../src/server/canvas-agent/protocol.mjs");
   assert.deepEqual(parseClientEnvelope(JSON.stringify({version:1,type:"ping",seq:1,payload:{}})),{version:1,type:"ping",seq:1,payload:{}});
   assert.equal(parseClientEnvelope(JSON.stringify({version:1,type:"change_context",seq:2,payload:{}})).type,"change_context");
@@ -427,8 +427,8 @@ test("PenEcho Agent protocol rejects malformed and replayed envelope facts",asyn
   assert.throws(()=>parseClientEnvelope(JSON.stringify({version:1,type:"ping",seq:1,clientId:"x".repeat(257),payload:{}})),/client id/);
 });
 
-test("PenEcho Agent local projects are host-owned and keep only five conversations inside .penecho",async t=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-local-project-test-")),stateDirectory=path.join(root,"state"),projectDirectory=path.join(root,"project");
+test("FastLectures Agent local projects are host-owned and keep only five conversations inside .fastlectures",async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-local-project-test-")),stateDirectory=path.join(root,"state"),projectDirectory=path.join(root,"project");
   fs.mkdirSync(projectDirectory,{recursive:true});
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
   const {CanvasAgentProjectStore}=require("../src/server/canvas-agent/project-store.js"),store=new CanvasAgentProjectStore({stateDirectory}),project=await store.add(projectDirectory);
@@ -445,14 +445,14 @@ test("PenEcho Agent local projects are host-owned and keep only five conversatio
   assert.equal(written[0].id,"conversation-5");
   assert.deepEqual(written[0].items[1],{id:"error-5",type:"error",code:"RATE_LIMIT",message:"Too many requests",eventKey:"turn:1"});
   assert.deepEqual(await store.readHistory(project.id),written);
-  const historyFile=path.join(projectDirectory,".penecho","canvas-agent-history.json");
+  const historyFile=path.join(projectDirectory,".fastlectures","canvas-agent-history.json");
   assert.equal(fs.existsSync(historyFile),true);
   await store.remove(project.id);
   assert.equal(fs.existsSync(historyFile),true,"removing a project registration must not delete project data");
 });
 
-test("Remote PenEcho Agent channels preserve browser frame order across open, frame, pull, and close",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-remote-channel-test-"));
+test("Remote FastLectures Agent channels preserve browser frame order across open, frame, pull, and close",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-remote-channel-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {EventEmitter}=require("node:events"),{attachCanvasAgent}=require("../src/server/canvas-agent/http.js"),server=new EventEmitter(),
     connection={id:"remote-cli",provider:"codex-cli",name:"Remote CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -492,8 +492,8 @@ test("Remote PenEcho Agent channels preserve browser frame order across open, fr
   await assert.rejects(bridge.executeRemote({operation:"canvas.agent.pull",channelId}),/not found/);
 });
 
-test("PenEcho Agent HTTP submit errors cannot cross a conversation generation boundary",async()=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-generation-test-"));
+test("FastLectures Agent HTTP submit errors cannot cross a conversation generation boundary",async()=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-generation-test-"));
   const {EventEmitter}=require("node:events"),{attachCanvasAgent}=require("../src/server/canvas-agent/http.js"),
     {CanvasAgentHostRouter}=await import("../src/server/canvas-agent/host-router.mjs"),server=new EventEmitter();
   const originalConnect=CanvasAgentHostRouter.prototype.connect,originalReplace=CanvasAgentHostRouter.prototype.replaceSession,originalSubmit=CanvasAgentHostRouter.prototype.submit;
@@ -542,8 +542,8 @@ test("PenEcho Agent HTTP submit errors cannot cross a conversation generation bo
   }
 });
 
-test("PenEcho Agent request recording groups Harness steps by turn and preserves every visual input",t=>{
-  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-request-trace-"));
+test("FastLectures Agent request recording groups Harness steps by turn and preserves every visual input",t=>{
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-request-trace-"));
   t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
   const {createCanvasAgentRequestTracer}=require("../src/server/canvas-agent/request-trace.js"),errors=[],ids=[
     "11111111-1111-4111-8111-111111111111",
@@ -564,7 +564,7 @@ test("PenEcho Agent request recording groups Harness steps by turn and preserves
   tracer({...conversation,phase:"event",event:event("turn/start",{turn:1},1)});
   tracer({...conversation,phase:"event",event:event("step/start",{turn:1,step:1},2)});
   tracer({...conversation,phase:"event",event:event("user/message",{role:"user",content:[{type:"text",text:"Inspect the canvas"},{type:"image_url",url:"data:image/png;base64,c2VjcmV0"}]},3)});
-  tracer({...conversation,phase:"event",event:event("request/header",{header:{config:{provider:"internal",model:"gpt-test",reasoningEffort:"medium",apiKey:"must-not-log",headers:{"x-api-key":"header-secret"}},system:"PenEcho Agent",tools:[{name:"canvas_capture"}]}},4)});
+  tracer({...conversation,phase:"event",event:event("request/header",{header:{config:{provider:"internal",model:"gpt-test",reasoningEffort:"medium",apiKey:"must-not-log",headers:{"x-api-key":"header-secret"}},system:"FastLectures Agent",tools:[{name:"canvas_capture"}]}},4)});
   tracer({...conversation,phase:"event",event:event("request/context",{provider:"internal",model:"gpt-test",contextWindow:160000},5)});
   tracer({...conversation,phase:"event",event:event("assistant/message",{turn:1,step:1,message:{role:"assistant",source:{provider:"internal",model:"gpt-test"},content:[{type:"tool-call",id:"capture-1",name:"canvas_capture",arguments:"{}"}]}},6),messages:[{role:"user",content:[{type:"text",text:"Inspect the canvas"}]}]});
   tracer({...conversation,phase:"asset",asset:{source:"capture",callId:"capture-1",attachmentId:"capture-image",data:captureImage,mediaType:"image/webp",width:320,height:200,capture:{target:"viewport",quality:"basic"}}});
@@ -596,7 +596,7 @@ test("PenEcho Agent request recording groups Harness steps by turn and preserves
   assert.match(serialized,/<redacted>|<encoded attachment omitted>/);
 });
 
-test("PenEcho Agent maps full API endpoints back to pi-ai provider base URLs",async()=>{
+test("FastLectures Agent maps full API endpoints back to pi-ai provider base URLs",async()=>{
   const { CANVAS_AGENT_COMPACTION_THRESHOLD_RATIO, CANVAS_AGENT_CONTEXT_WINDOW, CANVAS_AGENT_REQUEST_IMAGE_MAX_PIXELS, connectionProfile, resolveCanvasAgentRequestEffort } = await import("../src/server/canvas-agent/runtime.mjs");
   const openai=connectionProfile({id:"openai",apiFormat:"openai",apiUrl:"https://gateway.test/openai/v1/chat/completions",apiModel:"model",effort:"max"},180_000),
     kimi=connectionProfile({id:"kimi",apiFormat:"openai",apiPreset:"kimi-global-api",apiUrl:"https://api.moonshot.ai/v1",apiModel:"kimi-k3",effort:"medium"}),
@@ -640,8 +640,8 @@ test("PenEcho Agent maps full API endpoints back to pi-ai provider base URLs",as
   assert.throws(()=>resolveCanvasAgentRequestEffort({effort:"high"},"provider\nnative"),/reasoning effort is invalid/);
 });
 
-test("PenEcho Agent sends Canvas-selected reasoning effort through Harness API routes",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-reasoning-test-"));
+test("FastLectures Agent sends Canvas-selected reasoning effort through Harness API routes",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-reasoning-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),connections=[
     {id:"deepseek",provider:"api",name:"DeepSeek",apiFormat:"openai",apiUrl:"https://api.deepseek.com/v1",apiModel:"deepseek-flash",apiKey:"test-only",effort:"high"},
@@ -702,8 +702,8 @@ test("PenEcho Agent sends Canvas-selected reasoning effort through Harness API r
   assert.equal(requests.find(request=>request.body.model==="custom-model").body.reasoning_effort,"Provider_Native");
 });
 
-test("PenEcho Agent sends a custom Canvas reasoning value through Harness CLI routes",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-cli-reasoning-test-"));
+test("FastLectures Agent sends a custom Canvas reasoning value through Harness CLI routes",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-cli-reasoning-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),calls=[],messages=[],
     connection={id:"custom-cli",provider:"kimi-cli",name:"Custom CLI",cliPath:"kimi-test",cliModel:"k3",effort:"medium"},
@@ -722,8 +722,8 @@ test("PenEcho Agent sends a custom Canvas reasoning value through Harness CLI ro
   assert.equal(calls[0].connection.effort,"provider_native");
 });
 
-test("PenEcho Agent exposes Tavily only when configured and executes it server-side when enabled",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-search-test-"));
+test("FastLectures Agent exposes Tavily only when configured and executes it server-side when enabled",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-search-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),calls=[],messages=[],searchRequests=[],
     connection={id:"search-cli",provider:"codex-cli",name:"Search CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -735,7 +735,7 @@ test("PenEcho Agent exposes Tavily only when configured and executes it server-s
       callCli:async request=>{
         calls.push(request);
         return calls.length%2===1
-          ? JSON.stringify({type:"tool_call",name:"tavily_search",arguments:{query:"PenEcho latest release",maxResults:3,timeRange:"month"}})
+          ? JSON.stringify({type:"tool_call",name:"tavily_search",arguments:{query:"FastLectures latest release",maxResults:3,timeRange:"month"}})
           : JSON.stringify({type:"final",text:"I found the current release source."});
       },
     });
@@ -743,23 +743,23 @@ test("PenEcho Agent exposes Tavily only when configured and executes it server-s
   const originalFetch=globalThis.fetch;
   globalThis.fetch=async(input,init)=>{
     searchRequests.push({input:String(input),init,body:JSON.parse(String(init?.body||"{}"))});
-    return new Response(JSON.stringify({response_time:0.21,results:[{title:"PenEcho release",url:"https://example.test/release",content:"Current release notes",score:0.98,published_date:"2026-08-20"}]}),{status:200,headers:{"content-type":"application/json"}});
+    return new Response(JSON.stringify({response_time:0.21,results:[{title:"FastLectures release",url:"https://example.test/release",content:"Current release notes",score:0.98,published_date:"2026-08-20"}]}),{status:200,headers:{"content-type":"application/json"}});
   };
   t.after(()=>{globalThis.fetch=originalFetch});
   const session=await host.connect({clientId:"search-client",connectionId:connection.id,webSearchEnabled:true,binding:{},send:(type,payload)=>messages.push({type,payload})});
   host.updateState(session,{revision:1,canvas:{width:20000,height:20000},objects:[]});
-  await host.submit(session,"Find the latest PenEcho release.");
+  await host.submit(session,"Find the latest FastLectures release.");
   await waitFor(()=>messages.some(message=>message.type==="session_event"&&message.payload.kind==="turn_end"));
   assert.equal(session.webSearch.enabled,true);
   assert.equal(searchRequests.length,1);
   assert.equal(searchRequests[0].input,"https://api.tavily.com/search");
   assert.equal(searchRequests[0].init.headers.authorization,"Bearer tvly-test-secret");
-  assert.deepEqual(searchRequests[0].body,{query:"PenEcho latest release",topic:"general",search_depth:"basic",max_results:3,include_answer:false,include_raw_content:false,include_images:false,time_range:"month"});
+  assert.deepEqual(searchRequests[0].body,{query:"FastLectures latest release",topic:"general",search_depth:"basic",max_results:3,include_answer:false,include_raw_content:false,include_images:false,time_range:"month"});
   assert.equal(JSON.parse(calls[0].prompt).availableTools.some(tool=>tool.name==="tavily_search"),true);
   assert.match(JSON.stringify(JSON.parse(calls[1].prompt).conversation),/https:\/\/example\.test\/release/);
   assert.equal(JSON.stringify(calls).includes("tvly-test-secret"),false);
   assert.equal(messages.some(message=>message.type==="session_event"&&message.payload.kind==="tool_call"&&message.payload.name==="tavily_search"),true);
-  assert.throws(()=>host.setWebSearchEnabled(session,false),/Start a new PenEcho Agent conversation/);
+  assert.throws(()=>host.setWebSearchEnabled(session,false),/Start a new FastLectures Agent conversation/);
   assert.equal(searchRequests.length,1);
   assert.equal(calls.length,2);
   const disabled=await host.connect({clientId:"search-client-disabled",connectionId:connection.id,webSearchEnabled:false,binding:{disabled:true},send:()=>{}}),
@@ -768,8 +768,8 @@ test("PenEcho Agent exposes Tavily only when configured and executes it server-s
   assert.equal(disabledTools.includes("web_read"),true);
 });
 
-test("PenEcho Agent uses a separately configured DeepSeek V4 Flash turn for native web search",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-deepseek-search-test-"));
+test("FastLectures Agent uses a separately configured DeepSeek V4 Flash turn for native web search",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-deepseek-search-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),calls=[],messages=[],searchRequests=[],
     connection={id:"deepseek-search-cli",provider:"codex-cli",name:"DeepSeek Search CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -781,7 +781,7 @@ test("PenEcho Agent uses a separately configured DeepSeek V4 Flash turn for nati
       callCli:async request=>{
         calls.push(request);
         return calls.length===1
-          ? JSON.stringify({type:"tool_call",name:"deepseek_search",arguments:{query:"PenEcho current release",maxResults:3}})
+          ? JSON.stringify({type:"tool_call",name:"deepseek_search",arguments:{query:"FastLectures current release",maxResults:3}})
           : JSON.stringify({type:"final",text:"I found the current release source."});
       },
     });
@@ -790,14 +790,14 @@ test("PenEcho Agent uses a separately configured DeepSeek V4 Flash turn for nati
   globalThis.fetch=async(input,init)=>{
     searchRequests.push({input:String(input),init,body:JSON.parse(String(init?.body||"{}"))});
     return new Response(JSON.stringify({content:[
-      {type:"web_search_tool_result",content:[{type:"web_search_result",url:"https://example.test/release",title:"PenEcho release",page_age:"2026-08-25"}]},
+      {type:"web_search_tool_result",content:[{type:"web_search_result",url:"https://example.test/release",title:"FastLectures release",page_age:"2026-08-25"}]},
       {type:"text",text:"Release source",citations:[{url:"https://example.test/release",cited_text:"Current release notes"}]},
     ]}),{status:200,headers:{"content-type":"application/json"}});
   };
   t.after(()=>{globalThis.fetch=originalFetch});
   const session=await host.connect({clientId:"deepseek-search-client",connectionId:connection.id,webSearchEnabled:true,binding:{},send:(type,payload)=>messages.push({type,payload})});
   host.updateState(session,{revision:1,canvas:{width:20000,height:20000},objects:[]});
-  await host.submit(session,"Find the latest PenEcho release.");
+  await host.submit(session,"Find the latest FastLectures release.");
   await waitFor(()=>messages.some(message=>message.type==="session_event"&&message.payload.kind==="turn_end"));
   assert.equal(searchRequests.length,1);
   assert.equal(searchRequests[0].input,"https://api.deepseek.com/anthropic/v1/messages");
@@ -806,7 +806,7 @@ test("PenEcho Agent uses a separately configured DeepSeek V4 Flash turn for nati
   assert.equal(searchRequests[0].init.headers["anthropic-version"],"2023-06-01");
   assert.deepEqual(searchRequests[0].body,{
     model:"deepseek-v4-flash",max_tokens:4096,
-    messages:[{role:"user",content:[{type:"text",text:"Perform a web search for the query: PenEcho current release"}]}],
+    messages:[{role:"user",content:[{type:"text",text:"Perform a web search for the query: FastLectures current release"}]}],
     tools:[{type:"web_search_20250305",name:"web_search",max_uses:5}],
   });
   assert.equal(JSON.parse(calls[0].prompt).availableTools.some(tool=>tool.name==="deepseek_search"),true);
@@ -816,8 +816,8 @@ test("PenEcho Agent uses a separately configured DeepSeek V4 Flash turn for nati
   assert.equal(messages.some(message=>message.type==="session_event"&&message.payload.kind==="tool_call"&&message.payload.name==="deepseek_search"),true);
 });
 
-test("PenEcho Agent switches native Flash search to the OpenCode Go Messages endpoint",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-opencode-go-search-test-"));
+test("FastLectures Agent switches native Flash search to the OpenCode Go Messages endpoint",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-opencode-go-search-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),calls=[],messages=[],searchRequests=[],
     connection={id:"opencode-go-search-cli",provider:"codex-cli",name:"OpenCode Go Search CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -856,8 +856,8 @@ test("PenEcho Agent switches native Flash search to the OpenCode Go Messages end
   assert.match(JSON.stringify(JSON.parse(calls[1].prompt).conversation),/Go includes DeepSeek V4 Flash/);
 });
 
-test("PenEcho Agent explains the OpenCode Go China-hosted model opt-in",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-opencode-go-region-test-"));
+test("FastLectures Agent explains the OpenCode Go China-hosted model opt-in",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-opencode-go-region-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),calls=[],messages=[],
     connection={id:"opencode-go-region-cli",provider:"codex-cli",name:"OpenCode Go Region CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -916,13 +916,13 @@ test("search settings test probes Flash, Tavily, and DuckDuckGo independently",a
   ]);
 });
 
-test("PenEcho Agent exposes research, GitHub, stock, and DuckDuckGo on the first model step without a Tavily key",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-built-in-search-test-"));
+test("FastLectures Agent exposes research, GitHub, stock, and DuckDuckGo on the first model step without a Tavily key",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-built-in-search-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),calls=[],messages=[],searchRequests=[],script=[
     {type:"tool_call",name:"research_search",arguments:{query:"visual canvas agents",source:"crossref",maxResults:2,fromYear:2025}},
     {type:"tool_call",name:"github_repository_search",arguments:{query:"visual canvas agent",maxResults:2,sort:"stars"}},
-    {type:"tool_call",name:"duckduckgo_search",arguments:{query:"PenEcho visual canvas",maxResults:2,timeRange:"month"}},
+    {type:"tool_call",name:"duckduckgo_search",arguments:{query:"FastLectures visual canvas",maxResults:2,timeRange:"month"}},
     {type:"tool_call",name:"stock_symbol_search",arguments:{query:"Apple",maxResults:2}},
     {type:"tool_call",name:"stock_market_data",arguments:{symbol:"AAPL",range:"5d",interval:"1d"}},
     {type:"final",text:"The built-in search tools returned cited sources."},
@@ -937,12 +937,12 @@ test("PenEcho Agent exposes research, GitHub, stock, and DuckDuckGo on the first
   globalThis.fetch=async(input,init)=>{
     const url=new URL(String(input));searchRequests.push({url,init});
     if(url.hostname==="api.crossref.org")return new Response(JSON.stringify({message:{items:[{
-      DOI:"10.1234/penecho",title:["Visual PenEcho Agents"],URL:"https://doi.org/10.1234/penecho",author:[{given:"Ada",family:"Lovelace"}],published:{"date-parts":[[2026,8,20]]},"container-title":["Canvas Research"],type:"journal-article","is-referenced-by-count":7,
+      DOI:"10.1234/fastlectures",title:["Visual FastLectures Agents"],URL:"https://doi.org/10.1234/fastlectures",author:[{given:"Ada",family:"Lovelace"}],published:{"date-parts":[[2026,8,20]]},"container-title":["Canvas Research"],type:"journal-article","is-referenced-by-count":7,
     }]}}),{status:200,headers:{"content-type":"application/json"}});
     if(url.hostname==="api.github.com")return new Response(JSON.stringify({total_count:1,items:[{
-      full_name:"penecho/penecho",description:"Visual canvas agent",html_url:"https://github.com/penecho/penecho",stargazers_count:42,forks_count:5,open_issues_count:2,language:"JavaScript",topics:["canvas","agent"],license:{spdx_id:"MIT"},updated_at:"2026-08-20T00:00:00Z",default_branch:"main",
+      full_name:"fastlectures/fastlectures",description:"Visual canvas agent",html_url:"https://github.com/fastlectures/fastlectures",stargazers_count:42,forks_count:5,open_issues_count:2,language:"JavaScript",topics:["canvas","agent"],license:{spdx_id:"MIT"},updated_at:"2026-08-20T00:00:00Z",default_branch:"main",
     }]}),{status:200,headers:{"content-type":"application/json","x-ratelimit-limit":"10","x-ratelimit-remaining":"9","x-ratelimit-reset":"1787530000"}});
-    if(url.hostname==="html.duckduckgo.com")return new Response('<article><a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fpenecho.ai%2F&amp;rut=test"><b>PenEcho</b> visual canvas</a><a class="result__snippet" href="https://penecho.ai/">A visual canvas for focused work.</a></article>',{status:200,headers:{"content-type":"text/html"}});
+    if(url.hostname==="html.duckduckgo.com")return new Response('<article><a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Ffastlectures.ai%2F&amp;rut=test"><b>FastLectures</b> visual canvas</a><a class="result__snippet" href="https://fastlectures.ai/">A visual canvas for focused work.</a></article>',{status:200,headers:{"content-type":"text/html"}});
     if(url.hostname==="query1.finance.yahoo.com"&&url.pathname==="/v1/finance/search")return new Response(JSON.stringify({quotes:[{symbol:"AAPL",longname:"Apple Inc.",shortname:"Apple Inc.",quoteType:"EQUITY",exchDisp:"NASDAQ",sector:"Technology",industry:"Consumer Electronics"}]}),{status:200,headers:{"content-type":"application/json"}});
     if(url.hostname==="query1.finance.yahoo.com"&&url.pathname==="/v8/finance/chart/AAPL")return new Response(JSON.stringify({chart:{result:[{
       meta:{currency:"USD",symbol:"AAPL",longName:"Apple Inc.",fullExchangeName:"NasdaqGS",instrumentType:"EQUITY",regularMarketTime:1787342401,regularMarketPrice:309.35,chartPreviousClose:305.93,regularMarketDayHigh:312.38,regularMarketDayLow:307.01,regularMarketVolume:46876815,fiftyTwoWeekHigh:344.57,fiftyTwoWeekLow:224.69,exchangeTimezoneName:"America/New_York"},
@@ -969,19 +969,19 @@ test("PenEcho Agent exposes research, GitHub, stock, and DuckDuckGo on the first
   assert.equal(searchRequests[4].url.pathname,"/v8/finance/chart/AAPL");
   assert.equal(searchRequests[4].url.searchParams.get("range"),"5d");
   const conversation=JSON.stringify(requests[5].conversation);
-  for(const source of ["https://doi.org/10.1234/penecho","https://github.com/penecho/penecho","https://penecho.ai/","https://finance.yahoo.com/quote/AAPL/history/"])assert.equal(conversation.includes(source),true,source);
+  for(const source of ["https://doi.org/10.1234/fastlectures","https://github.com/fastlectures/fastlectures","https://fastlectures.ai/","https://finance.yahoo.com/quote/AAPL/history/"])assert.equal(conversation.includes(source),true,source);
   assert.equal(conversation.includes("309.35"),true);
   assert.equal(session.webSearch.enabled,true);
   assert.equal(messages.find(message=>message.type==="ready")?.payload.webSearchConfigured,true);
 });
 
-test("PenEcho Agent CLI adapter turns isolated CLI decisions into Harness tool calls",async t=>{
-  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-cli-test-"));
+test("FastLectures Agent CLI adapter turns isolated CLI decisions into Harness tool calls",async t=>{
+  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-cli-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
   const connection={id:"cli-test",provider:"codex-cli",name:"Local Codex",cliPath:"codex-test",cliModel:"gpt-test",effort:"high"};
   const calls=[],messages=[],conversationLogs=[],script=[
-    JSON.stringify({type:"tool_call",name:"penecho_inspect_session",arguments:{}}),
+    JSON.stringify({type:"tool_call",name:"fastlectures_inspect_session",arguments:{}}),
     JSON.stringify({type:"final",text:"CLI inspection complete."}),
   ];
   const host = new CanvasHarnessHost({
@@ -1012,13 +1012,13 @@ test("PenEcho Agent CLI adapter turns isolated CLI decisions into Harness tool c
   assert.match(calls[0].systemPrompt,/Never invoke CLI built-ins[\s\S]*HARNESS REQUEST\.availableTools/);
   const firstRequest=JSON.parse(calls[0].prompt),secondRequest=JSON.parse(calls[1].prompt),visualExplorerContract=read("src/server/canvas-agent/visual-explorer-contract.md").trim(),generalContract=read("src/server/canvas-agent/general-html-contract.md").trim();
   const {BOUND_CANVAS_TOOL_NAMES}=require("../src/server/mcp/bound-operations.js");
-  assert.deepEqual(firstRequest.availableTools.map(tool=>tool.name).sort(),[...BOUND_CANVAS_TOOL_NAMES,"penecho_get_guidance","public_api","read_attachment","web_read"].sort());
+  assert.deepEqual(firstRequest.availableTools.map(tool=>tool.name).sort(),[...BOUND_CANVAS_TOOL_NAMES,"fastlectures_get_guidance","public_api","read_attachment","web_read"].sort());
   assert.match(calls[0].systemPrompt,/host binds the current Canvas/);
   assert.match(calls[0].systemPrompt,/contentHash[\s\S]*requestId/);
   assert.match(calls[0].systemPrompt,/Load relevant guidance on demand/);
   for(const call of calls)for(const contract of [visualExplorerContract,generalContract,read("src/server/canvas-agent/professional-diagrams-contract.md").trim()])assert.equal(call.systemPrompt.includes(contract),false,"authoring contracts are loaded only on demand");
   assert.equal(calls[0].systemPrompt,calls[1].systemPrompt);
-  const patchSchema=firstRequest.availableTools.find(tool=>tool.name==="penecho_patch_file").parameters;
+  const patchSchema=firstRequest.availableTools.find(tool=>tool.name==="fastlectures_patch_file").parameters;
   assert.ok(patchSchema.required.includes("contentHash"));
   assert.ok(patchSchema.required.includes("requestId"));
   assert.equal(Object.hasOwn(patchSchema.properties,"baseRevision"),false);
@@ -1049,7 +1049,7 @@ test("PenEcho Agent CLI adapter turns isolated CLI decisions into Harness tool c
   assert.equal(conversationLogs.every(entry=>entry.type==="canvas-agent-conversation"),true);
   assert.equal(new Set(conversationLogs.map(entry=>entry.conversationId)).size,1);
   assert.equal(conversationLogs.some(entry=>entry.event?.kind==="user_message"&&entry.event.text==="Inspect this canvas with the selected CLI model."),true);
-  assert.equal(conversationLogs.some(entry=>entry.event?.kind==="tool_call"&&entry.event.name==="penecho_inspect_session"),true);
+  assert.equal(conversationLogs.some(entry=>entry.event?.kind==="tool_call"&&entry.event.name==="fastlectures_inspect_session"),true);
   assert.equal(conversationLogs.some(entry=>entry.event?.kind==="tool_result"),true);
   assert.equal(conversationLogs.some(entry=>entry.event?.kind==="assistant_message"&&entry.event.text==="CLI inspection complete."),true);
   assert.equal(conversationLogs.some(entry=>entry.event?.kind==="assistant_delta"),false);
@@ -1057,12 +1057,12 @@ test("PenEcho Agent CLI adapter turns isolated CLI decisions into Harness tool c
   assert.equal(JSON.stringify(conversationLogs).includes("resumeToken"),false);
 });
 
-test("PenEcho Agent excludes private and Professional authoring and loads shared guidance on demand",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-guidance-test-"));
+test("FastLectures Agent excludes private and Professional authoring and loads shared guidance on demand",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-guidance-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),calls=[],messages=[];
   const connection={id:"guidance",provider:"codex-cli",cliPath:"codex-test",cliModel:"test",effort:"medium"};
-  const host=new CanvasHarnessHost({stateDirectory,rootDirectory:ROOT,resolveConnection:()=>connection,listConnections:()=>[connection],resolveWidgetCapabilities:()=>{throw Error("Disabled private capabilities must not be resolved");},callCli:async request=>{calls.push(request);return JSON.stringify(calls.length===1?{type:"tool_call",name:"penecho_get_guidance",arguments:{id:"general-html"}}:{type:"final",text:"Guidance loaded."});}});
+  const host=new CanvasHarnessHost({stateDirectory,rootDirectory:ROOT,resolveConnection:()=>connection,listConnections:()=>[connection],resolveWidgetCapabilities:()=>{throw Error("Disabled private capabilities must not be resolved");},callCli:async request=>{calls.push(request);return JSON.stringify(calls.length===1?{type:"tool_call",name:"fastlectures_get_guidance",arguments:{id:"general-html"}}:{type:"final",text:"Guidance loaded."});}});
   t.after(()=>host.dispose());
   const session=await host.connect({clientId:"guidance",connectionId:connection.id,widgetCapabilities:{version:1,professionalEnabled:true,privatePluginIds:["private-notes"]},binding:{},send:(type,payload)=>messages.push({type,payload})});
   host.updateState(session,{revision:1,canvas:{width:100,height:100},objects:[]});
@@ -1085,17 +1085,17 @@ test("PenEcho Agent excludes private and Professional authoring and loads shared
   assert.equal(resumed.id,session.id);
 });
 
-test("PenEcho Agent waits for the authoritative plugin catalog and hardens private capability resolution",()=>{
+test("FastLectures Agent waits for the authoritative plugin catalog and hardens private capability resolution",()=>{
   const core=read("src/client/app/core.js"),browser=read("src/client/app/canvas-agent-runtime.js"),server=read("src/server/main.js"),load=functionSource(core,"loadPluginDocuments");
   assert.match(core,/pluginCatalogLoadPromise = null/);
   assert.match(load,/if \(pluginCatalogLoadPromise\) return pluginCatalogLoadPromise[\s\S]*pluginCatalogLoadPromise=new Promise[\s\S]*resolveSharedLoad\(loadSucceeded\)[\s\S]*pluginCatalogLoadPromise=null/);
   assert.match(functionSource(browser,"canvasAgentCurrentWidgetCapabilities"),/professionalEnabled:false,privatePluginIds:\[\]/);
   assert.match(server,/function canvasAgentPrivateHtmlOneShot[\s\S]*oneShot=next\?tail\.slice\(0,next\.index\):tail[\s\S]*html_widget[\s\S]*diagram_source/);
-  assert.match(server,/function resolveCanvasAgentWidgetCapabilities[\s\S]*value\?\.version!==1[\s\S]*requestedIds\.length>MAX_ENABLED_PLUGINS[\s\S]*BUILTIN_PLUGIN_IDS\.has\(id\)[\s\S]*throw new Error\(`PenEcho Agent private plugin \$\{id\} is unavailable[\s\S]*MAX_CANVAS_AGENT_PRIVATE_PLUGIN_TOTAL_BYTES/);
+  assert.match(server,/function resolveCanvasAgentWidgetCapabilities[\s\S]*value\?\.version!==1[\s\S]*requestedIds\.length>MAX_ENABLED_PLUGINS[\s\S]*BUILTIN_PLUGIN_IDS\.has\(id\)[\s\S]*throw new Error\(`FastLectures Agent private plugin \$\{id\} is unavailable[\s\S]*MAX_CANVAS_AGENT_PRIVATE_PLUGIN_TOTAL_BYTES/);
 });
 
 test("Legacy Canvas kernel: reports the exact widget patch hunk and source line that mismatched",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-patch-diagnostic-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-patch-diagnostic-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],
     connection={id:"patch-diagnostic-cli",provider:"codex-cli",name:"Patch Diagnostic",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -1135,7 +1135,7 @@ test("Legacy Canvas kernel: reports the exact widget patch hunk and source line 
 });
 
 test("Legacy Canvas kernel: records repeated same-target patch failures without a fixed attempt stop",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-patch-runaway-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-patch-runaway-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],browserCalls=[],
     connection={id:"patch-runaway-cli",provider:"codex-cli",name:"Patch Runaway CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -1170,8 +1170,8 @@ test("Legacy Canvas kernel: records repeated same-target patch failures without 
   assert.equal(session.canvasTurnBudget.stop,null);
 });
 
-test("PenEcho Agent CLI protocol rejects unregistered tool requests",async()=>{
-  const { PenEchoCliAdapter, normalizeCliTokenUsage, parseCliDecision } = await import("../src/server/canvas-agent/cli-adapter.mjs");
+test("FastLectures Agent CLI protocol rejects unregistered tool requests",async()=>{
+  const { FastLecturesCliAdapter, normalizeCliTokenUsage, parseCliDecision } = await import("../src/server/canvas-agent/cli-adapter.mjs");
   const { canvasAgentTimeoutLimits } = await import("../src/server/canvas-agent/model-timeout.mjs");
   assert.throws(()=>parseCliDecision('```json\n{"type":"final","text":"done"}\n```'),/entire response/);
   assert.throws(()=>parseCliDecision('{"type":"tool_call","name":"canvas_create","arguments":{"html":"<span class=\\"tag">Main bottleneck</span>"}}',["canvas_create"]),/entire response/);
@@ -1187,7 +1187,7 @@ test("PenEcho Agent CLI protocol rejects unregistered tool requests",async()=>{
     inputTokens:50,outputTokens:12,cacheReadTokens:90,cacheWriteTokens:10,
   });
   assert.deepEqual(canvasAgentTimeoutLimits(180_000),{idleTimeoutMs:180_000});
-  const usageAdapter=new PenEchoCliAdapter({
+  const usageAdapter=new FastLecturesCliAdapter({
     callCli:async request=>{
       assert.equal(typeof request.onActivity,"function");
       request.onActivity();
@@ -1197,7 +1197,7 @@ test("PenEcho Agent CLI protocol rejects unregistered tool requests",async()=>{
   }),usageProvider=usageAdapter.replaceConnections([{id:"usage",provider:"codex-cli",cliPath:"codex",cliModel:"gpt-test",effort:"medium"}])[0],usageChunks=[];
   for await(const chunk of usageAdapter.stream({provider:usageProvider,model:"gpt-test",messages:[],tools:[]}))usageChunks.push(chunk);
   assert.deepEqual(usageChunks.find(chunk=>chunk.type==="usage")?.usage,{inputTokens:25,outputTokens:9,cacheReadTokens:75});
-  const repairCalls=[],repairDiagnostics=[],repairAdapter=new PenEchoCliAdapter({
+  const repairCalls=[],repairDiagnostics=[],repairAdapter=new FastLecturesCliAdapter({
     callCli:async request=>{repairCalls.push(request);return repairCalls.length===1?'not json':'{"type":"final","text":"recovered"}';},
     onDiagnostic:diagnostic=>repairDiagnostics.push(diagnostic),
   }),repairProvider=repairAdapter.replaceConnections([{id:"repair",provider:"kimi-cli",cliPath:"kimi",cliModel:"k3",effort:"medium"}])[0],repairChunks=[];
@@ -1207,12 +1207,12 @@ test("PenEcho Agent CLI protocol rejects unregistered tool requests",async()=>{
   assert.match(repairCalls[1].prompt,/rejectedDecision/);
   assert.equal(repairDiagnostics[0].error.code,"CLI_DECISION_REJECTED");
   assert.equal(repairChunks.find(chunk=>chunk.type==="block-end")?.block.text,"recovered");
-  const adapter=new PenEchoCliAdapter({
+  const adapter=new FastLecturesCliAdapter({
     timeoutMs:()=>10,
     callCli:({signal})=>new Promise((resolve,reject)=>signal.addEventListener("abort",()=>reject(signal.reason),{once:true})),
   }),provider=adapter.replaceConnections([{id:"timeout",provider:"claude-cli",cliPath:"claude",cliModel:"",effort:"medium"}])[0];
   await assert.rejects(async()=>{for await(const chunk of adapter.stream({provider,model:"default",messages:[],tools:[]}))void chunk;},/timed out after 1 seconds without output activity/);
-  const activeAdapter=new PenEchoCliAdapter({
+  const activeAdapter=new FastLecturesCliAdapter({
     timeoutMs:()=>30,
     callCli:({onActivity})=>new Promise(resolve=>{
       setTimeout(onActivity,20);
@@ -1221,21 +1221,21 @@ test("PenEcho Agent CLI protocol rejects unregistered tool requests",async()=>{
   }),activeProvider=activeAdapter.replaceConnections([{id:"active",provider:"claude-cli",cliPath:"claude",cliModel:"",effort:"medium"}])[0],activeChunks=[];
   for await(const chunk of activeAdapter.stream({provider:activeProvider,model:"default",messages:[],tools:[]}))activeChunks.push(chunk);
   assert.equal(activeChunks.find(chunk=>chunk.type==="block-end")?.block.text,"stream stayed active");
-  const cancellation=new AbortController(),cancelAdapter=new PenEchoCliAdapter({
+  const cancellation=new AbortController(),cancelAdapter=new FastLecturesCliAdapter({
     timeoutMs:()=>100,
     callCli:({signal})=>new Promise((resolve,reject)=>signal.addEventListener("abort",()=>reject(signal.reason),{once:true})),
   }),cancelProvider=cancelAdapter.replaceConnections([{id:"cancel",provider:"claude-cli",cliPath:"claude",cliModel:"",effort:"medium"}])[0];
   setTimeout(()=>cancellation.abort(new Error("caller cancelled")),5);
   await assert.rejects(async()=>{for await(const chunk of cancelAdapter.stream({provider:cancelProvider,model:"default",messages:[],tools:[],signal:cancellation.signal}))void chunk;},/caller cancelled/);
-  const upstreamAdapter=new PenEchoCliAdapter({
+  const upstreamAdapter=new FastLecturesCliAdapter({
     callCli:async()=>{throw Object.assign(new Error("Claude CLI upstream request failed: API Error: 403 insufficient balance"),{code:"UPSTREAM_ERROR"});},
   }),upstreamProvider=upstreamAdapter.replaceConnections([{id:"upstream",provider:"claude-cli",cliPath:"claude",cliModel:"opus",effort:"medium"}])[0];
   await assert.rejects(async()=>{for await(const chunk of upstreamAdapter.stream({provider:upstreamProvider,model:"opus",messages:[],tools:[]}))void chunk;},error=>error?.code==="UPSTREAM_ERROR"&&error?.failure?.code==="UPSTREAM_ERROR"&&/insufficient balance/.test(error.message));
 });
 
-test("PenEcho Agent CLI sends a fresh authoritative Harness snapshot on every model step",async()=>{
-  const {PenEchoCliAdapter}=await import("../src/server/canvas-agent/cli-adapter.mjs"),requests=[],wirePrompts=[];
-  const adapter=new PenEchoCliAdapter({callCli:async request=>{
+test("FastLectures Agent CLI sends a fresh authoritative Harness snapshot on every model step",async()=>{
+  const {FastLecturesCliAdapter}=await import("../src/server/canvas-agent/cli-adapter.mjs"),requests=[],wirePrompts=[];
+  const adapter=new FastLecturesCliAdapter({callCli:async request=>{
     wirePrompts.push(request.prompt);
     requests.push(JSON.parse(request.prompt));
     return JSON.stringify({type:"final",text:`answer-${requests.length}`});
@@ -1259,8 +1259,8 @@ test("PenEcho Agent CLI sends a fresh authoritative Harness snapshot on every mo
   assert.equal(adapter.sessionManager,undefined);
 });
 
-test("PenEcho Agent lets an active model step run beyond the former total-time multiplier",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-model-step-timeout-test-"));
+test("FastLectures Agent lets an active model step run beyond the former total-time multiplier",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-model-step-timeout-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),messages=[],
     connection={id:"heartbeat-cli",provider:"kimi-cli",name:"Heartbeat CLI",cliPath:"kimi-test",cliModel:"k3",effort:"medium"},
@@ -1283,7 +1283,7 @@ test("PenEcho Agent lets an active model step run beyond the former total-time m
   assert.ok(messages.some(message=>message.type==="session_event"&&message.payload.kind==="assistant_message"&&message.payload.text==="active request completed"));
 });
 
-test("PenEcho Agent CLI keeps the user visual reference beside the latest generated capture",async()=>{
+test("FastLectures Agent CLI keeps the user visual reference beside the latest generated capture",async()=>{
   const {serializeCliRequest}=await import("../src/server/canvas-agent/cli-adapter.mjs"),images={
     reference:{data:Buffer.from("user-reference"),mediaType:"image/png"},
     capture:{data:Buffer.from("rendered-capture"),mediaType:"image/webp"},
@@ -1291,7 +1291,7 @@ test("PenEcho Agent CLI keeps the user visual reference beside the latest genera
     readImageRequest:async ref=>images[ref.attachmentId],
   },request=await serializeCliRequest({
     purpose:"conversation",
-    system:"PenEcho Agent",
+    system:"FastLectures Agent",
     tools:[],
     messages:[
       {role:"user",source:{kind:"user"},content:[{type:"text",text:"Match this visual grammar."},{type:"image",attachment:{attachmentId:"reference"}}]},
@@ -1303,7 +1303,7 @@ test("PenEcho Agent CLI keeps the user visual reference beside the latest genera
     `data:image/webp;base64,${Buffer.from("rendered-capture").toString("base64")}`,
   ]);
   const currentIds=Array.from({length:5},(_,index)=>`current-${index+1}`),currentRequest=await serializeCliRequest({
-    purpose:"conversation",system:"PenEcho Agent",tools:[],messages:[
+    purpose:"conversation",system:"FastLectures Agent",tools:[],messages:[
       {role:"user",source:{kind:"user"},content:[{type:"image",attachment:{attachmentId:"old-reference"}}]},
       {role:"tool",source:{kind:"tool"},content:[{type:"tool-result",toolCallId:"old-capture",content:[{type:"image",attachment:{attachmentId:"old-capture"}}]}]},
       {role:"user",source:{kind:"user"},content:currentIds.map(attachmentId=>({type:"image",attachment:{attachmentId}}))},
@@ -1312,8 +1312,8 @@ test("PenEcho Agent CLI keeps the user visual reference beside the latest genera
   assert.deepEqual(currentRequest.atlasImage,currentIds.map(id=>`data:image/png;base64,${Buffer.from(id).toString("base64")}`));
 });
 
-test("PenEcho Agent hides legacy VisualExplainerPlan authoring while retaining compatibility code",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-hidden-visual-explainer-test-"));
+test("FastLectures Agent hides legacy VisualExplainerPlan authoring while retaining compatibility code",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-hidden-visual-explainer-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),connection={id:"hidden-visual",provider:"codex-cli",name:"Hidden Visual",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},host=new CanvasHarnessHost({stateDirectory,rootDirectory:ROOT,resolveConnection:id=>id===connection.id?connection:null,listConnections:()=>[connection]});
   t.after(()=>host.dispose());
@@ -1325,8 +1325,8 @@ test("PenEcho Agent hides legacy VisualExplainerPlan authoring while retaining c
   assert.match(runtime,/VISUAL_EXPLAINER_SOURCE_PATCH_REQUIRED/);
 });
 
-test("PenEcho Agent keeps the active Visual Explorer budget when a new submission is rejected",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-visual-explorer-submit-test-"));
+test("FastLectures Agent keeps the active Visual Explorer budget when a new submission is rejected",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-visual-explorer-submit-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),
     connection={id:"rejected-submit-cli",provider:"codex-cli",name:"Rejected Submit",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -1353,7 +1353,7 @@ test("PenEcho Agent keeps the active Visual Explorer budget when a new submissio
 });
 
 test("Legacy Canvas kernel: advises bounded Visual Explorer review without gating source patches or justified recaptures",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-visual-explorer-budget-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-visual-explorer-budget-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],browserCalls=[],
     connection={id:"explorer-cli",provider:"codex-cli",name:"Explorer CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -1361,12 +1361,12 @@ test("Legacy Canvas kernel: advises bounded Visual Explorer review without gatin
     html="<!doctype html>\n<div>Before</div>\n",
     patch="--- a/widget.html\n+++ b/widget.html\n@@ -1,2 +1,2 @@\n <!doctype html>\n-<div>Before</div>\n+<div>After</div>\n",
     sourcePatch="--- a/widget.source\n+++ b/widget.source\n@@ -0,0 +1 @@\n+wrong source\n",
-    createArgs={baseRevision:1,items:[{type:"widget",pluginId:"general",widgetType:"html_widget",title:"Visual Explorer",html,sourceFormat:"penecho-visual-explorer+html",frameworkVersion:"penecho-visual-explorer/1",refreshSeconds:0,width:2400,height:1400,placement:{mode:"absolute",x:100,y:100}}],summary:"Create the coordinated visual"},
-    badMarkerArgs={...createArgs,items:[{...createArgs.items[0],sourceFormat:" penecho-visual-explorer+html "}]},
+    createArgs={baseRevision:1,items:[{type:"widget",pluginId:"general",widgetType:"html_widget",title:"Visual Explorer",html,sourceFormat:"fastlectures-visual-explorer+html",frameworkVersion:"fastlectures-visual-explorer/1",refreshSeconds:0,width:2400,height:1400,placement:{mode:"absolute",x:100,y:100}}],summary:"Create the coordinated visual"},
+    badMarkerArgs={...createArgs,items:[{...createArgs.items[0],sourceFormat:" fastlectures-visual-explorer+html "}]},
     copiedSourceArgs={...createArgs,items:[{...createArgs.items[0],copyText:html}]},
     mismatchedPlacementArgs={...createArgs,items:[{...createArgs.items[0],placement:{mode:"absolute",x:101,y:100}}]},
     script=[
-      JSON.stringify({type:"tool_call",name:"canvas_inspect",arguments:{detail:"summary",plannedWidget:{width:2400,height:1400,bodyPx:18,captionPx:15,titlePx:52,sourceFormat:"penecho-visual-explorer+html",placement:{mode:"auto"}}}}),
+      JSON.stringify({type:"tool_call",name:"canvas_inspect",arguments:{detail:"summary",plannedWidget:{width:2400,height:1400,bodyPx:18,captionPx:15,titlePx:52,sourceFormat:"fastlectures-visual-explorer+html",placement:{mode:"auto"}}}}),
       JSON.stringify({type:"tool_call",name:"canvas_create",arguments:badMarkerArgs}),
       JSON.stringify({type:"tool_call",name:"canvas_create",arguments:copiedSourceArgs}),
       JSON.stringify({type:"tool_call",name:"canvas_create",arguments:mismatchedPlacementArgs}),
@@ -1405,7 +1405,7 @@ test("Legacy Canvas kernel: advises bounded Visual Explorer review without gatin
         if(args.target==="object"&&args.quality==="detail")objectDetailCalls++;
         result={dataUrl:objectDetailCalls===1?"data:image/png;base64,not-valid!":`data:image/png;base64,${pixel}`,mediaType:"image/png",encodedBytes:pixel.length,width:1,height:1,quality:args.quality,coordinates:args.coordinates,revision:currentRevision,viewRevision:1,logicalRegion:{x:100,y:100,width:2400,height:1400},mapping:{},sampling:{},coordinateGrid:{rendered:false}};
       }else if(payload.name==="canvas_internal_widget"){
-        result={revision:2,hash:"widget-hash",containerSourceFormat:"penecho-visual-explorer+html",widgetEdit:{widgetType:"html_widget",pluginId:"general",title:"Visual Explorer",refreshSeconds:0,html,source:"",sourceMirrorsHtml:true,sourceFormat:"penecho-visual-explorer+html",frameworkVersion:"penecho-visual-explorer/1",copyLabel:"",box:{x:100,y:100,w:2400,h:1400}}};
+        result={revision:2,hash:"widget-hash",containerSourceFormat:"fastlectures-visual-explorer+html",widgetEdit:{widgetType:"html_widget",pluginId:"general",title:"Visual Explorer",refreshSeconds:0,html,source:"",sourceMirrorsHtml:true,sourceFormat:"fastlectures-visual-explorer+html",frameworkVersion:"fastlectures-visual-explorer/1",copyLabel:"",box:{x:100,y:100,w:2400,h:1400}}};
       }else{
         currentRevision=3;
         host.updateState(session,state(currentRevision));
@@ -1437,19 +1437,19 @@ test("Legacy Canvas kernel: advises bounded Visual Explorer review without gatin
 });
 
 test("Legacy Canvas kernel: progressively delivers complete Visual Explorer versions within host-enforced budgets",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-visual-explorer-progressive-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-visual-explorer-progressive-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],browserCalls=[],
     connection={id:"progressive-explorer-cli",provider:"codex-cli",name:"Progressive Explorer",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
     pixel="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=",
     html="<!doctype html>\n<main>Version 1</main>\n",
     patches=[1,2,3].map(version=>`--- a/widget.html\n+++ b/widget.html\n@@ -1,2 +1,2 @@\n <!doctype html>\n-<main>Version ${version}</main>\n+<main>Version ${version + 1}</main>\n`),
-    exactVisualItem=deliveryMode=>({type:"widget",pluginId:"general",widgetType:"html_widget",title:"Progressive Visual Explorer",html,sourceFormat:"penecho-visual-explorer+html",frameworkVersion:"penecho-visual-explorer/1",refreshSeconds:0,width:2400,height:1400,placement:{mode:"absolute",x:100,y:100},...(deliveryMode?{deliveryMode}:{})}),
+    exactVisualItem=deliveryMode=>({type:"widget",pluginId:"general",widgetType:"html_widget",title:"Progressive Visual Explorer",html,sourceFormat:"fastlectures-visual-explorer+html",frameworkVersion:"fastlectures-visual-explorer/1",refreshSeconds:0,width:2400,height:1400,placement:{mode:"absolute",x:100,y:100},...(deliveryMode?{deliveryMode}:{})}),
     ordinaryItem={type:"widget",pluginId:"general",widgetType:"html_widget",title:"Ordinary HTML",html:"<!doctype html><p>Ordinary</p>",refreshSeconds:0,width:800,height:600,placement:{mode:"absolute",x:100,y:100},deliveryMode:"progressive"},
     script=[
       JSON.stringify({type:"tool_call",name:"canvas_create",arguments:{baseRevision:1,items:[exactVisualItem("instant")],summary:"Unknown delivery mode"}}),
       JSON.stringify({type:"tool_call",name:"canvas_create",arguments:{baseRevision:1,items:[ordinaryItem],summary:"Wrong route"}}),
-      JSON.stringify({type:"tool_call",name:"canvas_inspect",arguments:{detail:"summary",plannedWidget:{width:2400,height:1400,bodyPx:18,captionPx:15,titlePx:52,sourceFormat:"penecho-visual-explorer+html",placement:{mode:"auto"}}}}),
+      JSON.stringify({type:"tool_call",name:"canvas_inspect",arguments:{detail:"summary",plannedWidget:{width:2400,height:1400,bodyPx:18,captionPx:15,titlePx:52,sourceFormat:"fastlectures-visual-explorer+html",placement:{mode:"auto"}}}}),
       JSON.stringify({type:"tool_call",name:"canvas_create",arguments:{baseRevision:1,items:[exactVisualItem("progressive")],summary:"Create progressive visual"}}),
       JSON.stringify({type:"tool_call",name:"canvas_capture",arguments:{target:"canvas",quality:"basic",coordinates:"none"}}),
       JSON.stringify({type:"tool_call",name:"canvas_patch_widget",arguments:{objectId:"widget-1",baseRevision:2,patch:patches[0]}}),
@@ -1476,7 +1476,7 @@ test("Legacy Canvas kernel: progressively delivers complete Visual Explorer vers
       else if(payload.name==="canvas_create"){
         currentRevision=2;host.updateState(session,state(currentRevision));result={revision:2,receipts:[{objectId:"widget-1"}]};
       }else if(payload.name==="canvas_capture")result={dataUrl:`data:image/png;base64,${pixel}`,mediaType:"image/png",encodedBytes:pixel.length,width:1,height:1,quality:args.quality,coordinates:args.coordinates,revision:currentRevision,viewRevision:1,logicalRegion:{x:100,y:100,width:2400,height:1400},mapping:{},sampling:{},coordinateGrid:{rendered:false}};
-      else if(payload.name==="canvas_internal_widget")result={revision:currentRevision,hash:"widget-hash",containerSourceFormat:"penecho-visual-explorer+html",widgetEdit:{widgetType:"html_widget",pluginId:"general",title:"Progressive Visual Explorer",refreshSeconds:0,html:currentHtml,source:"",sourceMirrorsHtml:true,sourceFormat:"penecho-visual-explorer+html",frameworkVersion:"penecho-visual-explorer/1",copyLabel:"",box:{x:100,y:100,w:2400,h:1400}}};
+      else if(payload.name==="canvas_internal_widget")result={revision:currentRevision,hash:"widget-hash",containerSourceFormat:"fastlectures-visual-explorer+html",widgetEdit:{widgetType:"html_widget",pluginId:"general",title:"Progressive Visual Explorer",refreshSeconds:0,html:currentHtml,source:"",sourceMirrorsHtml:true,sourceFormat:"fastlectures-visual-explorer+html",frameworkVersion:"fastlectures-visual-explorer/1",copyLabel:"",box:{x:100,y:100,w:2400,h:1400}}};
       else{
         currentRevision++;currentHtml=args.command.html;host.updateState(session,state(currentRevision));result={revision:currentRevision,receipts:[{objectId:"widget-1"}]};
       }
@@ -1515,13 +1515,13 @@ test("Legacy Canvas kernel: progressively delivers complete Visual Explorer vers
 });
 
 test("Legacy Canvas kernel: requires complete-Canvas evidence before and after spatial Widget work",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-layout-review-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-layout-review-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],browserCalls=[],
     connection={id:"layout-cli",provider:"codex-cli",name:"Layout CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
     html="<!doctype html>\n<div>Layout review</div>\n",
-    plannedWidget={width:1200,height:800,bodyPx:18,captionPx:15,titlePx:52,sourceFormat:"penecho-visual-explorer+html",placement:{mode:"auto"}},
-    createArgs={baseRevision:1,items:[{type:"widget",pluginId:"general",widgetType:"html_widget",title:"Layout review",html,sourceFormat:"penecho-visual-explorer+html",frameworkVersion:"penecho-visual-explorer/1",refreshSeconds:0,width:1200,height:800,placement:{mode:"absolute",x:1140,y:100}}],summary:"Create after layout planning"},
+    plannedWidget={width:1200,height:800,bodyPx:18,captionPx:15,titlePx:52,sourceFormat:"fastlectures-visual-explorer+html",placement:{mode:"auto"}},
+    createArgs={baseRevision:1,items:[{type:"widget",pluginId:"general",widgetType:"html_widget",title:"Layout review",html,sourceFormat:"fastlectures-visual-explorer+html",frameworkVersion:"fastlectures-visual-explorer/1",refreshSeconds:0,width:1200,height:800,placement:{mode:"absolute",x:1140,y:100}}],summary:"Create after layout planning"},
     pixel="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=",
     script=[
       JSON.stringify({type:"tool_call",name:"canvas_inspect",arguments:{detail:"summary",plannedWidget}}),
@@ -1564,7 +1564,7 @@ test("Legacy Canvas kernel: requires complete-Canvas evidence before and after s
 });
 
 test("Legacy Canvas kernel: protects same-turn Visual Explorers from deletion and reviews the revision returned by revert",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-revert-review-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-revert-review-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],browserCalls=[],
     connection={id:"revert-review-cli",provider:"codex-cli",name:"Revert Review",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -1622,7 +1622,7 @@ test("Legacy Canvas kernel: protects same-turn Visual Explorers from deletion an
 });
 
 test("Legacy Canvas kernel: lets the latest overview clear a pending layout review after Canvas advances",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-latest-layout-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-latest-layout-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],browserCalls=[],
     connection={id:"stale-layout-cli",provider:"codex-cli",name:"Stale Layout",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -1665,8 +1665,8 @@ test("Legacy Canvas kernel: lets the latest overview clear a pending layout revi
   assert.equal(currentRevision,6);
 });
 
-test("PenEcho Agent enforces a configurable per-request round fuse and preserves the conversation",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-tool-fuse-test-"));
+test("FastLectures Agent enforces a configurable per-request round fuse and preserves the conversation",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-tool-fuse-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),calls=[],messages=[],browserCalls=[],
     connection={id:"tool-fuse-cli",provider:"codex-cli",name:"Tool Fuse",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"};
@@ -1678,7 +1678,7 @@ test("PenEcho Agent enforces a configurable per-request round fuse and preserves
       calls.push(request);
       if(exerciseFuse){
         session.canvasTurnBudget.toolCalls=50;
-        return JSON.stringify({type:"tool_call",name:"penecho_inspect_session",arguments:{}});
+        return JSON.stringify({type:"tool_call",name:"fastlectures_inspect_session",arguments:{}});
       }
       return JSON.stringify({type:"final",text:"continued in the same conversation"});
     },
@@ -1699,8 +1699,8 @@ test("PenEcho Agent enforces a configurable per-request round fuse and preserves
   assert.equal(host.sessions.has(session.id),true);
 });
 
-test("PenEcho Agent admits pasted images through the existing Harness attachment seam",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-image-test-"));
+test("FastLectures Agent admits pasted images through the existing Harness attachment seam",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-image-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const { CanvasHarnessHost }=await import("../src/server/canvas-agent/runtime.mjs"), calls=[], messages=[], traceEvents=[],
     connection={id:"image-cli",provider:"codex-cli",name:"Image CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -1734,7 +1734,7 @@ test("PenEcho Agent admits pasted images through the existing Harness attachment
 });
 
 test("Legacy Canvas kernel: materializes only session-owned attachment ids for image creation",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-place-image-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-place-image-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],
     connection={id:"image-create-cli",provider:"codex-cli",name:"Image CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -1772,8 +1772,8 @@ test("Legacy Canvas kernel: materializes only session-owned attachment ids for i
   assert.equal(JSON.stringify(callEvent.payload.arguments).includes("_imageDataUrl"),false);
 });
 
-test("PenEcho Agent accepts one authoritative initial overview and reuses it instead of querying the unchanged start",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-initial-state-test-"));
+test("FastLectures Agent accepts one authoritative initial overview and reuses it instead of querying the unchanged start",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-initial-state-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),calls=[],messages=[],traceEvents=[],
     connection={id:"initial-state-cli",provider:"codex-cli",name:"Initial State",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -1808,7 +1808,7 @@ test("PenEcho Agent accepts one authoritative initial overview and reuses it ins
   assert.equal(initialAsset?.mediaType,"image/webp");
 });
 
-test("PenEcho Agent browser initial state skips raster capture only when the authoritative digest is empty",async()=>{
+test("FastLectures Agent browser initial state skips raster capture only when the authoritative digest is empty",async()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),emptyDigest={revision:0,viewRevision:1,canvas:{contentBounds:null},viewport:{x:0,y:0,width:1000,height:700},counts:{inkTiles:0,widgets:0,textBoxes:0,images:0},objects:[]},
     nonemptyDigest={...emptyDigest,canvas:{contentBounds:{x:10,y:20,width:300,height:200}},counts:{...emptyDigest.counts,widgets:1}},
     initialTurnStateSource=functionSource(source,"canvasAgentInitialTurnState").replace(/^function /,"async function "),
@@ -1833,7 +1833,7 @@ test("PenEcho Agent browser initial state skips raster capture only when the aut
   assert.equal(captureCalls,1);
 });
 
-test("PenEcho Agent view revision ignores panel and window viewport resizing",()=>{
+test("FastLectures Agent view revision ignores panel and window viewport resizing",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),state={scale:1,panX:0,panY:0,selection:null},canvasAgent={viewSignature:"",viewRevision:0};
   let viewport={x:0,y:0,w:1200,h:800};
   const viewFacts=vm.runInNewContext(`(()=>{${functionSource(source,"canvasAgentViewFacts")}return canvasAgentViewFacts;})()`,{
@@ -1846,7 +1846,7 @@ test("PenEcho Agent view revision ignores panel and window viewport resizing",()
   assert.deepEqual(facts(),{viewport:{x:0,y:0,w:760,h:800},viewRevision:2},"an actual Canvas pan still advances the view revision");
 });
 
-test("PenEcho Agent reconciles view-only initial-state drift but still rejects stale Canvas content",async()=>{
+test("FastLectures Agent reconciles view-only initial-state drift but still rejects stale Canvas content",async()=>{
   const {admitInitialCanvasState}=await import("../src/server/canvas-agent/runtime.mjs"),initialDigest={
     revision:3,viewRevision:4,canvas:{width:20000,height:20000,contentBounds:null},viewport:{x:6000,y:7000,width:8000,height:5000},
     selection:{objectIds:[],inkBounds:null},counts:{inkTiles:0,widgets:0,textBoxes:0,images:0},objects:[],
@@ -1864,14 +1864,14 @@ test("PenEcho Agent reconciles view-only initial-state drift but still rejects s
 });
 
 test("Legacy Canvas kernel: sends an authoritative empty digest without an image and creates a Visual Explorer without inspection",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-empty-initial-state-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-empty-initial-state-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],browserCalls=[],traceEvents=[],
     connection={id:"empty-initial-state-cli",provider:"codex-cli",name:"Empty Initial State",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
     pixel="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=",
     digest={revision:0,viewRevision:1,canvas:{width:20000,height:20000,contentBounds:null},viewport:{x:6400,y:7600,width:6800,height:4400},selection:{objectIds:[],inkBounds:null},counts:{inkTiles:0,widgets:0,textBoxes:0,images:0},objects:[]},
     html="<!doctype html>\n<div>Direct empty Canvas creation</div>\n",
-    createArgs={baseRevision:0,items:[{type:"widget",pluginId:"general",widgetType:"html_widget",title:"Empty Canvas Visual Explorer",html,sourceFormat:"penecho-visual-explorer+html",frameworkVersion:"penecho-visual-explorer/1",refreshSeconds:0,width:1600,height:1000,placement:{mode:"auto"}}],summary:"Create directly on the empty Canvas"},
+    createArgs={baseRevision:0,items:[{type:"widget",pluginId:"general",widgetType:"html_widget",title:"Empty Canvas Visual Explorer",html,sourceFormat:"fastlectures-visual-explorer+html",frameworkVersion:"fastlectures-visual-explorer/1",refreshSeconds:0,width:1600,height:1000,placement:{mode:"auto"}}],summary:"Create directly on the empty Canvas"},
     absoluteArgs={...createArgs,items:[{...createArgs.items[0],placement:{mode:"absolute",x:7600,y:8400}}]},
     script=[
       JSON.stringify({type:"tool_call",name:"canvas_create",arguments:absoluteArgs}),
@@ -1913,7 +1913,7 @@ test("Legacy Canvas kernel: sends an authoritative empty digest without an image
 });
 
 test("Legacy Canvas kernel: auto-corrects whole-Canvas detail captures and tells the model",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-capture-quality-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-capture-quality-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],browserCalls=[],
     connection={id:"capture-quality-cli",provider:"codex-cli",name:"Capture Quality CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -1951,7 +1951,7 @@ test("Legacy Canvas kernel: auto-corrects whole-Canvas detail captures and tells
 });
 
 test("Legacy Canvas kernel: caches five captures without rewriting Harness image history",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-capture-cache-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-capture-cache-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],browserCaptures=[],traceEvents=[],
     connection={id:"capture-cli",provider:"codex-cli",name:"Capture CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -2002,7 +2002,7 @@ test("Legacy Canvas kernel: caches five captures without rewriting Harness image
 });
 
 test("Legacy Canvas kernel: delivers requested Widgets in WebP or PNG form and replays a cached capture once per call",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-capture-format-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-capture-format-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const width=64,height=64,pixels=Buffer.alloc(width*height*3);
   for(let index=0,seed=0x12345678;index<pixels.length;index++){
@@ -2072,7 +2072,7 @@ test("Legacy Canvas kernel: delivers requested Widgets in WebP or PNG form and r
 });
 
 test("Legacy Canvas kernel: delivers requested page captures and keeps resume backlog transport-safe",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-page-capture-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-page-capture-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],browserCalls=[],
     image="data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA4AAAAvAAAAAAcQEf0PRET/Aw==",
@@ -2123,7 +2123,7 @@ test("Legacy Canvas kernel: delivers requested page captures and keeps resume ba
   assert.match(runtime,/const MAX_CAPTURE_DELIVERY_EVENTS = 4/);
   const maxBytes=1200*1024,worstEvent=index=>({
     kind:"capture_message",callId:`worst-${index}`,target:"canvas",
-    attachment:{attachmentId:`worst-${index}`,name:"penecho-canvas-detail.webp",mediaType:"image/webp",bytes:maxBytes,width:1440,height:1440,
+    attachment:{attachmentId:`worst-${index}`,name:"fastlectures-canvas-detail.webp",mediaType:"image/webp",bytes:maxBytes,width:1440,height:1440,
       dataUrl:`data:image/webp;base64,${"A".repeat(Math.ceil(maxBytes/3)*4)}`},
   }),readyFrame=JSON.stringify({
     version:1,type:"ready",canvasSessionId:"capture-client",clientId:"capture-client",seq:1,
@@ -2134,7 +2134,7 @@ test("Legacy Canvas kernel: delivers requested page captures and keeps resume ba
 });
 
 test("Legacy Canvas kernel: rejects requested deliveries outside clean Widget, viewport, and Canvas targets",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-delivery-validation-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-delivery-validation-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],browserCalls=[],
     script=[
@@ -2171,8 +2171,8 @@ test("Legacy Canvas kernel: rejects requested deliveries outside clean Widget, v
   assert.equal(messages.some(message=>message.type==="session_event"&&message.payload.kind==="assistant_message"&&message.payload.text==="All invalid deliveries were rejected."),true);
 });
 
-test("PenEcho Agent converts JPEG request projections to a bounded PNG fallback",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-png-fallback-test-"));
+test("FastLectures Agent converts JPEG request projections to a bounded PNG fallback",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-png-fallback-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const width=1024,height=1024,pixels=Buffer.alloc(width*height*3);
   for(let index=0,seed=0x87654321;index<pixels.length;index++){
@@ -2197,7 +2197,7 @@ test("PenEcho Agent converts JPEG request projections to a bounded PNG fallback"
 });
 
 test("Legacy Canvas kernel: rejects captures outside hard raster and encoded-byte policies",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-capture-limit-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-capture-limit-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const CanvasHarnessHost=await legacyKernelFixture(),calls=[],messages=[],browserCalls=[],
     connection={id:"capture-limit-cli",provider:"codex-cli",name:"Capture Limit CLI",cliPath:"codex-test",cliModel:"gpt-test",effort:"medium"},
@@ -2233,8 +2233,8 @@ test("Legacy Canvas kernel: rejects captures outside hard raster and encoded-byt
   assert.equal(messages.some(message=>message.type==="session_event"&&message.payload.kind==="assistant_message"&&message.payload.text==="Rejected both oversized captures."),true);
 });
 
-test("DeepSeek Harness mounts with only the PenEcho Canvas capability surface",async t=>{
-  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-test-"));
+test("DeepSeek Harness mounts with only the FastLectures Canvas capability surface",async t=>{
+  const stateDirectory = fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const { CanvasHarnessHost } = await import("../src/server/canvas-agent/runtime.mjs");
   const connection={id:"default",provider:"api",name:"Test",apiFormat:"openai",apiUrl:"http://127.0.0.1:9/v1",apiModel:"test-model",apiKey:"test-key",effort:"medium"},
@@ -2264,9 +2264,9 @@ test("DeepSeek Harness mounts with only the PenEcho Canvas capability surface",a
   const resumeToken=messages[0].payload.resumeToken;
   const toolSchemas=session.handle.agent.ctx.tools.schemas(session.handle.agent),visible = toolSchemas.map(tool=>tool.name).sort();
   const {BOUND_CANVAS_TOOL_NAMES}=require("../src/server/mcp/bound-operations.js");
-  assert.deepEqual(visible,[...BOUND_CANVAS_TOOL_NAMES,"penecho_get_guidance","public_api","read_attachment","web_read"].sort());
+  assert.deepEqual(visible,[...BOUND_CANVAS_TOOL_NAMES,"fastlectures_get_guidance","public_api","read_attachment","web_read"].sort());
   const schemaText=JSON.stringify(toolSchemas);
-  const patch=toolSchemas.find(tool=>tool.name==="penecho_patch_file");
+  const patch=toolSchemas.find(tool=>tool.name==="fastlectures_patch_file");
   assert.ok(patch.parameters.required.includes("contentHash"));
   assert.ok(patch.parameters.required.includes("requestId"));
   assert.equal(Object.hasOwn(patch.parameters.properties,"baseRevision"),false);
@@ -2275,9 +2275,9 @@ test("DeepSeek Harness mounts with only the PenEcho Canvas capability surface",a
   const canvasAgentRuntime=read("src/server/canvas-agent/runtime.mjs"),canvasAgentCliAdapter=read("src/server/canvas-agent/cli-adapter.mjs"),modelContextIntegration=`${canvasAgentRuntime}\n${canvasAgentCliAdapter}`;
   assert.match(canvasAgentRuntime,/const createVisualExplainer = defineTool\([\s\S]*name:'canvas_create_visual_explainer'/);
   assert.match(canvasAgentRuntime,/const updateVisualExplainer = defineTool\([\s\S]*name:'canvas_update_visual_explainer'/);
-  assert.match(canvasAgentRuntime,/do not expose new create\/update entry points to PenEcho Agent/);
+  assert.match(canvasAgentRuntime,/do not expose new create\/update entry points to FastLectures Agent/);
   for(const forbidden of ["prompt_cache_key","promptCacheKey","cache_control","cacheRetention","cacheBreakpoint","suppressRuntimeContext","rewriteHistory","replaceHistory"]){
-    assert.equal(modelContextIntegration.includes(forbidden),false,`${forbidden} must remain Harness-owned and absent from the PenEcho integration`);
+    assert.equal(modelContextIntegration.includes(forbidden),false,`${forbidden} must remain Harness-owned and absent from the FastLectures integration`);
   }
   assert.equal(schemaText.includes("resize_object"),false);
   assert.equal(schemaText.includes("animate_scene"),false);
@@ -2322,7 +2322,7 @@ test("DeepSeek Harness mounts with only the PenEcho Canvas capability surface",a
     const rawBody=init?.body ?? (input instanceof Request ? await input.clone().text() : "");
     requestBodies.push(JSON.parse(String(rawBody)));
     const chunks=requestNumber===1 ? [
-      {id:"chatcmpl-tool",object:"chat.completion.chunk",created:2,model:"test-model",choices:[{index:0,delta:{role:"assistant",tool_calls:[{index:0,id:"call_inspect",type:"function",function:{name:"penecho_inspect_session",arguments:'{}'}}]},finish_reason:null}]},
+      {id:"chatcmpl-tool",object:"chat.completion.chunk",created:2,model:"test-model",choices:[{index:0,delta:{role:"assistant",tool_calls:[{index:0,id:"call_inspect",type:"function",function:{name:"fastlectures_inspect_session",arguments:'{}'}}]},finish_reason:null}]},
       {id:"chatcmpl-tool",object:"chat.completion.chunk",created:2,model:"test-model",choices:[{index:0,delta:{},finish_reason:"tool_calls"}]},
     ] : [
       {id:"chatcmpl-final",object:"chat.completion.chunk",created:3,model:"test-model",choices:[{index:0,delta:{role:"assistant",content:"Inspection complete."},finish_reason:null}]},
@@ -2345,7 +2345,7 @@ test("DeepSeek Harness mounts with only the PenEcho Canvas capability surface",a
   const toolMessage=requestBodies[1].messages.find(message=>message.role==="tool");
   assert.equal(JSON.parse(toolMessage.content).browser.revision,1);
   assert.equal(messages.some(message=>message.type==="tool_request"&&message.payload.name==="canvas_document"&&message.payload.arguments.operation==="mcp_inspect_session"),true);
-  assert.equal(messages.some(message=>message.type==="session_event"&&message.payload.kind==="tool_call"&&message.payload.name==="penecho_inspect_session"),true);
+  assert.equal(messages.some(message=>message.type==="session_event"&&message.payload.kind==="tool_call"&&message.payload.name==="fastlectures_inspect_session"),true);
   assert.equal(messages.some(message=>message.type==="session_event"&&message.payload.kind==="tool_result"),true);
   assert.equal(messages.some(message=>message.type==="session_event"&&message.payload.kind==="assistant_message"&&message.payload.text==="Inspection complete."),true);
   const preservedHandle=session.handle,preservedMessages=JSON.stringify(session.handle.agent.session.deriveMessages()),preservedBacklog=JSON.stringify(session.backlog);
@@ -2375,25 +2375,25 @@ test("DeepSeek Harness mounts with only the PenEcho Canvas capability surface",a
   assert.equal(messages[0].payload.connectionId,"alternate");
 });
 
-test("PenEcho Agent mounts the minimal project tools only for a host-resolved project",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-project-tools-")),projectCandidate=path.join(stateDirectory,"project");
+test("FastLectures Agent mounts the minimal project tools only for a host-resolved project",async t=>{
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-project-tools-")),projectCandidate=path.join(stateDirectory,"project");
   fs.mkdirSync(projectCandidate);
   const projectDirectory=fs.realpathSync(projectCandidate);
   fs.writeFileSync(path.join(projectDirectory,"inside.txt"),"inside\n");
   fs.mkdirSync(path.join(projectDirectory,"nested"));
   fs.writeFileSync(path.join(projectDirectory,"nested","nested.txt"),"nested\n");
-  fs.mkdirSync(path.join(projectDirectory,".penecho"));
-  fs.writeFileSync(path.join(projectDirectory,".penecho","private.txt"),"private project metadata\n");
+  fs.mkdirSync(path.join(projectDirectory,".fastlectures"));
+  fs.writeFileSync(path.join(projectDirectory,".fastlectures","private.txt"),"private project metadata\n");
   fs.writeFileSync(path.join(projectDirectory,"long.txt"),Array.from({length:2101},(_,index)=>`line ${index+1}`).join("\n"));
   fs.writeFileSync(path.join(projectDirectory,"wide.txt"),Array.from({length:80},(_,index)=>`${index+1}-${"x".repeat(1000)}`).join("\n"));
   const outsidePath=path.join(stateDirectory,"outside.txt");
   fs.writeFileSync(outsidePath,"outside secret\n");
   const spreadsheetRows=[
     `<row r="1"><c r="A1" t="inlineStr"><is><t>name</t></is></c><c r="B1" t="inlineStr"><is><t>value</t></is></c></row>`,
-    `<row r="2"><c r="A2" t="inlineStr"><is><t>PenEcho</t></is></c><c r="B2"><v>5</v></c></row>`,
+    `<row r="2"><c r="A2" t="inlineStr"><is><t>FastLectures</t></is></c><c r="B2"><v>5</v></c></row>`,
     ...Array.from({length:248},(_,index)=>{const row=index+3;return `<row r="${row}"><c r="A${row}" t="inlineStr"><is><t>Item ${row}</t></is></c><c r="B${row}"><v>${row}</v></c></row>`;}),
   ].join("");
-  fs.writeFileSync(path.join(projectDirectory,"table.csv"),["name,value","PenEcho,5",...Array.from({length:248},(_,index)=>`Item ${index+3},${index+3}`)].join("\n"));
+  fs.writeFileSync(path.join(projectDirectory,"table.csv"),["name,value","FastLectures,5",...Array.from({length:248},(_,index)=>`Item ${index+3},${index+3}`)].join("\n"));
   const JSZip=require("jszip"),spreadsheetNamespace="http://schemas.openxmlformats.org/spreadsheetml/2006/main",spreadsheetArchive=new JSZip(),spreadsheetXml={
     workbook:`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="${spreadsheetNamespace}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Summary" sheetId="1" r:id="rId1"/></sheets></workbook>`,
     worksheet:`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="${spreadsheetNamespace}"><sheetData>${spreadsheetRows}</sheetData></worksheet>`,
@@ -2412,7 +2412,7 @@ test("PenEcho Agent mounts the minimal project tools only for a host-resolved pr
   const invalidSpreadsheetArchive=await JSZip.loadAsync(spreadsheetBytes);
   invalidSpreadsheetArchive.file("xl/workbook.xml","<workbook");
   fs.writeFileSync(path.join(projectDirectory,"invalid.xlsx"),await invalidSpreadsheetArchive.generateAsync({type:"nodebuffer",compression:"DEFLATE"}));
-  const wordArchive=new JSZip(),wordParagraphs=["PenEcho Word reader",...Array.from({length:249},(_,index)=>`Word line ${index+2}`)].map(value=>`<w:p><w:r><w:t>${value}</w:t></w:r></w:p>`).join("");
+  const wordArchive=new JSZip(),wordParagraphs=["FastLectures Word reader",...Array.from({length:249},(_,index)=>`Word line ${index+2}`)].map(value=>`<w:p><w:r><w:t>${value}</w:t></w:r></w:p>`).join("");
   wordArchive.file("[Content_Types].xml",`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
   wordArchive.folder("_rels").file(".rels",`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
   wordArchive.folder("word").file("document.xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${wordParagraphs}<w:sectPr/></w:body></w:document>`);
@@ -2427,14 +2427,14 @@ test("PenEcho Agent mounts the minimal project tools only for a host-resolved pr
   presentationArchive.folder("ppt").folder("notesSlides").file("notesSlide1.xml",`<?xml version="1.0" encoding="UTF-8"?><p:notes xmlns:p="${presentationNamespace}" xmlns:d="${drawingNamespace}"><p:cSld><p:spTree><p:sp><p:txBody><d:p><d:r><d:t>Discuss regional performance</d:t></d:r></d:p><d:p><d:fld id="{1}" type="slidenum"><d:t>1</d:t></d:fld></d:p></p:txBody></p:sp></p:spTree></p:cSld></p:notes>`);
   presentationArchive.folder("ppt").folder("media").file("image1.png",Buffer.from([0x89,0x50,0x4e,0x47]));
   fs.writeFileSync(path.join(projectDirectory,"slides.pptx"),await presentationArchive.generateAsync({type:"nodebuffer",compression:"DEFLATE"}));
-  fs.writeFileSync(path.join(projectDirectory,"sample.pdf"),minimalPdf("PenEcho PDF reader"));
+  fs.writeFileSync(path.join(projectDirectory,"sample.pdf"),minimalPdf("FastLectures PDF reader"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),projectId="local-1234567890abcdef12345678",
     connection={id:"project-test",provider:"api",name:"Project Test",apiFormat:"openai",apiUrl:"http://127.0.0.1:9/v1",apiModel:"test-model",apiKey:"test-key",effort:"medium"},messages=[],host=new CanvasHarnessHost({
       stateDirectory,rootDirectory:ROOT,
       resolveConnection:id=>id===connection.id?connection:null,
       listConnections:()=>[connection],
-      resolveProject:async id=>id===projectId?{id,kind:"folder",source:"native",name:"PenEcho",displayPath:"PenEcho",path:projectDirectory}:null,
+      resolveProject:async id=>id===projectId?{id,kind:"folder",source:"native",name:"FastLectures",displayPath:"FastLectures",path:projectDirectory}:null,
   });
   t.after(()=>host.dispose());
   await assert.rejects(host.connect({clientId:"missing",connectionId:connection.id,projectId:"local-aaaaaaaaaaaaaaaaaaaaaaaa",send:()=>{}}),/not found/);
@@ -2480,7 +2480,7 @@ test("PenEcho Agent mounts the minimal project tools only for a host-resolved pr
   assert.equal(globbed.isError,false,JSON.stringify(globbed));
   assert.match(globbed.content[0].text,/inside\.txt/);
   assert.match(globbed.content[0].text,/nested\/nested\.txt/);
-  assert.doesNotMatch(globbed.content[0].text,/\.penecho|private project metadata/);
+  assert.doesNotMatch(globbed.content[0].text,/\.fastlectures|private project metadata/);
   assert.doesNotMatch(globbed.content[0].text,/outside\.txt/);
   const globbedFromEmptyPath=await host.context.tools.execute({callId:"glob-project-empty-path",name:"glob",arguments:{pattern:"*.txt",path:""},agent:session.handle.agent,signal});
   assert.equal(globbedFromEmptyPath.isError,false,JSON.stringify(globbedFromEmptyPath));
@@ -2507,20 +2507,20 @@ test("PenEcho Agent mounts the minimal project tools only for a host-resolved pr
   assert.equal(session.handle.agent.ctx.tools.schemas(session.handle.agent).some(tool=>tool.name==="read_document"),true);
   const document=await host.context.tools.execute({callId:"read-csv",name:"read_document",arguments:{file_path:"table.csv"},agent:session.handle.agent,signal});
   assert.equal(document.isError,false,JSON.stringify(document));
-  assert.match(document.content[0].text,/name\tvalue[\s\S]*PenEcho\t5[\s\S]*250: Item 250\t250[\s\S]*End of file - total 250 rows/);
+  assert.match(document.content[0].text,/name\tvalue[\s\S]*FastLectures\t5[\s\S]*250: Item 250\t250[\s\S]*End of file - total 250 rows/);
   const spreadsheet=await host.context.tools.execute({callId:"read-xlsx",name:"read_document",arguments:{file_path:"table.xlsx",sheet:"Summary"},agent:session.handle.agent,signal});
   assert.equal(spreadsheet.isError,false,JSON.stringify(spreadsheet));
-  assert.match(spreadsheet.content[0].text,/Sheet: Summary[\s\S]*PenEcho\t5[\s\S]*250: Item 250\t250[\s\S]*End of file - total 250 rows/);
+  assert.match(spreadsheet.content[0].text,/Sheet: Summary[\s\S]*FastLectures\t5[\s\S]*250: Item 250\t250[\s\S]*End of file - total 250 rows/);
   const prefixedSpreadsheet=await host.context.tools.execute({callId:"read-prefixed-xlsx",name:"read_document",arguments:{file_path:"prefixed.xlsx",sheet:"Summary"},agent:session.handle.agent,signal});
   assert.equal(prefixedSpreadsheet.isError,false,JSON.stringify(prefixedSpreadsheet));
-  assert.match(prefixedSpreadsheet.content[0].text,/Sheet: Summary[\s\S]*Available sheets: Summary[\s\S]*PenEcho\t5/);
+  assert.match(prefixedSpreadsheet.content[0].text,/Sheet: Summary[\s\S]*Available sheets: Summary[\s\S]*FastLectures\t5/);
   const invalidSpreadsheet=await host.context.tools.execute({callId:"read-invalid-xlsx",name:"read_document",arguments:{file_path:"invalid.xlsx"},agent:session.handle.agent,signal});
   assert.equal(invalidSpreadsheet.isError,true);
   assert.match(invalidSpreadsheet.content[0].text,/XLSX workbook could not be parsed[\s\S]*standard XLSX[\s\S]*CSV/);
   assert.doesNotMatch(invalidSpreadsheet.content[0].text,/Cannot read properties|node_modules|\/Users\//);
   const word=await host.context.tools.execute({callId:"read-docx",name:"read_document",arguments:{file_path:"notes.docx"},agent:session.handle.agent,signal});
   assert.equal(word.isError,false,JSON.stringify(word));
-  assert.match(word.content[0].text,/PenEcho Word reader[\s\S]*Word line 250[\s\S]*End of file - total 500 lines/);
+  assert.match(word.content[0].text,/FastLectures Word reader[\s\S]*Word line 250[\s\S]*End of file - total 500 lines/);
   const presentation=await host.context.tools.execute({callId:"read-pptx",name:"read_document",arguments:{file_path:"slides.pptx"},agent:session.handle.agent,signal});
   assert.equal(presentation.isError,false,JSON.stringify(presentation));
   assert.match(presentation.content[0].text,/Presentation: slides\.pptx[\s\S]*Slides: 2[\s\S]*Slide 1[\s\S]*Quarterly update[\s\S]*Revenue grew[\s\S]*Inventory stable[\s\S]*Speaker notes:[\s\S]*Discuss regional performance[\s\S]*Embedded images: 1[\s\S]*Slide 2[\s\S]*Next steps/);
@@ -2534,7 +2534,7 @@ test("PenEcho Agent mounts the minimal project tools only for a host-resolved pr
   assert.match(missingSlide.content[0].text,/slide 3[\s\S]*2-slide presentation/);
   const pdf=await host.context.tools.execute({callId:"read-pdf",name:"read_document",arguments:{file_path:"sample.pdf",page:1,render_page:true},agent:session.handle.agent,signal});
   assert.equal(pdf.isError,false,JSON.stringify(pdf));
-  assert.match(pdf.content[0].text,/PenEcho PDF reader/);
+  assert.match(pdf.content[0].text,/FastLectures PDF reader/);
   assert.equal(pdf.content.some(block=>block.type==="image"&&block.attachment?.mediaType==="image/png"),true,"PDF visual reading returns a bounded rendered page");
   fs.writeFileSync(path.join(projectDirectory,"oversized.pdf"),"");
   fs.truncateSync(path.join(projectDirectory,"oversized.pdf"),64*1024*1024+1);
@@ -2548,8 +2548,8 @@ test("PenEcho Agent mounts the minimal project tools only for a host-resolved pr
   assert.equal(switched.id,session.id,"legacy Full Access input is normalized to the same read-only capability session");
 });
 
-test("PenEcho Agent reads multiple turn-scoped files without replacing the conversation project",async t=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-turn-files-")),stateDirectory=path.join(root,"state"),files=path.join(root,"files");
+test("FastLectures Agent reads multiple turn-scoped files without replacing the conversation project",async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-turn-files-")),stateDirectory=path.join(root,"state"),files=path.join(root,"files");
   fs.mkdirSync(files,{recursive:true});
   const firstPath=path.join(files,"first.txt"),secondPath=path.join(files,"second.txt"),binaryPath=path.join(files,"sample.bin");
   fs.writeFileSync(firstPath,"first attachment\nshared value: 1\n");
@@ -2600,18 +2600,18 @@ test("PenEcho Agent reads multiple turn-scoped files without replacing the conve
   assert.deepEqual(host.activeProjectIds(),[]);
 });
 
-test("PenEcho Agent preserves exact spreadsheet sheet selectors for turn-scoped files",async t=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-turn-file-selectors-")),stateDirectory=path.join(root,"state"),files=path.join(root,"files");
+test("FastLectures Agent preserves exact spreadsheet sheet selectors for turn-scoped files",async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-turn-file-selectors-")),stateDirectory=path.join(root,"state"),files=path.join(root,"files");
   fs.mkdirSync(files,{recursive:true});
   const JSZip=require("jszip"),spreadsheetNamespace="http://schemas.openxmlformats.org/spreadsheetml/2006/main",archive=new JSZip(),sheetName="All data word ",spreadsheetPath=path.join(files,"study.xlsx"),pdfPath=path.join(files,"sample.pdf"),databasePath=path.join(files,"inventory.sqlite");
   archive.file("[Content_Types].xml",`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`);
   archive.folder("_rels").file(".rels",`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
   archive.folder("xl").file("workbook.xml",`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="${spreadsheetNamespace}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${sheetName}" sheetId="1" r:id="rId1"/></sheets></workbook>`).folder("_rels").file("workbook.xml.rels",`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`);
-  archive.folder("xl").folder("worksheets").file("sheet1.xml",`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="${spreadsheetNamespace}"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>name</t></is></c><c r="B1" t="inlineStr"><is><t>value</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>PenEcho</t></is></c><c r="B2"><v>5</v></c></row></sheetData></worksheet>`);
+  archive.folder("xl").folder("worksheets").file("sheet1.xml",`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="${spreadsheetNamespace}"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>name</t></is></c><c r="B1" t="inlineStr"><is><t>value</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>FastLectures</t></is></c><c r="B2"><v>5</v></c></row></sheetData></worksheet>`);
   fs.writeFileSync(spreadsheetPath,await archive.generateAsync({type:"nodebuffer",compression:"DEFLATE"}));
-  fs.writeFileSync(pdfPath,minimalPdf("PenEcho PDF selector"));
+  fs.writeFileSync(pdfPath,minimalPdf("FastLectures PDF selector"));
   const {DatabaseSync}=require("node:sqlite"),database=new DatabaseSync(databasePath);
-  database.exec("CREATE TABLE items (name TEXT NOT NULL); INSERT INTO items VALUES ('PenEcho');");
+  database.exec("CREATE TABLE items (name TEXT NOT NULL); INSERT INTO items VALUES ('FastLectures');");
   database.close();
   const spreadsheetId="file-555555555555555555555555",pdfId="file-666666666666666666666666",databaseId="file-777777777777777777777777",projects=[
     {id:spreadsheetId,kind:"file",source:"upload",name:"study.xlsx",displayPath:"study.xlsx",path:fs.realpathSync(spreadsheetPath),reader:"document",mediaType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",bytes:fs.statSync(spreadsheetPath).size},
@@ -2630,19 +2630,19 @@ test("PenEcho Agent preserves exact spreadsheet sheet selectors for turn-scoped 
     pdf=await host.context.tools.execute({callId:"read-pdf-spaced-selector",name:"read_attachment",arguments:{file_id:pdfId,selector:" 1 "},agent:session.handle.agent,signal}),
     databaseSchema=await host.context.tools.execute({callId:"read-database-blank-selector",name:"read_attachment",arguments:{file_id:databaseId,selector:"   "},agent:session.handle.agent,signal}),
     databaseRows=await host.context.tools.execute({callId:"read-database-spaced-selector",name:"read_attachment",arguments:{file_id:databaseId,selector:" SELECT name FROM items "},agent:session.handle.agent,signal});
-  for(const result of [omitted,empty,exact]){assert.equal(result.isError,false,JSON.stringify(result));assert.match(result.content[0].text,/Sheet: All data word \n[\s\S]*PenEcho\t5/);}
+  for(const result of [omitted,empty,exact]){assert.equal(result.isError,false,JSON.stringify(result));assert.match(result.content[0].text,/Sheet: All data word \n[\s\S]*FastLectures\t5/);}
   assert.equal(trimmed.isError,true);
   assert.match(trimmed.content[0].text,/Requested sheet: "All data word"\. Available sheets: "All data word "/);
   assert.equal(pdf.isError,false,JSON.stringify(pdf));
-  assert.match(pdf.content[0].text,/Selected page: 1[\s\S]*PenEcho PDF selector/);
+  assert.match(pdf.content[0].text,/Selected page: 1[\s\S]*FastLectures PDF selector/);
   assert.equal(databaseSchema.isError,false,JSON.stringify(databaseSchema));
   assert.match(databaseSchema.content[0].text,/CREATE TABLE items/);
   assert.equal(databaseRows.isError,false,JSON.stringify(databaseRows));
-  assert.match(databaseRows.content[0].text,/PenEcho/);
+  assert.match(databaseRows.content[0].text,/FastLectures/);
 });
 
 test("Codex Native exposes the same turn-scoped attachment reader before any file is selected",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-native-turn-files-")),connection={id:"native-turn-files",provider:"codex-cli",name:"Native Turn Files",cliModel:"gpt-test",effort:"medium"},
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-native-turn-files-")),connection={id:"native-turn-files",provider:"codex-cli",name:"Native Turn Files",cliModel:"gpt-test",effort:"medium"},
     {CodexNativeHost}=await import("../src/server/canvas-agent/codex-native-host.mjs"),host=new CodexNativeHost({stateDirectory,rootDirectory:ROOT,resolveConnection:id=>id===connection.id?connection:null,resolveProject:async()=>null});
   t.after(async()=>{await host.dispose();fs.rmSync(stateDirectory,{recursive:true,force:true});});
   const session=await host.connect({clientId:"native-turn-files-client",connectionId:connection.id,binding:{},send:()=>{}}),tools=session.native.dynamicTools()[0].tools.map(tool=>tool.name);
@@ -2650,8 +2650,8 @@ test("Codex Native exposes the same turn-scoped attachment reader before any fil
   assert.equal(session.project,null);
 });
 
-test("PenEcho Agent single-file scope exposes only its exact read-only reader",async t=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-file-tools-")),stateDirectory=path.join(root,"state"),files=path.join(root,"files");
+test("FastLectures Agent single-file scope exposes only its exact read-only reader",async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-file-tools-")),stateDirectory=path.join(root,"state"),files=path.join(root,"files");
   fs.mkdirSync(files,{recursive:true});
   const selectedPath=path.join(files,"selected.txt"),siblingPath=path.join(files,"sibling.txt");
   fs.writeFileSync(selectedPath,"selected content\nsecond line\n");
@@ -2683,11 +2683,11 @@ test("PenEcho Agent single-file scope exposes only its exact read-only reader",a
   assert.equal(fs.existsSync(path.join(stateDirectory,"canvas-agent-runtime",session.id)),false,"ephemeral session runtime must be removed");
 });
 
-test("PenEcho Agent reads an arbitrary file only through a bounded non-executing binary reader",async t=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-binary-tools-")),stateDirectory=path.join(root,"state"),files=path.join(root,"files");
+test("FastLectures Agent reads an arbitrary file only through a bounded non-executing binary reader",async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-binary-tools-")),stateDirectory=path.join(root,"state"),files=path.join(root,"files");
   fs.mkdirSync(files,{recursive:true});
   const selectedPath=path.join(files,"sample.pdf"),siblingPath=path.join(files,"sibling.pdf");
-  fs.writeFileSync(selectedPath,Buffer.from([0x7f,0x45,0x4c,0x46,0,1,2,3,0x50,0x65,0x6e,0x45,0x63,0x68,0x6f]));
+  fs.writeFileSync(selectedPath,Buffer.from([0x7f,0x45,0x4c,0x46,0,1,2,3,0x46,0x61,0x73,0x74,0x4c,0x65,0x63]));
   fs.writeFileSync(siblingPath,Buffer.from("private sibling"));
   const projectId="file-00112233445566778899aabb",project={id:projectId,kind:"file",source:"upload",name:"sample.pdf",displayPath:"sample.pdf",path:fs.realpathSync(selectedPath),reader:"binary",bytes:fs.statSync(selectedPath).size},
     connection={id:"binary-test",provider:"api",name:"Binary Test",apiFormat:"openai",apiUrl:"http://127.0.0.1:9/v1",apiModel:"test-model",apiKey:"test-key",effort:"medium"},
@@ -2698,17 +2698,17 @@ test("PenEcho Agent reads an arbitrary file only through a bounded non-executing
   for(const forbidden of ["read","read_image","read_document","read_database","load_project_plugin","write","edit","bash"])assert.equal(visible.includes(forbidden),false,forbidden);
   const signal=new AbortController().signal,result=await host.context.tools.execute({callId:"read-binary",name:"read_binary",arguments:{file_path:"sample.pdf",offset:0,length:15},agent:session.handle.agent,signal});
   assert.equal(result.isError,false,JSON.stringify(result));
-  assert.match(result.content[0].text,/7f 45 4c 46 00 01 02 03 50 65 6e 45 63 68 6f/);
-  assert.match(result.content[0].text,/\|\.ELF\.\.\.\.PenEcho\|/);
+  assert.match(result.content[0].text,/7f 45 4c 46 00 01 02 03 46 61 73 74 4c 65 63/);
+  assert.match(result.content[0].text,/\|\.ELF\.\.\.\.FastLec\|/);
   const sibling=await host.context.tools.execute({callId:"read-binary-sibling",name:"read_binary",arguments:{file_path:"sibling.pdf"},agent:session.handle.agent,signal});
   assert.equal(sibling.isError,true);
   assert.match(sibling.content[0].text,/Only the selected file/);
 });
 
-test("PenEcho Agent reads a selected SQLite database with one bounded read-only tool",async t=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-database-tools-")),stateDirectory=path.join(root,"state"),databasePath=path.join(root,"inventory.sqlite");
+test("FastLectures Agent reads a selected SQLite database with one bounded read-only tool",async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-database-tools-")),stateDirectory=path.join(root,"state"),databasePath=path.join(root,"inventory.sqlite");
   const {DatabaseSync}=require("node:sqlite"),database=new DatabaseSync(databasePath);
-  database.exec("CREATE TABLE items (name TEXT NOT NULL, quantity INTEGER NOT NULL); INSERT INTO items VALUES ('PenEcho', 5), ('Canvas', 2);");
+  database.exec("CREATE TABLE items (name TEXT NOT NULL, quantity INTEGER NOT NULL); INSERT INTO items VALUES ('FastLectures', 5), ('Canvas', 2);");
   database.close();
   const projectId="file-abcdef1234567890abcdef12",project={id:projectId,kind:"file",source:"native",name:"inventory.sqlite",displayPath:"inventory.sqlite",path:fs.realpathSync(databasePath),reader:"database",bytes:fs.statSync(databasePath).size},
     connection={id:"database-test",provider:"api",name:"Database Test",apiFormat:"openai",apiUrl:"http://127.0.0.1:9/v1",apiModel:"test-model",apiKey:"test-key",effort:"medium"};
@@ -2724,7 +2724,7 @@ test("PenEcho Agent reads a selected SQLite database with one bounded read-only 
   assert.match(schema.content[0].text,/CREATE TABLE items/);
   const rows=await host.context.tools.execute({callId:"database-query",name:"read_database",arguments:{file_path:"inventory.sqlite",query:"SELECT name, quantity FROM items ORDER BY name",limit:10},agent:session.handle.agent,signal});
   assert.equal(rows.isError,false,JSON.stringify(rows));
-  assert.match(rows.content[0].text,/Canvas[\s\S]*PenEcho/);
+  assert.match(rows.content[0].text,/Canvas[\s\S]*FastLectures/);
   const mutation=await host.context.tools.execute({callId:"database-mutation",name:"read_database",arguments:{file_path:"inventory.sqlite",query:"DELETE FROM items"},agent:session.handle.agent,signal});
   assert.equal(mutation.isError,true);
   assert.match(mutation.content[0].text,/Only one read-only SELECT/);
@@ -2739,8 +2739,8 @@ test("PenEcho Agent reads a selected SQLite database with one bounded read-only 
   assert.equal(count,2);
 });
 
-test("PenEcho Agent single-file SQLite snapshot never reads a sibling WAL",async t=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-sqlite-wal-")),stateDirectory=path.join(root,"state"),databasePath=path.join(root,"selected.sqlite"),
+test("FastLectures Agent single-file SQLite snapshot never reads a sibling WAL",async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-sqlite-wal-")),stateDirectory=path.join(root,"state"),databasePath=path.join(root,"selected.sqlite"),
     {DatabaseSync}=require("node:sqlite"),database=new DatabaseSync(databasePath);
   database.exec("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE secrets (value TEXT NOT NULL);");
   database.exec("PRAGMA wal_checkpoint(TRUNCATE);");
@@ -2756,8 +2756,8 @@ test("PenEcho Agent single-file SQLite snapshot never reads a sibling WAL",async
   assert.doesNotMatch(result.content[0].text,/WAL_ONLY_SECRET/);
 });
 
-test("PenEcho Agent rejects a folder that changes identity after connect",{skip:process.platform==="win32"},async t=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-canvas-agent-root-identity-")),stateDirectory=path.join(root,"state"),projectCandidate=path.join(root,"project"),outsideDirectory=path.join(root,"outside");
+test("FastLectures Agent rejects a folder that changes identity after connect",{skip:process.platform==="win32"},async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-canvas-agent-root-identity-")),stateDirectory=path.join(root,"state"),projectCandidate=path.join(root,"project"),outsideDirectory=path.join(root,"outside");
   fs.mkdirSync(projectCandidate);fs.mkdirSync(outsideDirectory);const projectDirectory=fs.realpathSync(projectCandidate);fs.writeFileSync(path.join(projectDirectory,"inside.txt"),"inside\n");fs.writeFileSync(path.join(outsideDirectory,"secret.txt"),"outside\n");
   const projectId="local-abcdefabcdefabcdefabcdef",connection={id:"root-identity-test",provider:"api",name:"Root Identity Test",apiFormat:"openai",apiUrl:"http://127.0.0.1:9/v1",apiModel:"test-model",apiKey:"test-key",effort:"medium"},
     {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),host=new CanvasHarnessHost({stateDirectory,rootDirectory:ROOT,resolveConnection:id=>id===connection.id?connection:null,listConnections:()=>[connection],resolveProject:async id=>id===projectId?{id,kind:"folder",source:"native",name:"project",displayPath:"project",path:projectDirectory}:null});
@@ -2771,7 +2771,7 @@ test("PenEcho Agent rejects a folder that changes identity after connect",{skip:
   assert.match(listed.content[0].text,/changed identity/);
 });
 
-test("PenEcho Agent pins the complete Harness runtime dependency and plugin allowlist",async()=>{
+test("FastLectures Agent pins the complete Harness runtime dependency and plugin allowlist",async()=>{
   const packageJson=JSON.parse(read("package.json")),packageLock=JSON.parse(read("package-lock.json"));
   const direct=Object.keys(packageJson.dependencies).filter(name=>name.startsWith("@deepseek-ai/")).sort();
   assert.deepEqual(direct,DIRECT_HARNESS_DEPENDENCIES);
@@ -2782,8 +2782,8 @@ test("PenEcho Agent pins the complete Harness runtime dependency and plugin allo
   }
   const { HARNESS_RUNTIME_PLUGIN_ALLOWLIST } = await import("../src/server/canvas-agent/runtime.mjs");
   assert.deepEqual(HARNESS_RUNTIME_PLUGIN_ALLOWLIST,[
-    "timer","penecho-settings","penecho-credentials","attachment-local","llm","session","system-prompt","tools","agent",
-    "llm-retry","tool-call-timeout-policy","token-meter","tool-result-pruner","compaction-basic","llm-pi-ai","penecho-cli-llm",
+    "timer","fastlectures-settings","fastlectures-credentials","attachment-local","llm","session","system-prompt","tools","agent",
+    "llm-retry","tool-call-timeout-policy","token-meter","tool-result-pruner","compaction-basic","llm-pi-ai","fastlectures-cli-llm",
     "project-fs","fs-observation-policy","agent-loop",
   ]);
   for(const forbidden of ["github","web","mcp","skills","jobs","goals","delegation","approval","persistence"]) {
@@ -2791,7 +2791,7 @@ test("PenEcho Agent pins the complete Harness runtime dependency and plugin allo
   }
 });
 
-test("PenEcho Agent unified attachment picker accepts any file while the native linked-file picker stays specialized",()=>{
+test("FastLectures Agent unified attachment picker accepts any file while the native linked-file picker stays specialized",()=>{
   const store=read("src/server/canvas-agent/project-store.js"),source=read("src/client/app/canvas-agent-runtime.js"),html=read("public/index.html"),desktop=read("desktop/main.js"),
     quoted=value=>[...String(value||"").matchAll(/"([^"]+)"/g)].map(match=>match[1]),
     serverBlocks=[...store.matchAll(/const (?:DOCUMENT|IMAGE|DATABASE|TEXT)_EXTENSIONS = new Set\(\[([\s\S]*?)\]\);/g)],
@@ -2806,7 +2806,7 @@ test("PenEcho Agent unified attachment picker accepts any file while the native 
   assert.doesNotMatch(desktop,/name:"All files"[\s\S]*?extensions:\["\*"\]/);
 });
 
-test("PenEcho Agent client accepts five mixed files and images and rejects a sixth before partial addition",async()=>{
+test("FastLectures Agent client accepts five mixed files and images and rejects a sixth before partial addition",async()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),statuses=[],canvasAgent={attachments:[]},canvasAgentFileInput={value:"selected"};
   class FakeBlob { constructor(name){this.name=name;this.size=1;this.lastModified=1;this.type=name.endsWith(".png")?"image/png":"text/plain";} }
   const handleSource=functionSource(source,"canvasAgentHandleFiles").replace(/^function /,"async function "),handle=vm.runInNewContext(`(${handleSource})`,{
@@ -2825,7 +2825,7 @@ test("PenEcho Agent client accepts five mixed files and images and rejects a six
   assert.equal(canvasAgent.attachments.length,5);
 });
 
-test("PenEcho Agent paste collects multiple browser and desktop clipboard files as one batch",async()=>{
+test("FastLectures Agent paste collects multiple browser and desktop clipboard files as one batch",async()=>{
   const source=read("src/client/app/canvas-agent-runtime.js");
   class FakeBlob { constructor(name){this.name=name;} }
   class FakeFile { constructor(parts,name,options){this.parts=parts;this.name=name;this.lastModified=options.lastModified;} }
@@ -2837,7 +2837,7 @@ test("PenEcho Agent paste collects multiple browser and desktop clipboard files 
     {name:"two.txt",size:3,lastModified:2,data:Buffer.from("two").toString("base64")},
   ]};
   const readDesktop=vm.runInNewContext(`(${functionSource(source,"canvasAgentDesktopClipboardFiles").replace(/^function /,"async function ")})`,{
-    window:{penechoDesktop:{readClipboardFiles:async()=>payload}},File:FakeFile,Uint8Array,
+    window:{fastlecturesDesktop:{readClipboardFiles:async()=>payload}},File:FakeFile,Uint8Array,
     atob:value=>Buffer.from(value,"base64").toString("binary"),CANVAS_AGENT_PROJECT_UPLOAD_LIMIT:32*1024*1024,t:key=>key,
   }),desktopFiles=await readDesktop();
   assert.deepEqual(Array.from(desktopFiles,file=>file.name),["one.txt","two.txt"]);
@@ -2845,7 +2845,7 @@ test("PenEcho Agent paste collects multiple browser and desktop clipboard files 
   await assert.rejects(readDesktop(),/canvasAgentAttachmentLimit/);
 });
 
-test("PenEcho Agent preserves the logical conversation and pasted draft files when search context changes",()=>{
+test("FastLectures Agent preserves the logical conversation and pasted draft files when search context changes",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),beginStart=source.indexOf("function canvasAgentBeginLocalConversation("),conversationStart=source.indexOf("async function canvasAgentStartNewConversation("),contextStart=source.indexOf("async function canvasAgentChangeContext("),searchStart=source.indexOf("async function canvasAgentEnsureSearchSession("),beginConversation=source.slice(beginStart,source.indexOf("function canvasAgentDropSessionIdentity(",beginStart)),startConversation=source.slice(conversationStart,source.indexOf("async function canvasAgentChangeConnection(",conversationStart)),ensureSearch=source.slice(searchStart,source.indexOf("function canvasAgentValidatedRegion(",searchStart)),changeContext=source.slice(contextStart,source.indexOf("async function canvasAgentConnect(",contextStart));
   assert.match(beginConversation,/preserveDraft=false[\s\S]*?if\(!preserveDraft\)\{[\s\S]*?canvasAgentClearAttachments\(\)[\s\S]*?canvasAgentClearReferences\(\)[\s\S]*?canvasAgentClearInkDraft\(\)/);
   assert.match(startConversation,/preserveDraft=false[\s\S]*?canvasAgentBeginLocalConversation\(\{submitExecution,preserveDraft\}\)[\s\S]*?if\(!preserveDraft\)\{[\s\S]*?canvasAgentClearAttachments\(\)/);
@@ -2856,7 +2856,7 @@ test("PenEcho Agent preserves the logical conversation and pasted draft files wh
   assert.doesNotMatch(changeContext,/canvasAgentBeginLocalConversation|canvasAgentClearTranscript|canvasAgentClearAttachments/);
 });
 
-test("PenEcho Agent session popover closes when focus leaves the popover and its trigger",()=>{
+test("FastLectures Agent session popover closes when focus leaves the popover and its trigger",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),handlerSource=functionSource(source,"canvasAgentHistoryFocusDidLeave");
   class FakeNode {}
   const inside=new FakeNode(),trigger=new FakeNode(),outside=new FakeNode(),hidden=[],handler=vm.runInNewContext(`(${handlerSource})`,{
@@ -2874,17 +2874,17 @@ test("PenEcho Agent session popover closes when focus leaves the popover and its
   assert.match(source,/canvasAgentHistoryPopover\.addEventListener\("focusout",canvasAgentHistoryFocusDidLeave\)/);
 });
 
-test("PenEcho Agent maps provider failures to concise localized error categories",()=>{
+test("FastLectures Agent maps provider failures to concise localized error categories",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),context={CANVAS_AGENT_ERROR_MESSAGE_LIMIT:8000,t:key=>key};
   vm.runInNewContext(`${functionSource(source,"canvasAgentHistoryText")}\n${functionSource(source,"canvasAgentNormalizeError")}\n${functionSource(source,"canvasAgentErrorKind")}\n${functionSource(source,"canvasAgentErrorSummary")}`,context);
   assert.equal(context.canvasAgentErrorKind({code:"PI_AI_ERROR",message:"Concurrency limit exceeded for account, please retry later"}),"busy");
-  assert.equal(context.canvasAgentErrorKind({code:"UNKNOWN",message:"PenEcho Agent CLI request timed out after 180 seconds."}),"timeout");
+  assert.equal(context.canvasAgentErrorKind({code:"UNKNOWN",message:"FastLectures Agent CLI request timed out after 180 seconds."}),"timeout");
   assert.equal(context.canvasAgentErrorKind({code:"429",message:"Too many requests"}),"rate_limit");
   assert.equal(context.canvasAgentErrorKind({code:"UNKNOWN",message:"Available credits do not cover the bounded hosted request estimate."}),"credits");
   assert.equal(context.canvasAgentErrorKind({code:"QUOTA",message:'402 "insufficient_credits"'}),"credits");
   assert.equal(context.canvasAgentErrorSummary({code:"insufficient_credits",message:"Insufficient credits"}),"canvasAgentErrorCredits");
   assert.equal(context.canvasAgentErrorKind({code:"CONTEXT_LENGTH_EXCEEDED",message:"Maximum context window reached"}),"request_too_large");
-  assert.equal(context.canvasAgentErrorKind({code:"CODEX_NATIVE_FAILED",message:"Codex returned more attachment data than PenEcho can safely process in one message."}),"request_too_large");
+  assert.equal(context.canvasAgentErrorKind({code:"CODEX_NATIVE_FAILED",message:"Codex returned more attachment data than FastLectures can safely process in one message."}),"request_too_large");
   assert.equal(context.canvasAgentErrorKind({code:"INVALID_API_KEY",message:"Authentication failed"}),"authentication");
   assert.equal(context.canvasAgentErrorKind({code:"MODEL_NOT_FOUND",message:"Model was not found"}),"model_unavailable");
   assert.equal(context.canvasAgentErrorKind({code:"ECONNREFUSED",message:"Connection refused"}),"connection");
@@ -2892,7 +2892,7 @@ test("PenEcho Agent maps provider failures to concise localized error categories
   assert.equal(context.canvasAgentErrorSummary({code:"PI_AI_ERROR",message:"Concurrency limit exceeded"}),"canvasAgentErrorBusy");
 });
 
-test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and are revision guarded",async()=>{
+test("FastLectures Agent UI and browser Facade support local and Cloud runtimes and are revision guarded",async()=>{
   const html=read("public/index.html"), core=read("src/client/app/core.js"), zh=read("public/locales/zh.js"), persistence=read("src/client/app/persistence.js"), source=read("src/client/app/canvas-agent-runtime.js"), mainAi=read("src/client/app/ai-runtime.js"), canvasRuntime=read("src/client/app/canvas-runtime.js"), server=read("src/server/main.js"), http=read("src/server/canvas-agent/http.js"), peer=read("src/server/canvas-agent/peer.mjs"), runtime=read("src/server/canvas-agent/runtime.mjs"), requestTrace=read("src/server/canvas-agent/request-trace.js"), css=read("public/style.css");
   const changeConnectionStart=source.indexOf("async function canvasAgentChangeConnection("),changeConnectionSource=source.slice(changeConnectionStart,source.indexOf("async function canvasAgentConnect(",changeConnectionStart));
   const numberedResourceView=vm.runInNewContext(`(${functionSource(source,"canvasAgentLineNumberedResourceView")})`);
@@ -2994,7 +2994,7 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.match(functionSource(source,"canvasAgentNormalizeHistoryItem"),/slice\(0,CANVAS_AGENT_MAX_ATTACHMENTS\)/);
   assert.match(source,/function canvasAgentRow\([\s\S]*?slice\(0,CANVAS_AGENT_MAX_ATTACHMENTS\)/);
   assert.match(peer,/owner\.submit\(session,[\s\S]*?envelope\.payload\?\.fileIds, envelope\.payload\?\.canvasTitleNeeded === true, envelope\.payload\?\.reasoningEffort\)/);
-  assert.match(runtime,/name:'read_attachment'[\s\S]*?Read one current-turn file[\s\S]*?PenEchoTurnFilesPlugin/);
+  assert.match(runtime,/name:'read_attachment'[\s\S]*?Read one current-turn file[\s\S]*?FastLecturesTurnFilesPlugin/);
   assert.match(runtime,/normalizeCanvasAgentTurnFileIds\(fileIds,images\.length\)[\s\S]*?prepareCanvasAgentTurnFiles/);
   assert.match(read("src/server/canvas-agent/codex-native-host.mjs"),/normalizeCanvasAgentTurnFileIds\(fileIds,[\s\S]*?prepareCanvasAgentTurnFiles/);
   assert.match(core,/canvasAgentProjectManager: "Project manager"[\s\S]*?canvasAgentProjects: "Projects"[\s\S]*?canvasAgentFiles: "Files"/);
@@ -3029,9 +3029,9 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.match(functionSource(source,"canvasAgentConfirmProjectRemoval"),/canvasAgentSelectProject\(""\)[\s\S]*?method:"DELETE"[\s\S]*?canvasAgentProjectRemoveDialog\.close\("removed"\)/);
   assert.match(source,/if \(canvasAgentProjectRemoveDialog\.open\) return;[\s\S]*?canvasAgentProjectDialogOpen\(\)[\s\S]*?!canvasAgentProjectRemoveDialog\.contains\(event\.target\)/);
   for(const key of ["canvasAgentRemoveProjectTitle","canvasAgentRemoveFolderConfirm","canvasAgentRemoveNativeFileConfirm","canvasAgentRemoveUploadConfirm"]){assert.match(core,new RegExp(`${key}:`));assert.match(zh,new RegExp(`${key}:`));}
-  assert.match(runtime,/session\.project\?\.kind === 'folder'\) await agentCtx\.plugin\(PenEchoProjectPlugin/);
-  assert.match(runtime,/session\.project\?\.kind === 'file'\) await agentCtx\.plugin\(PenEchoFilePlugin/);
-  const folderPlugin=runtime.slice(runtime.indexOf("const PenEchoProjectPlugin"),runtime.indexOf("const PenEchoFilePlugin"));
+  assert.match(runtime,/session\.project\?\.kind === 'folder'\) await agentCtx\.plugin\(FastLecturesProjectPlugin/);
+  assert.match(runtime,/session\.project\?\.kind === 'file'\) await agentCtx\.plugin\(FastLecturesFilePlugin/);
+  const folderPlugin=runtime.slice(runtime.indexOf("const FastLecturesProjectPlugin"),runtime.indexOf("const FastLecturesFilePlugin"));
   assert.match(folderPlugin,/projectTextReaderTool[\s\S]*projectImageReaderTool[\s\S]*projectGlobTool[\s\S]*projectGrepTool[\s\S]*projectDirectoryListTool[\s\S]*projectPluginLoaderTool/);
   assert.match(folderPlugin,/No write, edit, bash, or command-execution capability exists/);
   assert.doesNotMatch(folderPlugin,/ToolFs|projectBashTool/);
@@ -3088,13 +3088,13 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.match(functionSource(source,"canvasAgentConnect"),/socket\.addEventListener\("close",\(\)=>\{\s*if \(socket !== canvasAgent\.socket\) return;/);
   assert.match(source,/function canvasAgentBeginLocalConversation\(\{persistCurrent=true,submitExecution=null,preserveDraft=false\}=\{\}\)\s*\{[\s\S]*canvasAgentBeginSessionTransition\(\);/);
   assert.match(functionSource(source,"canvasAgentBeginSessionTransition"),/canvasAgent\.sessionGeneration\+\+;\s*canvasAgent\.sessionReady = false;[\s\S]*canvasAgent\.pendingHandshakeId = "";[\s\S]*canvasAgentResolveApproval\(false\);/);
-  assert.match(functionSource(source,"canvasAgentBeginSessionTransition"),/if \(canvasAgent\.connectReject\)[\s\S]*reject\(Object\.assign\(Error\("PenEcho Agent session changed\."\),\{code:"SESSION_CHANGED"\}\)\)/);
+  assert.match(functionSource(source,"canvasAgentBeginSessionTransition"),/if \(canvasAgent\.connectReject\)[\s\S]*reject\(Object\.assign\(Error\("FastLectures Agent session changed\."\),\{code:"SESSION_CHANGED"\}\)\)/);
   assert.match(functionSource(source,"canvasAgentToolExecutionCurrent"),/function canvasAgentToolExecutionCurrent\(execution=null\)/);
   assert.match(functionSource(source,"canvasAgentAssertToolExecution"),/function canvasAgentAssertToolExecution\(execution\)/);
   assert.doesNotMatch(functionSource(source,"canvasAgentToolExecutionCurrent"),/activeToolExecution/);
   assert.match(functionSource(source,"canvasAgentMutationIdle"),/function canvasAgentMutationIdle\(execution\)[\s\S]*canvasAgentAssertToolExecution\(execution\)/);
   assert.match(functionSource(source,"canvasAgentCreate"),/canvasAgentMutationIdle\(execution\)[\s\S]*await canvasAgentPrepareCreateItems[\s\S]*canvasAgentAssertToolExecution\(execution\);save\(\)/);
-  assert.match(functionSource(source,"canvasAgentPrepareCreateItems"),/widgetType === "diagram_source"\|\|pluginId === "flowchart"\|\|frameworkVersion\.startsWith\("penecho-professional-diagrams"\)[\s\S]*cannot create a new Professional Diagram/);
+  assert.match(functionSource(source,"canvasAgentPrepareCreateItems"),/widgetType === "diagram_source"\|\|pluginId === "flowchart"\|\|frameworkVersion\.startsWith\("fastlectures-professional-diagrams"\)[\s\S]*cannot create a new Professional Diagram/);
   assert.match(functionSource(mainAi,"validate"),/acceptedTools\.push\("diagram_source"\)[\s\S]*c\.tool === "diagram_source"/);
   assert.match(functionSource(source,"canvasAgentEdit"),/canvasAgentMutationIdle\(execution\)[\s\S]*await canvasAgentPrepareEditOperations[\s\S]*canvasAgentAssertToolExecution\(execution\);save\(\)/);
   const replaceWidgetSource=functionSource(source,"canvasAgentReplaceWidget");
@@ -3129,7 +3129,7 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.doesNotMatch(functionSource(source,"canvasAgentUpdateConnectionButton"),/connectionSummary|apiUrl|provider/);
   assert.match(functionSource(source,"canvasAgentOpenConnectionSettings"),/selectSettingsPage\("connections"\)[\s\S]*openSettings\(\)/);
   assert.match(source,/canvasAgentConnectionButton\?\.addEventListener\("click",canvasAgentOpenConnectionSettings\)/);
-  assert.match(functionSource(source,"canvasAgentPrepareOpenState"),/settings\.connections\.length\)canvasAgentUpdateConnectionButton\(\);[\s\S]*?if\(!settings\.connections\.length \|\| window\.PENECHO_CONFIG\?\.browserCanvasEditing\)void loadCanvasSettings\(\)/);
+  assert.match(functionSource(source,"canvasAgentPrepareOpenState"),/settings\.connections\.length\)canvasAgentUpdateConnectionButton\(\);[\s\S]*?if\(!settings\.connections\.length \|\| window\.FASTLECTURES_CONFIG\?\.browserCanvasEditing\)void loadCanvasSettings\(\)/);
   assert.match(functionSource(source,"canvasAgentFinishDockedOpen"),/canvasAgentPrepareOpenState\(\)/);
   assert.match(functionSource(source,"canvasAgentFinishFloatingOpen"),/canvasAgentPrepareOpenState\(\)/);
   assert.match(changeConnectionSource,/"change_connection"[\s\S]*webSearchEnabled:canvasAgent\.searchEnabled/);
@@ -3142,7 +3142,7 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.match(functionSource(canvasRuntime,"prepareVisibleWidgetSnapshots"),/requestWidgetSnapshot\(widget, WIDGET_SNAPSHOT_TIMEOUT_MS, true, signal, highResolution\)/);
   assert.match(peer,/if \(!envelope\.canvasSessionId \|\| envelope\.canvasSessionId !== state\.session\.id\) return/);
   assert.match(peer,/const generation = state\.sessionGeneration, session = state\.session/);
-  assert.match(peer,/sendForGeneration\(generation\)\('error', \{ message:String\(error\?\.message \|\| error \|\| 'PenEcho Agent failed\.'\), fatal:false \}, session\)/);
+  assert.match(peer,/sendForGeneration\(generation\)\('error', \{ message:String\(error\?\.message \|\| error \|\| 'FastLectures Agent failed\.'\), fatal:false \}, session\)/);
   assert.match(source,/webSearchEnabled:canvasAgent\.searchEnabled/);
   assert.match(source,/widgetCapabilities/);
   assert.match(core,/function canvasAgentWidgetCapabilities\(\)[\s\S]*builtIn === false[\s\S]*professionalEnabled:pluginEnabled\("flowchart"\)/);
@@ -3247,10 +3247,10 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   for(const dictionary of [core,zh]) for(const key of ["canvasAgentCopyBlock","canvasAgentBlockCopied","canvasAgentBlockCopyFailed","canvasAgentCopyResponse","canvasAgentResponseCopied","canvasAgentResponseCopyFailed","canvasAgentCodeBlock","canvasAgentTextBlock","canvasAgentCheckingCodex","canvasAgentSettingUpCodex","canvasAgentRepairingCodex","canvasAgentErrorBusy","canvasAgentErrorTimeout","canvasAgentErrorRateLimit","canvasAgentErrorRequestTooLarge","canvasAgentErrorAuthentication","canvasAgentErrorModelUnavailable","canvasAgentErrorConnection","canvasAgentErrorGeneric","canvasAgentErrorViewDetails","canvasAgentErrorCode","canvasAgentErrorMessage","canvasAgentImageSourceTooLarge","canvasAgentImageCompressionTooLarge","canvasAgentImagesTooLarge"]) assert.match(dictionary,new RegExp(`${key}:`));
   assert.doesNotMatch(core,/canvasAgentImageDimensionsTooLarge|16,384 px|64 megapixels/);
   assert.doesNotMatch(zh,/canvasAgentImageDimensionsTooLarge|16,384|6,400 万像素/);
-  assert.match(core,/canvasAgentImageCompressionTooLarge: "PenEcho could not resize and convert this image to a WebP below 5 MB/);
-  assert.match(zh,/canvasAgentImageCompressionTooLarge: "PenEcho 无法将这张图片缩小并转换为 5 MB 以内的 WebP/);
+  assert.match(core,/canvasAgentImageCompressionTooLarge: "FastLectures could not resize and convert this image to a WebP below 5 MB/);
+  assert.match(zh,/canvasAgentImageCompressionTooLarge: "FastLectures 无法将这张图片缩小并转换为 5 MB 以内的 WebP/);
   assert.match(source,/canvasAgentToolInspect[\s\S]*?canvasAgentToolSetView/);
-  assert.match(source,/CANVAS_AGENT_HISTORY_KEY = "penecho-canvas-agent-history-v1"/);
+  assert.match(source,/CANVAS_AGENT_HISTORY_KEY = "fastlectures-canvas-agent-history-v1"/);
   assert.match(source,/CANVAS_AGENT_HISTORY_LIMIT = 5/);
   assert.match(source,/slice\(0,CANVAS_AGENT_HISTORY_LIMIT\)/);
   assert.match(functionSource(source,"canvasAgentConversationHistory"),/CANVAS_AGENT_CONTINUATION_TEXT_LIMIT[\s\S]*?retained\.unshift\(\{role:item\.role,text\}\)/);
@@ -3270,7 +3270,7 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.match(source,/\[canvasAgentResizeTop,canvasAgentResizeBottom,canvasAgentResizeLeft,canvasAgentResizeRight\][\s\S]*?pointerdown[\s\S]*?canvasAgentBeginPanelResize[\s\S]*?keydown[\s\S]*?canvasAgentKeyboardPanelResize/);
   assert.match(functionSource(source,"canvasAgentMovePanelResize"),/\["top","left"\]\.includes\(resize\.edge\)\?-delta:delta/);
   assert.match(functionSource(source,"canvasAgentResizePanelTo"),/edge==="left"\?anchor\.right-width:anchor\.left/);
-  assert.match(source,/CANVAS_AGENT_WIDTH_KEY = "penecho-canvas-agent-width-v2"/);
+  assert.match(source,/CANVAS_AGENT_WIDTH_KEY = "fastlectures-canvas-agent-width-v2"/);
   assert.match(css,/\.canvas-agent-panel\s*\{[^}]*right: 18px;[^}]*bottom: 18px;[^}]*background: rgba\(255, 255, 255, \.97\)/s);
   assert.match(css,/\.canvas-agent-panel\s*\{[^}]*z-index: 42/);
   assert.match(css,/\.history-backdrop\s*\{[^}]*z-index: 72/);
@@ -3354,7 +3354,7 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   }
   assert.match(css,/\.canvas-agent-action-label\s*\{[^}]*width: 1px;[^}]*overflow: hidden/);
   assert.match(css,/\.canvas-agent-widget-picker-layer\s*\{[^}]*z-index: 41;[^}]*cursor: copy;[^}]*touch-action: none/);
-  assert.match(html,/class="canvas-agent-identity penecho-workbench-identity"[\s\S]*?class="canvas-agent-mark"[\s\S]*?class="canvas-agent-heading penecho-workbench-heading"[\s\S]*?id="canvasAgentStatus"/);
+  assert.match(html,/class="canvas-agent-identity fastlectures-workbench-identity"[\s\S]*?class="canvas-agent-mark"[\s\S]*?class="canvas-agent-heading fastlectures-workbench-heading"[\s\S]*?id="canvasAgentStatus"/);
   assert.match(css,/\.canvas-agent-head\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto auto auto[^}]*align-items:\s*center/);
   assert.match(css,/\.canvas-agent-identity\s*\{[^}]*top:\s*1px[^}]*align-self:\s*center[^}]*gap:\s*6px/);
   assert.match(css,/\.canvas-agent-composer \.canvas-agent-reference-list > button:hover,[\s\S]*?background: color-mix\(in srgb, var\(--studio-line, #d7dce5\) 35%, transparent\)/);
@@ -3362,7 +3362,7 @@ test("PenEcho Agent UI and browser Facade support local and Cloud runtimes and a
   assert.match(css,/@media \(max-width: 700px\)[\s\S]*?\.canvas-agent-panel\s*\{[^}]*height: 66\.6667%;[^}]*min-height: 0/s);
 });
 
-test("PenEcho Agent focus and active turns suppress Auto AI while submitted turns cancel only automatic requests",()=>{
+test("FastLectures Agent focus and active turns suppress Auto AI while submitted turns cancel only automatic requests",()=>{
   const agent=read("src/client/app/canvas-agent-runtime.js"),ai=read("src/client/app/ai-runtime.js"),core=read("src/client/app/core.js"),zh=read("public/locales/zh.js"),
     suppression=functionSource(agent,"canvasAgentSuppressesAutomaticAI"),beginRequest=functionSource(agent,"canvasAgentBeginRequest"),sendRequest=functionSource(agent,"canvasAgentSendRequest"),
     stopAutomatic=functionSource(ai,"stopActiveAutomaticAI"),requestAI=functionSource(ai,"requestAI");
@@ -3398,7 +3398,7 @@ test("PenEcho Agent focus and active turns suppress Auto AI while submitted turn
   assert.match(agent,/canvasAgentSendRequest\(canvasAgent\.running \? "steer" : "user_turn"/);
 });
 
-test("PenEcho Agent explains each Auto AI pause reason and restores the prior top status",()=>{
+test("FastLectures Agent explains each Auto AI pause reason and restores the prior top status",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),runtime=vm.runInNewContext(`(()=>{
     const CANVAS_AGENT_AUTO_AI_STATUS_KEYS=new Set(["canvasAgentAutoAIFocusPaused","canvasAgentAutoAIRequestPaused"]),
       inside={},outside={},document={activeElement:outside},canvasAgentPanel={hidden:false,contains:target=>target===inside},
@@ -3496,7 +3496,7 @@ test("only a Canvas-first post-load action auto-hides Agent once",()=>{
   assert.match(functionSource(bootstrap,"end"),/finishDrawing/);
 });
 
-test("PenEcho Agent browser compression keeps reducing or rejects instead of returning an oversized blob",async()=>{
+test("FastLectures Agent browser compression keeps reducing or rejects instead of returning an oversized blob",async()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),makeCanvas=()=>({width:0,height:0,getContext:()=>({drawImage(){}})}),
     toolError=(code,message,details)=>Object.assign(new Error(message),{code,details}),policy={quality:.72,maxBytes:700*1024};
   {
@@ -3523,15 +3523,15 @@ test("PenEcho Agent browser compression keeps reducing or rejects instead of ret
   }
 });
 
-test("PenEcho Agent validates capture delivery and browser target errors without widening ordinary canvas tools",async()=>{
+test("FastLectures Agent validates capture delivery and browser target errors without widening ordinary canvas tools",async()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),css=read("public/style.css"),
     policy={maxBytes:1200*1024,maxLongEdge:1440},valid={
-      attachment:{name:"../penecho canvas.png",mediaType:"image/png",bytes:4,width:2,height:2,dataUrl:"data:image/png;base64,AAAAAA=="}
+      attachment:{name:"../fastlectures canvas.png",mediaType:"image/png",bytes:4,width:2,height:2,dataUrl:"data:image/png;base64,AAAAAA=="}
     },
     context={atob:value=>Buffer.from(value,"base64").toString("binary"),canvasClientId:()=>"capture-client",CANVAS_AGENT_DETAIL_CAPTURE_POLICY:policy},
     normalize=vm.runInNewContext(`(() => { ${functionSource(source,"canvasAgentCaptureAttachment")} return canvasAgentCaptureAttachment; })()`,context),
     attachment=normalize(valid);
-  assert.equal(attachment.name,"penecho-canvas.png");
+  assert.equal(attachment.name,"fastlectures-canvas.png");
   assert.equal(attachment.kind,"canvas_capture");
   assert.equal(normalize({attachment:{...valid.attachment,mediaType:"image/webp"}}),null);
   assert.equal(normalize({attachment:{...valid.attachment,bytes:3}}),null);
@@ -3586,7 +3586,7 @@ test("PenEcho Agent validates capture delivery and browser target errors without
   assert.match(functionSource(source,"canvasAgentCapture"),/object\.kind!=="widget"[\s\S]*?DETAIL_TARGET_REQUIRED/);
 });
 
-test("PenEcho Agent aborts stale Widget snapshot requests before they can update capture cache",async()=>{
+test("FastLectures Agent aborts stale Widget snapshot requests before they can update capture cache",async()=>{
   const source=read("src/client/app/canvas-runtime.js"),widgetSnapshotRequests=new Map();
   let requestId="";
   const context={
@@ -3602,14 +3602,14 @@ test("PenEcho Agent aborts stale Widget snapshot requests before they can update
     },controller=new AbortController(),pending=request(widget,5_000,true,controller.signal);
   await waitFor(()=>widgetSnapshotRequests.size===1);
   assert.equal(requestId,"snapshot-request");
-  controller.abort(Error("PenEcho Agent session changed."));
+  controller.abort(Error("FastLectures Agent session changed."));
   await assert.rejects(pending,/session changed/);
   assert.equal(widgetSnapshotRequests.size,0);
   assert.equal(widget.snapshotImage,null);
   assert.equal(widget.snapshotDataUrl,"");
 });
 
-test("PenEcho Agent auto placement honors explicit center alignment",()=>{
+test("FastLectures Agent auto placement honors explicit center alignment",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),viewport={x:1000,y:2000,w:1000,h:800},
     context={
       SIZE:20000,state:{scale:1,panX:-1000,panY:-2000},viewportRect:()=>viewport,canvasAgentAllObjects:()=>[],
@@ -3628,7 +3628,7 @@ test("PenEcho Agent auto placement honors explicit center alignment",()=>{
   assert.ok(distance(next)<distance(topLeft),"later items in one batch should expand from the visible center instead of returning to the upper-left");
 });
 
-test("PenEcho Agent plans the nearest clear Widget slot outside a crowded viewport and reports focused typography",()=>{
+test("FastLectures Agent plans the nearest clear Widget slot outside a crowded viewport and reports focused typography",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),existing={x:500,y:500,w:1000,h:800},viewRect={left:0,top:0,width:1600,height:900},panelRect={left:1200,top:120,right:1580,bottom:880,width:380,height:760},viewport={x:500,y:500,w:1000,h:800},objects=[{id:"widget-existing",kind:"widget",box:{x:existing.x,y:existing.y,width:existing.w,height:existing.h}}],
     context={
       SIZE:20000,state:{scale:1,panX:-500,panY:-500},viewportRect:()=>viewport,canvasAgentAllObjects:()=>objects,
@@ -3659,11 +3659,11 @@ test("PenEcho Agent plans the nearest clear Widget slot outside a crowded viewpo
   assert.ok(proposal.suggestedCapture.region.y+proposal.suggestedCapture.region.height<=20000);
 });
 
-test("PenEcho Agent replaces Widget content in place while preserving host and history identity",async()=>{
+test("FastLectures Agent replaces Widget content in place while preserving host and history identity",async()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"),
     shell={setAttribute(name,value){shell.attributes[name]=value;},attributes:{}},
     frame={title:"Old",contentWindow:{postMessage(message){frame.messages.push(message);}},messages:[]},
-    widget={id:"widget-1",widgetType:"html_widget",pluginId:"general",x:100,y:100,w:1200,h:800,contentW:1200,contentH:800,title:"Old",refreshSeconds:0,html:"old html",source:"",diagramKind:"",sourceFormat:"penecho-visual-explorer+html",frameworkVersion:"penecho-visual-explorer/1",copyText:"",copyLabel:"",shell,frame,hostOrigin:"https://host.example",hostReady:true,initialized:true,hostStateKey:"stale",contentVersion:4,snapshotImage:{stale:true},snapshotDataUrl:"data:image/png;base64=old",snapshotVersion:4,runtimeDiagnostics:{stale:true},visualDiagnostics:{stale:true},visualDiagnosticWaiters:new Set(),renderActive:true},
+    widget={id:"widget-1",widgetType:"html_widget",pluginId:"general",x:100,y:100,w:1200,h:800,contentW:1200,contentH:800,title:"Old",refreshSeconds:0,html:"old html",source:"",diagramKind:"",sourceFormat:"fastlectures-visual-explorer+html",frameworkVersion:"fastlectures-visual-explorer/1",copyText:"",copyLabel:"",shell,frame,hostOrigin:"https://host.example",hostReady:true,initialized:true,hostStateKey:"stale",contentVersion:4,snapshotImage:{stale:true},snapshotDataUrl:"data:image/png;base64=old",snapshotVersion:4,runtimeDiagnostics:{stale:true},visualDiagnostics:{stale:true},visualDiagnosticWaiters:new Set(),renderActive:true},
     state={widgets:[widget],userRevision:7,selectedWidgetId:"widget-1",widgetHistoryBefore:null},
     events=[],historyEntries=[];
   let validationShouldFail=false;
@@ -3690,7 +3690,7 @@ test("PenEcho Agent replaces Widget content in place while preserving host and h
       requestRender:()=>events.push(["render"]),canvasAgentSyncState:()=>events.push(["sync"]),canvasClientId:()=>"change-1",
     },
     replace=await vm.runInNewContext(`(async () => { ${functionSource(source,"canvasAgentReplaceWidget").replace(/^function/,'async function')} return canvasAgentReplaceWidget; })()`,context),
-    command={tool:"html_widget",widgetType:"html_widget",pluginId:"general",title:"New",refreshSeconds:0,html:"new complete html",sourceFormat:"penecho-visual-explorer+html",frameworkVersion:"penecho-visual-explorer/1",x:100,y:100,w:1200,h:800};
+    command={tool:"html_widget",widgetType:"html_widget",pluginId:"general",title:"New",refreshSeconds:0,html:"new complete html",sourceFormat:"fastlectures-visual-explorer+html",frameworkVersion:"fastlectures-visual-explorer/1",x:100,y:100,w:1200,h:800};
   const result=await replace({objectId:"widget-1",baseRevision:7,expectedHash:"widget-hash",changeId:"change-1",command});
   assert.equal(state.widgets[0],widget,"the Widget object identity must survive replacement");
   assert.equal(widget.shell,shell);assert.equal(widget.frame,frame);
@@ -3719,7 +3719,7 @@ test("PenEcho Agent replaces Widget content in place while preserving host and h
   assert.equal(widget.html,"new complete html");assert.equal(state.userRevision,8);assert.equal(historyEntries.length,2);
 });
 
-test("PenEcho Agent separates fenced copy payloads from surrounding explanation",()=>{
+test("FastLectures Agent separates fenced copy payloads from surrounding explanation",()=>{
   const source=read("src/client/app/canvas-agent-runtime.js"), segment=eval(`(${functionSource(source,"canvasAgentFencedSegments")})`);
   assert.deepEqual(segment("Before\n```js\nconst answer = 42;\n```\nAfter"),[
     {type:"text",text:"Before"},
@@ -3745,17 +3745,17 @@ test("superseded Canvas handshake does not report a connection error",()=>{
 });
 
 test("Harness shared document writes recover source conflicts, preserve request receipts and combine pixel capture",async t=>{
-  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"penecho-document-write-test-"));
+  const stateDirectory=fs.mkdtempSync(path.join(os.tmpdir(),"fastlectures-document-write-test-"));
   t.after(()=>fs.rmSync(stateDirectory,{recursive:true,force:true}));
   const {CanvasHarnessHost}=await import("../src/server/canvas-agent/runtime.mjs"),requests=[],frames=[],browser=[];
   const connection={id:"document-write",provider:"codex-cli",cliPath:"codex-test",cliModel:"test",effort:"medium"};
   const patch={path:"/notes.md",contentHash:"hash-1",requestId:"patch-1",patch:"--- a/notes.md\n+++ b/notes.md\n@@ -1 +1 @@\n-hello\n+world\n"};
   const script=[
-    {type:"tool_call",name:"penecho_read_file",arguments:{path:"/notes.md"}},
-    {type:"tool_call",name:"penecho_patch_file",arguments:{...patch,contentHash:"stale",requestId:"stale-patch"}},
-    {type:"tool_call",name:"penecho_patch_file",arguments:patch},
-    {type:"tool_call",name:"penecho_patch_file",arguments:patch},
-    {type:"tool_call",name:"penecho_present_widget",arguments:{requestId:"chart-create",artifactId:"chart",title:"Chart",html:"<main>world</main>",capture:true}},
+    {type:"tool_call",name:"fastlectures_read_file",arguments:{path:"/notes.md"}},
+    {type:"tool_call",name:"fastlectures_patch_file",arguments:{...patch,contentHash:"stale",requestId:"stale-patch"}},
+    {type:"tool_call",name:"fastlectures_patch_file",arguments:patch},
+    {type:"tool_call",name:"fastlectures_patch_file",arguments:patch},
+    {type:"tool_call",name:"fastlectures_present_widget",arguments:{requestId:"chart-create",artifactId:"chart",title:"Chart",html:"<main>world</main>",capture:true}},
     {type:"final",text:"Patched and verified the rendered chart."},
   ];
   const host=new CanvasHarnessHost({stateDirectory,rootDirectory:ROOT,resolveConnection:()=>connection,listConnections:()=>[connection],callCli:async request=>{requests.push(request);return JSON.stringify(script.shift());}});

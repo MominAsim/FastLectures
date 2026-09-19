@@ -63,7 +63,7 @@ Prefer a compact overview, one focused mechanism, and a small evidence table. An
 4. Before enhancement, define the initial and final scene states. Run one automatic explanatory sequence, then settle permanently at the canonical final state.
 5. Provide replay and pause controls. With `prefers-reduced-motion: reduce`, skip the automatic transition and render the canonical final state immediately.
 6. Keep one canonical snapshot state: the same axes, formulas, points, labels, parameters, and final arrangement must be reproducible without replay history. Do not leave transient helper objects, pending transforms, or mid-transition values in the final capture.
-7. Call `window.penechoWidgetReady()` after the stable first/final render when that function is available.
+7. Call `window.fastlecturesWidgetReady()` after the stable first/final render when that function is available.
 
 ## Verified Manim-Web 0.3.24 pattern
 
@@ -89,7 +89,7 @@ try {
   scienceError = error;
   console.error("Scientific enhancement failed; static SVG retained", error);
 } finally {
-  window.penechoWidgetReady?.();
+  window.fastlecturesWidgetReady?.();
 }
 ```
 
@@ -100,7 +100,7 @@ Accessibility requires a descriptive SVG title, text alternatives for every non-
 The source must contain exactly one capability marker, with this exact capitalization and spelling:
 
 ```html
-<meta name="penecho-visual-skill" content="math-2d">
+<meta name="fastlectures-visual-skill" content="math-2d">
 ```
 
 Do not add another visual-skill marker. The shared Widget host activates scientific rendering only for one supported marker and rewrites only the exact pinned Manim-Web URL above to the local packaged mirror. Keep the static fallback complete if enhancement cannot load.

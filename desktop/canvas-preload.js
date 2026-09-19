@@ -2,18 +2,18 @@
 
 const { contextBridge, ipcRenderer } = require("electron");
 
-const CHANNEL = "penecho:update-state";
+const CHANNEL = "fastlectures:update-state";
 
 function invoke(channel) {
   return ipcRenderer.invoke(channel);
 }
 
 const updateApi = Object.freeze({
-  getState:() => invoke("penecho:get-update-state"),
-  check:() => invoke("penecho:update-check"),
-  download:() => invoke("penecho:update-download"),
-  dismiss:() => invoke("penecho:update-dismiss"),
-  install:() => invoke("penecho:update-install"),
+  getState:() => invoke("fastlectures:get-update-state"),
+  check:() => invoke("fastlectures:update-check"),
+  download:() => invoke("fastlectures:update-download"),
+  dismiss:() => invoke("fastlectures:update-dismiss"),
+  install:() => invoke("fastlectures:update-install"),
   onStateChange:listener => {
     if (typeof listener !== "function") return () => {};
     const handler = (_event, state) => listener(state);
@@ -22,21 +22,21 @@ const updateApi = Object.freeze({
   },
 });
 
-contextBridge.exposeInMainWorld("penechoDesktopUpdate", updateApi);
-contextBridge.exposeInMainWorld("penechoDesktop", Object.freeze({
+contextBridge.exposeInMainWorld("fastlecturesDesktopUpdate", updateApi);
+contextBridge.exposeInMainWorld("fastlecturesDesktop", Object.freeze({
   onShowConnections:listener => {
     if (typeof listener !== "function") return () => {};
     const handler = () => listener();
-    ipcRenderer.on("penecho:show-connections", handler);
-    return () => ipcRenderer.removeListener("penecho:show-connections", handler);
+    ipcRenderer.on("fastlectures:show-connections", handler);
+    return () => ipcRenderer.removeListener("fastlectures:show-connections", handler);
   },
-  installCli:provider => ipcRenderer.invoke("penecho:install-cli", provider),
-  pickProjectFile:() => ipcRenderer.invoke("penecho:pick-project-file"),
-  hasClipboardFile:() => ipcRenderer.sendSync("penecho:has-clipboard-file"),
-  readClipboardFile:() => ipcRenderer.invoke("penecho:read-clipboard-file"),
-  readClipboardFiles:() => ipcRenderer.invoke("penecho:read-clipboard-files"),
-  openProjectFile:projectId => ipcRenderer.invoke("penecho:open-project-file", projectId),
-  setPageScale:scale => ipcRenderer.invoke("penecho:set-page-scale", scale),
+  installCli:provider => ipcRenderer.invoke("fastlectures:install-cli", provider),
+  pickProjectFile:() => ipcRenderer.invoke("fastlectures:pick-project-file"),
+  hasClipboardFile:() => ipcRenderer.sendSync("fastlectures:has-clipboard-file"),
+  readClipboardFile:() => ipcRenderer.invoke("fastlectures:read-clipboard-file"),
+  readClipboardFiles:() => ipcRenderer.invoke("fastlectures:read-clipboard-files"),
+  openProjectFile:projectId => ipcRenderer.invoke("fastlectures:open-project-file", projectId),
+  setPageScale:scale => ipcRenderer.invoke("fastlectures:set-page-scale", scale),
 }));
 
 function element(tag, className, value) {
@@ -81,17 +81,17 @@ function installDesktopUpdatePrompt() {
     en:{
       dismiss:"Dismiss update notification until next launch",
       newVersion:version => `New${version} \u00b7 Upgrade`,
-      downloading:version => `Downloading PenEcho${version}...`,
+      downloading:version => `Downloading FastLectures${version}...`,
       keepWorking:"You can keep working.",
       downloaded:progressValue => `${progressValue}% downloaded`,
-      ready:version => `PenEcho${version} is ready`,
-      readyDetail:"Install the update and restart PenEcho.",
+      ready:version => `FastLectures${version} is ready`,
+      readyDetail:"Install the update and restart FastLectures.",
       install:"Install & restart",
-      installing:version => `Installing PenEcho${version}...`,
-      installingDetail:"PenEcho will restart when installation finishes.",
-      checking:"Checking for PenEcho updates...",
-      current:version => `PenEcho v${version} is up to date`,
-      failed:"PenEcho update failed",
+      installing:version => `Installing FastLectures${version}...`,
+      installingDetail:"FastLectures will restart when installation finishes.",
+      checking:"Checking for FastLectures updates...",
+      current:version => `FastLectures v${version} is up to date`,
+      failed:"FastLectures update failed",
       tryLater:"Try again later.",
       retryInstall:"Retry install",
       retry:"Retry",
@@ -99,17 +99,17 @@ function installDesktopUpdatePrompt() {
     zh:{
       dismiss:"本次启动不再提示更新",
       newVersion:version => `新版本${version} \u00b7 升级`,
-      downloading:version => `正在下载 PenEcho${version}...`,
+      downloading:version => `正在下载 FastLectures${version}...`,
       keepWorking:"下载期间可以继续使用。",
       downloaded:progressValue => `已下载 ${progressValue}%`,
-      ready:version => `PenEcho${version} 已准备好`,
-      readyDetail:"安装更新并重启 PenEcho。",
+      ready:version => `FastLectures${version} 已准备好`,
+      readyDetail:"安装更新并重启 FastLectures。",
       install:"安装并重启",
-      installing:version => `正在安装 PenEcho${version}...`,
-      installingDetail:"安装完成后 PenEcho 将重新启动。",
-      checking:"正在检查 PenEcho 更新...",
-      current:version => `PenEcho v${version} 已是最新版本`,
-      failed:"PenEcho 更新失败",
+      installing:version => `正在安装 FastLectures${version}...`,
+      installingDetail:"安装完成后 FastLectures 将重新启动。",
+      checking:"正在检查 FastLectures 更新...",
+      current:version => `FastLectures v${version} 已是最新版本`,
+      failed:"FastLectures 更新失败",
       tryLater:"请稍后重试。",
       retryInstall:"重试安装",
       retry:"重试",
@@ -117,7 +117,7 @@ function installDesktopUpdatePrompt() {
   });
 
   function detectLanguage(event) {
-    const requested = event?.detail?.language || localStorage.getItem("penecho-language") || document.documentElement.lang;
+    const requested = event?.detail?.language || localStorage.getItem("fastlectures-language") || document.documentElement.lang;
     return String(requested || "").toLowerCase().startsWith("zh") ? "zh" : "en";
   }
   function setLanguage(event) {
@@ -138,7 +138,7 @@ function installDesktopUpdatePrompt() {
     currentState = state;
     const visible = Boolean(state?.visible);
     prompt.hidden = !visible;
-    footer?.classList.toggle("penecho-desktop-update-visible", visible);
+    footer?.classList.toggle("fastlectures-desktop-update-visible", visible);
     if (!visible) return;
 
     const words = translations[language], version = state.version ? ` v${state.version}` : "";
@@ -182,7 +182,7 @@ function installDesktopUpdatePrompt() {
   }
 
   setLanguage();
-  window.addEventListener("penecho:languagechange", setLanguage);
+  window.addEventListener("fastlectures:languagechange", setLanguage);
   updateApi.onStateChange(render);
   void updateApi.getState().then(render);
 }

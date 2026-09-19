@@ -3,9 +3,9 @@
   const mcpCopy = {
     troubleshoot:["Troubleshoot","Troubleshoot"],
     troubleshootHeading:["Allow MCP inbound connections","允许 MCP 入站连接"],
-    troubleshootHelp:["If PenEcho works on the host but other computers cannot connect, send the prompt below to an Agent on the host to allow the required inbound TCP ports.","如果 PenEcho 在主机上可用，但其他电脑无法连接，请将下方提示词发给主机上的 Agent，开放所需的 TCP 入站端口。"],
-    troubleshootStepNetwork:["Keep PenEcho running on the Windows host. Both computers should be on the same trusted private network.","保持 Windows 主机上的 PenEcho 运行，确认两台电脑处于同一可信专用网络。"],
-    troubleshootStepPrompt:["Copy the prompt below and send it to an Agent on the PenEcho host.","复制下方提示词，发给运行 PenEcho 的主机上的 Agent。"],
+    troubleshootHelp:["If FastLectures works on the host but other computers cannot connect, send the prompt below to an Agent on the host to allow the required inbound TCP ports.","如果 FastLectures 在主机上可用，但其他电脑无法连接，请将下方提示词发给主机上的 Agent，开放所需的 TCP 入站端口。"],
+    troubleshootStepNetwork:["Keep FastLectures running on the Windows host. Both computers should be on the same trusted private network.","保持 Windows 主机上的 FastLectures 运行，确认两台电脑处于同一可信专用网络。"],
+    troubleshootStepPrompt:["Copy the prompt below and send it to an Agent on the FastLectures host.","复制下方提示词，发给运行 FastLectures 的主机上的 Agent。"],
     troubleshootStepRetry:["Reconnect from your AI client after the inbound ports are open.","开放入站端口后，从 AI 客户端重新连接。"],
     copyTroubleshootPrompt:["Copy troubleshooting prompt","复制排查提示词"],
     listenerAddresses:["Current MCP listening addresses: {addresses}","当前 MCP 监听地址：{addresses}"],
@@ -67,24 +67,24 @@
     session:["Start your Spatial Workspace","开始使用 Spatial Workspace"],
     sessionHint:["Copy the prompt, close Settings, and check that the MCP indicator on the right of the toolbar is green. Send it to your external Agent to start.","复制提示词后关闭设置，确认工具栏右侧的 MCP 亮绿灯，再发给外部 Agent 即可开始。"],
     starterTitle:["Start with your current task","从当前任务开始"],
-    starterPrompt:["Use PenEcho as our spatial workspace for this task. Show the work with useful diagrams or an interactive view, and revise it from my feedback.","把当前任务放到 PenEcho 空间工作区，用合适的图示或交互界面展示，并根据我的反馈继续修改。"],
+    starterPrompt:["Use FastLectures as our spatial workspace for this task. Show the work with useful diagrams or an interactive view, and revise it from my feedback.","把当前任务放到 FastLectures 空间工作区，用合适的图示或交互界面展示，并根据我的反馈继续修改。"],
     morePrompts:["More examples","更多示例"],
     copyPrompt:["Copy prompt","复制提示词"],exampleCopied:["Prompt copied","提示词已复制"],
     exampleDesignTitle:["Three design options","三个设计方案"],
-    exampleDesignPrompt:["Echo this UI idea in PenEcho with three design options, then let me choose.", "帮我 echo 一下这个界面想法，在 PenEcho 上展示三个方案，让我选择。"],
+    exampleDesignPrompt:["Echo this UI idea in FastLectures with three design options, then let me choose.", "帮我 echo 一下这个界面想法，在 FastLectures 上展示三个方案，让我选择。"],
     exampleArchTitle:["Compare architectures","新旧架构对比"],
     exampleArchPrompt:["Compare the old and new architecture as a diagram on canvas.", "把新旧架构的对比放到 canvas 上，用图形展示差异。"],
     exampleWidgetTitle:["Handwriting to Widget","手写内容转 Widget"],
     exampleWidgetPrompt:["Turn the handwriting on this canvas into an interactive Widget.", "把当前画布上的手写内容整理成一个可交互的 Widget。"],
     exampleFolderTitle:["Show a folder","展示文件夹内容"],
-    exampleFolderPrompt:["PenEcho the current folder’s architecture as a diagram.", "帮我 penecho 一下当前文件夹的架构。"],
+    exampleFolderPrompt:["FastLectures the current folder’s architecture as a diagram.", "帮我 fastlectures 一下当前文件夹的架构。"],
     exampleCodeTitle:["Echo code changes","改代码并回显重点"],
     exampleCodePrompt:["Put your proposed code changes on canvas for review, then echo the implemented changes.", "把你要做的代码修改放到 canvas 上供我确认，完成后 echo 一下重点改动。"],
     exampleFeedbackTitle:["Revise from feedback","根据界面反馈修改"],
-    exampleFeedbackPrompt:["Read my latest feedback and annotations on the current PenEcho canvas, then revise the existing UI in place.","读取我在当前 PenEcho 画布上的最新反馈和批注，根据这些反馈修改现有界面。"],
+    exampleFeedbackPrompt:["Read my latest feedback and annotations on the current FastLectures canvas, then revise the existing UI in place.","读取我在当前 FastLectures 画布上的最新反馈和批注，根据这些反馈修改现有界面。"],
     setupPromptLabel:["Setup prompt","配置提示词"],
-    manualSteps:["Open a conversation in the AI app you want to connect. Copy the prompt below, paste it into that conversation and send it. Keep PenEcho running with MCP enabled; another computer must be on the same network.","在需要连接的 AI 应用中打开对话。复制下面的提示词，粘贴到对话中并发送。保持 PenEcho 运行并开启 MCP；另一台电脑需在同一局域网。"],
-    remoteManualSteps:["On the computer running PenEcho, open Settings → MCP service. Select Codex CLI or Claude Code CLI and choose Auto configure; for another Agent, copy the setup prompt below and send it to that Agent. Reload the client, then return here and open your workspace.","在运行 PenEcho 的电脑上打开 Settings → MCP 服务。选择 Codex CLI 或 Claude Code CLI 并点击自动配置；其他 Agent 使用下方的复制配置指引。重载客户端后，回到此页面开放工作区。"],
+    manualSteps:["Open a conversation in the AI app you want to connect. Copy the prompt below, paste it into that conversation and send it. Keep FastLectures running with MCP enabled; another computer must be on the same network.","在需要连接的 AI 应用中打开对话。复制下面的提示词，粘贴到对话中并发送。保持 FastLectures 运行并开启 MCP；另一台电脑需在同一局域网。"],
+    remoteManualSteps:["On the computer running FastLectures, open Settings → MCP service. Select Codex CLI or Claude Code CLI and choose Auto configure; for another Agent, copy the setup prompt below and send it to that Agent. Reload the client, then return here and open your workspace.","在运行 FastLectures 的电脑上打开 Settings → MCP 服务。选择 Codex CLI 或 Claude Code CLI 并点击自动配置；其他 Agent 使用下方的复制配置指引。重载客户端后，回到此页面开放工作区。"],
     capDrawTitle:["Draw & annotate","绘图与批注"],capDrawHint:["Diagrams, notes and sketches","关系图、笔记与草图"],
     capPlotTitle:["Plots & Widgets","函数图与 Widget"],capPlotHint:["Curves and interactive UI","曲线与交互界面"],
     capCaptureTitle:["Capture on request","按需截图"],capCaptureHint:["Screenshots only when asked","仅在你要求时截图"],
@@ -100,33 +100,33 @@
     configuring:["Configuring…","正在配置…"],
     configurePending:["Saving the MCP configuration. This may take up to 20 seconds.","正在保存 MCP 配置，可能需要约 20 秒。"],
     configureUpdated:["Configuration updated","配置已更新"],
-    configureUpdatedHelp:["Updated to this PenEcho program. Reload your AI client to use it.","已更新为当前 PenEcho 程序的配置。重载 AI 客户端后生效。"],
+    configureUpdatedHelp:["Updated to this FastLectures program. Reload your AI client to use it.","已更新为当前 FastLectures 程序的配置。重载 AI 客户端后生效。"],
     configureTrust:["Configuration saved · certificate setup required","配置已保存 · 需要完成证书设置"],
     configureTrustHelp:["Copy the setup prompt below to your Agent to trust this certificate, reload MCP and verify the connection.","将下方配置指引发给 Agent，完成证书信任、重载 MCP 并验证连接。"],
     configureSaved:["Configuration saved","配置已保存"],
     configureExisting:["Existing configuration found · not verified","已发现已有配置 · 尚未验证"],
-    configureExistingHelp:["No changes were made. Reload this AI client and check for PenEcho tools. If they are unavailable, compare its existing entry with Manual configuration below.","本次未修改配置。请重新加载此 AI 客户端，检查是否出现 PenEcho 工具；若未出现，请对照下方“手动配置”检查已有条目。"],
+    configureExistingHelp:["No changes were made. Reload this AI client and check for FastLectures tools. If they are unavailable, compare its existing entry with Manual configuration below.","本次未修改配置。请重新加载此 AI 客户端，检查是否出现 FastLectures 工具；若未出现，请对照下方“手动配置”检查已有条目。"],
     configureFailed:["Automatic configuration failed","自动配置失败"],
     configureFailedHelp:["Retry, or copy the setup prompt below and send it to your Agent.","请重试，或复制下方的配置指引，发给你的 Agent。"],
     configureUncertain:["Configuration result not confirmed","配置结果尚未确认"],
-    configureUncertainHelp:["The request did not finish. Check the AI client's PenEcho entry before retrying; it may already have been saved.","请求未完成。重试前请检查 AI 客户端中的 PenEcho 条目，配置可能已经保存。"],
+    configureUncertainHelp:["The request did not finish. Check the AI client's FastLectures entry before retrying; it may already have been saved.","请求未完成。重试前请检查 AI 客户端中的 FastLectures 条目，配置可能已经保存。"],
     loadFailed:["Could not load configuration. Select Check again.","未能加载配置。请点击“重新检查”。"],
-    serviceOutdated:["This running PenEcho service has no usable MCP configuration. Restart PenEcho to load the updated service, then check again.","当前运行的 PenEcho 服务未提供有效的 MCP 配置。请重启 PenEcho 以加载更新后的服务，然后重新检查。"],
-    hostRequired:["Configure MCP on the computer running PenEcho. Other devices can view the canvas but cannot configure its local AI clients.","请在运行 PenEcho 的电脑上配置 MCP。其他设备可以查看画布，但不能配置这台电脑的 AI 客户端。"],
-    remoteSetup:["Auto configure is available on the computer running PenEcho. To connect an Agent on this computer, use the setup prompt below.","自动配置需要在运行 PenEcho 的电脑上使用。连接此电脑上的 Agent，请使用下方配置提示词。"],
-    deviceRequired:["MCP needs a linked device. Go to Linked Devices to connect a computer running PenEcho.","MCP 需要关联设备。请前往「连接设备」，连接运行 PenEcho 的电脑。"],
+    serviceOutdated:["This running FastLectures service has no usable MCP configuration. Restart FastLectures to load the updated service, then check again.","当前运行的 FastLectures 服务未提供有效的 MCP 配置。请重启 FastLectures 以加载更新后的服务，然后重新检查。"],
+    hostRequired:["Configure MCP on the computer running FastLectures. Other devices can view the canvas but cannot configure its local AI clients.","请在运行 FastLectures 的电脑上配置 MCP。其他设备可以查看画布，但不能配置这台电脑的 AI 客户端。"],
+    remoteSetup:["Auto configure is available on the computer running FastLectures. To connect an Agent on this computer, use the setup prompt below.","自动配置需要在运行 FastLectures 的电脑上使用。连接此电脑上的 Agent，请使用下方配置提示词。"],
+    deviceRequired:["MCP needs a linked device. Go to Linked Devices to connect a computer running FastLectures.","MCP 需要关联设备。请前往「连接设备」，连接运行 FastLectures 的电脑。"],
     deviceOffline:["Linked Device is unavailable. Open Linked Devices to reconnect, then retry MCP.","Linked Device 不可用。请前往「连接设备」恢复连接后重试 MCP。"],
-    deviceUpdate:["Update PenEcho on the linked computer to enable MCP, then retry.","请更新已连接电脑上的 PenEcho，再重试 MCP。"],
-    accessDenied:["MCP access was refused. On the PenEcho computer, try its localhost address, or refresh and unlock this page before checking again.","MCP 访问被拒绝。请在 PenEcho 所在电脑尝试 localhost 地址，或刷新并解锁页面后重新检查。"],
+    deviceUpdate:["Update FastLectures on the linked computer to enable MCP, then retry.","请更新已连接电脑上的 FastLectures，再重试 MCP。"],
+    accessDenied:["MCP access was refused. On the FastLectures computer, try its localhost address, or refresh and unlock this page before checking again.","MCP 访问被拒绝。请在 FastLectures 所在电脑尝试 localhost 地址，或刷新并解锁页面后重新检查。"],
     focus:["Show","定位"],working:["Working","进行中"],waiting:["Waiting","等待中"],done:["Done","已完成"],error:["Needs attention","需要处理"],
   };
   function mcpText(key) { return mcpCopy[key]?.[state.language === "zh" ? 1 : 0] || key; }
   function mcpEl(id) { return document.getElementById(id); }
   const mcpClientInputs = [...document.querySelectorAll('input[name="mcpClient"]')];
   function mcpSelectedClient() { return mcpClientInputs.find(input=>input.checked)?.value || "codex"; }
-  function mcpLocal() { return window.PENECHO_CONFIG?.runtime !== "viewer"; }
-  function mcpCanCopySetup() { return window.PENECHO_CONFIG?.runtime !== "cloud" && !!mcpLanInstructions() && (mcpRemoteBrowser() ? mcpRuntime.status?.canCopyLanSetup === true : !!mcpRuntime.status?.config); }
-  function mcpRemoteBrowser() { return window.PENECHO_CONFIG?.runtime === "cloud" || mcpRuntime.status?.canConfigureLocalClients === false; }
+  function mcpLocal() { return window.FASTLECTURES_CONFIG?.runtime !== "viewer"; }
+  function mcpCanCopySetup() { return window.FASTLECTURES_CONFIG?.runtime !== "cloud" && !!mcpLanInstructions() && (mcpRemoteBrowser() ? mcpRuntime.status?.canCopyLanSetup === true : !!mcpRuntime.status?.config); }
+  function mcpRemoteBrowser() { return window.FASTLECTURES_CONFIG?.runtime === "cloud" || mcpRuntime.status?.canConfigureLocalClients === false; }
   function mcpExecutionCurrent(execution) {
     return execution.socket === mcpRuntime.socket && execution.socket?.readyState === WebSocket.OPEN
       && execution.generation === mcpRuntime.generation && !execution.controller.signal.aborted
@@ -172,7 +172,7 @@
   }
   function mcpAccessLabel() {
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,
-      availability=mcpRuntime.socket?.availability||{cloud:connected&&window.PENECHO_CONFIG?.runtime==="cloud",local:connected&&window.PENECHO_CONFIG?.runtime!=="cloud"};
+      availability=mcpRuntime.socket?.availability||{cloud:connected&&window.FASTLECTURES_CONFIG?.runtime==="cloud",local:connected&&window.FASTLECTURES_CONFIG?.runtime!=="cloud"};
     return mcpText(availability.cloud&&availability.local?"canvasCloudLocal":availability.cloud?"canvasCloud":availability.local?"canvasLocal":"canvasConnecting");
   }
   function mcpRenderCanvasStatus() {
@@ -192,7 +192,7 @@
     if(connected)label=mcpRuntime.activeMutation&&mutationVisible?`${mcpRuntime.activeMutation} ${mcpText("canvasApplying")}`:sessions.length?`MCP · ${clients.slice(0,2).join(" / ")}${clients.length>2?" +":""} · ${sessions.length} ${mcpText(sessions.length===1?"canvasSession":"canvasSessions")}`:accessLabel;
     if(button){if(button.textContent!==label)button.textContent=label;button.title=connected?`${accessLabel}. ${mcpText("canvasNoticeHelp")}`:mcpText("canvasNoticeHelp");}
   }
-  // PenEcho owns deterministic placement and camera batching; MCP clients provide only content.
+  // FastLectures owns deterministic placement and camera batching; MCP clients provide only content.
   function mcpSessionTransportActive(session) {
     return Boolean(session&&!session.closed&&(session.internalAgent||mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN));
   }
@@ -419,8 +419,8 @@
     document.querySelectorAll("[data-mcp-label]").forEach(node=>{const key=node.dataset.mcpLabel,text=mcpText(key);
       node.textContent=text;
       if(/^example.*Prompt$/.test(key)){
-        node.replaceChildren(...text.split(/(penecho|echo|canvas|画布)/gi).filter(Boolean).map(part=>{
-          if(!/^(penecho|echo|canvas|画布)$/i.test(part))return document.createTextNode(part);
+        node.replaceChildren(...text.split(/(fastlectures|echo|canvas|画布)/gi).filter(Boolean).map(part=>{
+          if(!/^(fastlectures|echo|canvas|画布)$/i.test(part))return document.createTextNode(part);
           const strong=document.createElement("b");strong.textContent=part;return strong;
         }));
       }});
@@ -535,7 +535,7 @@
     return success;
   }
   async function mcpLanRefresh() {
-    if(window.PENECHO_CONFIG?.runtime === "cloud")return;
+    if(window.FASTLECTURES_CONFIG?.runtime === "cloud")return;
     if(mcpRuntime.loading)await mcpRuntime.loading;
     await mcpRefreshSettings();
   }
@@ -550,11 +550,11 @@
   }
   function mcpRememberSetup() {
     mcpRuntime.setupKnown=true;
-    try{localStorage.setItem("penecho-mcp-setup-completed","true");}catch{}
+    try{localStorage.setItem("fastlectures-mcp-setup-completed","true");}catch{}
   }
   function mcpSetupKnown() {
     if(mcpRuntime.setupKnown)return true;
-    try{return localStorage.getItem("penecho-mcp-setup-completed")==="true";}catch{return false;}
+    try{return localStorage.getItem("fastlectures-mcp-setup-completed")==="true";}catch{return false;}
   }
   async function mcpToolbarClick() {
     if(mcpRuntime.toolbarChecking)return;
@@ -563,7 +563,7 @@
       mcpRuntime.toolbarManaged=false;mcpRuntime.toolbarPending=false;mcpDisconnect();setStatus(mcpText("disconnected"));return;
     }
     if(!mcpLocal()){openSettings();selectSettingsPage("mcp");return;}
-    if(window.PENECHO_CONFIG?.runtime==="cloud"){
+    if(window.FASTLECTURES_CONFIG?.runtime==="cloud"){
       mcpRuntime.toolbarChecking=true;setStatus(mcpText("checkingSetup"));mcpRenderToolbar();
       try{
         await mcpRefreshSettings();
@@ -589,8 +589,8 @@
     if(mcpRuntime.reconnectAt)mcpRuntime.reconnectStatusTimer=setTimeout(mcpRenderReconnectStatus,1000);
   }
   function mcpRenderToolbar() {
-    window.PenEchoMcpSettings?.setConnection({enabled:Boolean(mcpRuntime.wanted),connected:Boolean(mcpRuntime.ready),label:mcpAccessLabel()});
-    window.PenEchoStudioNavigator?.syncMcp?.(Boolean(mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN),{reveal:!mcpRuntime.reconnecting});
+    window.FastLecturesMcpSettings?.setConnection({enabled:Boolean(mcpRuntime.wanted),connected:Boolean(mcpRuntime.ready),label:mcpAccessLabel()});
+    window.FastLecturesStudioNavigator?.syncMcp?.(Boolean(mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN),{reveal:!mcpRuntime.reconnecting});
     mcpRenderReconnectStatus();
     const button=mcpEl("mcpToolbarToggle");if(!button)return;
     const connected=mcpRuntime.ready&&mcpRuntime.socket?.readyState===WebSocket.OPEN,opening=Boolean(mcpRuntime.socket)&&!connected;
@@ -605,7 +605,7 @@
   function mcpShowConfigurationError(error) {
     const text=mcpConfigurationErrorText(error);
     setStatus(text);
-    if(window.PENECHO_CONFIG?.runtime!=="cloud"||!["linked_device_required","device_offline","device_timeout"].includes(error.code))return;
+    if(window.FASTLECTURES_CONFIG?.runtime!=="cloud"||!["linked_device_required","device_offline","device_timeout"].includes(error.code))return;
     const notice=mcpEl("status");if(!notice)return;
     const link=document.createElement("a");
     link.href="/dashboard.html#devices";
@@ -643,47 +643,47 @@
   }
   function mcpInstructions() {
     const direct=mcpLanInstructions();
-    if(direct?.transport==="stdio-http")return `Configure PenEcho MCP on THIS Agent's computer using one lightweight stdio CLI per client-owned MCP session. The CLI connects directly to PenEcho HTTPS; no shared Gateway or background discovery daemon.
+    if(direct?.transport==="stdio-http")return `Configure FastLectures MCP on THIS Agent's computer using one lightweight stdio CLI per client-owned MCP session. The CLI connects directly to FastLectures HTTPS; no shared Gateway or background discovery daemon.
 
 ${JSON.stringify(direct,null,2)}
 
-Use this computer's user home and this REQUIRED installation directory: ~/.penecho/mcp on macOS/Linux, %USERPROFILE%\\.penecho\\mcp on Windows. Download discoveryCliUrl to discover.js and sessionCliUrl to client.js in that directory. Do not choose any other directory or filename. Both the MCP command configuration and upload commands MUST use this exact downloaded client.js. The upload script is this same client.js: ~/.penecho/mcp/client.js on macOS/Linux, %USERPROFILE%\\.penecho\\mcp\\client.js on Windows. It is not stored in the Agent skill directory or PenEcho application directory. Retain its resolved absolute path and the local Node executable for subsequent uploads. hostId identifies the PenEcho server, NOT a Canvas instance, document or session. For every upload copy the hostId supplied above, which is also the value after --host-id in the MCP entry. client.js resolves addresses and ports automatically; do not guess IDs, inspect its source or parse port mappings. Verify each SHA-256 against its supplied hash BEFORE execution. Use a locally installed Node.js 18+ and absolute executable/script paths. Never use another computer's paths. Save {hostId,certificatePem,accessToken,initialUrl,addresses} in a private temporary JSON file, run node <absolute discover.js> --import <temporary file> WITHOUT --client, then delete only that temporary file. Discovery only saves verified host credentials and addresses; it does not need the Agent's name and must not rewrite Agent configuration during normal reconnects.
+Use this computer's user home and this REQUIRED installation directory: ~/.fastlectures/mcp on macOS/Linux, %USERPROFILE%\\.fastlectures\\mcp on Windows. Download discoveryCliUrl to discover.js and sessionCliUrl to client.js in that directory. Do not choose any other directory or filename. Both the MCP command configuration and upload commands MUST use this exact downloaded client.js. The upload script is this same client.js: ~/.fastlectures/mcp/client.js on macOS/Linux, %USERPROFILE%\\.fastlectures\\mcp\\client.js on Windows. It is not stored in the Agent skill directory or FastLectures application directory. Retain its resolved absolute path and the local Node executable for subsequent uploads. hostId identifies the FastLectures server, NOT a Canvas instance, document or session. For every upload copy the hostId supplied above, which is also the value after --host-id in the MCP entry. client.js resolves addresses and ports automatically; do not guess IDs, inspect its source or parse port mappings. Verify each SHA-256 against its supplied hash BEFORE execution. Use a locally installed Node.js 18+ and absolute executable/script paths. Never use another computer's paths. Save {hostId,certificatePem,accessToken,initialUrl,addresses} in a private temporary JSON file, run node <absolute discover.js> --import <temporary file> WITHOUT --client, then delete only that temporary file. Discovery only saves verified host credentials and addresses; it does not need the Agent's name and must not rewrite Agent configuration during normal reconnects.
 
-Configure this Agent's supported stdio MCP entry named penecho with command=<absolute local Node executable> and args=[<absolute client.js>,"--host-id",hostId]. Preserve unrelated settings and replace only the previous PenEcho entry; remove old HTTP url/header fields and any old idle-exit option from that entry. Do not add an idle process-exit timer. For Codex use its MCP command/args format; for Claude use its stdio command/args format; use the actual supported format for other clients. Authorization and certificate trust stay in the shared ~/.penecho/mcp store, read by client.js. Do not place accessToken on the command line, print credentials, disable TLS verification, or configure discover.js as the stdio server.
+Configure this Agent's supported stdio MCP entry named fastlectures with command=<absolute local Node executable> and args=[<absolute client.js>,"--host-id",hostId]. Preserve unrelated settings and replace only the previous FastLectures entry; remove old HTTP url/header fields and any old idle-exit option from that entry. Do not add an idle process-exit timer. For Codex use its MCP command/args format; for Claude use its stdio command/args format; use the actual supported format for other clients. Authorization and certificate trust stay in the shared ~/.fastlectures/mcp store, read by client.js. Do not place accessToken on the command line, print credentials, disable TLS verification, or configure discover.js as the stdio server.
 
 Connection order is the last successful IP + port (or the supplied initialUrl on first connection), freshly read shared endpoint cache, then one-shot LAN discovery. Missing, stale or unreachable cache all trigger discovery. Authenticate every candidate and save the verified new address. The same complete sequence runs if reconnecting after idle release fails; another process may already have updated the cache. No hostname lookup is required on this path and address changes never rewrite AI configuration.
 
 The AI client owns the CLI stdin/stdout. Keep the lightweight CLI alive while stdin is open; idle for 30 minutes releases only HTTP, and the next request reconnects and restores the same Canvas. In-flight work prevents idle release. EOF or shutdown signals close the process. Do not add an idle-exit argument, gateway, OS startup job, periodic discovery or reconnect loop while idle. Retry safe connection failures within a bounded request; do not blindly replay a write whose outcome is unknown.
 
-Reload this Agent's MCP integration and verify initialize, tools/list, and penecho_list_canvases. Keep one unique stable client/sessionKey per logical conversation plus returned sessionId/documentId. HTTP recovery in the living CLI restores its original document; after CLI restart call penecho_start_session with the same client/sessionKey/documentId. Never use a new conversation's key or silently switch an existing conversation to another browser. A closed Canvas can reopen; only definitive DOCUMENT_NOT_FOUND permits replacement. Report the actually verified connection result.
+Reload this Agent's MCP integration and verify initialize, tools/list, and fastlectures_list_canvases. Keep one unique stable client/sessionKey per logical conversation plus returned sessionId/documentId. HTTP recovery in the living CLI restores its original document; after CLI restart call fastlectures_start_session with the same client/sessionKey/documentId. Never use a new conversation's key or silently switch an existing conversation to another browser. A closed Canvas can reopen; only definitive DOCUMENT_NOT_FOUND permits replacement. Report the actually verified connection result.
 
-Image files on THIS Agent's computer: run the downloaded client.js as a separate one-shot command using the same local Node executable and host ID: node "<absolute client.js>" --host-id HOST_ID --upload-image "<absolute image path>" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Obtain canvasId and documentId from penecho_start_session with target:current; keep that exact document open and current. Reuse the configured environment and --state-directory if present. Quote paths on Windows/macOS/Linux. The CLI sends original bytes to /mcp/images on the SAME HTTPS port and with the same authentication as /mcp; image processing runs on PenEcho, with no client-side converter or Base64 needed. Maximum original file size: 32 MiB. Supported raw files: PNG, WebP, JPG/JPEG, GIF, TIFF, AVIF; HEIC/HEIF depends on server codecs. Prefer WebP generally, PNG for lossless diagrams/transparency, JPEG for photos. Copy the returned source verbatim into Widget img src or CSS url(), or pass it to penecho_place_image with the sessionId and a new requestId. Never pass a local filesystem path as MCP source. Chat attachment Data URLs can use penecho_upload_image directly. Retry uncertain uploads with the identical target, file and requestId. Verify client.js --help includes --upload-image; if absent, download and verify the current client again.
+Image files on THIS Agent's computer: run the downloaded client.js as a separate one-shot command using the same local Node executable and host ID: node "<absolute client.js>" --host-id HOST_ID --upload-image "<absolute image path>" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Obtain canvasId and documentId from fastlectures_start_session with target:current; keep that exact document open and current. Reuse the configured environment and --state-directory if present. Quote paths on Windows/macOS/Linux. The CLI sends original bytes to /mcp/images on the SAME HTTPS port and with the same authentication as /mcp; image processing runs on FastLectures, with no client-side converter or Base64 needed. Maximum original file size: 32 MiB. Supported raw files: PNG, WebP, JPG/JPEG, GIF, TIFF, AVIF; HEIC/HEIF depends on server codecs. Prefer WebP generally, PNG for lossless diagrams/transparency, JPEG for photos. Copy the returned source verbatim into Widget img src or CSS url(), or pass it to fastlectures_place_image with the sessionId and a new requestId. Never pass a local filesystem path as MCP source. Chat attachment Data URLs can use fastlectures_upload_image directly. Retry uncertain uploads with the identical target, file and requestId. Verify client.js --help includes --upload-image; if absent, download and verify the current client again.
 
-Optional helper skill: if this Agent supports local skills, create or update penecho-mcp using its supported skill location and format. Use this one-shot SKILL.md content (adapt the format if needed): When saving the skill, replace NODE_PATH, CLIENT_JS_PATH and HOST_ID below with the actual absolute local Node executable, fixed installation path expanded to an absolute client.js path and supplied hostId. These are connection identifiers, not credentials; never embed accessToken.
+Optional helper skill: if this Agent supports local skills, create or update fastlectures-mcp using its supported skill location and format. Use this one-shot SKILL.md content (adapt the format if needed): When saving the skill, replace NODE_PATH, CLIENT_JS_PATH and HOST_ID below with the actual absolute local Node executable, fixed installation path expanded to an absolute client.js path and supplied hostId. These are connection identifiers, not credentials; never embed accessToken.
 
 ---
-name: penecho-mcp
-description: Create, read, or edit PenEcho canvases, including following the user's drawings and notes.
+name: fastlectures-mcp
+description: Create, read, or edit FastLectures canvases, including following the user's drawings and notes.
 ---
 
 Use connected tools; search only missing deferred tools. Bind once with start_session; retain sessionId/documentId and stable client/sessionKey. Use target:current for the user's current Canvas.
 
-Upload files with the installed bridge: "NODE_PATH" "CLIENT_JS_PATH" --host-id HOST_ID --upload-image "ABSOLUTE_IMAGE_PATH" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Required client.js location: ~/.penecho/mcp/client.js (macOS/Linux), %USERPROFILE%\\.penecho\\mcp\\client.js (Windows), not the skill or application directory. HOST_ID is the setup server hostId, never a canvasId/documentId/sessionId. Copy it from the MCP entry if needed. client.js resolves the address/port automatically; do not inspect source or port mappings. Get canvasId/documentId from start_session target:current; reuse returned source. Read upload_image source parameters for upload details.
+Upload files with the installed bridge: "NODE_PATH" "CLIENT_JS_PATH" --host-id HOST_ID --upload-image "ABSOLUTE_IMAGE_PATH" --canvas-id CANVAS_ID --document-id DOCUMENT_ID --request-id UNIQUE_ID. Required client.js location: ~/.fastlectures/mcp/client.js (macOS/Linux), %USERPROFILE%\\.fastlectures\\mcp\\client.js (Windows), not the skill or application directory. HOST_ID is the setup server hostId, never a canvasId/documentId/sessionId. Copy it from the MCP entry if needed. client.js resolves the address/port automatically; do not inspect source or port mappings. Get canvasId/documentId from start_session target:current; reuse returned source. Read upload_image source parameters for upload details.
 
 Follow live schemas; get_guidance only for the needed topic. Keep artifact IDs. Read source/contentHash before patching. Retry uncertain writes with identical arguments/requestId. Capture when visual evidence is needed; combine final mutation and completion. Inbox reads do not acknowledge.
 
 If skill creation is unavailable or fails, simply skip it and continue MCP setup; no extra user action is needed.`;
-    if(direct?.transport==="http")return `Configure PenEcho using native Streamable HTTP MCP on THIS Agent's computer. Preserve unrelated client configuration. No Gateway, background daemon, or stdio bridge is needed.
+    if(direct?.transport==="http")return `Configure FastLectures using native Streamable HTTP MCP on THIS Agent's computer. Preserve unrelated client configuration. No Gateway, background daemon, or stdio bridge is needed.
 
 ${JSON.stringify(direct,null,2)}
 
-Use Node.js 18+ for the short-lived discovery helper. Download discoveryCliUrl to ~/.penecho/mcp/discover.js (use this computer's home directory on Windows too). Verify its SHA-256 equals discoveryCliSha256 BEFORE executing. Save {hostId,certificatePem,accessToken,addresses} to a private temporary JSON file, import with node <absolute discover.js> --import <file> --client <codex|claude>, then delete only that temporary file. The helper stores shared credentials, trusted CA and endpoint cache under ~/.penecho/mcp. For another client, use --client json and its documented native HTTP MCP format, preserving other entries. Never configure the helper itself as a stdio MCP server. Never print accessToken or disable TLS verification. A certificate is trust; the bearer token authorizes access.
+Use Node.js 18+ for the short-lived discovery helper. Download discoveryCliUrl to ~/.fastlectures/mcp/discover.js (use this computer's home directory on Windows too). Verify its SHA-256 equals discoveryCliSha256 BEFORE executing. Save {hostId,certificatePem,accessToken,addresses} to a private temporary JSON file, import with node <absolute discover.js> --import <file> --client <codex|claude>, then delete only that temporary file. The helper stores shared credentials, trusted CA and endpoint cache under ~/.fastlectures/mcp. For another client, use --client json and its documented native HTTP MCP format, preserving other entries. Never configure the helper itself as a stdio MCP server. Never print accessToken or disable TLS verification. A certificate is trust; the bearer token authorizes access.
 
-Finish certificate trust using this client's supported CA configuration. Codex supports CODEX_CA_CERTIFICATE and Claude Code supports NODE_EXTRA_CA_CERTS; these are environment variables of the actual client process, not per-server HTTP environment fields. Configure persistent trust for the actual launch method or use an already trusted OS certificate store supported by that client. A saved MCP entry alone does not prove the running client trusts this CA. Reload the MCP client and verify initialize, tools/list and penecho_list_canvases.
+Finish certificate trust using this client's supported CA configuration. Codex supports CODEX_CA_CERTIFICATE and Claude Code supports NODE_EXTRA_CA_CERTS; these are environment variables of the actual client process, not per-server HTTP environment fields. Configure persistent trust for the actual launch method or use an already trusted OS certificate store supported by that client. A saved MCP entry alone does not prove the running client trusts this CA. Reload the MCP client and verify initialize, tools/list and fastlectures_list_canvases.
 
 When the cached endpoint fails, run node <absolute discover.js> --host-id ${direct.hostId} --client <client> again: it probes the cache, rediscovers the trusted host only when needed, updates the matching configuration, and exits. Do not poll or keep a remote-client process alive. Use the client's supported MCP refresh/reconnect after an endpoint change; MCP does not universally execute discovery commands or hot-reload changed URLs. Report the actual verified result.
 
-Install a small PenEcho bootstrap skill in this Agent's supported local skill format if available: trigger on PenEcho, echo, canvas or spatial-workspace requests, including requests to follow Canvas drawings or handwriting; When the user refers to Canvas drawings, handwriting, circles, arrows or annotations (e.g. “请按照我画的内容来执行”, “请按照我写的来进行操作”, “follow what I drew/wrote”), decide whether the requested action depends on visual information missing from the available context. These phrases are routing cues, not mandatory screenshot triggers. Reuse already understood drawings, supplied images or readable feedback captures when sufficient; do not re-view or recapture unchanged content on every turn or edit. Ordinary source edits and fully specified text instructions need no image. If execution depends on unseen, changed or unclear ink or spatial relationships, inspect the relevant image; source/JSON alone cannot establish those visual details. Only when existing image evidence is insufficient, call penecho_capture_canvas with quality:"basic" and the relevant selection, region, object or viewport target; use target:"canvas" for whole-Canvas context. Request detail only if needed to read the marks. Use the intended document/session; never silently switch documents. If capture fails or handwriting is ambiguous, resolve that specific gap before dependent edits. Read source as needed for implementation. Discover PenEcho tools and read penecho://guidance/skill; on connection failure run the saved discovery command above and refresh the MCP connection using this client's supported mechanism. Preserve a unique stable sessionKey for this logical conversation, its client name and returned documentId. New conversations use different keys. Call penecho_start_session with the same key and documentId after reconnect; PenEcho restores the original Canvas even when it was closed, and creates a replacement only if the document is definitively missing. New conversations without a target use the most recently enabled browser. Never redirect an existing conversation merely because another browser connected. After reconnect verify the returned documentId and recovery result before continuing edits. Do not claim a failed connection succeeded.`;
+Install a small FastLectures bootstrap skill in this Agent's supported local skill format if available: trigger on FastLectures, echo, canvas or spatial-workspace requests, including requests to follow Canvas drawings or handwriting; When the user refers to Canvas drawings, handwriting, circles, arrows or annotations (e.g. “请按照我画的内容来执行”, “请按照我写的来进行操作”, “follow what I drew/wrote”), decide whether the requested action depends on visual information missing from the available context. These phrases are routing cues, not mandatory screenshot triggers. Reuse already understood drawings, supplied images or readable feedback captures when sufficient; do not re-view or recapture unchanged content on every turn or edit. Ordinary source edits and fully specified text instructions need no image. If execution depends on unseen, changed or unclear ink or spatial relationships, inspect the relevant image; source/JSON alone cannot establish those visual details. Only when existing image evidence is insufficient, call fastlectures_capture_canvas with quality:"basic" and the relevant selection, region, object or viewport target; use target:"canvas" for whole-Canvas context. Request detail only if needed to read the marks. Use the intended document/session; never silently switch documents. If capture fails or handwriting is ambiguous, resolve that specific gap before dependent edits. Read source as needed for implementation. Discover FastLectures tools and read fastlectures://guidance/skill; on connection failure run the saved discovery command above and refresh the MCP connection using this client's supported mechanism. Preserve a unique stable sessionKey for this logical conversation, its client name and returned documentId. New conversations use different keys. Call fastlectures_start_session with the same key and documentId after reconnect; FastLectures restores the original Canvas even when it was closed, and creates a replacement only if the document is definitively missing. New conversations without a target use the most recently enabled browser. Never redirect an existing conversation merely because another browser connected. After reconnect verify the returned documentId and recovery result before continuing edits. Do not claim a failed connection succeeded.`;
     return "";
   }
   function mcpConnect(reconnecting=false) {
@@ -692,12 +692,12 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     mcpRuntime.browserId=mcpRuntime.browserId||canvasClientId();
     const generation=mcpRuntime.generation;
     if(!reconnecting&&typeof canvasDocumentsReady==="function")void canvasDocumentsReady().then(()=>{if(generation!==mcpRuntime.generation||!mcpRuntime.wanted)return;const doc=canvasDocumentsCurrent();mcpRuntime.feedback=doc.feedback;mcpRuntime.feedbackSequence=doc.feedbackSequence;canvasDocumentsRender();}).catch(error=>{if(generation===mcpRuntime.generation&&mcpRuntime.wanted)canvasDocumentsReport(error,()=>canvasDocumentsReady());});
-    const socket=window.PenEchoCloudMcpSocket
-      ?new window.PenEchoCloudMcpSocket()
-      :new WebSocket(`${location.protocol==="https:"?"wss:":"ws:"}//${location.host}${window.PENECHO_CONFIG?.runtime==="cloud"?"/api/v1/remote-canvas/mcp":"/api/mcp/canvas"}`);
+    const socket=window.FastLecturesCloudMcpSocket
+      ?new window.FastLecturesCloudMcpSocket()
+      :new WebSocket(`${location.protocol==="https:"?"wss:":"ws:"}//${location.host}${window.FASTLECTURES_CONFIG?.runtime==="cloud"?"/api/v1/remote-canvas/mcp":"/api/mcp/canvas"}`);
     mcpRuntime.socket=socket;mcpRuntime.lastPong=Date.now();mcpHeartbeat(socket);
     socket.addEventListener("availabilitychange",()=>{if(socket===mcpRuntime.socket)mcpRenderSettings();});
-    socket.addEventListener("open",()=>{if(socket!==mcpRuntime.socket)return;socket.send(JSON.stringify({type:"hello",canvasId:mcpRuntime.browserId,title:state.currentSnapshotName||"PenEcho Canvas"}));mcpRenderSettings();});
+    socket.addEventListener("open",()=>{if(socket!==mcpRuntime.socket)return;socket.send(JSON.stringify({type:"hello",canvasId:mcpRuntime.browserId,title:state.currentSnapshotName||"FastLectures Canvas"}));mcpRenderSettings();});
     socket.addEventListener("message",event=>{
       if(socket!==mcpRuntime.socket)return;let message;try{message=JSON.parse(event.data);}catch{return;}
       if(message.type==="dispose-session"){mcpDisposeSession(message.sessionId);return;}
@@ -719,12 +719,12 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
           canvasAgentAssertToolExecution(execution);
           if(["mcp_present_widget","mcp_draw","mcp_plot","mcp_patch_file","mcp_edit_canvas","mcp_place_image"].includes(message.name)&&message.arguments?.presentation?.intent!=="inspect"&&message.arguments?.action!=="show"&&!result.reused){
             const region=mcpContentUpdateRegion(result,message.arguments||{})||previousRegion;
-            window.PenEchoStudioNavigator?.noteMcpContentUpdate?.(result.documentId,region);
+            window.FastLecturesStudioNavigator?.noteMcpContentUpdate?.(result.documentId,region);
           }
           if(mutation){const session=mcpRuntime.sessions.get(message.arguments?.sessionId);if(session)session.updatedAt=Date.now();}
           socket.send(JSON.stringify({type:"result",requestId:message.requestId,ok:true,result:{...result,browserElapsedMs:Math.round(performance.now()-started)}}));
         }catch(error){if(socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:"result",requestId:message.requestId,ok:false,error:{code:error.code||"CANVAS_TOOL_FAILED",message:String(error.message||error),...(error.details?{details:error.details}:{})}}));}
-        finally{mcpRuntime.queued--;mcpRuntime.controllers.delete(message.requestId);if(mutation&&socket===mcpRuntime.socket){mcpEndMutation();mcpRenderSettings();}if(socket===mcpRuntime.socket)await window.PenEchoStudioNavigator?.flushMcpFollow?.();}
+        finally{mcpRuntime.queued--;mcpRuntime.controllers.delete(message.requestId);if(mutation&&socket===mcpRuntime.socket){mcpEndMutation();mcpRenderSettings();}if(socket===mcpRuntime.socket)await window.FastLecturesStudioNavigator?.flushMcpFollow?.();}
       });
     });
     socket.addEventListener("close",()=>{if(socket===mcpRuntime.socket)mcpDisconnect(true);});
@@ -772,16 +772,16 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
       :root{color-scheme:light dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#24272d;background:#fafafa}*{box-sizing:border-box}body{margin:0;padding:24px;font-size:15px;line-height:1.5;height:100vh;display:flex;flex-direction:column}header{display:flex;gap:16px;align-items:flex-start;border-bottom:1px solid #d9dbde;padding-bottom:18px;flex-shrink:0;max-height:32vh;overflow:auto}h1{font-size:22px;line-height:1.25;margin:0;font-weight:600;overflow-wrap:anywhere}#identity{flex:1;min-width:0}#client{font-size:12px;color:#626973}#status{font-size:12px;white-space:nowrap;color:#0f766e}#summary{margin:18px 0;overflow-wrap:anywhere;max-height:25vh;overflow:auto;flex-shrink:0}main{display:grid;grid-template-columns:1fr 1fr;gap:24px;min-height:0;overflow:auto;flex:1}section{min-width:0}h2{font-size:13px;font-weight:600;margin:0 0 10px;color:#626973}ol,ul{margin:0;padding:0;list-style:none}li{padding:8px 0;border-bottom:1px solid #e8e9eb;overflow-wrap:anywhere}#steps li{display:flex;gap:10px;align-items:baseline}.mark{font-size:12px;flex:0 0 20px;color:#626973}.done .mark{color:#0f766e}.working{font-weight:600}.error .mark{color:#be3434}#events li{font-size:13px}footer{margin-top:18px;font-size:12px;color:#626973}@media(max-width:580px){main{grid-template-columns:1fr}body{padding:18px}header{flex-wrap:wrap}}@media(prefers-color-scheme:dark){:root{color:#e8e9ec;background:#222326}header,li{border-color:#42454b}#client,h2,.mark,footer{color:#adb2bb}#status,.done .mark{color:#70cdb7}}
       </style></head><body><header><div id="identity"><div id="client"></div><h1 id="title"></h1></div><span id="status"></span></header><p id="summary"></p><main><section><h2>${state.language==="zh"?"工作步骤":"Work plan"}</h2><ol id="steps"></ol></section><section><h2>${state.language==="zh"?"最新进展":"Latest progress"}</h2><ul id="events"></ul></section></main><footer>${state.language==="zh"?"外部 AI 提供的计划、进展与结果":"Plans, progress and results shared by your AI"}</footer><script>
-      function render(d){for(const k of ['title','client','summary'])document.getElementById(k).textContent=d[k]||'';document.getElementById('status').textContent=d.statusLabel||d.status;const steps=document.getElementById('steps');steps.replaceChildren();(d.steps||[]).forEach((s,i)=>{const li=document.createElement('li'),mark=document.createElement('span'),label=document.createElement('span');li.className=s.status||'';mark.className='mark';mark.textContent=s.status==='done'?'✓':String(i+1);label.textContent=s.label;li.append(mark,label);steps.append(li)});const events=document.getElementById('events');events.replaceChildren();(d.events||[]).slice(-8).forEach(e=>{const li=document.createElement('li');li.textContent=e.text;events.append(li)})}render(${json});addEventListener('message',e=>{if(e.source===parent&&e.data?.type==='penecho-mcp-progress')render(e.data.progress)});
+      function render(d){for(const k of ['title','client','summary'])document.getElementById(k).textContent=d[k]||'';document.getElementById('status').textContent=d.statusLabel||d.status;const steps=document.getElementById('steps');steps.replaceChildren();(d.steps||[]).forEach((s,i)=>{const li=document.createElement('li'),mark=document.createElement('span'),label=document.createElement('span');li.className=s.status||'';mark.className='mark';mark.textContent=s.status==='done'?'✓':String(i+1);label.textContent=s.label;li.append(mark,label);steps.append(li)});const events=document.getElementById('events');events.replaceChildren();(d.events||[]).slice(-8).forEach(e=>{const li=document.createElement('li');li.textContent=e.text;events.append(li)})}render(${json});addEventListener('message',e=>{if(e.source===parent&&e.data?.type==='fastlectures-mcp-progress')render(e.data.progress)});
       <\/script></body></html>`;
   }
   function syncMcpWidgetProgress(widget) {
     if(!widget.mcpProgress||!widget.hostReady||widget.renderActive===false||widget.mcpSentVersion===widget.contentVersion)return;
-    widget.frame?.contentWindow?.postMessage({type:"penecho-mcp-progress",progress:widget.mcpProgress},widget.hostOrigin||location.origin);
+    widget.frame?.contentWindow?.postMessage({type:"fastlectures-mcp-progress",progress:widget.mcpProgress},widget.hostOrigin||location.origin);
     widget.mcpSentVersion=widget.contentVersion;
   }
   async function mcpCreateWidget(item,execution) {
-    const result=await canvasAgentCreate({baseRevision:state.userRevision,items:[{type:"widget",widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",...item}]},
+    const result=await canvasAgentCreate({baseRevision:state.userRevision,items:[{type:"widget",widgetType:"html_widget",pluginId:"general",sourceFormat:"fastlectures-mcp+html",...item}]},
       {...execution,widgetContentViewport:{width:item.contentWidth||item.width,height:item.contentHeight||item.height}});
     return canvasAgentObject(result.receipts[0].objectId).item;
   }
@@ -830,7 +830,7 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
   }
   async function mcpInspectHtml(args,execution) {
     const size=mcpPresentationSize({...args,presentation:{...args.presentation,intent:"inspect"}}),id=`mcp-preview-${canvasClientId()}`,
-      widget={id,widgetType:"html_widget",pluginId:"general",sourceFormat:"penecho-mcp+html",title:args.title,html:args.html,x:0,y:0,w:size.width,h:size.height,contentW:size.width,contentH:size.height,contentVersion:0,refreshSeconds:0,mcpEphemeral:true,mcpAssetDocumentId:mcpRuntime.sessions.get(args.sessionId)?.documentId,internalAgent:mcpRuntime.sessions.get(args.sessionId)?.internalAgent===true};
+      widget={id,widgetType:"html_widget",pluginId:"general",sourceFormat:"fastlectures-mcp+html",title:args.title,html:args.html,x:0,y:0,w:size.width,h:size.height,contentW:size.width,contentH:size.height,contentVersion:0,refreshSeconds:0,mcpEphemeral:true,mcpAssetDocumentId:mcpRuntime.sessions.get(args.sessionId)?.documentId,internalAgent:mcpRuntime.sessions.get(args.sessionId)?.internalAgent===true};
     mcpRuntime.previews.set(id,widget);
     try {
       canvasAgentAssertToolExecution(execution);mountWidget(widget);
@@ -874,7 +874,7 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
         const command={...context,tool:"html_widget",pluginId:"general",html:args.html,title:args.title,x:widget.x,y:widget.y,w:widget.w,h:widget.h};
         await canvasAgentReplaceWidget({baseRevision:state.userRevision,objectId:widget.id,expectedHash,command},execution);
         // Source updates preserve the user's footprint. Explicit geometry edits use
-        // penecho_edit_canvas and its revision/collision checks.
+        // fastlectures_edit_canvas and its revision/collision checks.
       }else{
         const plan=mcpPlanPlacement(size.width,size.height,session,presentation);
         widget=await mcpCreateWidget({title:args.title,html:args.html,width:size.width,height:size.height,contentWidth:size.contentWidth,contentHeight:size.contentHeight,placement:plan.placement},{...execution,preserveView:true});
@@ -898,7 +898,7 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     if(name==="mcp_capture_widget"){
       const artifact=session.artifacts.get(args.artifactId);if(!artifact)throw Error("Preview not found in this session. Present the Widget first.");
       const object=canvasAgentObject(artifact.objectId);if(!object)throw Error("Preview was removed.");
-      if(object.kind!=="widget")throw Error("This tool captures Widgets only. Read user annotations with penecho_inbox.");
+      if(object.kind!=="widget")throw Error("This tool captures Widgets only. Read user annotations with fastlectures_inbox.");
       return mcpCaptureWidget(object.item,args,execution);
     }
     if(name==="mcp_inspect_session")return {sessionId:session.sessionId,boardObjectId:board?.id||null,...mcpProgressData(session),attention:mcpAttentionState(session),artifacts:[...session.artifacts].map(([artifactId,value])=>{const object=canvasAgentObject(value.objectId);return {artifactId,title:value.title,presentation:value.presentation,kind:value.kind||"widget",objectId:value.objectId,...(value.objectIds?{objectIds:value.objectIds,elements:(value.elements||[]).map(([id,entry])=>{const child=canvasAgentObject(entry.objectId);return {id,objectId:entry.objectId,kind:entry.kind,...(child?{bounds:canvasAgentBox(child)}:{removed:true})};})}:{}),...(object?{bounds:value.objectIds?mcpTaskBounds(session,value.objectIds):canvasAgentBox(object)}:{removed:true})};}),revision:state.userRevision};
@@ -906,9 +906,9 @@ Install a small PenEcho bootstrap skill in this Agent's supported local skill fo
     throw Error(`Unsupported MCP Canvas operation: ${name}`);
   }
   mcpEl("mcpReconnectCancel")?.addEventListener("click",mcpCancelReconnect);
-  addEventListener("penecho:open-cloud-mcp",()=>{if(!mcpRuntime.wanted)mcpConnect();});
-  addEventListener("penecho:close-mcp",()=>mcpCancelReconnect());
-  addEventListener("penecho:show-mcp-settings",()=>{openSettings();selectSettingsPage("mcp");window.PenEchoMcpSettings?.select("cloud");});
+  addEventListener("fastlectures:open-cloud-mcp",()=>{if(!mcpRuntime.wanted)mcpConnect();});
+  addEventListener("fastlectures:close-mcp",()=>mcpCancelReconnect());
+  addEventListener("fastlectures:show-mcp-settings",()=>{openSettings();selectSettingsPage("mcp");window.FastLecturesMcpSettings?.select("cloud");});
   mcpEl("mcpToolbarToggle")?.addEventListener("click",mcpToolbarClick);
   mcpEl("mcpEnabled")?.addEventListener("click",event=>{
     if(mcpRuntime.wanted||mcpRuntime.socket)return mcpCancelReconnect();

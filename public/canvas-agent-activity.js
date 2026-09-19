@@ -1,6 +1,6 @@
 "use strict";
 
-// User-only PenEcho Agent activity. This module deliberately observes the public
+// User-only FastLectures Agent activity. This module deliberately observes the public
 // UI projection instead of joining Canvas state, capture, persistence, or tools.
 // It performs no network/model request and keeps all text work locally bounded.
 // Removal seam: delete this file, its CSS/index/package references, the isolated
@@ -20,7 +20,7 @@
   ];
   const COPY = {
     en:{
-      live:"PenEcho Agent · live", started:"Task started", completed:"Completed", needsRetry:"Needs another try",
+      live:"FastLectures Agent · live", started:"Task started", completed:"Completed", needsRetry:"Needs another try",
       start:["Understanding your request","Following verified Canvas activity"],
       work:["Working across the canvas","Following visible actions without exposing private reasoning"],
       inspect:["Inspecting the canvas","Checking structure, selection, and object layout"],
@@ -45,7 +45,7 @@
       },
     },
     zh:{
-      live:"PenEcho Agent · 实时", started:"任务已开始", completed:"已完成", needsRetry:"需要重试",
+      live:"FastLectures Agent · 实时", started:"任务已开始", completed:"已完成", needsRetry:"需要重试",
       start:["正在理解你的要求","只展示可验证的 Canvas 活动"],
       work:["正在处理画布任务","跟随可见动作，不展示内部推理"],
       inspect:["正在检查画布","确认结构、选择与对象布局"],
@@ -145,7 +145,7 @@
   const exported={activityLocale,activityPhaseFromIntent,activityDialogPhase,activitySafeLabel,extractActivityCue,activityCueOnly,activityPosition,activityPlacement,activityShouldBeVisible,activityPresentationVisible};
   if (typeof module !== "undefined" && module.exports) module.exports=exported;
   if (typeof document === "undefined") return;
-  if (window.PENECHO_CONFIG?.runtime === "viewer" || window.PENECHO_CONFIG?.canvasAgent === false) return;
+  if (window.FASTLECTURES_CONFIG?.runtime === "viewer" || window.FASTLECTURES_CONFIG?.canvasAgent === false) return;
 
   const viewport=document.querySelector("#viewport"), panel=document.querySelector("#canvasAgentPanel"), picker=document.querySelector("#canvasAgentWidgetPickerLayer"),
     transcript=document.querySelector("#canvasAgentTranscript"), stopButton=document.querySelector("#canvasAgentStop"), form=document.querySelector("#canvasAgentForm"),
@@ -155,7 +155,7 @@
   const root=document.createElement("section");
   root.id="canvasAgentActivityOverlay";
   root.className="canvas-agent-activity";
-  root.dataset.penechoModelHidden="true";
+  root.dataset.fastlecturesModelHidden="true";
   root.dataset.html2canvasIgnore="true";
   root.setAttribute("aria-hidden","true");
   root.innerHTML=`
@@ -215,7 +215,7 @@
     const note=document.createElement("aside"),dot=document.createElement("i"),text=document.createElement("span"),heading=document.createElement("strong"),reason=document.createElement("small"),meta=document.createElement("em"),[titleText,reasonText]=dialogCopy(phase);
     note.className="canvas-agent-dialog-progress";
     note.dataset.phase=phase;
-    note.dataset.penechoModelHidden="true";
+    note.dataset.fastlecturesModelHidden="true";
     note.dataset.html2canvasIgnore="true";
     note.setAttribute("aria-label",`${titleText}. ${reasonText}`);
     heading.textContent=titleText;reason.textContent=reasonText;meta.className="canvas-agent-dialog-progress-meta";
@@ -403,7 +403,7 @@
     activity.agentFocused=!panel.hidden&&event.target instanceof Element&&panel.contains(event.target);
     if(activity.active)syncPresentation();
   });
-  window.addEventListener("penecho:languagechange",()=>{if(activity.active)renderPhase();});
+  window.addEventListener("fastlectures:languagechange",()=>{if(activity.active)renderPhase();});
   window.addEventListener("resize",schedulePosition,{passive:true});
   if(typeof ResizeObserver==="function"){
     const resizeObserver=new ResizeObserver(schedulePosition);resizeObserver.observe(viewport);resizeObserver.observe(panel);

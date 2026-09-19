@@ -161,7 +161,7 @@ function createHarness({ session = "anonymous", artifact = "ok", language = "en"
     : response(200, { account: null });
   const artifactResponse = artifact === "forbidden"
     ? response(403)
-    : response(200, { format: "penecho-canvas", items: [] });
+    : response(200, { format: "fastlectures-canvas", items: [] });
 
   function fetch(url, options) {
     requests.push({ url, options });
@@ -175,8 +175,8 @@ function createHarness({ session = "anonymous", artifact = "ok", language = "en"
   }
 
   const window = {
-    PenEchoI18n: { currentLanguage: () => currentLanguage },
-    PenEchoCommunityCanvas: {
+    FastLecturesI18n: { currentLanguage: () => currentLanguage },
+    FastLecturesCommunityCanvas: {
       viewCanvas: async () => {},
       importWidget: async () => {},
     },
@@ -210,7 +210,7 @@ function createHarness({ session = "anonymous", artifact = "ok", language = "en"
     resolveSession: (value = sessionResponse) => resolveSession?.(value),
     resolveArtifact: (value = artifactResponse) => resolveArtifact?.(value),
     setLanguage(value) { currentLanguage = value; },
-    dispatchLanguageChange() { window.dispatchEvent({ type: "penecho:languagechange" }); },
+    dispatchLanguageChange() { window.dispatchEvent({ type: "fastlectures:languagechange" }); },
     async settle() {
       await Promise.resolve();
       await Promise.resolve();
@@ -249,7 +249,7 @@ test("Echo is visible with the sign-in return route during initialization, anony
     assert.equal(primaryAction(harness).href, authHref, `${scenario.name}: Echo should use the sign-in return route`);
 
     if (scenario.session === "pending") harness.resolveSession(response(200, { account: null }));
-    if (scenario.artifact === "pending") harness.resolveArtifact(response(200, { format: "penecho-canvas", items: [] }));
+    if (scenario.artifact === "pending") harness.resolveArtifact(response(200, { format: "fastlectures-canvas", items: [] }));
     await harness.settle();
 
     assert.equal(primaryAction(harness).href, authHref, `${scenario.name}: Echo should remain on the sign-in return route`);

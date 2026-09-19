@@ -10,7 +10,7 @@ if (!isSupportedNodeVersion()) {
     process.exitCode = 1;
   } else {
     const error = new Error(message);
-    error.code = "PENECHO_UNSUPPORTED_NODE_VERSION";
+    error.code = "FASTLECTURES_UNSUPPORTED_NODE_VERSION";
     throw error;
   }
 } else {
@@ -18,7 +18,7 @@ if (!isSupportedNodeVersion()) {
 
   if (require.main === module) {
     cli.main().then(code => { if (code) process.exitCode = code; }).catch(error => {
-      console.error(`PenEcho: ${error.message}`);
+      console.error(`FastLectures: ${error.message}`);
       process.exitCode = 1;
     });
   }

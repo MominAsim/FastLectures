@@ -2,7 +2,7 @@
 
 const CANVAS_PAGE_SCALES = Object.freeze([0.9, 1, 1.1, 1.25]);
 const CANVAS_PAGE_SCALE = 1;
-const CANVAS_PAGE_SCALE_STORAGE_KEY = "penecho-canvas-page-scale";
+const CANVAS_PAGE_SCALE_STORAGE_KEY = "fastlectures-canvas-page-scale";
 
 function normalizeCanvasPageScale(value) {
   const requested = Number(value);
@@ -23,18 +23,18 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
 
   function applyCanvasPageScale(value, { persist = true } = {}) {
     currentScale = normalizeCanvasPageScale(value);
-    const webScale = window.PENECHO_CONFIG?.desktopApp !== true && currentScale !== 1;
-    root.classList.toggle("penecho-web-page-scale", webScale);
-    if (webScale) root.dataset.penechoPageScale = String(Math.round(currentScale * 100));
-    else delete root.dataset.penechoPageScale;
+    const webScale = window.FASTLECTURES_CONFIG?.desktopApp !== true && currentScale !== 1;
+    root.classList.toggle("fastlectures-web-page-scale", webScale);
+    if (webScale) root.dataset.fastlecturesPageScale = String(Math.round(currentScale * 100));
+    else delete root.dataset.fastlecturesPageScale;
     if (persist) {
       try { localStorage.setItem(CANVAS_PAGE_SCALE_STORAGE_KEY, String(currentScale)); } catch {}
     }
-    if (window.PENECHO_CONFIG?.desktopApp === true) void window.penechoDesktop?.setPageScale?.(currentScale);
+    if (window.FASTLECTURES_CONFIG?.desktopApp === true) void window.fastlecturesDesktop?.setPageScale?.(currentScale);
     return currentScale;
   }
 
-  window.PenEchoPageScale = Object.freeze({
+  window.FastLecturesPageScale = Object.freeze({
     choices:CANVAS_PAGE_SCALES,
     current:() => currentScale,
     apply:applyCanvasPageScale,

@@ -7,10 +7,10 @@ function harness(fetchImpl) {
     nodes.set(id,{hidden:id==="settingsPageMcp"||id==="mcpConfigStatus",value:"",textContent:"",disabled:false,dataset:{},listeners:{},classList:{toggle(){}},attributes:{},replaceChildren(...children){this.children=children;if(children[0])this.value=children[0].value;},showModal(){this.open=true;},close(){this.open=false;},setAttribute(key,value){this.attributes[key]=value;},addEventListener(type,listener){this.listeners[type]=listener;}});
   }
   const ui={status:"",page:null,hints:[]},storage=new Map();
-  const context=vm.createContext({document:{createElement:tag=>({tagName:tag,value:"",textContent:"",setAttribute(key,value){this[key]=value;}}),getElementById:id=>nodes.get(id)||null,querySelectorAll:selector=>selector==='input[name="mcpClient"]'?clientInputs:[]},state:{language:"en"},window:{PENECHO_CONFIG:{}},WebSocket:{OPEN:1,CONNECTING:0},URL,AbortSignal,AbortController,setTimeout:(fn,ms)=>{const timer=setTimeout(fn,ms);timer.unref();return timer;},clearTimeout,performance,addEventListener(){},
+  const context=vm.createContext({document:{createElement:tag=>({tagName:tag,value:"",textContent:"",setAttribute(key,value){this[key]=value;}}),getElementById:id=>nodes.get(id)||null,querySelectorAll:selector=>selector==='input[name="mcpClient"]'?clientInputs:[]},state:{language:"en"},window:{FASTLECTURES_CONFIG:{}},WebSocket:{OPEN:1,CONNECTING:0},URL,AbortSignal,AbortController,setTimeout:(fn,ms)=>{const timer=setTimeout(fn,ms);timer.unref();return timer;},clearTimeout,performance,addEventListener(){},
     localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},setStatus:value=>{ui.status=value;},showCanvasHint:key=>ui.hints.push(key),openSettings(){},selectSettingsPage:value=>{ui.page=value;},
     location:{protocol:"http:",host:"localhost:3921"},canvasClientId:()=>"canvas-test",
-    authenticatedApiHeaders:headers=>({...headers,"X-PenEcho-Session":"test-page-session"}),
+    authenticatedApiHeaders:headers=>({...headers,"X-FastLectures-Session":"test-page-session"}),
     fetch:async(url,options)=>{requests.push({url,options});return fetchImpl(url,options);},writeClipboardText:async text=>{clipboard.push(text);return true;},t:key=>key,
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname,"../src/client/app/mcp-troubleshoot.js"),"utf8")+fs.readFileSync(path.join(__dirname,"../src/client/app/mcp-runtime.js"),"utf8")+"\nglobalThis.api={mcpRuntime,mcpRefreshSettings,mcpRenderSettings,mcpDisconnect,mcpHeartbeat,mcpBeginMutation,mcpEndMutation,mcpToolbarClick};",context);
@@ -25,21 +25,21 @@ test("MCP configuration is available while canvas access is off and uses authent
   const h=harness(()=>ready());await h.mcpRefreshSettings();
   assert.match(h.nodes.get("mcpConnectionStatus").textContent,/Not discoverable/);
   for(const id of ["mcpConfigure","mcpCopyInstructions"])assert.equal(h.nodes.get(id).disabled,false,id);
-  assert.equal(h.requests[0].options.headers["X-PenEcho-Session"],"test-page-session");
+  assert.equal(h.requests[0].options.headers["X-FastLectures-Session"],"test-page-session");
   assert.equal(h.requests[0].options.credentials,"same-origin");assert.equal(h.requests[0].options.cache,"no-store");
 });
 test("unavailable setup cannot copy a partial prompt, and retry restores the controls",async()=>{
   let denied=true;const h=harness(url=>url.endsWith("/skill")?response(200,{text:"workflow"}):denied?response(403,{error:{code:"local_host_required",message:"Host only"}}):ready());
   await h.mcpRefreshSettings();const notice=h.nodes.get("mcpConfigStatus"),message=notice.textContent;
-  assert.match(message,/computer running PenEcho/);assert.equal(notice.hidden,false);assert.equal(h.nodes.get("mcpConfigure").disabled,true);
+  assert.match(message,/computer running FastLectures/);assert.equal(notice.hidden,false);assert.equal(h.nodes.get("mcpConfigure").disabled,true);
   await h.nodes.get("mcpCopyInstructions").listeners.click();assert.equal(h.clipboard.length,0);assert.equal(notice.textContent,message);assert.equal(notice.hidden,false);
   denied=false;await h.mcpRefreshSettings();assert.equal(notice.hidden,true);assert.equal(h.nodes.get("mcpConfigure").disabled,false);
 });
 test("an old non-JSON backend or missing launch data produces an actionable restart message",async()=>{
   const h=harness(()=>({ok:false,status:405,json:async()=>{throw Error("Not JSON");}}));await h.mcpRefreshSettings();
-  assert.match(h.nodes.get("mcpConfigStatus").textContent,/Restart PenEcho/);assert.equal(h.mcpRuntime.loading,null);
+  assert.match(h.nodes.get("mcpConfigStatus").textContent,/Restart FastLectures/);assert.equal(h.mcpRuntime.loading,null);
   const malformed=harness(()=>response(200,{config:{command:"",args:[]}}));await malformed.mcpRefreshSettings();
-  assert.equal(malformed.nodes.get("mcpCopyInstructions").disabled,true);assert.match(malformed.nodes.get("mcpConfigStatus").textContent,/Restart PenEcho/);
+  assert.equal(malformed.nodes.get("mcpCopyInstructions").disabled,true);assert.match(malformed.nodes.get("mcpConfigStatus").textContent,/Restart FastLectures/);
 });
 test("configuration loading coalesces checks and localizes a recoverable failure",async()=>{
   let resolve;const pending=new Promise(done=>resolve=done),h=harness(()=>pending);
@@ -70,11 +70,11 @@ test("the selected client card drives the configure request and Other falls back
 test("example prompts copy the localized text and confirm on the row",async()=>{
   const h=harness(()=>ready()),row={dataset:{mcpExample:"exampleDesignPrompt"},classList:{add(){},remove(){}}},event={target:{closest:selector=>selector==="[data-mcp-example]"?row:null}};
   await h.nodes.get("mcpExamples").listeners.click(event);
-  assert.equal(h.clipboard.at(-1),"Echo this UI idea in PenEcho with three design options, then let me choose.");
+  assert.equal(h.clipboard.at(-1),"Echo this UI idea in FastLectures with three design options, then let me choose.");
   assert.equal(h.nodes.get("mcpExampleStatus").textContent,"Prompt copied");
   h.state.language="zh";h.mcpRenderSettings();
   await h.nodes.get("mcpExamples").listeners.click(event);
-  assert.equal(h.clipboard.at(-1),"帮我 echo 一下这个界面想法，在 PenEcho 上展示三个方案，让我选择。");
+  assert.equal(h.clipboard.at(-1),"帮我 echo 一下这个界面想法，在 FastLectures 上展示三个方案，让我选择。");
   assert.equal(h.nodes.get("mcpExampleStatus").textContent,"提示词已复制");
 });
 test("an existing entry is not reported as verified or newly saved",async()=>{
@@ -97,7 +97,7 @@ test("the canvas MCP notice follows live access, not saved client configuration"
 
 test("MCP availability notice reports actual Cloud and Local channels in both languages",()=>{
   const h=harness(()=>ready());h.mcpRuntime.ready=true;let cloudSettingsStatus;
-  h.context.window.PenEchoMcpSettings={setConnection:value=>{cloudSettingsStatus=value;}};
+  h.context.window.FastLecturesMcpSettings={setConnection:value=>{cloudSettingsStatus=value;}};
   for(const [availability,en,zh] of [[{cloud:true,local:true},"MCP · Cloud + Local online","MCP · 云端与本地在线"],[{cloud:true,local:false},"MCP · Cloud online","MCP · 云端在线"],[{cloud:false,local:true},"MCP · Local online","MCP · 本地在线"]]){
     h.mcpRuntime.socket={readyState:1,availability};h.state.language="en";h.mcpRenderSettings();assert.equal(h.nodes.get("mcpCanvasNoticeButton").textContent,en);
     assert.equal(h.nodes.get("mcpConnectionStatus").textContent,en);assert.equal(cloudSettingsStatus.label,en);
@@ -194,7 +194,7 @@ test("LAN browser opens discovery without host CLI setup and accepts status with
     assert.equal(h.nodes.get("mcpConfigure").hidden,false);
     assert.equal(h.nodes.get("mcpConfigure").disabled,true);
     assert.equal(h.nodes.get("mcpManual").hidden,false);
-    assert.match(h.nodes.get("mcpManualSteps").textContent,/computer running PenEcho/);
+    assert.match(h.nodes.get("mcpManualSteps").textContent,/computer running FastLectures/);
     assert.equal(h.nodes.get("mcpEnabled").disabled,false);
     await h.nodes.get("mcpConfigure").listeners.click();
     assert.equal(h.requests.filter(r=>r.url.endsWith("/configure")).length,0);
@@ -214,7 +214,7 @@ test("first LAN toolbar click registers despite no configured host clients",asyn
 });
 test("Cloud registers using the linked-device MCP socket and never offers local setup",async()=>{
   const h=harness(()=>response(200,{enabled:true,canConfigureLocalClients:false,config:null}));
-  let target;h.context.window.PENECHO_CONFIG.runtime="cloud";h.context.WebSocket=class extends CanvasSocket{constructor(url){super();target=url;}};
+  let target;h.context.window.FASTLECTURES_CONFIG.runtime="cloud";h.context.WebSocket=class extends CanvasSocket{constructor(url){super();target=url;}};
   try {
     await h.mcpRefreshSettings();await h.mcpToolbarClick();
     assert.equal(target,"http:".replace("http","ws")+"//localhost:3921/api/v1/remote-canvas/mcp");
@@ -250,7 +250,7 @@ test("prompt emphasis preserves readable text and feedback copy uses the current
   for(const language of ["en","zh"]){
     h.state.language=language;h.mcpRenderSettings();
     assert.equal(label.children.map(node=>node.textContent).join(""),label.textContent);
-    assert.deepEqual(label.children.filter(node=>node.tagName==="b").map(node=>node.textContent),language==="en"?["PenEcho","canvas"]:["PenEcho","画布"]);
+    assert.deepEqual(label.children.filter(node=>node.tagName==="b").map(node=>node.textContent),language==="en"?["FastLectures","canvas"]:["FastLectures","画布"]);
     const row={dataset:{mcpExample:"exampleFeedbackPrompt"},classList:{add(){},remove(){}}};
     await h.nodes.get("mcpExamples").listeners.click({target:{closest:()=>row}});
     assert.equal(h.clipboard.at(-1),label.textContent);
@@ -429,7 +429,7 @@ test("default setup uses the session CLI without changing global AI trust",async
   assert.match(prompt,/idle for 30 minutes releases only HTTP/);
   assert.doesNotMatch(prompt,/--idle-exit-ms/);
   assert.match(prompt,/same complete sequence runs if reconnecting after idle release fails/);
-  const skill=prompt.slice(prompt.indexOf("---\nname: penecho-mcp"),prompt.indexOf("If skill creation is unavailable"));
+  const skill=prompt.slice(prompt.indexOf("---\nname: fastlectures-mcp"),prompt.indexOf("If skill creation is unavailable"));
   assert.ok(skill.length<1800,"bootstrap stays compact");
   assert.match(skill,/search only missing deferred tools/);
   assert.match(skill,/--upload-image/);
@@ -454,10 +454,10 @@ test("default setup uses the session CLI without changing global AI trust",async
 
 test("troubleshoot prompt copies static text without requesting host status",async()=>{
   const h=harness(()=>{throw new Error("Host must not be contacted");});
-  h.context.window.PENECHO_CONFIG.runtime="cloud";
+  h.context.window.FASTLECTURES_CONFIG.runtime="cloud";
   h.mcpRuntime.status=null;
   await h.nodes.get("mcpCopyTroubleshootPrompt").listeners.click();
-  assert.equal(h.clipboard.at(-1),"On the computer running PenEcho, allow inbound TCP connections on ports 3922, 13922, and 23922.");
+  assert.equal(h.clipboard.at(-1),"On the computer running FastLectures, allow inbound TCP connections on ports 3922, 13922, and 23922.");
   assert.match(h.nodes.get("mcpTroubleshootStatus").textContent,/copied/);
   assert.equal(h.nodes.get("mcpCopyTroubleshootPrompt").disabled,false);
   assert.equal(h.requests.length,0);
@@ -488,7 +488,7 @@ test("Cloud MCP explains missing or offline linked devices in the top status bar
   for(const language of ["en","zh"]){
     let code="linked_device_required";
     const h=harness(()=>code?response(409,{error:code}):response(200,{canConfigureLocalClients:false,config:null}));
-    h.state.language=language;h.context.window.PENECHO_CONFIG.runtime="cloud";h.context.WebSocket=CanvasSocket;
+    h.state.language=language;h.context.window.FASTLECTURES_CONFIG.runtime="cloud";h.context.WebSocket=CanvasSocket;
     try{
       await h.mcpToolbarClick();
       assert.match(h.ui.status,language==="zh"?/MCP 需要关联设备.*连接设备/:/MCP needs a linked device.*Linked Devices/);
@@ -548,8 +548,8 @@ test("initial MCP connection initializes the sidebar but failed retries wait for
 
 for(const runtime of ["local","cloud"])for(const cancelFrom of ["toolbar","status","settings"])test(`${runtime} MCP ${cancelFrom} cancels retry, clears countdown and ignores stale callbacks`,async()=>{
   const h=harness(()=>ready()),scheduled=new Map(),navigation=[];let sequence=0,now=10000;
-  h.context.window.PENECHO_CONFIG.runtime=runtime;
-  h.context.window.PenEchoStudioNavigator={syncMcp:(enabled,options)=>navigation.push({enabled,reveal:options.reveal})};
+  h.context.window.FASTLECTURES_CONFIG.runtime=runtime;
+  h.context.window.FastLecturesStudioNavigator={syncMcp:(enabled,options)=>navigation.push({enabled,reveal:options.reveal})};
   h.context.Date={now:()=>now};h.context.WebSocket=CanvasSocket;
   h.context.setTimeout=(fn,ms)=>{scheduled.set(++sequence,{fn,ms});return sequence;};h.context.clearTimeout=id=>scheduled.delete(id);
   try{
@@ -579,7 +579,7 @@ for(const runtime of ["local","cloud"])for(const cancelFrom of ["toolbar","statu
 });
 test("successful automatic recovery restores tab availability without revealing navigation",async()=>{
   const h=harness(()=>ready()),scheduled=new Map(),navigation=[];let sequence=0;
-  h.context.window.PenEchoStudioNavigator={syncMcp:(enabled,options)=>navigation.push({enabled,reveal:options.reveal})};
+  h.context.window.FastLecturesStudioNavigator={syncMcp:(enabled,options)=>navigation.push({enabled,reveal:options.reveal})};
   h.context.WebSocket=CanvasSocket;
   h.context.setTimeout=(fn,ms)=>{scheduled.set(++sequence,{fn,ms});return sequence;};h.context.clearTimeout=id=>scheduled.delete(id);
   try{

@@ -8,7 +8,7 @@ const test = require("node:test");
 const ROOT = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
 
-test("PenEcho typography is embedded incrementally with no design stylesheet import", () => {
+test("FastLectures typography is embedded incrementally with no design stylesheet import", () => {
   const files = [
     "public/style.css",
     "public/canvas-agent-activity.css",
@@ -20,14 +20,14 @@ test("PenEcho typography is embedded incrementally with no design stylesheet imp
   const css = files.map(read).join("\n");
   const html = read("public/index.html");
 
-  assert.doesNotMatch(html, /penecho-design-language\.css/);
+  assert.doesNotMatch(html, /fastlectures-design-language\.css/);
   assert.doesNotMatch(css, /@import\b/);
   assert.match(css, /--pe-font-ui:\s*-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif/);
   assert.match(css, /--pe-font-mono:\s*ui-monospace, SFMono-Regular, Menlo, Consolas, monospace/);
   assert.match(css, /--pe-font-hand:\s*"Bradley Hand", "Segoe Print", "Comic Sans MS", cursive/);
 });
 
-test("the closed system type ramp matches the PenEcho design catalog", () => {
+test("the closed system type ramp matches the FastLectures design catalog", () => {
   const css = read("public/style.css");
   const expected = {
     page:"20px",
@@ -53,12 +53,12 @@ test("the closed system type ramp matches the PenEcho design catalog", () => {
 
 test("the canonical type contract wins after the button and legacy surface rules", () => {
   const css = read("public/style.css");
-  assert.ok(css.indexOf("PenEcho typography contract") > css.indexOf("PenEcho button + semantic tint contract"));
+  assert.ok(css.indexOf("FastLectures typography contract") > css.indexOf("FastLectures button + semantic tint contract"));
   assert.match(css, /:is\(#pe-type-contract, body\[data-theme="studio"\]\)/);
   assert.match(css, /:is\(#pe-button-contract, \[data-pe-button\]\) > :where\(span, strong, small, b, em\)[^}]*font:\s*inherit/);
   assert.match(css, /\.canvas-agent-message-body[\s\S]*font:\s*var\(--pe-type-regular\) 14px\/1\.58 var\(--pe-font-ui\)/);
-  assert.match(read("public/canvas-agent-activity.css"), /PenEcho typography contract[\s\S]*13\.5px\/1\.3/);
-  assert.match(read("public/cloud-connect.css"), /PenEcho typography contract[\s\S]*\.cloud-content-heading h3[\s\S]*font-size:\s*20px/);
+  assert.match(read("public/canvas-agent-activity.css"), /FastLectures typography contract[\s\S]*13\.5px\/1\.3/);
+  assert.match(read("public/cloud-connect.css"), /FastLectures typography contract[\s\S]*\.cloud-content-heading h3[\s\S]*font-size:\s*20px/);
 });
 
 test("Studio uses one UI family with only handwriting and technical exceptions", () => {
@@ -95,10 +95,10 @@ test("Agent activity reserves heavier emphasis for parsed Markdown", () => {
 
 test("scaled dialogs use the logical viewport instead of clipping enlarged text", () => {
   const scale = read("public/page-scale.js"), css = read("public/style.css"), cloud = read("public/cloud-connect.css");
-  assert.match(scale, /root\.dataset\.penechoPageScale/);
+  assert.match(scale, /root\.dataset\.fastlecturesPageScale/);
   assert.doesNotMatch(scale, /root\.style/);
-  assert.match(css, /data-penecho-page-scale="90"[\s\S]*?--penecho-canvas-page-viewport-width/);
-  assert.match(css, /\.settings-panel[^}]*--penecho-canvas-page-viewport-width/);
-  assert.match(css, /html\.penecho-web-page-scale \.crafts-modal[\s\S]*--penecho-canvas-page-dynamic-height/);
-  assert.match(cloud, /html\.penecho-web-page-scale \.penecho-cloud-dialog\.cloud-center[\s\S]*--penecho-canvas-page-dynamic-height/);
+  assert.match(css, /data-fastlectures-page-scale="90"[\s\S]*?--fastlectures-canvas-page-viewport-width/);
+  assert.match(css, /\.settings-panel[^}]*--fastlectures-canvas-page-viewport-width/);
+  assert.match(css, /html\.fastlectures-web-page-scale \.crafts-modal[\s\S]*--fastlectures-canvas-page-dynamic-height/);
+  assert.match(cloud, /html\.fastlectures-web-page-scale \.fastlectures-cloud-dialog\.cloud-center[\s\S]*--fastlectures-canvas-page-dynamic-height/);
 });

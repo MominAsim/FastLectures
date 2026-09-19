@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#05050a">
+  <link rel="icon" type="image/png" href="fastlectures-mark.png">
+  <title>Billing | FastLectures</title>
+  <link rel="stylesheet" href="auth.css">
+  <link rel="stylesheet" href="billing.css">
+</head>
+<body>
+  <div class="billing-layout">
+    <header class="billing-topbar">
+      <a class="billing-brand" href="/" aria-label="Back to FastLectures">
+        <svg class="billing-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6c-.8-.9-2-1.5-3.4-1.6H6.6C5 3 3.5 3.6 2.4 4.8 1.3 6 1 7.5 1.6 9l2.3 12.8c.2 1.2 1.2 2.1 2.5 2.2h9.2c1.3.1 2.3-1 2.5-2.2L22.4 9c.6-1.5.3-3-.8-4.4zM8 17l-1.5-8.8h2L10 17H8zm4 0h2.1l.6-3.6.8-4.5H13L12.2 17zm6.5 0h-2.2l-1.4-8H19l1.5 8z"/></svg>
+        <span class="billing-name">FastLectures</span>
+      </a>
+      <button id="billing-account-btn" class="billing-account-button" type="button" aria-haspopup="menu" aria-expanded="false">
+        <span class="billing-account-name" id="billing-user-name">Account</span>
+        <svg class="billing-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div id="billing-account-menu" class="billing-account-menu" role="menu" aria-hidden="true" hidden>
+        <button type="button" class="billing-account-item" role="menuitem" data-account-action="billing">Billing</button>
+        <button type="button" class="billing-account-item" role="menuitem" data-account-action="subscription">Subscription</button>
+        <button type="button" class="billing-account-item" role="menuitem" data-account-action="signout">Sign out</button>
+      </div>
+    </header>
+
+    <main class="billing-main">
+      <section class="billing-section">
+        <div class="billing-container">
+          <header class="billing-header">
+            <h1 class="billing-title">Billing</h1>
+            <p class="billing-subtitle">Manage your subscription and payment methods</p>
+          </header>
+
+          <!-- Overview Cards -->
+          <div class="billing-cards">
+            <div class="billing-card billing-card-primary">
+              <div class="billing-card-header">
+                <h3 class="billing-card-title">Current Plan</h3>
+                <span class="billing-card-badge badge-info" data-i18n="billingPlan" id="billing-plan-badge">Pro</span>
+              </div>
+              <div class="billing-card-body">
+                <div class="billing-card-value">$9.00</div>
+                <div class="billing-card-desc">per month, billed annually</div>
+                <div class="billing-card-detail">
+                  <span id="billing-plan-desc">Individual Pro plan</span>
+                </div>
+              </div>
+              <div class="billing-card-footer">
+                <button class="btn-ghost" type="button" id="change-plan-btn">Change plan</button>
+              </div>
+            </div>
+
+            <div class="billing-card">
+              <div class="billing-card-header">
+                <h3 class="billing-card-title">Next Billing Date</h3>
+              </div>
+              <div class="billing-card-body">
+                <div class="billing-card-value" id="next-billing-date">—</div>
+                <div class="billing-card-desc">Your subscription renews automatically</div>
+              </div>
+              <div class="billing-card-footer">
+                <button class="btn-ghost" type="button" id="cancel-subscription-btn">Cancel subscription</button>
+              </div>
+            </div>
+
+            <div class="billing-card">
+              <div class="billing-card-header">
+                <h3 class="billing-card-title">Payment Method</h3>
+              </div>
+              <div class="billing-card-body">
+                <div class="billing-card-value" id="payment-method">—</div>
+                <div class="billing-card-desc" id="payment-method-expiry">—</div>
+                <div class="billing-card-detail">
+                  <span class="payment-card-icon" id="payment-icon-visa" hidden>💳 Visa</span>
+                </div>
+              </div>
+              <div class="billing-card-footer">
+                <button class="btn-ghost" type="button" id="update-payment-btn">Update payment method</button>
+              </div>
+            </div>
+
+            <div class="billing-card">
+              <div class="billing-card-header">
+                <h3 class="billing-card-title">Lifetime Value</h3>
+              </div>
+              <div class="billing-card-body">
+                <div class="billing-card-value" id="lifetime-value">$0.00</div>
+                <div class="billing-card-desc">Total spent since account creation</div>
+              </div>
+              <div class="billing-card-footer">
+                <button class="btn-ghost" type="button" id="billing-history-btn">View billing history</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Billing History Section -->
+          <section class="billing-history-section">
+            <h2 class="billing-history-title">Billing History</h2>
+            <div class="billing-history-table-container">
+              <table class="billing-history-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Plan</th>
+                    <th>Status</th>
+                    <th>Amount</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="billing-history-body">
+                  <!-- Billing history items will be rendered here -->
+                </tbody>
+              </table>
+            </div>
+
+            <div id="empty-billing-history" class="billing-empty-state" hidden>
+              <svg viewBox="0 0 24 24" class="billing-empty-icon" aria-hidden="true"><path d="M20.59 6.59L11 16.17l-4.59-4.59L5 8.41l6 6 5.59-5.59z"/></svg>
+              <h3>No billing history</h3>
+              <p>You have not had any paid subscriptions yet.</p>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Cancel Subscription Modal -->
+  <dialog id="cancel-modal" class="billing-modal" role="dialog" aria-modal="true" aria-labelledby="cancel-modal-title">
+    <form method="dialog" class="billing-modal-content">
+      <header class="billing-modal-header">
+        <h2 id="cancel-modal-title">Cancel Subscription</h2>
+        <button type="button" class="billing-modal-close" aria-label="Close" id="close-cancel-modal">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="billing-modal-body">
+        <div class="billing-cancel-warning">
+          <svg viewBox="0 0 24 24" class="billing-cancel-icon" aria-hidden="true"><path d="M10.29 3.83L12 5.53l1.71-1.71.7.71L12 7l-4 4-4-4z"/></svg>
+          <div>
+            <strong>Are you sure you want to cancel?</strong>
+            <p>Your subscription will remain active until the end of the current billing period. You will not receive a refund for any remaining time.</p>
+          </div>
+        </div>
+        <div class="billing-cancel-feedback">
+          <label for="cancel-reason">We'd like to hear your feedback (optional)</label>
+          <textarea id="cancel-reason" rows="3" placeholder="What made you decide to cancel?"></textarea>
+        </div>
+      </div>
+      <footer class="billing-modal-footer">
+        <button type="button" class="btn-secondary" id="keep-subscription-btn">Keep my subscription</button>
+        <button type="button" class="btn-danger" id="confirm-cancel-btn">Cancel subscription</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Update Payment Modal -->
+  <dialog id="payment-modal" class="billing-modal" role="dialog" aria-modal="true" aria-labelledby="payment-modal-title">
+    <form method="dialog" class="billing-modal-content">
+      <header class="billing-modal-header">
+        <h2 id="payment-modal-title">Update Payment Method</h2>
+        <button type="button" class="billing-modal-close" aria-label="Close" id="close-payment-modal">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="billing-modal-body">
+        <p>You will be redirected to Stripe to update your payment method.</p>
+      </div>
+      <footer class="billing-modal-footer">
+        <button type="button" class="btn-secondary" id="cancel-payment-btn">Cancel</button>
+        <button type="button" class="btn-primary" id="redirect-stripe-btn">Continue to Stripe</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Change Plan Modal -->
+  <dialog id="plan-modal" class="billing-modal" role="dialog" aria-modal="true" aria-labelledby="plan-modal-title">
+    <form method="dialog" class="billing-modal-content">
+      <header class="billing-modal-header">
+        <h2 id="plan-modal-title">Change Plan</h2>
+        <button type="button" class="billing-modal-close" aria-label="Close" id="close-plan-modal">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="billing-modal-body">
+        <div class="billing-plan-options">
+          <div class="billing-plan-option">
+            <input type="radio" id="plan-individual" name="plan" value="individual" checked>
+            <label for="plan-individual" class="billing-plan-radio">
+              <span class="billing-plan-name">Individual</span>
+              <span class="billing-plan-price">$9/month</span>
+              <span class="billing-plan-desc">Single user, all features</span>
+            </label>
+          </div>
+          <div class="billing-plan-option">
+            <input type="radio" id="plan-school" name="plan" value="school">
+            <label for="plan-school" class="billing-plan-radio">
+              <span class="billing-plan-name">School</span>
+              <span class="billing-plan-price">$14/student</span>
+              <span class="billing-plan-desc">Unlimited students, admin dashboard</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <footer class="billing-modal-footer">
+        <button type="submit" class="btn-primary">Confirm change</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <script src="billing.js"></script>
+</body>
+</html>

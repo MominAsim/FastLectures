@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#05050a">
+  <link rel="icon" type="image/png" href="fastlectures-mark.png">
+  <title>Verify email | FastLectures</title>
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+  <div class="auth-layout">
+    <header class="auth-header">
+      <a class="auth-brand" href="/" aria-label="Back to canvas">
+        <svg class="auth-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6c-.8-.9-2-1.5-3.4-1.6H6.6C5 3 3.5 3.6 2.4 4.8 1.3 6 1 7.5 1.6 9l2.3 12.8c.2 1.2 1.2 2.1 2.5 2.2h9.2c1.3.1 2.3-1 2.5-2.2L22.4 9c.6-1.5.3-3-.8-4.4zM8 17l-1.5-8.8h2L10 17H8zm4 0h2.1l.6-3.6.8-4.5H13L12.2 17zm6.5 0h-2.2l-1.4-8H19l1.5 8z"/></svg>
+        <span class="auth-name">FastLectures</span>
+      </a>
+    </header>
+    <main class="auth-card">
+      <h1 class="auth-title">Verify your email</h1>
+      <p class="auth-subtitle" id="verify-subtitle">Confirm your email to start syncing study progress.</p>
+      <div id="verify-message" class="notice info" role="status">
+        <span class="auth-spinner" aria-hidden="true"></span>Verifying…
+      </div>
+      <div id="verify-success" class="notice success" hidden>
+        <strong>Verified.</strong> Redirecting you to the canvas…
+      </div>
+      <div id="verify-error" class="auth-error" role="alert" hidden></div>
+      <p class="auth-alt">
+        <button id="verify-resend" class="btn-secondary" type="button" hidden>Send a new link</button>
+      </p>
+      <p class="auth-alt"><a href="/login.html">Back to sign in</a></p>
+    </main>
+    <footer class="auth-footer"><p>No account yet? <a href="/register.html">Create one</a>.</p></footer>
+  </div>
+  <script src="auth.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async function() {
+      const params = new URLSearchParams(location.search);
+      const token = params.get("token"), email = params.get("email");
+      const message = document.getElementById("verify-message"), success = document.getElementById("verify-success"), error = document.getElementById("verify-error"), resend = document.getElementById("verify-resend");
+      if (!token) { message.hidden = true; error.textContent = "This verification link is missing its token."; error.hidden = false; resend.hidden = false; }
+      else {
+        try {
+          await FASTLECTURES_AUTH.bootstrap();
+          await FASTLECTURES_AUTH.verify(token);
+          message.hidden = true; success.hidden = false;
+          setTimeout(() => location.replace("/"), 1400);
+        } catch (err) {
+          message.hidden = true; error.textContent = err.message || "Verification failed."; error.hidden = false; resend.hidden = !email;
+        }
+      }
+      if (email) resend.addEventListener("click", async () => {
+        resend.disabled = true; resend.textContent = "Resending…";
+        try { await fetch("/api/auth/verify/resend", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) }); resend.textContent = "New link sent"; }
+        catch { resend.disabled = false; resend.textContent = "Send a new link"; }
+      });
+    });
+  </script>
+</body>
+</html>

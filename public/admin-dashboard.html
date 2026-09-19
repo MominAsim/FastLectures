@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#05050a">
+  <link rel="icon" type="image/png" href="fastlectures-mark.png">
+  <title>Admin Dashboard | FastLectures</title>
+  <link rel="stylesheet" href="auth.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <!-- Sidebar -->
+    <aside class="admin-sidebar" role="navigation" aria-label="Main navigation">
+      <div class="admin-sidebar-header">
+        <a class="admin-brand" href="/">
+          <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6c-.8-.9-2-1.5-3.4-1.6H6.6C5 3 3.5 3.6 2.4 4.8 1.3 6 1 7.5 1.6 9l2.3 12.8c.2 1.2 1.2 2.1 2.5 2.2h9.2c1.3.1 2.3-1 2.5-2.2L22.4 9c.6-1.5.3-3-.8-4.4zM8 17l-1.5-8.8h2L10 17H8zm4 0h2.1l.6-3.6.8-4.5H13L12.2 17zm6.5 0h-2.2l-1.4-8H19l1.5 8z"/></svg>
+          <span class="admin-name">FastLectures Admin</span>
+        </a>
+      </div>
+      <nav class="admin-nav">
+        <button class="admin-nav-item admin-nav-item-active" data-nav="dashboard" aria-current="page">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="16" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 21v-12h6v12"/></svg>
+          <span>Dashboard</span>
+        </button>
+        <button class="admin-nav-item" data-nav="schools">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16h16V4H4zm2 2h12v12H6V6zm3 4h6v2H9v-2zm0 4h6v2H9v-2z"/></svg>
+          <span>Schools</span>
+        </button>
+        <button class="admin-nav-item" data-nav="users">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 12a4 4 0 1 0-8 0 4 4 0 0 0 8 0z"/><path d="M4 6h16v2H4V6zm0 4h16v2H4v-2zm0 4h10v2H4v-2z"/></svg>
+          <span>Users</span>
+        </button>
+        <button class="admin-nav-item" data-nav="billing">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 14h16M4 21h16"/><path d="M9 8h6v8H9V8z"/></svg>
+          <span>Billing</span>
+        </button>
+        <button class="admin-nav-item" data-nav="settings">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z"/><path d="M12 4v2"/><path d="M12 18v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M4 12h2"/><path d="M18 12h2"/><path d="M8.5 3.5l1.41 1.41"/><path d="M14.5 16.5l1.41 1.41"/><path d="M4.93 21.07l1.41-1.41"/><path d="M17.66 3.34l1.41-1.41"/><path d="M20 12h-2"/><path d="M4 12H2"/></svg>
+          <span>Settings</span>
+        </button>
+        <button class="admin-nav-item" data-nav="logout" id="admin-logout-btn">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l-2 2 2 2"/><path d="M9 9v6h2V9H9z"/><path d="M5 13h14"/></svg>
+          <span>Sign out</span>
+        </button>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+      <header class="admin-header">
+        <h1 class="admin-title">Dashboard</h1>
+        <p class="admin-subtitle">Manage schools, users, and billing</p>
+      </header>
+
+      <section class="admin-content">
+        <!-- Stats Cards -->
+        <div class="admin-stats-grid">
+          <div class="admin-card admin-card-primary">
+            <div class="admin-card-header">
+              <h2 class="admin-card-title">Total Schools</h2>
+              <span class="admin-card-icon" aria-hidden="true">&#128100;</span>
+            </div>
+            <div class="admin-card-body">
+              <div class="admin-stat-value" id="stat-schools-count">-</div>
+              <div class="admin-stat-change">Active schools</div>
+            </div>
+          </div>
+
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h2 class="admin-card-title">Total Users</h2>
+              <span class="admin-card-icon" aria-hidden="true">&#128100;</span>
+            </div>
+            <div class="admin-card-body">
+              <div class="admin-stat-value" id="stat-users-count">-</div>
+              <div class="admin-stat-change">Registered users</div>
+            </div>
+          </div>
+
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h2 class="admin-card-title">Monthly Revenue</h2>
+              <span class="admin-card-icon" aria-hidden="true">&#128179;</span>
+            </div>
+            <div class="admin-card-body">
+              <div class="admin-stat-value" id="stat-revenue">$0.00</div>
+              <div class="admin-stat-change">This month</div>
+            </div>
+          </div>
+
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h2 class="admin-card-title">Pending Schools</h2>
+              <span class="admin-card-icon" aria-hidden="true">&#128166;</span>
+            </div>
+            <div class="admin-card-body">
+              <div class="admin-stat-value" id="stat-pending">0</div>
+              <div class="admin-stat-change">Awaiting verification</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Schools Section -->
+        <section class="admin-section">
+          <div class="admin-section-header">
+            <h2 class="admin-section-title">School Management</h2>
+            <button class="btn-primary" type="button" id="add-school-btn">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              Add School
+            </button>
+          </div>
+
+          <div id="schools-list" class="admin-schools-grid">
+            <!-- School cards will be rendered here -->
+          </div>
+
+          <div id="empty-schools" class="admin-empty-state" hidden>
+            <svg viewBox="0 0 24 24" class="admin-empty-icon" aria-hidden="true"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M16 12H8v6h8v-6z"/><circle cx="12" cy="6" r="2"/><path d="M12 10v4"/><path d="M9 10h6"/></svg>
+            <h3>No schools registered</h3>
+            <p>Add your first school to get started.</p>
+          </div>
+        </section>
+
+        <!-- Users Section -->
+        <section class="admin-section">
+          <div class="admin-section-header">
+            <h2 class="admin-section-title">User Management</h2>
+            <div class="admin-section-actions">
+              <div class="admin-search-container">
+                <input type="search" id="user-search" placeholder="Search users..." aria-label="Search users">
+                <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-table-container">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>School</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body">
+                <!-- Users will be rendered here -->
+              </tbody>
+            </table>
+          </div>
+
+          <div id="empty-users" class="admin-empty-state" hidden>
+            <svg viewBox="0 0 24 24" class="admin-empty-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 15v-2"/></svg>
+            <h3>No users found</h3>
+            <p>No users match your search.</p>
+          </div>
+        </section>
+
+        <!-- Billing Section -->
+        <section class="admin-section">
+          <div class="admin-section-header">
+            <h2 class="admin-section-title">Billing Overview</h2>
+          </div>
+
+          <div class="admin-billing-grid">
+            <div class="admin-card admin-card-hero">
+              <div class="admin-card-body admin-billing-body">
+                <div class="admin-billing-total">
+                  <span class="admin-billing-label">Total MRR</span>
+                  <span class="admin-billing-amount" id="billing-total">$0.00</span>
+                </div>
+                <div class="admin-billing-details">
+                  <div class="admin-billing-item">
+                    <span class="admin-billing-key">Active subscriptions</span>
+                    <span class="admin-billing-value" id="billing-subscriptions">0</span>
+                  </div>
+                  <div class="admin-billing-item">
+                    <span class="admin-billing-key">Total students</span>
+                    <span class="admin-billing-value" id="billing-students">0</span>
+                  </div>
+                  <div class="admin-billing-item">
+                    <span class="admin-billing-key">Outstanding invoices</span>
+                    <span class="admin-billing-value" id="billing-outstanding">$0.00</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="admin-card">
+              <div class="admin-card-header">
+                <h3>Recent Payments</h3>
+              </div>
+              <div class="admin-card-body">
+                <div id="recent-payments-empty" class="admin-empty-sub">
+                  <p>No recent payments</p>
+                </div>
+                <table class="admin-table admin-table-small">
+                  <thead>
+                    <tr><th>Date</th><th>School</th><th>Amount</th></tr>
+                  </thead>
+                  <tbody id="recent-payments-body">
+                    <!-- Recent payments will be rendered here -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <!-- Add School Modal -->
+  <dialog id="add-school-modal" class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <form method="dialog" class="admin-modal-content">
+      <header class="admin-modal-header">
+        <h2 id="modal-title">Add New School</h2>
+        <button type="button" class="admin-modal-close" aria-label="Close" id="close-modal-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="admin-modal-body">
+        <form id="add-school-form">
+          <div class="admin-modal-fields">
+            <div class="field">
+              <label for="new-school-name">School name</label>
+              <input id="new-school-name" type="text" required placeholder="e.g., Lincoln High School" minlength="2" maxlength="100">
+            </div>
+            <div class="field">
+              <label for="new-school-email">School email</label>
+              <input id="new-school-email" type="email" required placeholder="admin@school.edu">
+              <p class="field-hint">Use @edu or .school domain</p>
+            </div>
+            <div class="field">
+              <label for="new-school-address">School address</label>
+              <textarea id="new-school-address" rows="2" placeholder="123 School Street, City, State"></textarea>
+            </div>
+            <div class="field">
+              <label for="new-school-code">Invitation code (optional)</label>
+              <input id="new-school-code" type="text" placeholder="Pre-generated code">
+              <p class="field-hint">Leave blank to generate a new code for the school admin</p>
+            </div>
+          </div>
+          <div id="add-school-error" class="auth-error" role="alert" hidden></div>
+          <p class="admin-modal-footer">
+            <button type="submit" class="btn-primary">Create School</button>
+          </p>
+        </form>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Delete School Modal -->
+  <dialog id="delete-school-modal" class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+    <form method="dialog" class="admin-modal-content">
+      <header class="admin-modal-header">
+        <h2 id="delete-modal-title">Delete School</h2>
+        <button type="button" class="admin-modal-close" aria-label="Close" id="close-delete-modal-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="admin-modal-body">
+        <p id="delete-school-name" class="admin-modal-name"></p>
+        <div class="admin-warning">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v2m0 4h.01"/><path d="M10.66 2c.92-1.27 3.27-1.27 4.2 0l4.8 6.5 6.7 1.5-5.4 5.2 1.3 6.1L12 19.9 5.9 13.1 0.5 7.6l6.7-1.5z"/></svg>
+          <p><strong>Unschool will not be able to access their data</strong></p>
+          <p>This action cannot be undone.</p>
+        </div>
+        <div id="delete-school-error" class="auth-error" role="alert" hidden></div>
+        <p class="admin-modal-footer">
+          <button type="button" class="btn-secondary" id="cancel-delete-btn">Cancel</button>
+          <button type="submit" class="btn-danger" id="confirm-delete-btn">Delete School</button>
+        </p>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="admin-dashboard.js"></script>
+</body>
+</html>

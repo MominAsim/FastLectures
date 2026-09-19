@@ -76,7 +76,7 @@ test("each local format maps to one fixed on-demand renderer and unknown formats
 });
 
 test("complex Mermaid phases reflow when the widget aspect ratio changes", () => {
-  const source = `%% penecho:responsive
+  const source = `%% fastlectures:responsive
 flowchart LR
   subgraph Shop
     direction TB
@@ -119,15 +119,15 @@ test("complex Graphviz diagrams provide horizontal and vertical layouts for the 
   assert.equal(compact.direction, "TB");
   assert.match(compact.source, /rankdir=TB/);
 
-  const inserted = runtime.responsiveDotSource(`// penecho:responsive\ndigraph G { a -> b; }`, 500, 900);
+  const inserted = runtime.responsiveDotSource(`// fastlectures:responsive\ndigraph G { a -> b; }`, 500, 900);
   assert.equal(inserted.direction, "TB");
   assert.match(inserted.source, /\{\n  graph \[rankdir=TB\];/);
   assert.match(inserted.source, /graph \[bgcolor="transparent"\]/);
 
-  const quoted = runtime.responsiveDotSource(`// penecho:responsive\ndigraph G { graph [rankdir="LR"]; a -> b; }`, 500, 900);
+  const quoted = runtime.responsiveDotSource(`// fastlectures:responsive\ndigraph G { graph [rankdir="LR"]; a -> b; }`, 500, 900);
   assert.match(quoted.source, /rankdir="TB"/);
 
-  const fixed = runtime.responsiveDotSource(`// penecho:fixed-layout\ndigraph G { graph [rankdir=LR]; a -> b; }`, 500, 900);
+  const fixed = runtime.responsiveDotSource(`// fastlectures:fixed-layout\ndigraph G { graph [rankdir=LR]; a -> b; }`, 500, 900);
   assert.equal(fixed.responsive, false);
   assert.equal(fixed.source.includes("rankdir=LR"), true);
   assert.match(fixed.source, /graph \[bgcolor="transparent"\]/);
@@ -148,7 +148,7 @@ test("Graphviz renderer selects the layout with the largest readable fit on resi
 });
 
 test("responsive Mermaid reflows one rendered diagram as the widget changes shape", () => {
-  const html = runtime.documentFor({ sourceFormat:"mermaid", source:"%% penecho:responsive\nflowchart LR\nA-->B", title:"Flow" });
+  const html = runtime.documentFor({ sourceFormat:"mermaid", source:"%% fastlectures:responsive\nflowchart LR\nA-->B", title:"Flow" });
   assert.match(html, /flowchart:\{ defaultRenderer:"elk" \}/);
   assert.match(html, /responsiveMermaidSource\(source, stage\.clientWidth, stage\.clientHeight\)/);
   assert.match(html, /renderedDirection = next\.direction/);

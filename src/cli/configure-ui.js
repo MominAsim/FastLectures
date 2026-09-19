@@ -82,7 +82,7 @@ async function createRichUi(options = {}) {
     },
     header(title, breadcrumb, detail = "") {
       if (output.isTTY) output.write("\u001b[2J\u001b[H");
-      output.write(`${ansi("1;36", "PenEcho Configuration")}  ${ansi("2", breadcrumb)}\n`);
+      output.write(`${ansi("1;36", "FastLectures Configuration")}  ${ansi("2", breadcrumb)}\n`);
       output.write(`${ansi("1", title)}\n`);
       if (detail) output.write(`${detail}\n`);
       output.write("\n");
@@ -123,26 +123,26 @@ async function chooseModel(ui, provider, configuration) {
   const choices = provider === PROVIDERS.kimi
     ? [
         { name:"Use the Kimi Code CLI default", value:"", description:"Do not pass an explicit model." },
-        ...(current ? [{ name:`Current PenEcho model: ${current}`, value:current }] : []),
+        ...(current ? [{ name:`Current FastLectures model: ${current}`, value:current }] : []),
         ...(detected ? [{ name:`Detected Kimi model: ${detected}`, value:detected, description:"Read from ~/.kimi-code/config.toml." }] : []),
         { name:"Enter a model manually…", value:"__manual__", description:"Use any model alias supported by your installed Kimi CLI." },
       ]
     : provider === PROVIDERS.codex
     ? [
         { name:"Use the Codex CLI default", value:"", description:"Do not pass an explicit model." },
-        ...(current ? [{ name:`Current PenEcho model: ${current}`, value:current }] : []),
+        ...(current ? [{ name:`Current FastLectures model: ${current}`, value:current }] : []),
         ...(detected ? [{ name:`Detected Codex model: ${detected}`, value:detected, description:"Read from ~/.codex/config.toml." }] : []),
-        { name:"gpt-5.6-sol (recommended)", value:"gpt-5.6-sol", description:"Best current choice for PenEcho." },
+        { name:"gpt-5.6-sol (recommended)", value:"gpt-5.6-sol", description:"Best current choice for FastLectures." },
         { name:"gpt-5.5", value:"gpt-5.5", description:"Minimum recommended generation." },
         { name:"Enter a model manually…", value:"__manual__", description:"Use any model ID supported by your installed CLI." },
       ]
     : [
         { name:"Use the Claude CLI default", value:"", description:"Do not pass an explicit model." },
-        ...(current ? [{ name:`Current PenEcho model: ${current}`, value:current }] : []),
+        ...(current ? [{ name:`Current FastLectures model: ${current}`, value:current }] : []),
         ...(detected ? [{ name:`Detected Claude model: ${detected}`, value:detected, description:"Read from the local Claude settings when available." }] : []),
         { name:"Opus alias (recommended for Opus 4.8 or newer)", value:"opus", description:"Uses the Opus alias resolved by your installed Claude CLI." },
-        { name:"claude-opus-4-6", value:"claude-opus-4-6", description:"Supported, but PenEcho quality may be lower." },
-        { name:"Sonnet alias", value:"sonnet", description:"Supported, but PenEcho quality may be lower." },
+        { name:"claude-opus-4-6", value:"claude-opus-4-6", description:"Supported, but FastLectures quality may be lower." },
+        { name:"Sonnet alias", value:"sonnet", description:"Supported, but FastLectures quality may be lower." },
         { name:"Enter a model manually…", value:"__manual__", description:"Use any model ID or alias supported by your installed CLI." },
       ];
   const selected = await ui.select("Model", uniqueChoices(choices), current || "");
@@ -205,7 +205,7 @@ async function configureClaude(ui, configuration, options) {
 
 async function configureKimi(ui, configuration, options) {
   ui.header("Kimi CLI", "Main menu  ›  LLM source  ›  Kimi CLI",
-    "Kimi Code CLI runs locally. PenEcho does not install or log in for you.\nmacOS/Linux: curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash\nWindows PowerShell: irm https://code.kimi.com/kimi-code/install.ps1 | iex\nThen run: kimi --version; kimi login\nOfficial guide: https://github.com/MoonshotAI/kimi-code");
+    "Kimi Code CLI runs locally. FastLectures does not install or log in for you.\nmacOS/Linux: curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash\nWindows PowerShell: irm https://code.kimi.com/kimi-code/install.ps1 | iex\nThen run: kimi --version; kimi login\nOfficial guide: https://github.com/MoonshotAI/kimi-code");
   const model = await chooseModel(ui, PROVIDERS.kimi, configuration),
     effort = await chooseEffort(ui, PROVIDERS.kimi, cleanText(configuration.env.AI_EFFORT));
   return finishProviderConfiguration(ui, configuration, {
@@ -217,7 +217,7 @@ async function configureKimi(ui, configuration, options) {
 
 async function configureCodex(ui, configuration, options) {
   ui.header("Codex CLI", "Main menu  ›  LLM source  ›  Codex CLI",
-    "Use GPT-5.5 or newer. gpt-5.6-sol is recommended and supports PenEcho's medium default plus higher effort levels.");
+    "Use GPT-5.5 or newer. gpt-5.6-sol is recommended and supports FastLectures's medium default plus higher effort levels.");
   const model = await chooseModel(ui, PROVIDERS.codex, configuration),
     effort = await chooseEffort(ui, PROVIDERS.codex, cleanText(configuration.env.AI_EFFORT));
   return finishProviderConfiguration(ui, configuration, {
@@ -271,16 +271,16 @@ async function configureSettings(ui, configuration, options) {
   const legacyTimeout = cleanText(env.CODEX_CLI_TIMEOUT_SECONDS || env.CLAUDE_CLI_TIMEOUT_SECONDS),
     timeout = cleanText(await ui.input("Unified model timeout in seconds", cleanText(env.AI_TIMEOUT_SECONDS) || legacyTimeout || "180", numberValidator("Timeout", 10, 600, true))),
     maxTokens = cleanText(await ui.input("Maximum response tokens (including thinking)", String(savedMaxTokens ?? DEFAULT_MAX_TOKENS), numberValidator("MAX_TOKENS", MIN_MAX_TOKENS, Number.MAX_SAFE_INTEGER, true, true))),
-    currentImageFormat = ["webp","png"].includes(cleanText(env.PENECHO_AI_IMAGE_FORMAT).toLowerCase()) ? cleanText(env.PENECHO_AI_IMAGE_FORMAT).toLowerCase() : "webp",
+    currentImageFormat = ["webp","png"].includes(cleanText(env.FASTLECTURES_AI_IMAGE_FORMAT).toLowerCase()) ? cleanText(env.FASTLECTURES_AI_IMAGE_FORMAT).toLowerCase() : "webp",
     imageFormat = await ui.select("Image format sent to the model", [
       { name:"WebP (recommended, default)", value:"webp", description:"Lossless and usually much smaller; applies to API, Kimi CLI, Codex CLI, and Claude CLI." },
       { name:"PNG", value:"png", description:"Send the original lossless canvas image without conversion." },
     ], currentImageFormat),
-    trace = await ui.confirm("Record complete AI request details", /^(?:1|true|yes|on)$/i.test(cleanText(env.PENECHO_REQUEST_TRACE))),
-    traceLimit = cleanText(await ui.input("Maximum retained request records", cleanText(env.PENECHO_REQUEST_TRACE_LIMIT) || "100", numberValidator("Retention", 1, 1000, true))),
+    trace = await ui.confirm("Record complete AI request details", /^(?:1|true|yes|on)$/i.test(cleanText(env.FASTLECTURES_REQUEST_TRACE))),
+    traceLimit = cleanText(await ui.input("Maximum retained request records", cleanText(env.FASTLECTURES_REQUEST_TRACE_LIMIT) || "100", numberValidator("Retention", 1, 1000, true))),
     currentHost = cleanText(env.HOST) || "0.0.0.0",
     hostChoice = await ui.select("Listening interface", uniqueChoices([
-      { name:"All network interfaces (LAN access)", value:"0.0.0.0", description:"Reach PenEcho from this computer and the local network." },
+      { name:"All network interfaces (LAN access)", value:"0.0.0.0", description:"Reach FastLectures from this computer and the local network." },
       { name:"This computer only", value:"127.0.0.1", description:"Only local browser connections are accepted." },
       ...(!["0.0.0.0","127.0.0.1"].includes(currentHost) ? [{ name:`Current custom interface: ${currentHost}`, value:currentHost }] : []),
       { name:"Enter an interface manually…", value:"__manual__" },
@@ -298,9 +298,9 @@ async function configureSettings(ui, configuration, options) {
   await options.save({
     AI_TIMEOUT_SECONDS:timeout,
     MAX_TOKENS:maxTokens,
-    PENECHO_AI_IMAGE_FORMAT:imageFormat,
-    PENECHO_REQUEST_TRACE:trace ? "true" : "false",
-    PENECHO_REQUEST_TRACE_LIMIT:traceLimit,
+    FASTLECTURES_AI_IMAGE_FORMAT:imageFormat,
+    FASTLECTURES_REQUEST_TRACE:trace ? "true" : "false",
+    FASTLECTURES_REQUEST_TRACE_LIMIT:traceLimit,
     HOST:host,
     PORT:port,
     AUTO_AI_DELAY_SECONDS:autoDelay,

@@ -30,14 +30,14 @@ test("Cloud Center exposes concise Projects, Favorites, and Echoes navigation", 
   assert.match(css, /\.cloud-section-tabs \{[^}]*display: grid/);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*?\.cloud-section-tabs \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.cloud-favorite-filters/);
-  assert.match(css, /\.cloud-workspace > \.penecho-cloud-panel \{[^}]*background: transparent[^}]*border: 0[^}]*padding: 0/);
+  assert.match(css, /\.cloud-workspace > \.fastlectures-cloud-panel \{[^}]*background: transparent[^}]*border: 0[^}]*padding: 0/);
 
-  assert.match(cloud, /localHostControlsAvailable = window\.PENECHO_CONFIG\?\.runtime !== "cloud"/);
+  assert.match(cloud, /localHostControlsAvailable = window\.FASTLECTURES_CONFIG\?\.runtime !== "cloud"/);
   assert.match(cloud, /layout\.classList\.toggle\("remote-cloud-runtime", !localHostControlsAvailable\)/);
   assert.match(cloud, /cloud-local-controls/);
-  assert.match(cloud, /class:"cloud-navigation penecho-workbench-navigation"/);
+  assert.match(cloud, /class:"cloud-navigation fastlectures-workbench-navigation"/);
   assert.match(cloud, /layout\.replaceChildren\(navigation, workspace\)/);
-  assert.match(cloud, /x-penecho-session/);
+  assert.match(cloud, /x-fastlectures-session/);
   assert.match(cloud, /\/api\/cloud\/library/);
   assert.match(cloud, /\/api\/cloud\/favorites\/feed\?/);
   assert.match(cloud, /openProjectCanvasHere\(canvas\.id, panel, row\)/);
@@ -45,8 +45,8 @@ test("Cloud Center exposes concise Projects, Favorites, and Echoes navigation", 
   assert.match(cloud, /text:cloudT\("openCanvasHere"\)/);
   assert.match(cloud, /text:cloudT\("addToCanvas"\)/);
   assert.doesNotMatch(cloud, /openCanvasInNewPage|\/canvas\/community\//);
-  assert.match(cloud, /window\.PenEchoCloudProjects/);
-  assert.match(cloud, /penecho-cloud-center-project/);
+  assert.match(cloud, /window\.FastLecturesCloudProjects/);
+  assert.match(cloud, /fastlectures-cloud-center-project/);
   assert.match(cloud, /class:"cloud-project-picker"/);
   assert.match(cloud, /text:cloudT\("newProject"\)/);
   assert.match(cloud, /text:cloudT\("saveCurrentHere"\)/);
@@ -60,7 +60,7 @@ test("Cloud Center exposes concise Projects, Favorites, and Echoes navigation", 
   assert.match(cloud, /continuationPrompt/);
   assert.match(cloud, /contributionNote/);
   assert.match(cloud, /parentItemId/);
-  assert.match(cloud, /window\.PenEchoCommunityUI/);
+  assert.match(cloud, /window\.FastLecturesCommunityUI/);
   assert.doesNotMatch(cloud, /priceCredits|Credit price|field\("Pricing"|price_low|price_high|Free \+ paid|Paid with credits/);
 
   assert.match(cloud, /startBrowserSignInWatch/);
@@ -77,7 +77,7 @@ test("Cloud Center exposes concise Projects, Favorites, and Echoes navigation", 
   assert.doesNotMatch(cloud, /refreshCurrentView/);
   assert.match(cloud, /remote \? Boolean\(remote\.deviceReady\) : Boolean\(state\.status\?\.device\?\.connected && !state\.statusUnavailable\)/);
   assert.match(cloud, /if \(previouslySignedIn !== accountSignedIn\(\)\)/);
-  assert.match(main, /desktopApp=process\.env\.PENECHO_DESKTOP_APP==="true"/);
+  assert.match(main, /desktopApp=process\.env\.FASTLECTURES_DESKTOP_APP==="true"/);
   assert.match(css, /\.cloud-section-tab \{[^}]*min-height: 2\.25rem/);
   assert.match(css, /@media \(pointer: coarse\)[\s\S]*?\.cloud-section-tab[\s\S]*?min-height: 2\.75rem/);
   assert.match(css, /\.cloud-project-card/);
@@ -89,7 +89,7 @@ test("Cloud Center exposes concise Projects, Favorites, and Echoes navigation", 
 
 test("local sign-in callback always closes its script-opened page after notifying an available opener", () => {
   const main = read("src/server/main.js");
-  assert.match(main, /Sign-in complete\. You can return to PenEcho and close this page\./);
+  assert.match(main, /Sign-in complete\. You can return to FastLectures and close this page\./);
   assert.match(main, /if\(window\.opener&&!window\.opener\.closed\)window\.opener\.postMessage/);
   assert.match(main, /const closePage=\(\)=>\{try\{window\.close\(\)\}catch\{\}\};closePage\(\);setTimeout\(closePage,120\);setTimeout\(closePage,700\)/);
   assert.doesNotMatch(main, /window\.location\.replace\("\/"\)/);
@@ -97,8 +97,8 @@ test("local sign-in callback always closes its script-opened page after notifyin
 
 test("Cloud sign-in selects Electron only from the renderer bridge", () => {
   const cloud = read("public/cloud-connect.js");
-  assert.match(cloud, /Boolean\(window\.penechoDesktop\)/);
-  assert.doesNotMatch(cloud, /PENECHO_CONFIG\?\.desktopApp/);
+  assert.match(cloud, /Boolean\(window\.fastlecturesDesktop\)/);
+  assert.doesNotMatch(cloud, /FASTLECTURES_CONFIG\?\.desktopApp/);
 });
 
 test("community artifacts have bounded WebP previews and import both Widgets and Canvases locally", () => {
@@ -113,15 +113,15 @@ test("community artifacts have bounded WebP previews and import both Widgets and
   assert.match(app, /async function importCommunityCanvasArtifact/);
   assert.match(app, /importCanvas:importCommunityCanvasArtifact/);
   assert.match(app, /communityOriginItemId/);
-  assert.match(app, /penechoCommunity/);
+  assert.match(app, /fastlecturesCommunity/);
   assert.match(app, /lineageForArtifact:communityLineageForArtifact/);
   assert.match(app, /markPublishedOrigin:markPublishedCommunityOrigin/);
   assert.match(app, /communityOriginGeneration/);
   assert.match(app, /persistCurrentCanvasCommunityOrigin/);
-  assert.match(main, /PENECHO_CLOUD_ENV/);
-  assert.match(main, /PENECHO_CLOUD_ORIGIN/);
-  assert.match(main, /https:\/\/internaltest\.penecho\.ai/);
-  assert.match(main, /https:\/\/penecho\.ai/);
+  assert.match(main, /FASTLECTURES_CLOUD_ENV/);
+  assert.match(main, /FASTLECTURES_CLOUD_ORIGIN/);
+  assert.match(main, /https:\/\/internaltest\.fastlectures\.ai/);
+  assert.match(main, /https:\/\/fastlectures\.ai/);
   assert.match(app, /Free community plugins/);
   assert.doesNotMatch(app, /points-priced|Share for points|earn points/);
 });

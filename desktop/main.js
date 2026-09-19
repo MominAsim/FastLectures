@@ -23,7 +23,7 @@ const { CANVAS_PAGE_SCALE, normalizeCanvasPageScale } = require("../public/page-
 const pkg = require("../package.json");
 const DESKTOP_VERSION = pkg.config?.desktopVersion || pkg.version;
 
-app.setName("PenEcho");
+app.setName("FastLectures");
 
 function handleSquirrelStartup() {
   if (process.platform !== "win32") return false;
@@ -60,8 +60,8 @@ if (!gotLock) app.quit();
 
 const ROOT = path.resolve(__dirname, ".."),
   CANVAS_PRELOAD = path.join(__dirname, "canvas-preload.js"),
-  WINDOW_ICON = path.join(ROOT, "build", "icons", "penecho.png"),
-  HELP_URL = "https://github.com/penecho/penecho#quick-start";
+  WINDOW_ICON = path.join(ROOT, "build", "icons", "fastlectures.png"),
+  HELP_URL = "https://github.com/fastlectures/fastlectures#quick-start";
 
 let mainWindow = null,
   server = null,
@@ -102,9 +102,10 @@ function loadConfiguration() {
   configuration.stateDir = paths.stateDir;
   configuration.configFile = paths.configFile;
   if (!unified) Object.assign(configuration.env, kimiPresetUpdates(configuration));
-  configuration.env.PENECHO_STATE_DIR = paths.stateDir;
-  configuration.env.PENECHO_PRIVATE_PLUGIN_DIR = paths.privatePlugins;
-  configuration.env.PENECHO_DESKTOP_APP = "true";
+  configuration.env.FASTLECTURES_STATE_DIR = paths.stateDir;
+  configuration.env.FASTLECTURES_PRIVATE_PLUGIN_DIR = paths.privatePlugins;
+  configuration.env.FASTLECTURES_DESKTOP_APP = "true";
+  configuration.env.FASTLECTURES_AUTH_ENABLED = "true";
   if (!configuration.env.HOST) configuration.env.HOST = "0.0.0.0";
   if (!configuration.env.PORT) configuration.env.PORT = "3888";
   if (apiKey) configuration.env.AI_API_KEY = apiKey;
@@ -126,8 +127,8 @@ function applyEnvironment(configuration) {
     else process.env[key] = String(value);
   }
   const paths = userPaths();
-  process.env.PENECHO_STATE_DIR = paths.stateDir;
-  process.env.PENECHO_PRIVATE_PLUGIN_DIR = paths.privatePlugins;
+  process.env.FASTLECTURES_STATE_DIR = paths.stateDir;
+  process.env.FASTLECTURES_PRIVATE_PLUGIN_DIR = paths.privatePlugins;
   process.env.HOST ||= "0.0.0.0";
   process.env.PORT ||= "3888";
 }
@@ -166,12 +167,12 @@ function showSettings() {
     const address = server.address(), port = typeof address === "object" && address ? address.port : 3888,
       host = process.env.HOST === "0.0.0.0" ? "127.0.0.1" : process.env.HOST || "127.0.0.1";
     const window = createMainWindow(`http://${host}:${port}/`);
-    window.webContents.once("did-finish-load", () => window.webContents.send("penecho:show-connections"));
+    window.webContents.once("did-finish-load", () => window.webContents.send("fastlectures:show-connections"));
     return;
   }
   mainWindow.show();
   mainWindow.focus();
-  mainWindow.webContents.send("penecho:show-connections");
+  mainWindow.webContents.send("fastlectures:show-connections");
 }
 
 function createMainWindow(url) {
@@ -186,7 +187,7 @@ function createMainWindow(url) {
     height:920,
     minWidth:820,
     minHeight:620,
-    title:"PenEcho",
+    title:"FastLectures",
     webPreferences:{ preload:CANVAS_PRELOAD, zoomFactor:CANVAS_PAGE_SCALE },
   }));
   restrictNavigation(mainWindow, candidate => {
@@ -203,9 +204,9 @@ async function showLanAccessNotice(window) {
   if (!currentLanUrls.length || !window || window.isDestroyed()) return;
   const result = await dialog.showMessageBox(window, {
     type:"info",
-    title:"PenEcho on your local network",
-    message:"PenEcho is available to devices on your local network.",
-    detail:`Open this address on another device:\n\n${currentLanUrls.join("\n")}\n\nKeep PenEcho open, and use this only on a trusted network.`,
+    title:"FastLectures on your local network",
+    message:"FastLectures is available to devices on your local network.",
+    detail:`Open this address on another device:\n\n${currentLanUrls.join("\n")}\n\nKeep FastLectures open, and use this only on a trusted network.`,
     buttons:["Copy address", "Done"],
     defaultId:1,
     cancelId:1,
@@ -214,7 +215,7 @@ async function showLanAccessNotice(window) {
 }
 
 function startServer(configuration) {
-  configuration.env.PENECHO_CONFIG_FILE = configuration.configFile;
+  configuration.env.FASTLECTURES_CONFIG_FILE = configuration.configFile;
   applyEnvironment(configuration);
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -230,7 +231,7 @@ function startServer(configuration) {
       resolve(`http://${host}:${port}/`);
     });
     const fail = complete(reject);
-    const timer = setTimeout(() => fail(new Error("PenEcho server did not become ready.")), 10000);
+    const timer = setTimeout(() => fail(new Error("FastLectures server did not become ready.")), 10000);
     try {
       server = require("../server.js");
       server.once("error", fail);
@@ -242,7 +243,7 @@ function startServer(configuration) {
 
 function sendUpdateState(window) {
   if (!window || window.isDestroyed() || !updateManager) return;
-  window.webContents.send("penecho:update-state", updateManager.getState());
+  window.webContents.send("fastlectures:update-state", updateManager.getState());
 }
 
 function updateDesktopUpdateUi() {
@@ -252,7 +253,7 @@ function updateDesktopUpdateUi() {
 function installMenu() {
   const template = [
     ...(process.platform === "darwin" ? [{
-      label:"PenEcho",
+      label:"FastLectures",
       submenu:[
         { role:"about" },
         { type:"separator" },
@@ -375,10 +376,10 @@ async function readCanvasClipboardFiles() {
 
 function registerIpc() {
   const fromCanvas = event => Boolean(mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents);
-  ipcMain.on("penecho:has-clipboard-file", event => { event.returnValue=fromCanvas(event)&&clipboardFilePaths().length>0; });
-  ipcMain.handle("penecho:read-clipboard-file", event => fromCanvas(event)?readCanvasClipboardFile():{ok:false});
-  ipcMain.handle("penecho:read-clipboard-files", event => fromCanvas(event)?readCanvasClipboardFiles():{ok:false});
-  ipcMain.handle("penecho:open-project-file", async (event,projectId) => {
+  ipcMain.on("fastlectures:has-clipboard-file", event => { event.returnValue=fromCanvas(event)&&clipboardFilePaths().length>0; });
+  ipcMain.handle("fastlectures:read-clipboard-file", event => fromCanvas(event)?readCanvasClipboardFile():{ok:false});
+  ipcMain.handle("fastlectures:read-clipboard-files", event => fromCanvas(event)?readCanvasClipboardFiles():{ok:false});
+  ipcMain.handle("fastlectures:open-project-file", async (event,projectId) => {
     if(!fromCanvas(event))return {ok:false};
     try{
       const project=await canvasAgentDesktopProjectStore().resolve(String(projectId||""));
@@ -387,7 +388,7 @@ function registerIpc() {
       return error?{ok:false,code:"open_failed"}:{ok:true};
     }catch{return {ok:false,code:"unavailable"};}
   });
-  ipcMain.handle("penecho:pick-project-file", async event => {
+  ipcMain.handle("fastlectures:pick-project-file", async event => {
     if (!fromCanvas(event)) return { canceled:true };
     const result = await dialog.showOpenDialog(mainWindow, {
       title:"Choose a local file",
@@ -425,25 +426,25 @@ function registerIpc() {
     if (result.canceled || !selectedPath) return { canceled:true };
     return { canceled:false, path:selectedPath, pickerToken:issueNativePickerGrant({ selectedPath, kind:"file" }) };
   });
-  ipcMain.handle("penecho:get-update-state", event => fromCanvas(event) ? updateManager?.getState() : null);
-  ipcMain.handle("penecho:update-check", event => fromCanvas(event) ? updateManager?.check(true) : false);
-  ipcMain.handle("penecho:update-download", event => fromCanvas(event) ? updateManager?.download() : false);
-  ipcMain.handle("penecho:update-dismiss", event => fromCanvas(event) ? updateManager?.dismiss() : false);
-  ipcMain.handle("penecho:update-install", event => fromCanvas(event) ? updateManager?.install() : false);
-  ipcMain.handle("penecho:set-page-scale", (event, value) => {
+  ipcMain.handle("fastlectures:get-update-state", event => fromCanvas(event) ? updateManager?.getState() : null);
+  ipcMain.handle("fastlectures:update-check", event => fromCanvas(event) ? updateManager?.check(true) : false);
+  ipcMain.handle("fastlectures:update-download", event => fromCanvas(event) ? updateManager?.download() : false);
+  ipcMain.handle("fastlectures:update-dismiss", event => fromCanvas(event) ? updateManager?.dismiss() : false);
+  ipcMain.handle("fastlectures:update-install", event => fromCanvas(event) ? updateManager?.install() : false);
+  ipcMain.handle("fastlectures:set-page-scale", (event, value) => {
     if (!fromCanvas(event) || !mainWindow || mainWindow.isDestroyed()) return { ok:false };
     const scale = normalizeCanvasPageScale(value);
     mainWindow.webContents.setZoomFactor(scale);
     return { ok:true, scale };
   });
-  ipcMain.handle("penecho:copy-text", (_event, input) => {
+  ipcMain.handle("fastlectures:copy-text", (_event, input) => {
     const text = String(input ?? "");
     if (!text || text.length > 4096 || /[\r\n\0]/.test(text)) return { ok:false };
     clipboard.writeText(text);
     return { ok:true };
   });
-  ipcMain.handle("penecho:install-cli", async (event, provider) => {
-    if (!fromCanvas(event)) return { ok:false, error:"CLI installation is available only in the PenEcho desktop application." };
+  ipcMain.handle("fastlectures:install-cli", async (event, provider) => {
+    if (!fromCanvas(event)) return { ok:false, error:"CLI installation is available only in the FastLectures desktop application." };
     if (cliOperation) return { ok:false, error:"Another CLI setup operation is already running." };
     cliOperation = `install:${provider}`;
     try {
@@ -463,7 +464,7 @@ function registerIpc() {
       return { ok:false, error:error.message || "Automatic installation failed." };
     } finally { cliOperation = null; }
   });
-  ipcMain.handle("penecho:open-help", () => shell.openExternal(HELP_URL));
+  ipcMain.handle("fastlectures:open-help", () => shell.openExternal(HELP_URL));
 }
 
 async function bootstrap() {
@@ -487,8 +488,8 @@ async function bootstrap() {
   } catch (error) {
     await dialog.showMessageBox({
       type:"error",
-      title:"PenEcho could not start",
-      message:"PenEcho could not start its local canvas service.",
+      title:"FastLectures could not start",
+      message:"FastLectures could not start its local canvas service.",
       detail:error.message || String(error),
     });
     app.quit();
@@ -504,7 +505,7 @@ if (gotLock) {
     window.focus();
   });
   app.whenReady().then(bootstrap).catch(error => {
-    void dialog.showErrorBox("PenEcho startup failed", error.message || String(error));
+    void dialog.showErrorBox("FastLectures startup failed", error.message || String(error));
     app.quit();
   });
   app.on("activate", () => {
